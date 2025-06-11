@@ -44,3 +44,6 @@ functions/npm-debug.log
 
 # ==== Logs ====
 *.log
+
+
+.history/
