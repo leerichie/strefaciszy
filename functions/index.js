@@ -4,60 +4,137 @@ const functions = require('firebase-functions');
 const admin     = require('firebase-admin');
 admin.initializeApp();
 
-// Helper: check if caller is admin
-async function assertAdmin(context) {
-  if (!context.auth) {
-    throw new functions.https.HttpsError("unauthenticated", "Must be signed in");
+// Helper: parse & verify the bearer token, and enforce admin
+async function verifyAdmin(req, res) {
+  const auth = req.header('Authorization') || '';
+  const match = auth.match(/^Bearer (.+)$/);
+  if (!match) {
+    res.status(401).json({error: 'Unauthenticated'});
+    return null;
   }
-  const token = await admin.auth().verifyIdToken(context.auth.token);
-  if (!token.admin) {
-    throw new functions.https.HttpsError("permission-denied", "Admin only");
+
+  let decoded;
+  try {
+    decoded = await admin.auth().verifyIdToken(match[1]);
+  } catch (e) {
+    res.status(401).json({error: 'Invalid token'});
+    return null;
   }
+
+  if (!decoded.admin) {
+    res.status(403).json({error: 'Admin only'});
+    return null;
+  }
+
+  return decoded.uid;
 }
 
+const corsHeaders = {
+  'Access-Control-Allow-Origin': '*',
+  'Access-Control-Allow-Headers': 'Authorization, Content-Type',
+};
+
 // 1) List users (up to 1000)
-exports.listUsers = functions.https.onCall(async (data, context) => {
-  console.log("🔥 listUsers invoked");
-  console.log("🔥 context.auth:", context.auth);
-  console.log("🔥 context.auth.token:", context.auth && context.auth.token);
-  await assertAdmin(context);
+exports.listUsersHttp = functions.https.onRequest(async (req, res) => {
+  // CORS preflight
+  if (req.method === 'OPTIONS') {
+    return res.status(204).set(corsHeaders).send('');
+  }
+  res.set(corsHeaders);
 
+  const adminUid = await verifyAdmin(req, res);
+  if (!adminUid) return;
 
-  const list = await admin.auth().listUsers(1000);
-  const results = await Promise.all(list.users.map(async (u) => {
-    const snap = await admin.firestore().collection("users").doc(u.uid).get();
-    return {
-      uid: u.uid,
-      email: u.email,
-      role: (snap.exists && snap.data().role) || "user",
-    };
-  }));
-  return results;
+  try {
+    const list = await admin.auth().listUsers(1000);
+    const results = await Promise.all(
+        list.users.map(async (u) => {
+          const snap = await admin.firestore().collection('users').doc(u.uid).get();
+          return {
+            uid: u.uid,
+            email: u.email,
+            role: snap.exists ? snap.data().role : 'user',
+          };
+        }),
+    );
+    return res.json(results);
+  } catch (e) {
+    console.error('Error listing users:', e);
+    return res.status(500).json({error: 'Internal error'});
+  }
 });
 
 // 2) Create a new user + Firestore role doc
-exports.createUser = functions.https.onCall(async (data, context) => {
-  await assertAdmin(context);
-  const {email, password, role} = data;
-  const user = await admin.auth().createUser({email, password});
-  await admin.firestore().collection("users").doc(user.uid).set({role});
-  return {uid: user.uid, email: user.email, role};
+exports.createUserHttp = functions.https.onRequest(async (req, res) => {
+  if (req.method === 'OPTIONS') {
+    return res.status(204).set(corsHeaders).send('');
+  }
+  res.set(corsHeaders);
+
+  const adminUid = await verifyAdmin(req, res);
+  if (!adminUid) return;
+
+  const {email, password, role} = req.body;
+  if (!email || !password || !role) {
+    return res.status(400).json({error: 'Missing parameters'});
+  }
+
+  try {
+    const user = await admin.auth().createUser({email, password});
+    await admin.firestore().collection('users').doc(user.uid).set({role});
+    return res.json({uid: user.uid, email: user.email, role});
+  } catch (e) {
+    console.error('Error creating user:', e);
+    return res.status(500).json({error: 'Internal error'});
+  }
 });
 
 // 3) Update a user’s role
-exports.updateUserRole = functions.https.onCall(async (data, context) => {
-  await assertAdmin(context);
-  const {uid, role} = data;
-  await admin.firestore().collection("users").doc(uid).update({role});
-  await admin.auth().setCustomUserClaims(uid, {admin: role === "admin"});
-  return {uid, role};
+exports.updateUserRoleHttp = functions.https.onRequest(async (req, res) => {
+  if (req.method === 'OPTIONS') {
+    return res.status(204).set(corsHeaders).send('');
+  }
+  res.set(corsHeaders);
+
+  const adminUid = await verifyAdmin(req, res);
+  if (!adminUid) return;
+
+  const {uid, role} = req.body;
+  if (!uid || !role) {
+    return res.status(400).json({error: 'Missing parameters'});
+  }
+
+  try {
+    await admin.firestore().collection('users').doc(uid).update({role});
+    await admin.auth().setCustomUserClaims(uid, {admin: role === 'admin'});
+    return res.json({uid, role});
+  } catch (e) {
+    console.error('Error updating role:', e);
+    return res.status(500).json({error: 'Internal error'});
+  }
 });
 
 // 4) Delete a user (Auth + Firestore)
-exports.deleteUser = functions.https.onCall(async (data, context) => {
-  await assertAdmin(context);
-  const {uid} = data;
-  await admin.auth().deleteUser(uid);
-  await admin.firestore().collection("users").doc(uid).delete();
-  return {uid};
+exports.deleteUserHttp = functions.https.onRequest(async (req, res) => {
+  if (req.method === 'OPTIONS') {
+    return res.status(204).set(corsHeaders).send('');
+  }
+  res.set(corsHeaders);
+
+  const adminUid = await verifyAdmin(req, res);
+  if (!adminUid) return;
+
+  const {uid} = req.body;
+  if (!uid) {
+    return res.status(400).json({error: 'Missing uid'});
+  }
+
+  try {
+    await admin.auth().deleteUser(uid);
+    await admin.firestore().collection('users').doc(uid).delete();
+    return res.json({uid});
+  } catch (e) {
+    console.error('Error deleting user:', e);
+    return res.status(500).json({error: 'Internal error'});
+  }
 });
