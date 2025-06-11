@@ -1,16 +1,46 @@
-# Flutter / Dart
+# ==== Flutter / Dart ====
 .dart_tool/
 .packages
+.pub-cache/
+.flutter-plugins
+.flutter-plugins-dependencies
+.flutter-version
 pubspec.lock
 build/
 
-# IDEs
+# ==== IDEs ====
 .idea/
-*.iml
 .vscode/
+*.iml
 
-# Secrets
-service-account.json
-*.key
-*.pem
-.env
+# ==== macOS ====
+*.DS_Store
+
+# ==== Android ====
+android/.gradle/
+android/.idea/
+# android/app/google-services.json        
+android/app/*.keystore
+android/local.properties
+
+# ==== iOS ====
+ios/Pods/
+ios/Podfile.lock
+# ios/Runner/GoogleService-Info.plist    
+ios/Runner.xcworkspace/
+ios/Flutter/Flutter.framework
+ios/Flutter/Flutter.podspec
+ios/Flutter/engine/*
+ios/.symlinks/
+*.xcuserdata/
+
+# ==== Firebase Functions ====
+functions/node_modules/
+functions/.firebase/
+functions/.runtimeconfig.json
+functions/service-account.json          
+functions/package-lock.json
+functions/npm-debug.log
+
+# ==== Logs ====
+*.log

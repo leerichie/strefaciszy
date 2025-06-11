@@ -5,7 +5,7 @@ import 'manage_users_screen.dart';
 
 class MainMenuScreen extends StatelessWidget {
   final String role;
-  MainMenuScreen({Key? key, required this.role}) : super(key: key);
+  const MainMenuScreen({super.key, required this.role});
 
   static const String routeName = '/main-menu';
 

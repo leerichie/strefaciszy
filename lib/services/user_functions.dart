@@ -1,15 +1,30 @@
-import 'package:cloud_functions/cloud_functions.dart';
+import 'dart:convert';
+import 'package:http/http.dart' as http;
+import 'package:firebase_auth/firebase_auth.dart';
 
 class UserFunctions {
-  final _functions = FirebaseFunctions.instanceFor(region: 'us-central1');
+  static const _baseUrl = 'https://us-central1-strefa-ciszy.cloudfunctions.net';
 
   Future<List<Map<String, dynamic>>> listUsers() async {
-    final callable = _functions.httpsCallable('listUsers');
-    final result = await callable();
-    final raw = result.data as List;
-    return raw.map((e) {
-      return Map<String, dynamic>.from(e as Map);
-    }).toList();
+    final user = FirebaseAuth.instance.currentUser;
+    if (user == null) throw Exception('Not signed in');
+    final idToken = await user.getIdToken();
+
+    final resp = await http.get(
+      Uri.parse('$_baseUrl/listUsersHttp'),
+      headers: {
+        'Authorization': 'Bearer $idToken',
+        'Content-Type': 'application/json',
+      },
+    );
+
+    if (resp.statusCode != 200) {
+      final body = jsonDecode(resp.body);
+      throw Exception('Error ${resp.statusCode}: ${body['error']}');
+    }
+
+    final List data = jsonDecode(resp.body) as List;
+    return data.map((e) => Map<String, dynamic>.from(e as Map)).toList();
   }
 
   Future<Map<String, dynamic>> createUser(
@@ -17,22 +32,64 @@ class UserFunctions {
     String password,
     String role,
   ) async {
-    final res = await _functions.httpsCallable('createUser')({
-      'email': email,
-      'password': password,
-      'role': role,
-    });
-    return Map<String, dynamic>.from(res.data as Map);
+    final user = FirebaseAuth.instance.currentUser;
+    if (user == null) throw Exception('Not signed in');
+    final idToken = await user.getIdToken();
+
+    final resp = await http.post(
+      Uri.parse('$_baseUrl/createUserHttp'),
+      headers: {
+        'Authorization': 'Bearer $idToken',
+        'Content-Type': 'application/json',
+      },
+      body: jsonEncode({'email': email, 'password': password, 'role': role}),
+    );
+
+    if (resp.statusCode != 200) {
+      final body = jsonDecode(resp.body);
+      throw Exception('Error ${resp.statusCode}: ${body['error']}');
+    }
+
+    return Map<String, dynamic>.from(jsonDecode(resp.body) as Map);
   }
 
   Future<void> updateUserRole(String uid, String role) async {
-    await _functions.httpsCallable('updateUserRole')({
-      'uid': uid,
-      'role': role,
-    });
+    final user = FirebaseAuth.instance.currentUser;
+    if (user == null) throw Exception('Not signed in');
+    final idToken = await user.getIdToken();
+
+    final resp = await http.post(
+      Uri.parse('$_baseUrl/updateUserRoleHttp'),
+      headers: {
+        'Authorization': 'Bearer $idToken',
+        'Content-Type': 'application/json',
+      },
+      body: jsonEncode({'uid': uid, 'role': role}),
+    );
+
+    if (resp.statusCode != 200) {
+      final body = jsonDecode(resp.body);
+      throw Exception('Error ${resp.statusCode}: ${body['error']}');
+    }
   }
 
   Future<void> deleteUser(String uid) async {
-    await _functions.httpsCallable('deleteUser')({'uid': uid});
+    final user = FirebaseAuth.instance.currentUser;
+    if (user == null) throw Exception('Not signed in');
+    final idToken = await user.getIdToken();
+
+    final resp = await http.post(
+      Uri.parse('$_baseUrl/deleteUserHttp'),
+      headers: {
+        'Authorization': 'Bearer $idToken',
+        'Content-Type': 'application/json',
+      },
+      body: jsonEncode({'uid': uid}),
+    );
+
+    if (resp.statusCode != 200) {
+      final body = jsonDecode(resp.body);
+      throw Exception('Error ${resp.statusCode}: ${body['error']}');
+    }
   }
 }

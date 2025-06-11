@@ -3,6 +3,8 @@ import 'package:firebase_auth/firebase_auth.dart';
 
 class LoginScreen extends StatefulWidget {
   static const String routeName = '/login';
+
+  const LoginScreen({super.key});
   @override
   _LoginScreenState createState() => _LoginScreenState();
 }
@@ -11,6 +13,7 @@ class _LoginScreenState extends State<LoginScreen> {
   final _emailCtrl = TextEditingController();
   final _passCtrl = TextEditingController();
   String? _error;
+  final bool _isLoading = false;
 
   @override
   void dispose() {
@@ -60,7 +63,17 @@ class _LoginScreenState extends State<LoginScreen> {
                 obscureText: true,
               ),
               SizedBox(height: 32),
-              ElevatedButton(onPressed: _signIn, child: Text('Sign In')),
+              ElevatedButton(
+                onPressed: _isLoading ? null : _signIn,
+                child:
+                    _isLoading
+                        ? SizedBox(
+                          width: 24,
+                          height: 24,
+                          child: CircularProgressIndicator(strokeWidth: 2),
+                        )
+                        : Text('Sign In'),
+              ),
             ],
           ),
         ),
