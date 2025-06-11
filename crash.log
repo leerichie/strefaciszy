@@ -1,0 +1,1039 @@
+--------- beginning of main
+06-11 12:58:49.212  1101  1286 D SatelliteController: iisInCarrierRoamingNbIotNtn: satellite is disabled
+06-11 12:58:49.990  1596  1990 I batq    : (REDACTED) getHotwordActive::active query: %s, watch: %s, devices connected: %s
+06-11 12:58:56.873   686   771 E system_server: updateValue is called with a value 8604, which is lower than the previous value 8624
+--------- beginning of system
+06-11 12:58:56.890   686   771 E BluetoothPowerStatsCollector: Cannot acquire BluetoothActivityEnergyInfo
+06-11 12:58:56.890   686   771 E BluetoothPowerStatsCollector: java.util.concurrent.ExecutionException: java.lang.RuntimeException: error: 11
+06-11 12:58:56.890   686   771 E BluetoothPowerStatsCollector: 	at java.util.concurrent.CompletableFuture.reportGet(CompletableFuture.java:372)
+06-11 12:58:56.890   686   771 E BluetoothPowerStatsCollector: 	at java.util.concurrent.CompletableFuture.get(CompletableFuture.java:2072)
+06-11 12:58:56.890   686   771 E BluetoothPowerStatsCollector: 	at com.android.server.power.stats.BluetoothPowerStatsCollector.collectBluetoothActivityInfo(BluetoothPowerStatsCollector.java:192)
+06-11 12:58:56.890   686   771 E BluetoothPowerStatsCollector: 	at com.android.server.power.stats.BluetoothPowerStatsCollector.collectStats(BluetoothPowerStatsCollector.java:155)
+06-11 12:58:56.890   686   771 E BluetoothPowerStatsCollector: 	at com.android.server.power.stats.PowerStatsCollector.collectAndDeliverStats(PowerStatsCollector.java:176)
+06-11 12:58:56.890   686   771 E BluetoothPowerStatsCollector: 	at com.android.server.power.stats.PowerStatsCollector$$ExternalSyntheticLambda0.run(R8$$SyntheticClass:0)
+06-11 12:58:56.890   686   771 E BluetoothPowerStatsCollector: 	at android.os.Handler.handleCallback(Handler.java:995)
+06-11 12:58:56.890   686   771 E BluetoothPowerStatsCollector: 	at android.os.Handler.dispatchMessage(Handler.java:103)
+06-11 12:58:56.890   686   771 E BluetoothPowerStatsCollector: 	at android.os.Looper.loopOnce(Looper.java:248)
+06-11 12:58:56.890   686   771 E BluetoothPowerStatsCollector: 	at android.os.Looper.loop(Looper.java:338)
+06-11 12:58:56.890   686   771 E BluetoothPowerStatsCollector: 	at android.os.HandlerThread.run(HandlerThread.java:85)
+06-11 12:58:56.890   686   771 E BluetoothPowerStatsCollector: Caused by: java.lang.RuntimeException: error: 11
+06-11 12:58:56.890   686   771 E BluetoothPowerStatsCollector: 	at com.android.server.power.stats.BluetoothPowerStatsCollector$1.onBluetoothActivityEnergyInfoError(BluetoothPowerStatsCollector.java:181)
+06-11 12:58:56.890   686   771 E BluetoothPowerStatsCollector: 	at android.bluetooth.BluetoothAdapter$OnBluetoothActivityEnergyInfoProxy.lambda$onBluetoothActivityEnergyInfoAvailable$0(BluetoothAdapter.java:1037)
+06-11 12:58:56.890   686   771 E BluetoothPowerStatsCollector: 	at android.bluetooth.BluetoothAdapter$OnBluetoothActivityEnergyInfoProxy$$ExternalSyntheticLambda1.run(D8$$SyntheticClass:0)
+06-11 12:58:56.890   686   771 E BluetoothPowerStatsCollector: 	at android.bluetooth.BluetoothUtils.lambda$executeFromBinder$0(BluetoothUtils.java:343)
+06-11 12:58:56.890   686   771 E BluetoothPowerStatsCollector: 	at android.bluetooth.BluetoothUtils$$ExternalSyntheticLambda1.run(D8$$SyntheticClass:0)
+06-11 12:58:56.890   686   771 E BluetoothPowerStatsCollector: 	at com.android.server.SystemServerInitThreadPool$$ExternalSyntheticLambda0.execute(R8$$SyntheticClass:0)
+06-11 12:58:56.890   686   771 E BluetoothPowerStatsCollector: 	at android.bluetooth.BluetoothUtils.executeFromBinder(BluetoothUtils.java:343)
+06-11 12:58:56.890   686   771 E BluetoothPowerStatsCollector: 	at android.bluetooth.BluetoothAdapter$OnBluetoothActivityEnergyInfoProxy.onBluetoothActivityEnergyInfoAvailable(BluetoothAdapter.java:1035)
+06-11 12:58:56.890   686   771 E BluetoothPowerStatsCollector: 	at android.bluetooth.IBluetoothActivityEnergyInfoListener$Stub.onTransact(IBluetoothActivityEnergyInfoListener.java:98)
+06-11 12:58:56.890   686   771 E BluetoothPowerStatsCollector: 	at android.os.Binder.execTransactInternal(Binder.java:1426)
+06-11 12:58:56.890   686   771 E BluetoothPowerStatsCollector: 	at android.os.Binder.execTransact(Binder.java:1365)
+06-11 12:58:56.905   686  1563 D TelephonyManager: requestModemActivityInfo: Sending result to app: ModemActivityInfo{ mTimestamp=1800057 mSleepTimeMs=252 mIdleTimeMs=84 mActivityStatsTechSpecificInfo=[{mRat=UNKNOWN,mFrequencyRange=UNKNOWN,mTxTimeMs[]=[6, 18, 36, 48, 54],mRxTimeMs=54}]}
+06-11 12:58:59.212  1101  1286 D SatelliteController: iisInCarrierRoamingNbIotNtn: satellite is disabled
+06-11 12:59:06.172   686  1321 I ActivityManager: Force stopping com.ash.strefaciszy appid=10220 user=0: from pid 5902
+06-11 12:59:06.173   686  1321 W IPCThreadState: Sending oneway calls to frozen process.
+06-11 12:59:06.173   686  1321 W IPCThreadState: Sending oneway calls to frozen process.
+06-11 12:59:06.173   686  1321 W IPCThreadState: Sending oneway calls to frozen process.
+06-11 12:59:06.173   686  1321 W IPCThreadState: Sending oneway calls to frozen process.
+06-11 12:59:06.173   686  1321 W IPCThreadState: Sending oneway calls to frozen process.
+06-11 12:59:06.173   686  1321 W IPCThreadState: Sending oneway calls to frozen process.
+06-11 12:59:06.173   686  1321 W IPCThreadState: Sending oneway calls to frozen process.
+06-11 12:59:06.173   686  1321 W IPCThreadState: Sending oneway calls to frozen process.
+06-11 12:59:06.173   686  1321 W IPCThreadState: Sending oneway calls to frozen process.
+06-11 12:59:06.173   686  1321 W IPCThreadState: Sending oneway calls to frozen process.
+06-11 12:59:06.173   686  1321 W IPCThreadState: Sending oneway calls to frozen process.
+06-11 12:59:06.173   686  1321 W IPCThreadState: Sending oneway calls to frozen process.
+06-11 12:59:06.173   686  1321 W IPCThreadState: Sending oneway calls to frozen process.
+06-11 12:59:06.173   686  1321 W IPCThreadState: Sending oneway calls to frozen process.
+06-11 12:59:06.173   686  1321 W IPCThreadState: Sending oneway calls to frozen process.
+06-11 12:59:06.173   686  1321 W IPCThreadState: Sending oneway calls to frozen process.
+06-11 12:59:06.173   686  1321 W IPCThreadState: Sending oneway calls to frozen process.
+06-11 12:59:06.174   686  1321 W IPCThreadState: Sending oneway calls to frozen process.
+06-11 12:59:06.174   686  1321 W IPCThreadState: Sending oneway calls to frozen process.
+06-11 12:59:06.174   686  1321 W IPCThreadState: Sending oneway calls to frozen process.
+06-11 12:59:06.174   686  1321 W IPCThreadState: Sending oneway calls to frozen process.
+06-11 12:59:06.174   686  1321 W IPCThreadState: Sending oneway calls to frozen process.
+06-11 12:59:06.174   686  1321 W IPCThreadState: Sending oneway calls to frozen process.
+06-11 12:59:06.174   686  1321 W IPCThreadState: Sending oneway calls to frozen process.
+06-11 12:59:06.174   686  1321 W IPCThreadState: Sending oneway calls to frozen process.
+06-11 12:59:06.174   686  1321 W IPCThreadState: Sending oneway calls to frozen process.
+06-11 12:59:06.174   686  1321 W IPCThreadState: Sending oneway calls to frozen process.
+06-11 12:59:06.174   686  1321 W IPCThreadState: Sending oneway calls to frozen process.
+06-11 12:59:06.174   686  1321 W IPCThreadState: Sending oneway calls to frozen process.
+06-11 12:59:06.174   686  1321 W IPCThreadState: Sending oneway calls to frozen process.
+06-11 12:59:06.174   686  1321 W IPCThreadState: Sending oneway calls to frozen process.
+06-11 12:59:06.174   686  1321 W IPCThreadState: Sending oneway calls to frozen process.
+06-11 12:59:06.174   686  1321 W IPCThreadState: Sending oneway calls to frozen process.
+06-11 12:59:06.174   686  1321 W IPCThreadState: Sending oneway calls to frozen process.
+06-11 12:59:06.174   686  1321 W IPCThreadState: Sending oneway calls to frozen process.
+06-11 12:59:06.174   686  1321 W IPCThreadState: Sending oneway calls to frozen process.
+06-11 12:59:06.174   686  1321 W IPCThreadState: Sending oneway calls to frozen process.
+06-11 12:59:06.174   686  1321 W IPCThreadState: Sending oneway calls to frozen process.
+06-11 12:59:06.174   686  1321 W IPCThreadState: Sending oneway calls to frozen process.
+06-11 12:59:06.174   686  1321 W IPCThreadState: Sending oneway calls to frozen process.
+06-11 12:59:06.174   686  1321 W IPCThreadState: Sending oneway calls to frozen process.
+06-11 12:59:06.174   686  1321 W IPCThreadState: Sending oneway calls to frozen process.
+06-11 12:59:06.174   686  1321 W IPCThreadState: Sending oneway calls to frozen process.
+06-11 12:59:06.174   686  1321 W IPCThreadState: Sending oneway calls to frozen process.
+06-11 12:59:06.174   686  1321 W IPCThreadState: Sending oneway calls to frozen process.
+06-11 12:59:06.174   686  1321 W IPCThreadState: Sending oneway calls to frozen process.
+06-11 12:59:06.174   686  1321 W IPCThreadState: Sending oneway calls to frozen process.
+06-11 12:59:06.174   686  1321 W IPCThreadState: Sending oneway calls to frozen process.
+06-11 12:59:06.174   686  1321 W IPCThreadState: Sending oneway calls to frozen process.
+06-11 12:59:06.174   686  1321 W IPCThreadState: Sending oneway calls to frozen process.
+06-11 12:59:06.176   686  1321 I AppsFilter: interaction: PackageSetting{ca8949b com.android.microdroid.empty_payload/10200} -> PackageSetting{ab5b0d com.ash.strefaciszy/10220} BLOCKED
+06-11 12:59:06.176   686  1321 I AppsFilter: interaction: PackageSetting{e7c4811 com.ashapp.horsevibe/10215} -> PackageSetting{ab5b0d com.ash.strefaciszy/10220} BLOCKED
+06-11 12:59:06.176   686  1321 I AppsFilter: interaction: PackageSetting{4f1df77 com.example.strefa_ciszy/10216} -> PackageSetting{ab5b0d com.ash.strefaciszy/10220} BLOCKED
+06-11 12:59:06.179  1101  1101 D CarrierSvcBindHelper: onHandleForceStop: [com.ash.strefaciszy]
+06-11 12:59:06.181  1101  1101 D CarrierSvcBindHelper: No carrier app for: 0
+06-11 12:59:06.187   686   848 I system_server: AssetManager2(0x7c1932337df8) locale list changing from [] to [en-US]
+06-11 12:59:06.192  4169  4169 I abb     : StartCommandInProcess(73657474696e67730067657400676c6f settings.get.glo [truncated])
+06-11 12:59:06.194  4169  4169 I abb     : StartCommandInProcess(7061636b61676500696e7374616c6c00 package.install. [truncated])
+06-11 12:59:06.191   686   686 W binder:686_D: type=1400 audit(0.0:99): avc:  denied  { getopt } for  scontext=u:r:system_server:s0 tcontext=u:r:shell:s0 tclass=unix_stream_socket permissive=0
+06-11 12:59:06.191   686   686 W binder:686_D: type=1400 audit(0.0:100): avc:  denied  { getopt } for  scontext=u:r:system_server:s0 tcontext=u:r:shell:s0 tclass=unix_stream_socket permissive=0
+06-11 12:59:06.191   686   686 W binder:686_D: type=1400 audit(0.0:101): avc:  denied  { getopt } for  scontext=u:r:system_server:s0 tcontext=u:r:shell:s0 tclass=unix_stream_socket permissive=0
+06-11 12:59:06.199   686   848 I system_server: AssetManager2(0x7c19324207d8) locale list changing from [] to [en-US]
+06-11 12:59:06.201   686   804 W IPCThreadState: Sending oneway calls to frozen process.
+06-11 12:59:06.204   686   804 W IPCThreadState: Sending oneway calls to frozen process.
+06-11 12:59:06.212   686   804 W IPCThreadState: Sending oneway calls to frozen process.
+06-11 12:59:06.214   686   804 W IPCThreadState: Sending oneway calls to frozen process.
+06-11 12:59:06.218   686   804 W IPCThreadState: Sending oneway calls to frozen process.
+06-11 12:59:06.219   686   804 W IPCThreadState: Sending oneway calls to frozen process.
+06-11 12:59:06.222   686   804 W IPCThreadState: Sending oneway calls to frozen process.
+06-11 12:59:06.223   686   804 W IPCThreadState: Sending oneway calls to frozen process.
+06-11 12:59:06.224   686   804 W IPCThreadState: Sending oneway calls to frozen process.
+06-11 12:59:06.227   686   804 W IPCThreadState: Sending oneway calls to frozen process.
+06-11 12:59:06.230   686   804 W IPCThreadState: Sending oneway calls to frozen process.
+06-11 12:59:06.231   686   804 W IPCThreadState: Sending oneway calls to frozen process.
+06-11 12:59:06.232   686   804 W IPCThreadState: Sending oneway calls to frozen process.
+06-11 12:59:06.235   686   804 W IPCThreadState: Sending oneway calls to frozen process.
+06-11 12:59:06.238   686   804 W IPCThreadState: Sending oneway calls to frozen process.
+06-11 12:59:06.244   686   804 W IPCThreadState: Sending oneway calls to frozen process.
+06-11 12:59:06.247   686   804 W IPCThreadState: Sending oneway calls to frozen process.
+06-11 12:59:06.249   686   804 W IPCThreadState: Sending oneway calls to frozen process.
+06-11 12:59:06.252   686   804 W IPCThreadState: Sending oneway calls to frozen process.
+06-11 12:59:06.256   686   804 W IPCThreadState: Sending oneway calls to frozen process.
+06-11 12:59:06.258   686   804 W IPCThreadState: Sending oneway calls to frozen process.
+06-11 12:59:06.262   686   804 W IPCThreadState: Sending oneway calls to frozen process.
+06-11 12:59:06.265   686   804 W IPCThreadState: Sending oneway calls to frozen process.
+06-11 12:59:06.269   686   804 W IPCThreadState: Sending oneway calls to frozen process.
+06-11 12:59:06.271   686   804 W IPCThreadState: Sending oneway calls to frozen process.
+06-11 12:59:06.274   686   804 W IPCThreadState: Sending oneway calls to frozen process.
+06-11 12:59:06.278   686   804 W IPCThreadState: Sending oneway calls to frozen process.
+06-11 12:59:06.281   686   804 W IPCThreadState: Sending oneway calls to frozen process.
+06-11 12:59:06.285   686   804 W IPCThreadState: Sending oneway calls to frozen process.
+06-11 12:59:06.290   686   804 W IPCThreadState: Sending oneway calls to frozen process.
+06-11 12:59:06.293   686   804 W IPCThreadState: Sending oneway calls to frozen process.
+06-11 12:59:06.296   686   804 W IPCThreadState: Sending oneway calls to frozen process.
+06-11 12:59:06.301   686   804 W IPCThreadState: Sending oneway calls to frozen process.
+06-11 12:59:06.304   686   804 W IPCThreadState: Sending oneway calls to frozen process.
+06-11 12:59:06.312   686   804 W IPCThreadState: Sending oneway calls to frozen process.
+06-11 12:59:06.315   686   804 W IPCThreadState: Sending oneway calls to frozen process.
+06-11 12:59:06.322   686   804 W IPCThreadState: Sending oneway calls to frozen process.
+06-11 12:59:06.325   686   804 W IPCThreadState: Sending oneway calls to frozen process.
+06-11 12:59:06.331   686   804 W IPCThreadState: Sending oneway calls to frozen process.
+06-11 12:59:06.335   686   804 W IPCThreadState: Sending oneway calls to frozen process.
+06-11 12:59:06.347   686   804 W IPCThreadState: Sending oneway calls to frozen process.
+06-11 12:59:06.354   686   804 W IPCThreadState: Sending oneway calls to frozen process.
+06-11 12:59:06.356   686   804 W IPCThreadState: Sending oneway calls to frozen process.
+06-11 12:59:06.361   686   804 W IPCThreadState: Sending oneway calls to frozen process.
+06-11 12:59:06.363   686   804 W IPCThreadState: Sending oneway calls to frozen process.
+06-11 12:59:06.364   686   804 W IPCThreadState: Sending oneway calls to frozen process.
+06-11 12:59:06.366   686   804 W IPCThreadState: Sending oneway calls to frozen process.
+06-11 12:59:06.367   686   804 W IPCThreadState: Sending oneway calls to frozen process.
+06-11 12:59:06.368   686   804 W IPCThreadState: Sending oneway calls to frozen process.
+06-11 12:59:06.370   686   804 W IPCThreadState: Sending oneway calls to frozen process.
+06-11 12:59:06.371   686   804 W IPCThreadState: Sending oneway calls to frozen process.
+06-11 12:59:06.371   686   804 W IPCThreadState: Sending oneway calls to frozen process.
+06-11 12:59:06.372   686   804 W IPCThreadState: Sending oneway calls to frozen process.
+06-11 12:59:06.373   686   804 W IPCThreadState: Sending oneway calls to frozen process.
+06-11 12:59:06.374   686   804 W IPCThreadState: Sending oneway calls to frozen process.
+06-11 12:59:06.375   686   804 W IPCThreadState: Sending oneway calls to frozen process.
+06-11 12:59:06.375   686   804 W IPCThreadState: Sending oneway calls to frozen process.
+06-11 12:59:06.377   686   804 W IPCThreadState: Sending oneway calls to frozen process.
+06-11 12:59:06.378   686   804 W IPCThreadState: Sending oneway calls to frozen process.
+06-11 12:59:06.379   686   804 W IPCThreadState: Sending oneway calls to frozen process.
+06-11 12:59:06.381   686   804 W IPCThreadState: Sending oneway calls to frozen process.
+06-11 12:59:06.383   686   804 W IPCThreadState: Sending oneway calls to frozen process.
+06-11 12:59:06.384   686   804 W IPCThreadState: Sending oneway calls to frozen process.
+06-11 12:59:06.386   686   804 W IPCThreadState: Sending oneway calls to frozen process.
+06-11 12:59:06.388   686   804 W IPCThreadState: Sending oneway calls to frozen process.
+06-11 12:59:06.389   686   804 W IPCThreadState: Sending oneway calls to frozen process.
+06-11 12:59:06.390   686   804 W IPCThreadState: Sending oneway calls to frozen process.
+06-11 12:59:06.390   686   804 W IPCThreadState: Sending oneway calls to frozen process.
+06-11 12:59:06.387   686   686 W binder:686_D: type=1400 audit(0.0:102): avc:  denied  { getopt } for  scontext=u:r:system_server:s0 tcontext=u:r:shell:s0 tclass=unix_stream_socket permissive=0
+06-11 12:59:06.394   686  1321 E SystemServiceRegistry: No service published for: persistent_data_block
+06-11 12:59:06.394   686  1321 E SystemServiceRegistry: android.os.ServiceManager$ServiceNotFoundException: No service published for: persistent_data_block
+06-11 12:59:06.394   686  1321 E SystemServiceRegistry: 	at android.os.ServiceManager.getServiceOrThrow(ServiceManager.java:203)
+06-11 12:59:06.394   686  1321 E SystemServiceRegistry: 	at android.app.SystemServiceRegistry$82.createService(SystemServiceRegistry.java:1110)
+06-11 12:59:06.394   686  1321 E SystemServiceRegistry: 	at android.app.SystemServiceRegistry$82.createService(SystemServiceRegistry.java:1107)
+06-11 12:59:06.394   686  1321 E SystemServiceRegistry: 	at android.app.SystemServiceRegistry$StaticServiceFetcher.getService(SystemServiceRegistry.java:2405)
+06-11 12:59:06.394   686  1321 E SystemServiceRegistry: 	at android.app.SystemServiceRegistry.getSystemService(SystemServiceRegistry.java:1918)
+06-11 12:59:06.394   686  1321 E SystemServiceRegistry: 	at android.app.ContextImpl.getSystemService(ContextImpl.java:2315)
+06-11 12:59:06.394   686  1321 E SystemServiceRegistry: 	at android.content.Context.getSystemService(Context.java:4630)
+06-11 12:59:06.394   686  1321 E SystemServiceRegistry: 	at com.android.server.pm.PackageInstallerSession.markAsSealed(PackageInstallerSession.java:2449)
+06-11 12:59:06.394   686  1321 E SystemServiceRegistry: 	at com.android.server.pm.PackageInstallerSession.commit(PackageInstallerSession.java:2198)
+06-11 12:59:06.394   686  1321 E SystemServiceRegistry: 	at android.content.pm.PackageInstaller$Session.commit(PackageInstaller.java:1988)
+06-11 12:59:06.394   686  1321 E SystemServiceRegistry: 	at com.android.server.pm.PackageManagerShellCommand.doCommitSession(PackageManagerShellCommand.java:4316)
+06-11 12:59:06.394   686  1321 E SystemServiceRegistry: 	at com.android.server.pm.PackageManagerShellCommand.doRunInstall(PackageManagerShellCommand.java:1641)
+06-11 12:59:06.394   686  1321 E SystemServiceRegistry: 	at com.android.server.pm.PackageManagerShellCommand.runInstall(PackageManagerShellCommand.java:1562)
+06-11 12:59:06.394   686  1321 E SystemServiceRegistry: 	at com.android.server.pm.PackageManagerShellCommand.onCommand(PackageManagerShellCommand.java:246)
+06-11 12:59:06.394   686  1321 E SystemServiceRegistry: 	at com.android.modules.utils.BasicShellCommandHandler.exec(BasicShellCommandHandler.java:97)
+06-11 12:59:06.394   686  1321 E SystemServiceRegistry: 	at android.os.ShellCommand.exec(ShellCommand.java:38)
+06-11 12:59:06.394   686  1321 E SystemServiceRegistry: 	at com.android.server.pm.PackageManagerService$IPackageManagerImpl.onShellCommand(PackageManagerService.java:6684)
+06-11 12:59:06.394   686  1321 E SystemServiceRegistry: 	at android.os.Binder.shellCommand(Binder.java:1151)
+06-11 12:59:06.394   686  1321 E SystemServiceRegistry: 	at android.os.Binder.onTransact(Binder.java:953)
+06-11 12:59:06.394   686  1321 E SystemServiceRegistry: 	at android.content.pm.IPackageManager$Stub.onTransact(IPackageManager.java:4729)
+06-11 12:59:06.394   686  1321 E SystemServiceRegistry: 	at com.android.server.pm.PackageManagerService$IPackageManagerImpl.onTransact(PackageManagerService.java:6668)
+06-11 12:59:06.394   686  1321 E SystemServiceRegistry: 	at android.os.Binder.execTransactInternal(Binder.java:1426)
+06-11 12:59:06.394   686  1321 E SystemServiceRegistry: 	at android.os.Binder.execTransact(Binder.java:1365)
+06-11 12:59:06.395   686  1321 E SystemServiceRegistry: Manager wrapper not available: persistent_data_block
+06-11 12:59:06.557   686   804 W IPCThreadState: Sending oneway calls to frozen process.
+06-11 12:59:06.558   686   751 D FileSystemUtils: Total number of LOAD segments 4
+06-11 12:59:06.558   686   751 D FileSystemUtils: Size before punching holes st_blocks: 132440, st_blksize: 4096, st_size: 67798889
+06-11 12:59:06.558   686   751 D FileSystemUtils: Size after punching holes st_blocks: 132440, st_blksize: 4096, st_size: 67798889
+06-11 12:59:06.558   686   751 D FileSystemUtils: Extra field length: 11092,  Size before punching holes st_blocks: 132440, st_blksize: 4096, st_size: 67798889
+06-11 12:59:06.559   686   751 D FileSystemUtils: Extra field length: 11092 content near offset: 0000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
+06-11 12:59:06.559   686   751 D FileSystemUtils: Punching hole in file - start: 7249920 len:8192
+06-11 12:59:06.559   686   751 D FileSystemUtils: punchHolesInApk:: Size after punching holes st_blocks: 132424, st_blksize: 4096, st_size: 67798889
+06-11 12:59:06.559   686   804 W IPCThreadState: Sending oneway calls to frozen process.
+06-11 12:59:06.560   686   804 D InstallDependencyHelper: No missing dependency for com.ash.strefaciszy
+06-11 12:59:06.563   686   787 V Configuration: Updating configuration, locales updated from [] to [en_US]
+06-11 12:59:06.563   686   787 I system_server: AssetManager2(0x7c19324204b8) locale list changing from [] to [en-US]
+06-11 12:59:06.566   686   787 I PackageManager: Update package com.ash.strefaciszy code path from /data/app/~~0AjuRQAp8W_BmW0Jvk3AYA==/com.ash.strefaciszy-sGoXCvsFouRVVg4ZGBRf1w== to /data/app/vmdl650572656.tmp; Retain data and using new
+06-11 12:59:06.588   686   787 I AppsFilter: interaction: PackageSetting{70a7faa com.android.microdroid.empty_payload/10200} -> PackageSetting{c7d46 com.ash.strefaciszy/10220} BLOCKED
+06-11 12:59:06.588   686   787 I AppsFilter: interaction: PackageSetting{19224ad com.ashapp.horsevibe/10215} -> PackageSetting{c7d46 com.ash.strefaciszy/10220} BLOCKED
+06-11 12:59:06.589   686   787 I AppsFilter: interaction: PackageSetting{63cbf15 com.example.strefa_ciszy/10216} -> PackageSetting{c7d46 com.ash.strefaciszy/10220} BLOCKED
+06-11 12:59:06.589   686   787 I AppsFilter: interaction: PackageSetting{70a7faa com.android.microdroid.empty_payload/10200} -> PackageSetting{c563e0b com.ash.strefaciszy/10220} BLOCKED
+06-11 12:59:06.589   686   787 I AppsFilter: interaction: PackageSetting{19224ad com.ashapp.horsevibe/10215} -> PackageSetting{c563e0b com.ash.strefaciszy/10220} BLOCKED
+06-11 12:59:06.589   686   787 I AppsFilter: interaction: PackageSetting{63cbf15 com.example.strefa_ciszy/10216} -> PackageSetting{c563e0b com.ash.strefaciszy/10220} BLOCKED
+06-11 12:59:06.620   686   761 I ActivityManager: Force stopping com.ash.strefaciszy appid=10220 user=-1: installPackageLI
+06-11 12:59:06.627   686   787 I PackageManager: installation completed for package:com.ash.strefaciszy. Final code path: /data/app/~~RgGWHgb8km_KyjKibDBLHg==/com.ash.strefaciszy-MgCrAx4_o85pbZ4mRMXfTA==
+06-11 12:59:06.629   686   787 I AppsFilter: interaction: PackageSetting{ca8949b com.android.microdroid.empty_payload/10200} -> PackageSetting{20bf8c9 com.ash.strefaciszy/10220} BLOCKED
+06-11 12:59:06.630   686   787 I AppsFilter: interaction: PackageSetting{e7c4811 com.ashapp.horsevibe/10215} -> PackageSetting{20bf8c9 com.ash.strefaciszy/10220} BLOCKED
+06-11 12:59:06.630   686   787 I AppsFilter: interaction: PackageSetting{4f1df77 com.example.strefa_ciszy/10216} -> PackageSetting{20bf8c9 com.ash.strefaciszy/10220} BLOCKED
+06-11 12:59:06.639   686   787 I ActivityManager: Force stopping com.ash.strefaciszy appid=10220 user=0: pkg removed
+06-11 12:59:06.641   686   787 W IPCThreadState: Sending oneway calls to frozen process.
+06-11 12:59:06.641   686   787 W IPCThreadState: Sending oneway calls to frozen process.
+06-11 12:59:06.641   686   787 W IPCThreadState: Sending oneway calls to frozen process.
+06-11 12:59:06.641   686   787 W IPCThreadState: Sending oneway calls to frozen process.
+06-11 12:59:06.641   686   787 W IPCThreadState: Sending oneway calls to frozen process.
+06-11 12:59:06.641   686   787 W IPCThreadState: Sending oneway calls to frozen process.
+06-11 12:59:06.641   686   787 W IPCThreadState: Sending oneway calls to frozen process.
+06-11 12:59:06.641   686   787 W IPCThreadState: Sending oneway calls to frozen process.
+06-11 12:59:06.641   686   787 W IPCThreadState: Sending oneway calls to frozen process.
+06-11 12:59:06.641   686   787 W IPCThreadState: Sending oneway calls to frozen process.
+06-11 12:59:06.641   686   787 W IPCThreadState: Sending oneway calls to frozen process.
+06-11 12:59:06.641   686   787 W IPCThreadState: Sending oneway calls to frozen process.
+06-11 12:59:06.641   686   787 W IPCThreadState: Sending oneway calls to frozen process.
+06-11 12:59:06.642   686   787 W IPCThreadState: Sending oneway calls to frozen process.
+06-11 12:59:06.642   686   787 W IPCThreadState: Sending oneway calls to frozen process.
+06-11 12:59:06.643   686   787 W IPCThreadState: Sending oneway calls to frozen process.
+06-11 12:59:06.643   686   787 W IPCThreadState: Sending oneway calls to frozen process.
+06-11 12:59:06.643   686   787 W IPCThreadState: Sending oneway calls to frozen process.
+06-11 12:59:06.643   686   787 W IPCThreadState: Sending oneway calls to frozen process.
+06-11 12:59:06.643   686   787 W IPCThreadState: Sending oneway calls to frozen process.
+06-11 12:59:06.643   686   787 W IPCThreadState: Sending oneway calls to frozen process.
+06-11 12:59:06.643   686   787 W IPCThreadState: Sending oneway calls to frozen process.
+06-11 12:59:06.643   686   787 W IPCThreadState: Sending oneway calls to frozen process.
+06-11 12:59:06.643   686   787 W IPCThreadState: Sending oneway calls to frozen process.
+06-11 12:59:06.643   686   787 W IPCThreadState: Sending oneway calls to frozen process.
+06-11 12:59:06.643   686   787 W IPCThreadState: Sending oneway calls to frozen process.
+06-11 12:59:06.643   686   787 W IPCThreadState: Sending oneway calls to frozen process.
+06-11 12:59:06.643   686   787 W IPCThreadState: Sending oneway calls to frozen process.
+06-11 12:59:06.643   686   787 W IPCThreadState: Sending oneway calls to frozen process.
+06-11 12:59:06.643   686   787 W IPCThreadState: Sending oneway calls to frozen process.
+06-11 12:59:06.643   686   787 W IPCThreadState: Sending oneway calls to frozen process.
+06-11 12:59:06.643   686   787 W IPCThreadState: Sending oneway calls to frozen process.
+06-11 12:59:06.643   686   787 W IPCThreadState: Sending oneway calls to frozen process.
+06-11 12:59:06.643   686   787 W IPCThreadState: Sending oneway calls to frozen process.
+06-11 12:59:06.643   686   787 W IPCThreadState: Sending oneway calls to frozen process.
+06-11 12:59:06.643   686   787 W IPCThreadState: Sending oneway calls to frozen process.
+06-11 12:59:06.643   686   787 W IPCThreadState: Sending oneway calls to frozen process.
+06-11 12:59:06.643   686   787 W IPCThreadState: Sending oneway calls to frozen process.
+06-11 12:59:06.643   686   787 W IPCThreadState: Sending oneway calls to frozen process.
+06-11 12:59:06.643   686   787 W IPCThreadState: Sending oneway calls to frozen process.
+06-11 12:59:06.643   686   787 W IPCThreadState: Sending oneway calls to frozen process.
+06-11 12:59:06.643   686   787 W IPCThreadState: Sending oneway calls to frozen process.
+06-11 12:59:06.643   686   787 W IPCThreadState: Sending oneway calls to frozen process.
+06-11 12:59:06.643   686   787 W IPCThreadState: Sending oneway calls to frozen process.
+06-11 12:59:06.643   686   787 W IPCThreadState: Sending oneway calls to frozen process.
+06-11 12:59:06.643   686   787 W IPCThreadState: Sending oneway calls to frozen process.
+06-11 12:59:06.643   686   787 W IPCThreadState: Sending oneway calls to frozen process.
+06-11 12:59:06.643   686   787 W IPCThreadState: Sending oneway calls to frozen process.
+06-11 12:59:06.643   686   787 W IPCThreadState: Sending oneway calls to frozen process.
+06-11 12:59:06.643   686   787 W IPCThreadState: Sending oneway calls to frozen process.
+06-11 12:59:06.651   686   752 I system_server: AssetManager2(0x7c1932338a78) locale list changing from [] to [en-US]
+06-11 12:59:06.655   993   993 D ControlsListingControllerImpl: ServiceConfig reloaded, count: 0
+06-11 12:59:06.655   686   936 D ShortcutService: received package broadcast intent: Intent { act=android.intent.action.PACKAGE_REMOVED dat=package: flg=0x4000010 (has extras) }
+06-11 12:59:06.658   686   890 E AppOps  : attributionTag VCN not declared in manifest of android
+06-11 12:59:06.660  1101  1101 E SmsApplication: com.google.android.apps.messaging lost android:read_cell_broadcasts:  (fixing)
+06-11 12:59:06.660   686  2817 W AppOpService: Ignored setUidMode call for runtime permission app op: uid = 10144, code = READ_CELL_BROADCASTS, mode = allow, callingUid = 1001, oldMode = allow
+06-11 12:59:06.662   686   860 W PackageConfigPersister: App-specific configuration not found for packageName: com.ash.strefaciszy and userId: 0
+06-11 12:59:06.666   686  1563 W AppOpService: Ignored setUidMode call for runtime permission app op: uid = 1001, code = READ_SMS, mode = allow, callingUid = 1001, oldMode = allow
+06-11 12:59:06.667   686   686 D ActivityManager: sync unfroze 3532 com.android.settings for 10
+06-11 12:59:06.668   686  2817 W AppOpService: Ignored setUidMode call for runtime permission app op: uid = 1001, code = RECEIVE_SMS, mode = allow, callingUid = 1001, oldMode = allow
+06-11 12:59:06.669   686  1026 W AppOpService: Ignored setUidMode call for runtime permission app op: uid = 1001, code = RECEIVE_WAP_PUSH, mode = allow, callingUid = 1001, oldMode = allow
+06-11 12:59:06.670   686  1026 W AppOpService: Ignored setUidMode call for runtime permission app op: uid = 1001, code = SEND_SMS, mode = allow, callingUid = 1001, oldMode = allow
+06-11 12:59:06.670   686   686 D ActivityManager: sync unfroze 4277 com.android.keychain for 10
+06-11 12:59:06.671  1120  1179 D PackageUpdatedTask: Package updated: mOp=UPDATE packages=[com.ash.strefaciszy], user=UserHandle{0}
+06-11 12:59:06.671   686  1026 W AppOpService: Ignored setUidMode call for runtime permission app op: uid = 1001, code = READ_CELL_BROADCASTS, mode = allow, callingUid = 1001, oldMode = allow
+06-11 12:59:06.681   686   686 D ActivityManager: sync unfroze 3181 com.android.dynsystem:dynsystem for 10
+06-11 12:59:06.682   686   686 D ActivityManager: sync unfroze 3167 com.android.dynsystem for 10
+06-11 12:59:06.687  1569  5914 I AiAiEcho: AppIndexer Package:[com.ash.strefaciszy] UserProfile:[0] Enabled:[true].
+06-11 12:59:06.688  1569  5914 I AiAiEcho: AppFetcherImplV2 updateApps package:[com.ash.strefaciszy], userId:[0], reason:[package is updated.].
+06-11 12:59:06.696   993   993 D ControlsListingControllerImpl: ServiceConfig reloaded, count: 0
+06-11 12:59:06.697  1101  1286 I SatelliteAppTracker: onPackageUpdateFinished : com.ash.strefaciszy
+06-11 12:59:06.697  1101  1286 I SatelliteAppTracker: onPackageModified : com.ash.strefaciszy
+06-11 12:59:06.701  1101  1101 D CarrierSvcBindHelper: onPackageUpdateFinished: com.ash.strefaciszy
+06-11 12:59:06.707   686   761 D ActivityManager: sync unfroze 2659 com.google.android.permissioncontroller for 3
+06-11 12:59:06.711  1120  1179 I s.nexuslauncher: AssetManager2(0x7c19322b0538) locale list changing from [] to [en-US]
+06-11 12:59:06.712  1120  1179 W HWUI    : Image decoding logging dropped!
+06-11 12:59:06.715   686   945 I SdkSandboxManager: No SDKs used. Skipping SDK data reconcilation for CallingInfo{mUid=10220, mPackageName='com.ash.strefaciszy, mAppProcessToken='null'}
+06-11 12:59:06.716  1101  1101 D CarrierSvcBindHelper: No carrier app for: 0
+06-11 12:59:06.716  1101  1101 D CarrierSvcBindHelper: onPackageModified: com.ash.strefaciszy
+06-11 12:59:06.716  1101  1101 D CarrierSvcBindHelper: No carrier app for: 0
+06-11 12:59:06.727   686   937 D BackgroundInstallControlService: Package event received: 0
+06-11 12:59:06.730   686   851 I system_server: AssetManager2(0x7c19324204b8) locale list changing from [] to [en-US]
+06-11 12:59:06.747   686   787 W IPCThreadState: Sending oneway calls to frozen process.
+06-11 12:59:06.747   686   787 W IPCThreadState: Sending oneway calls to frozen process.
+06-11 12:59:06.747   686   787 W IPCThreadState: Sending oneway calls to frozen process.
+06-11 12:59:06.747   686   787 W IPCThreadState: Sending oneway calls to frozen process.
+06-11 12:59:06.747  3532  3532 D ActivityThread: Package [com.ash.strefaciszy] reported as REPLACED, but missing application info. Assuming REMOVED.
+06-11 12:59:06.747   686   787 W IPCThreadState: Sending oneway calls to frozen process.
+06-11 12:59:06.747   686   787 W IPCThreadState: Sending oneway calls to frozen process.
+06-11 12:59:06.747   686   787 W IPCThreadState: Sending oneway calls to frozen process.
+06-11 12:59:06.747   686   787 W IPCThreadState: Sending oneway calls to frozen process.
+06-11 12:59:06.747   686   787 W IPCThreadState: Sending oneway calls to frozen process.
+06-11 12:59:06.747   686   787 W IPCThreadState: Sending oneway calls to frozen process.
+06-11 12:59:06.747   686   787 W IPCThreadState: Sending oneway calls to frozen process.
+06-11 12:59:06.747  4277  4277 D ActivityThread: Package [com.ash.strefaciszy] reported as REPLACED, but missing application info. Assuming REMOVED.
+06-11 12:59:06.747   686   787 W IPCThreadState: Sending oneway calls to frozen process.
+06-11 12:59:06.747   686   787 W IPCThreadState: Sending oneway calls to frozen process.
+06-11 12:59:06.747   686   787 W IPCThreadState: Sending oneway calls to frozen process.
+06-11 12:59:06.747   686   787 W IPCThreadState: Sending oneway calls to frozen process.
+06-11 12:59:06.747   686   787 W IPCThreadState: Sending oneway calls to frozen process.
+06-11 12:59:06.747   686   787 W IPCThreadState: Sending oneway calls to frozen process.
+06-11 12:59:06.747   686   787 W IPCThreadState: Sending oneway calls to frozen process.
+06-11 12:59:06.747   686   787 W IPCThreadState: Sending oneway calls to frozen process.
+06-11 12:59:06.747   686   787 W IPCThreadState: Sending oneway calls to frozen process.
+06-11 12:59:06.747   686   787 W IPCThreadState: Sending oneway calls to frozen process.
+06-11 12:59:06.747   686   787 W IPCThreadState: Sending oneway calls to frozen process.
+06-11 12:59:06.747   686   787 W IPCThreadState: Sending oneway calls to frozen process.
+06-11 12:59:06.747   686   787 W IPCThreadState: Sending oneway calls to frozen process.
+06-11 12:59:06.747  2281  2281 D ActivityThread: Package [com.ash.strefaciszy] reported as REPLACED, but missing application info. Assuming REMOVED.
+06-11 12:59:06.747   686   787 W IPCThreadState: Sending oneway calls to frozen process.
+06-11 12:59:06.747   686   787 W IPCThreadState: Sending oneway calls to frozen process.
+06-11 12:59:06.747   686   787 W IPCThreadState: Sending oneway calls to frozen process.
+06-11 12:59:06.747   686   787 W IPCThreadState: Sending oneway calls to frozen process.
+06-11 12:59:06.747   686   787 W IPCThreadState: Sending oneway calls to frozen process.
+06-11 12:59:06.747   686   787 W IPCThreadState: Sending oneway calls to frozen process.
+06-11 12:59:06.747   686   787 W IPCThreadState: Sending oneway calls to frozen process.
+06-11 12:59:06.747   686   787 W IPCThreadState: Sending oneway calls to frozen process.
+06-11 12:59:06.747   686   787 W IPCThreadState: Sending oneway calls to frozen process.
+06-11 12:59:06.747   686   787 W IPCThreadState: Sending oneway calls to frozen process.
+06-11 12:59:06.747   686   787 W IPCThreadState: Sending oneway calls to frozen process.
+06-11 12:59:06.747   686   787 W IPCThreadState: Sending oneway calls to frozen process.
+06-11 12:59:06.747   686   787 W IPCThreadState: Sending oneway calls to frozen process.
+06-11 12:59:06.747   686   787 W IPCThreadState: Sending oneway calls to frozen process.
+06-11 12:59:06.747   686   787 W IPCThreadState: Sending oneway calls to frozen process.
+06-11 12:59:06.747   686   787 W IPCThreadState: Sending oneway calls to frozen process.
+06-11 12:59:06.747   686   787 W IPCThreadState: Sending oneway calls to frozen process.
+06-11 12:59:06.747   686   787 W IPCThreadState: Sending oneway calls to frozen process.
+06-11 12:59:06.747   686   787 W IPCThreadState: Sending oneway calls to frozen process.
+06-11 12:59:06.747   686   787 W IPCThreadState: Sending oneway calls to frozen process.
+06-11 12:59:06.747   686   787 W IPCThreadState: Sending oneway calls to frozen process.
+06-11 12:59:06.748  1125  1125 D ActivityThread: Package [com.ash.strefaciszy] reported as REPLACED, but missing application info. Assuming REMOVED.
+06-11 12:59:06.748  1058  1058 D ActivityThread: Package [com.ash.strefaciszy] reported as REPLACED, but missing application info. Assuming REMOVED.
+06-11 12:59:06.749  1120  1120 D ActivityThread: Package [com.ash.strefaciszy] reported as REPLACED, but missing application info. Assuming REMOVED.
+06-11 12:59:06.750  1630  1630 D ActivityThread: Package [com.ash.strefaciszy] reported as REPLACED, but missing application info. Assuming REMOVED.
+06-11 12:59:06.751  1569  1569 D ActivityThread: Package [com.ash.strefaciszy] reported as REPLACED, but missing application info. Assuming REMOVED.
+06-11 12:59:06.751  1545  1545 D ActivityThread: Package [com.ash.strefaciszy] reported as REPLACED, but missing application info. Assuming REMOVED.
+06-11 12:59:06.752  3167  3167 D ActivityThread: Package [com.ash.strefaciszy] reported as REPLACED, but missing application info. Assuming REMOVED.
+06-11 12:59:06.753  3181  3181 D ActivityThread: Package [com.ash.strefaciszy] reported as REPLACED, but missing application info. Assuming REMOVED.
+06-11 12:59:06.753  1596  1596 D ActivityThread: Package [com.ash.strefaciszy] reported as REPLACED, but missing application info. Assuming REMOVED.
+06-11 12:59:06.757  1101  1101 E SmsApplication: com.google.android.apps.messaging lost android:read_cell_broadcasts:  (fixing)
+06-11 12:59:06.757  1079  1079 D ActivityThread: Package [com.ash.strefaciszy] reported as REPLACED, but missing application info. Assuming REMOVED.
+06-11 12:59:06.758   686   714 W AppOpService: Ignored setUidMode call for runtime permission app op: uid = 10144, code = READ_CELL_BROADCASTS, mode = allow, callingUid = 1001, oldMode = allow
+06-11 12:59:06.758   686   714 W AppOpService: Ignored setUidMode call for runtime permission app op: uid = 1001, code = READ_SMS, mode = allow, callingUid = 1001, oldMode = allow
+06-11 12:59:06.759   993   993 D ActivityThread: Package [com.ash.strefaciszy] reported as REPLACED, but missing application info. Assuming REMOVED.
+06-11 12:59:06.759  1601  1601 D ActivityThread: Package [com.ash.strefaciszy] reported as REPLACED, but missing application info. Assuming REMOVED.
+06-11 12:59:06.759   686   714 W AppOpService: Ignored setUidMode call for runtime permission app op: uid = 1001, code = RECEIVE_SMS, mode = allow, callingUid = 1001, oldMode = allow
+06-11 12:59:06.759   686   714 W AppOpService: Ignored setUidMode call for runtime permission app op: uid = 1001, code = RECEIVE_WAP_PUSH, mode = allow, callingUid = 1001, oldMode = allow
+06-11 12:59:06.759   686   714 W AppOpService: Ignored setUidMode call for runtime permission app op: uid = 1001, code = SEND_SMS, mode = allow, callingUid = 1001, oldMode = allow
+06-11 12:59:06.759   686   714 W AppOpService: Ignored setUidMode call for runtime permission app op: uid = 1001, code = READ_CELL_BROADCASTS, mode = allow, callingUid = 1001, oldMode = allow
+06-11 12:59:06.763   686   936 D ShortcutService: received package broadcast intent: Intent { act=android.intent.action.PACKAGE_ADDED dat=package: flg=0x4000010 (has extras) }
+06-11 12:59:06.763   686   936 D ShortcutService: replacing package: com.ash.strefaciszy userId=0
+06-11 12:59:06.764  1101  1101 E SmsApplication: com.google.android.apps.messaging lost android:read_cell_broadcasts:  (fixing)
+06-11 12:59:06.764   686   808 W AppOpService: Ignored setUidMode call for runtime permission app op: uid = 10144, code = READ_CELL_BROADCASTS, mode = allow, callingUid = 1001, oldMode = allow
+06-11 12:59:06.765   686   808 W AppOpService: Ignored setUidMode call for runtime permission app op: uid = 1001, code = READ_SMS, mode = allow, callingUid = 1001, oldMode = allow
+06-11 12:59:06.767   686   686 I Telecom : CarModeTracker: Package com.ash.strefaciszy is not tracked.: SSH.oR@AKU
+06-11 12:59:06.767   686   714 W AppOpService: Ignored setUidMode call for runtime permission app op: uid = 1001, code = RECEIVE_SMS, mode = allow, callingUid = 1001, oldMode = allow
+06-11 12:59:06.768   686   686 I Telecom : InCallController: updateCarModeForConnections: car mode apps: : SSH.oR@AKU
+06-11 12:59:06.768   686   714 W AppOpService: Ignored setUidMode call for runtime permission app op: uid = 1001, code = RECEIVE_WAP_PUSH, mode = allow, callingUid = 1001, oldMode = allow
+06-11 12:59:06.768   686   686 I Telecom : InCallController: update carmode current:UserHandle{0} parent:null: SSH.oR@AKU
+06-11 12:59:06.771   686  2192 W AppOpService: Ignored setUidMode call for runtime permission app op: uid = 1001, code = SEND_SMS, mode = allow, callingUid = 1001, oldMode = allow
+06-11 12:59:06.777   686  1026 D ActivityManager: sync unfroze 2093 com.google.android.apps.wellbeing for 7
+06-11 12:59:06.784  1289  1289 D ActivityThread: Package [com.ash.strefaciszy] reported as REPLACED, but missing application info. Assuming REMOVED.
+06-11 12:59:06.791   686   714 W AppOpService: Ignored setUidMode call for runtime permission app op: uid = 1001, code = READ_CELL_BROADCASTS, mode = allow, callingUid = 1001, oldMode = allow
+06-11 12:59:06.806  2093  2093 D ActivityThread: Package [com.ash.strefaciszy] reported as REPLACED, but missing application info. Assuming REMOVED.
+06-11 12:59:06.808  1120  1947 W HWUI    : Failed to initialize 101010-2 format, error = EGL_SUCCESS
+06-11 12:59:06.818  1120  1179 W HWUI    : Image decoding logging dropped!
+06-11 12:59:06.818  1120  1179 D AlphabeticIndexCompat: computeSectionName: cs: strefa_ciszy sectionName: S
+06-11 12:59:06.819  1120  1120 D AllAppsStore: setApps: apps.length=22
+06-11 12:59:06.819  1120  1120 D AllAppsStore: notifyUpdate: notifying listeners
+06-11 12:59:06.819  1120  1120 D ActivityAllAppsContainerView: onAppsUpdated; number of apps: 22
+06-11 12:59:06.819  1120  1120 D ActivityAllAppsContainerView: rebindAdapters: force: false
+06-11 12:59:06.819  1120  1120 D ActivityAllAppsContainerView: rebindAdapters: Not needed.
+06-11 12:59:06.819  1120  1120 D StatsLog: LAUNCHER_ALLAPPS_COUNT
+06-11 12:59:06.819  1120  1120 D AlphabeticalAppsList: Clearing FastScrollerSections.
+06-11 12:59:06.819  1120  1120 D AlphabeticalAppsList: Adding apps with sections. HasPrivateApps: false
+06-11 12:59:06.819  1120  1120 D AlphabeticalAppsList: addAppsWithSections: adding sectionName: C with appInfoTitle: Calendar
+06-11 12:59:06.819  1120  1120 D AlphabeticalAppsList: addAppsWithSections: adding sectionName: D with appInfoTitle: Drive
+06-11 12:59:06.819  1120  1120 D AlphabeticalAppsList: addAppsWithSections: adding sectionName: F with appInfoTitle: Files
+06-11 12:59:06.819  1120  1120 D AlphabeticalAppsList: addAppsWithSections: adding sectionName: G with appInfoTitle: Gmail
+06-11 12:59:06.819  1120  1120 D AlphabeticalAppsList: addAppsWithSections: adding sectionName: H with appInfoTitle: HorseVibe
+06-11 12:59:06.819  1120  1120 D AlphabeticalAppsList: addAppsWithSections: adding sectionName: M with appInfoTitle: Maps
+06-11 12:59:06.819  1120  1120 D AlphabeticalAppsList: addAppsWithSections: adding sectionName: P with appInfoTitle: Phone
+06-11 12:59:06.819  1120  1120 D AlphabeticalAppsList: addAppsWithSections: adding sectionName: S with appInfoTitle: Safety
+06-11 12:59:06.819  1120  1120 D AlphabeticalAppsList: addAppsWithSections: adding sectionName: T with appInfoTitle: TMoble
+06-11 12:59:06.819  1120  1120 D AlphabeticalAppsList: addAppsWithSections: adding sectionName: Y with appInfoTitle: YouTube
+06-11 12:59:06.819  1120  1120 D AlphabeticalAppsList: Adding FastScrollSection duplicate to scroll to the bottom.
+06-11 12:59:06.819  1120  1120 D AlphabeticalAppsList: Clearing FastScrollerSections.
+06-11 12:59:06.819  1120  1120 D AlphabeticalAppsList: Adding apps with sections. HasPrivateApps: false
+06-11 12:59:06.819  1120  1120 D AlphabeticalAppsList: addAppsWithSections: adding sectionName: C with appInfoTitle: Calendar
+06-11 12:59:06.819  1120  1120 D AlphabeticalAppsList: addAppsWithSections: adding sectionName: D with appInfoTitle: Drive
+06-11 12:59:06.819  1120  1120 D AlphabeticalAppsList: addAppsWithSections: adding sectionName: F with appInfoTitle: Files
+06-11 12:59:06.819  1120  1120 D AlphabeticalAppsList: addAppsWithSections: adding sectionName: G with appInfoTitle: Gmail
+06-11 12:59:06.819  1120  1120 D AlphabeticalAppsList: addAppsWithSections: adding sectionName: H with appInfoTitle: HorseVibe
+06-11 12:59:06.819  1120  1120 D AlphabeticalAppsList: addAppsWithSections: adding sectionName: M with appInfoTitle: Maps
+06-11 12:59:06.819  1120  1120 D AlphabeticalAppsList: addAppsWithSections: adding sectionName: P with appInfoTitle: Phone
+06-11 12:59:06.819  1120  1120 D AlphabeticalAppsList: addAppsWithSections: adding sectionName: S with appInfoTitle: Safety
+06-11 12:59:06.819  1120  1120 D AlphabeticalAppsList: addAppsWithSections: adding sectionName: T with appInfoTitle: TMoble
+06-11 12:59:06.819  1120  1120 D AlphabeticalAppsList: addAppsWithSections: adding sectionName: Y with appInfoTitle: YouTube
+06-11 12:59:06.820  1120  1120 D AlphabeticalAppsList: Adding FastScrollSection duplicate to scroll to the bottom.
+06-11 12:59:06.825   686   686 D AppSearchAppsIndexerManagerS: userid in package receiver: 10220
+06-11 12:59:06.838   686  1026 W ContentProviderHelper: Slow operation: 89ms so far, now at getContentProviderImpl: after updateOomAdj
+06-11 12:59:06.840   603  4272 W IPCThreadState: Sending oneway calls to frozen process.
+06-11 12:59:06.840   603  4272 W IPCThreadState: Sending oneway calls to frozen process.
+06-11 12:59:06.840   603  4272 W IPCThreadState: Sending oneway calls to frozen process.
+06-11 12:59:06.848   686  1026 W ContentProviderHelper: Slow operation: 98ms so far, now at getContentProviderImpl: done!
+06-11 12:59:06.854  1101  1283 D ImsResolver: maybeAddedImsService, packageName: com.ash.strefaciszy
+06-11 12:59:06.855  1101  1283 V ImsResolver: searchForImsServices: package=com.ash.strefaciszy, users=[UserHandle{0}]
+06-11 12:59:06.855  1101  1283 V ImsResolver: searchForImsServices: package=com.ash.strefaciszy, users=[UserHandle{0}]
+06-11 12:59:06.860  2659  2659 I SafetyLabelChangedBroadcastReceiver: received broadcast packageName: com.ash.strefaciszy, current user: UserHandle{0}, packageChangeEvent: UPDATE, intent user: UserHandle{0}
+06-11 12:59:06.863  2659  2659 D ActivityThread: Package [com.ash.strefaciszy] reported as REPLACED, but missing application info. Assuming REMOVED.
+06-11 12:59:06.864   686   937 D BackgroundInstallControlService: Package event received: 0
+06-11 12:59:06.866   686   760 I system_server: AssetManager2(0x7c19322b0e98) locale list changing from [] to [en-US]
+06-11 12:59:06.867   686   937 D BackgroundInstallControlService: Package event received: 0
+06-11 12:59:06.867   686   937 D BackgroundInstallControlService: Package event received: 0
+06-11 12:59:06.869   686   937 D BackgroundInstallControlService: Package event received: 0
+06-11 12:59:06.873   686   686 D BackupManagerConstants: getFullBackupIntervalMilliseconds(...) returns 86400000
+06-11 12:59:06.873   686   686 D BackupManagerConstants: getFullBackupRequiredNetworkType(...) returns 2
+06-11 12:59:06.873   686   686 D BackupManagerConstants: getFullBackupRequireCharging(...) returns true
+06-11 12:59:06.873   686   851 I system_server: AssetManager2(0x7c19323345b8) locale list changing from [] to [en-US]
+06-11 12:59:06.877  1101  1101 W VvmPkgInstalledRcvr: carrierVvmPkgAdded: carrier vvm packages doesn't contain com.ash.strefaciszy
+06-11 12:59:06.881   686   945 I SdkSandboxManager: No SDKs used. Skipping SDK data reconcilation for CallingInfo{mUid=10220, mPackageName='com.ash.strefaciszy, mAppProcessToken='null'}
+06-11 12:59:06.888   993   993 D ControlsListingControllerImpl: ServiceConfig reloaded, count: 0
+06-11 12:59:06.909  1101  1101 D ActivityThread: Package [com.ash.strefaciszy] reported as REPLACED, but missing application info. Assuming REMOVED.
+06-11 12:59:06.912   686   851 V AccessibilityManagerService: onUserStateChangedLocked for userId: 0, forceUpdate: false
+06-11 12:59:06.914   686   831 I RoleService: Granting default roles...
+06-11 12:59:06.921   686  1563 D ActivityManager: sync unfroze 1484 com.google.android.gms for 6
+06-11 12:59:06.938   686   851 W MagnificationConnectionManager: requestConnection duplicated request: connect=false, mConnectionState=DISCONNECTED
+06-11 12:59:06.939   993  1010 W System  : A resource failed to call release. 
+06-11 12:59:06.940   993  1010 W System  : A resource failed to call release. 
+06-11 12:59:06.940   993  1010 W System  : A resource failed to call release. 
+06-11 12:59:06.940   993  1010 W System  : A resource failed to call release. 
+06-11 12:59:06.940   993  1010 W System  : A resource failed to call release. 
+06-11 12:59:06.940   993  1010 W System  : A resource failed to call release. 
+06-11 12:59:06.940   993  1010 W System  : A resource failed to call release. 
+06-11 12:59:06.943   686   787 W IPCThreadState: Sending oneway calls to frozen process.
+06-11 12:59:06.943   686   787 W IPCThreadState: Sending oneway calls to frozen process.
+06-11 12:59:06.943   686   787 W IPCThreadState: Sending oneway calls to frozen process.
+06-11 12:59:06.943   686   787 W IPCThreadState: Sending oneway calls to frozen process.
+06-11 12:59:06.943  1120  1120 D ActivityThread: Package [com.ash.strefaciszy] reported as REPLACED, but missing application info. Assuming REMOVED.
+06-11 12:59:06.944   993  1010 W System  : A resource failed to call release. 
+06-11 12:59:06.944  3532  3532 D ActivityThread: Package [com.ash.strefaciszy] reported as REPLACED, but missing application info. Assuming REMOVED.
+06-11 12:59:06.947   686   851 I system_server: AssetManager2(0x7c1932327458) locale list changing from [] to [en-US]
+06-11 12:59:06.952   993  1010 W System  : A resource failed to call release. 
+06-11 12:59:06.953   993  1010 W System  : A resource failed to call release. 
+06-11 12:59:06.953   993  1010 W System  : A resource failed to call release. 
+06-11 12:59:06.953   993  1010 W System  : A resource failed to call release. 
+06-11 12:59:06.956   993  1010 W System  : A resource failed to call release. 
+06-11 12:59:06.956   993  1010 W System  : A resource failed to call release. 
+06-11 12:59:06.956   993  1010 W System  : A resource failed to call release. 
+06-11 12:59:06.957   993  1010 W System  : A resource failed to call release. 
+06-11 12:59:06.967   993  1010 W System  : A resource failed to call release. 
+06-11 12:59:06.967   993  1010 W System  : A resource failed to call release. 
+06-11 12:59:06.967   993  1010 W System  : A resource failed to call release. 
+06-11 12:59:06.971  1101  1101 D SatelliteController: packageStateChanged: package:com.ash.strefaciszy DefaultSmsPackageName:com.google.android.apps.messaging
+06-11 12:59:06.972  1101  1101 V SatelliteController: Neither SMS or SatelliteGateway package
+06-11 12:59:06.985   686   686 W Looper  : Slow dispatch took 159ms main app=system_server main=true group=FOREGROUND h=android.app.ActivityThread$H c=android.app.LoadedApk$ReceiverDispatcher$Args$$ExternalSyntheticLambda0@70725c8 m=0
+06-11 12:59:06.985   686   686 W Looper  : Slow delivery took 286ms main app=system_server main=true group=FOREGROUND h=android.app.ActivityThread$H c=android.app.LoadedApk$ReceiverDispatcher$Args$$ExternalSyntheticLambda0@b14e586 m=0
+06-11 12:59:06.985   686   686 D ActivityThread: Package [com.ash.strefaciszy] reported as REPLACED, but missing application info. Assuming REMOVED.
+06-11 12:59:06.987  1289  1289 D ActivityThread: Package [com.ash.strefaciszy] reported as REPLACED, but missing application info. Assuming REMOVED.
+06-11 12:59:06.995  4277  4277 D ActivityThread: Package [com.ash.strefaciszy] reported as REPLACED, but missing application info. Assuming REMOVED.
+06-11 12:59:06.996   686   787 W IPCThreadState: Sending oneway calls to frozen process.
+06-11 12:59:06.996  2093  2093 D ActivityThread: Package [com.ash.strefaciszy] reported as REPLACED, but missing application info. Assuming REMOVED.
+06-11 12:59:06.997   686   787 W IPCThreadState: Sending oneway calls to frozen process.
+06-11 12:59:06.997   686   787 W IPCThreadState: Sending oneway calls to frozen process.
+06-11 12:59:06.997   686   787 W IPCThreadState: Sending oneway calls to frozen process.
+06-11 12:59:06.999   686   787 W IPCThreadState: Sending oneway calls to frozen process.
+06-11 12:59:06.999   686   787 W IPCThreadState: Sending oneway calls to frozen process.
+06-11 12:59:06.999  1545  1545 D ActivityThread: Package [com.ash.strefaciszy] reported as REPLACED, but missing application info. Assuming REMOVED.
+06-11 12:59:06.999   686   787 W IPCThreadState: Sending oneway calls to frozen process.
+06-11 12:59:07.000  1601  1601 D ActivityThread: Package [com.ash.strefaciszy] reported as REPLACED, but missing application info. Assuming REMOVED.
+06-11 12:59:07.000   686   787 W IPCThreadState: Sending oneway calls to frozen process.
+06-11 12:59:07.000   686   787 W IPCThreadState: Sending oneway calls to frozen process.
+06-11 12:59:07.000  1569  1569 D ActivityThread: Package [com.ash.strefaciszy] reported as REPLACED, but missing application info. Assuming REMOVED.
+06-11 12:59:07.001   686   787 W IPCThreadState: Sending oneway calls to frozen process.
+06-11 12:59:07.001   686   787 W IPCThreadState: Sending oneway calls to frozen process.
+06-11 12:59:07.001   686   851 V AccessibilityManagerService: onUserStateChangedLocked for userId: 0, forceUpdate: false
+06-11 12:59:07.001   686   787 W IPCThreadState: Sending oneway calls to frozen process.
+06-11 12:59:07.002  2281  2281 D ActivityThread: Package [com.ash.strefaciszy] reported as REPLACED, but missing application info. Assuming REMOVED.
+06-11 12:59:07.004   686   686 W AlarmManager: Package com.ash.strefaciszy, uid 10220 lost permission to set exact alarms!
+06-11 12:59:07.005   686   851 W MagnificationConnectionManager: requestConnection duplicated request: connect=false, mConnectionState=DISCONNECTED
+06-11 12:59:07.007   686   787 W IPCThreadState: Sending oneway calls to frozen process.
+06-11 12:59:07.007   686   787 W IPCThreadState: Sending oneway calls to frozen process.
+06-11 12:59:07.007   686   787 W IPCThreadState: Sending oneway calls to frozen process.
+06-11 12:59:07.007   686   787 W IPCThreadState: Sending oneway calls to frozen process.
+06-11 12:59:07.007   686   787 W IPCThreadState: Sending oneway calls to frozen process.
+06-11 12:59:07.007   686   787 W IPCThreadState: Sending oneway calls to frozen process.
+06-11 12:59:07.007   686   787 W IPCThreadState: Sending oneway calls to frozen process.
+06-11 12:59:07.007   686   787 W IPCThreadState: Sending oneway calls to frozen process.
+06-11 12:59:07.007   686   787 W IPCThreadState: Sending oneway calls to frozen process.
+06-11 12:59:07.007   686   787 W IPCThreadState: Sending oneway calls to frozen process.
+06-11 12:59:07.007   686   787 W IPCThreadState: Sending oneway calls to frozen process.
+06-11 12:59:07.007   686   787 W IPCThreadState: Sending oneway calls to frozen process.
+06-11 12:59:07.007   686   787 W IPCThreadState: Sending oneway calls to frozen process.
+06-11 12:59:07.007   686   787 W IPCThreadState: Sending oneway calls to frozen process.
+06-11 12:59:07.007   686   787 W IPCThreadState: Sending oneway calls to frozen process.
+06-11 12:59:07.007   686   787 W IPCThreadState: Sending oneway calls to frozen process.
+06-11 12:59:07.008   686   787 W IPCThreadState: Sending oneway calls to frozen process.
+06-11 12:59:07.008   686   787 W IPCThreadState: Sending oneway calls to frozen process.
+06-11 12:59:07.008   686   787 W IPCThreadState: Sending oneway calls to frozen process.
+06-11 12:59:07.008   686   787 W IPCThreadState: Sending oneway calls to frozen process.
+06-11 12:59:07.008   686   787 W IPCThreadState: Sending oneway calls to frozen process.
+06-11 12:59:07.008   686   787 W IPCThreadState: Sending oneway calls to frozen process.
+06-11 12:59:07.008   686   787 W IPCThreadState: Sending oneway calls to frozen process.
+06-11 12:59:07.008   686   787 W IPCThreadState: Sending oneway calls to frozen process.
+06-11 12:59:07.008   686   787 W IPCThreadState: Sending oneway calls to frozen process.
+06-11 12:59:07.008   686   787 W IPCThreadState: Sending oneway calls to frozen process.
+06-11 12:59:07.008   686   787 W IPCThreadState: Sending oneway calls to frozen process.
+06-11 12:59:07.008  3167  3167 D ActivityThread: Package [com.ash.strefaciszy] reported as REPLACED, but missing application info. Assuming REMOVED.
+06-11 12:59:07.009  1596  1596 D ActivityThread: Package [com.ash.strefaciszy] reported as REPLACED, but missing application info. Assuming REMOVED.
+06-11 12:59:07.009  3181  3181 D ActivityThread: Package [com.ash.strefaciszy] reported as REPLACED, but missing application info. Assuming REMOVED.
+06-11 12:59:07.009  1079  1079 D ActivityThread: Package [com.ash.strefaciszy] reported as REPLACED, but missing application info. Assuming REMOVED.
+06-11 12:59:07.010  1101  1101 D ActivityThread: Package [com.ash.strefaciszy] reported as REPLACED, but missing application info. Assuming REMOVED.
+06-11 12:59:07.010  1630  1630 D ActivityThread: Package [com.ash.strefaciszy] reported as REPLACED, but missing application info. Assuming REMOVED.
+06-11 12:59:07.013   993   993 D ActivityThread: Package [com.ash.strefaciszy] reported as REPLACED, but missing application info. Assuming REMOVED.
+06-11 12:59:07.017  1058  1058 D ActivityThread: Package [com.ash.strefaciszy] reported as REPLACED, but missing application info. Assuming REMOVED.
+06-11 12:59:07.020   686   686 D AppSearchAppsIndexerManagerS: userid in package receiver: 10220
+06-11 12:59:07.022   686  2944 W SignedPackage: Package doesn't have required signing certificate: com.google.android.retaildemo
+06-11 12:59:07.023   686  2944 E RoleControllerServiceImpl: Default/fallback role holder package doesn't qualify for the role, package: com.google.android.gms.supervision, role: android.app.role.SYSTEM_SUPERVISION
+06-11 12:59:07.025   686   686 W IPCThreadState: Sending oneway calls to frozen process.
+06-11 12:59:07.025   686   686 W IPCThreadState: Sending oneway calls to frozen process.
+06-11 12:59:07.025   686   686 W IPCThreadState: Sending oneway calls to frozen process.
+06-11 12:59:07.026   686   686 W IPCThreadState: Sending oneway calls to frozen process.
+06-11 12:59:07.026   686   787 D PackageInstallerSession: Marking session 650572656 as applied
+06-11 12:59:07.026   686   686 W IPCThreadState: Sending oneway calls to frozen process.
+06-11 12:59:07.026   686   686 W IPCThreadState: Sending oneway calls to frozen process.
+06-11 12:59:07.027   686   686 W IPCThreadState: Sending oneway calls to frozen process.
+06-11 12:59:07.028   686   686 W IPCThreadState: Sending oneway calls to frozen process.
+06-11 12:59:07.028   686   686 W IPCThreadState: Sending oneway calls to frozen process.
+06-11 12:59:07.028   686   686 W IPCThreadState: Sending oneway calls to frozen process.
+06-11 12:59:07.028   686   686 W IPCThreadState: Sending oneway calls to frozen process.
+06-11 12:59:07.028   686   686 W IPCThreadState: Sending oneway calls to frozen process.
+06-11 12:59:07.028   686   686 W IPCThreadState: Sending oneway calls to frozen process.
+06-11 12:59:07.028   686   686 W IPCThreadState: Sending oneway calls to frozen process.
+06-11 12:59:07.028  1125  1125 D ActivityThread: Package [com.ash.strefaciszy] reported as REPLACED, but missing application info. Assuming REMOVED.
+06-11 12:59:07.028   686   686 D ActivityThread: Package [com.ash.strefaciszy] reported as REPLACED, but missing application info. Assuming REMOVED.
+06-11 12:59:07.029   686   686 W Looper  : Drained
+06-11 12:59:07.030  2659  5917 I PermissionControllerServiceImpl: Updating user sensitive for uid 10220
+06-11 12:59:07.030   686   804 D InstallDependencyHelper: Session complete for 650572656
+06-11 12:59:07.027   686   686 W binder:686_D: type=1400 audit(0.0:103): avc:  denied  { getopt } for  scontext=u:r:system_server:s0 tcontext=u:r:shell:s0 tclass=unix_stream_socket permissive=0
+06-11 12:59:07.033   686  1037 V Configuration: Updating configuration, locales updated from [] to [en_US]
+06-11 12:59:07.033   686  1037 V Configuration: Updating configuration, locales updated from [] to [en_US]
+06-11 12:59:07.033   686  1037 V Configuration: Updating configuration, locales updated from [] to [en_US]
+06-11 12:59:07.033   686  1037 V Configuration: Updating configuration, locales updated from [] to [en_US]
+06-11 12:59:07.033   686  2944 W SignedPackage: Package doesn't have required signing certificate: com.google.android.apps.work.clouddpc
+06-11 12:59:07.035   686  1037 V Configuration: Updating configuration, locales updated from [] to [en_US]
+06-11 12:59:07.037   686  1037 V Configuration: Updating configuration, locales updated from [] to [en_US]
+06-11 12:59:07.037   686  1037 V Configuration: Updating configuration, locales updated from [] to [en_US]
+06-11 12:59:07.037   686  1037 V Configuration: Updating configuration, locales updated from [] to [en_US]
+06-11 12:59:07.037   686  1037 V Configuration: Updating configuration, locales updated from [] to [en_US]
+06-11 12:59:07.037   686  1037 V Configuration: Updating configuration, locales updated from [] to [en_US]
+06-11 12:59:07.037   686  1037 V Configuration: Updating configuration, locales updated from [] to [en_US]
+06-11 12:59:07.037   686  1037 V Configuration: Updating configuration, locales updated from [] to [en_US]
+06-11 12:59:07.038   686  1037 V Configuration: Updating configuration, locales updated from [] to [en_US]
+06-11 12:59:07.039  1484  1484 D ActivityThread: Package [com.ash.strefaciszy] reported as REPLACED, but missing application info. Assuming REMOVED.
+06-11 12:59:07.059   686  1609 I system_server: AssetManager2(0x7c19322bef98) locale list changing from [] to [en-US]
+06-11 12:59:07.059  2659  2659 D ActivityThread: Package [com.ash.strefaciszy] reported as REPLACED, but missing application info. Assuming REMOVED.
+06-11 12:59:07.062   686   761 D ActivityManager: sync unfroze 2427 com.android.vending for 3
+06-11 12:59:07.073  2427  2427 I Finsky  : [2] Memory trim requested to level 40
+06-11 12:59:07.073  2427  2427 I Finsky  : [2] Flushing in-memory image cache
+06-11 12:59:07.073   686   761 D ActivityManager: sync unfroze 2869 com.android.vending:background for 3
+06-11 12:59:07.079  2869  2869 I Finsky:background: [2] Memory trim requested to level 40
+06-11 12:59:07.099   686  1026 W ProcessStats: Tracking association SourceState{b7153bc system/1000 ImpFg #3437} whose proc state 5 is better than process ProcessState{7ee0843 com.google.android.permissioncontroller/10192 pkg=com.google.android.permissioncontroller} proc state 14 (9 skipped)
+06-11 12:59:07.102  1484  1484 D ActivityThread: Package [com.ash.strefaciszy] reported as REPLACED, but missing application info. Assuming REMOVED.
+06-11 12:59:07.107  2427  2427 D ActivityThread: Package [com.ash.strefaciszy] reported as REPLACED, but missing application info. Assuming REMOVED.
+06-11 12:59:07.107  2427  2427 D ActivityThread: Package [com.ash.strefaciszy] reported as REPLACED, but missing application info. Assuming REMOVED.
+06-11 12:59:07.107  2427  2427 I Finsky  : [2] Memory trim requested to level 40
+06-11 12:59:07.108  2427  2427 I Finsky  : [2] Flushing in-memory image cache
+06-11 12:59:07.108  2427  2427 I Finsky  : [2] Memory trim requested to level 40
+06-11 12:59:07.108  2427  2427 I Finsky  : [2] Flushing in-memory image cache
+06-11 12:59:07.120  2869  2869 I Finsky:background: [2] Memory trim requested to level 40
+06-11 12:59:07.128   686   710 I system_server: Background concurrent mark compact GC freed 21MB AllocSpace bytes, 51(1360KB) LOS objects, 38% free, 37MB/61MB, paused 14.741ms,3.933ms total 483.031ms
+06-11 12:59:07.135  2869  2869 I Finsky:background: [2] Memory trim requested to level 40
+06-11 12:59:07.135  2869  2869 D ActivityThread: Package [com.ash.strefaciszy] reported as REPLACED, but missing application info. Assuming REMOVED.
+06-11 12:59:07.143  2427  2427 I Finsky  : [2] adpz - Received: android.intent.action.PACKAGE_REMOVED, [6tVnMvq-lIcRDSzaSsfWhl4IZEZPu_iTs6l3ONmRbcI]
+06-11 12:59:07.146  1569  1569 I AiAiTextClassifier: onDestroyTextClassificationSession = TextClassificationSessionId {6b1a2afb-79d4-47c2-93ea-df9715399b42}
+06-11 12:59:07.147  2869  2869 D ActivityThread: Package [com.ash.strefaciszy] reported as REPLACED, but missing application info. Assuming REMOVED.
+06-11 12:59:07.150  2869  2869 I Finsky:background: [2] Memory trim requested to level 40
+06-11 12:59:07.150  2869  2869 I Finsky:background: [2] Memory trim requested to level 40
+06-11 12:59:07.155  2869  2869 I Finsky:background: [2] adpn - Received: android.intent.action.PACKAGE_REMOVED, [6tVnMvq-lIcRDSzaSsfWhl4IZEZPu_iTs6l3ONmRbcI]
+06-11 12:59:07.156  1545  1545 W MediaProvider: WorkProfileOwnerApps cache is empty
+06-11 12:59:07.157  1545  1545 D PickerSyncLockManager: Trying to acquire lock com.android.providers.media.photopicker.sync.CloseableReentrantLock@ac313a[Unlocked]. Lock Name = CLOUD_PROVIDER_LOCK. Threads that may be waiting to acquire this lock = []
+06-11 12:59:07.157  1545  1545 D CloseableReentrantLock: Successfully acquired lock com.android.providers.media.photopicker.sync.CloseableReentrantLock@ac313a[Locked by thread main]. Lock Name = CLOUD_PROVIDER_LOCK. Threads that may be waiting to acquire this lock = []
+06-11 12:59:07.157  1545  1545 D CloseableReentrantLock: Successfully released lock com.android.providers.media.photopicker.sync.CloseableReentrantLock@ac313a[Unlocked]. Lock Name = CLOUD_PROVIDER_LOCK. Threads that may be waiting to acquire this lock = []
+06-11 12:59:07.159   686  2944 E RoleControllerServiceImpl: Default/fallback role holder package doesn't qualify for the role, package: com.google.android.gms, role: android.app.role.WALLET
+06-11 12:59:07.164   686   760 I system_server: AssetManager2(0x7c1932333938) locale list changing from [] to [en-US]
+06-11 12:59:07.172  1596  1596 I fgdw    : (REDACTED) O received %s
+06-11 12:59:07.201  2869  2869 I Finsky:background: [2] IQ: onPackageRemoved com.ash.strefaciszy, replacing=true, uninstallingFromPlay=false
+06-11 12:59:07.206  2869  5945 I Finsky:background: [122] IQ: handled package removed
+06-11 12:59:07.215   686  1236 W ActivityTaskManager: callingPackage for (uid=2000, pid=5942) has no WPC
+06-11 12:59:07.230  1596  1596 I fgdw    : (REDACTED) O received %s
+06-11 12:59:07.230  1596  1596 I fgdw    : (REDACTED) O received %s
+06-11 12:59:07.236   686   712 W System  : A resource failed to call close. 
+06-11 12:59:07.239  2869  5940 I Finsky:background: [120] Wrote row to frosting DB: 1164
+06-11 12:59:07.244  2869  5940 I Finsky:background: [120] Wrote row to frosting DB: 1165
+06-11 12:59:07.255  2427  2427 I Finsky  : [2] SCH: Received scheduling request: Id: 12-1, Constraints: [{ L: 15000, D: 86400000, C: CHARGING_NONE, I: IDLE_NONE, N: NET_ANY, B: BATTERY_ANY }]
+06-11 12:59:07.261   686  1236 D CompatChangeReporter: Compat change id reported: 151861875; UID 10220; state: ENABLED
+06-11 12:59:07.264   686  1236 V GrammaticalInflectionUtils: AttributionSource: android.content.AttributionSource@5707b17c does not have READ_SYSTEM_GRAMMATICAL_GENDER permission.
+06-11 12:59:07.270   686  1236 W OptProp : Cannot read opt property android.window.PROPERTY_COMPAT_ALLOW_USER_ASPECT_RATIO_OVERRIDE
+06-11 12:59:07.270   686  1236 W OptProp : Cannot read opt property android.window.PROPERTY_COMPAT_ALLOW_USER_ASPECT_RATIO_FULLSCREEN_OVERRIDE
+06-11 12:59:07.271   686  1236 W OptProp : Cannot read opt property android.window.PROPERTY_COMPAT_ALLOW_RESIZEABLE_ACTIVITY_OVERRIDES
+06-11 12:59:07.271   686  1236 W OptProp : Cannot read opt property android.window.PROPERTY_COMPAT_ALLOW_MIN_ASPECT_RATIO_OVERRIDE
+06-11 12:59:07.282   686  1236 W OptProp : Cannot read opt property android.window.PROPERTY_COMPAT_ALLOW_ORIENTATION_OVERRIDE
+06-11 12:59:07.283  2869  2869 I Finsky:background: [2] adpn - Received: android.intent.action.PACKAGE_ADDED, [6tVnMvq-lIcRDSzaSsfWhl4IZEZPu_iTs6l3ONmRbcI]
+06-11 12:59:07.292   686  1236 I ActivityTaskManager: START u0 {act=android.intent.action.MAIN cat=[android.intent.category.LAUNCHER] flg=0x30000000 xflg=0x4 cmp=com.ash.strefaciszy/.MainActivity (has extras)} with LAUNCH_SINGLE_TOP from uid 2000 (BAL_ALLOW_PERMISSION) result code=0
+06-11 12:59:07.295  2869  2886 W ding:background: Suspending all threads took: 6.038ms
+06-11 12:59:07.301  2869  2869 I Finsky:background: [2] adpn - Received: android.intent.action.PACKAGE_ADDED, [6tVnMvq-lIcRDSzaSsfWhl4IZEZPu_iTs6l3ONmRbcI]
+06-11 12:59:07.311  2869  5940 I Finsky:background: [120] Wrote row to frosting DB: 1166
+06-11 12:59:07.313   993  1057 V WindowManagerShell: Transition requested (#34): android.os.BinderProxy@b59ebdb TransitionRequestInfo { type = OPEN, triggerTask = TaskInfo{userId=0 taskId=56 effectiveUid=10220 displayId=0 isRunning=true baseIntent=Intent { act=android.intent.action.MAIN cat=[android.intent.category.LAUNCHER] flg=0x30000000 cmp=com.ash.strefaciszy/.MainActivity } baseActivity=ComponentInfo{com.ash.strefaciszy/com.ash.strefaciszy.MainActivity} topActivity=ComponentInfo{com.ash.strefaciszy/com.ash.strefaciszy.MainActivity} origActivity=null realActivity=ComponentInfo{com.ash.strefaciszy/com.ash.strefaciszy.MainActivity} numActivities=1 lastActiveTime=1810446 supportsMultiWindow=true resizeMode=1 isResizeable=true minWidth=-1 minHeight=-1 defaultMinSize=220 token=WCT{android.window.IWindowContainerToken$Stub$Proxy@1885678} topActivityType=1 pictureInPictureParams=null shouldDockBigOverlays=false launchIntoPipHostTaskId=-1 lastParentTaskIdBeforePip=-1 displayCutoutSafeInsets=Rect(0, 0 - 0, 0) topActivityInfo=ActivityInfo{a359151 com.ash.strefaciszy.MainActivity} launchCookies=[] positionInParent=Point(0, 0) parentTaskId=-1 isFocused=false isVisible=false isVisibleRequested=false isTopActivityNoDisplay=false isSleeping=false locusId=null displayAreaFeatureId=1 isTopActivityTransparent=false isActivityStackTransparent=false lastNonFullscreenBounds=Rect(284, 660 - 796, 1740) capturedLink=null capturedLinkTimestamp=0 requestedVisibleTypes=-9 topActivityRequestOpenInBrowserEducationTimestamp=0 appCompatTaskInfo=AppCompatTaskInfo { topActivityInSizeCompat=false eligibleForLetterboxEducation= false isLetterboxEducationEnabled= true isLetterboxDoubleTapEnabled= false eligibleForUserAspectRatioButton= false topActivityBoundsLetterboxed= false isFromLetterboxDoubleTap= false topActivityLetterboxVerticalPosition= -1 topActivityLetterboxHorizontalPosition= -1 topActivityLetterboxWidth=-1 topActivityLetterboxHeight=-1 topActivityAppBounds=Rect(0, 0 - 1080, 2400) isUserFullscreenOverrideEnabled=false isSystemFullscreenOverrideEnabled=false hasMinAspectRatioOverride=false topActivityLetterboxBounds=null cameraCompatTaskInfo=CameraCompatTaskInfo { freeformCameraCompatMode=inactive}} topActivityMainWindowFrame=null}, pipChange = null, remoteTransition = null, displayChange = null, flags = 0, debugId = 34 }
+06-11 12:59:07.313   993  1057 D ShellSplitScreen: logExit: no-op, mLoggerSessionId is null
+06-11 12:59:07.314   686   760 I system_server: AssetManager2(0x7c193232e1b8) locale list changing from [] to [en-US]
+06-11 12:59:07.315   530  1203 I BpBinder: onLastStrongRef automatically unlinking death recipients: 
+06-11 12:59:07.315  1120  1120 W SplitSelectStateCtor: Missing session instanceIds
+06-11 12:59:07.315  1120  1120 D StatsLog: LAUNCHER_SPLIT_SELECTION_EXIT_INTERRUPTED
+06-11 12:59:07.318   686  1235 I AppsFilter: interaction: PackageSetting{ca8949b com.android.microdroid.empty_payload/10200} -> PackageSetting{906cc20 com.ash.strefaciszy/10220} BLOCKED
+06-11 12:59:07.319   686  1235 I AppsFilter: interaction: PackageSetting{e7c4811 com.ashapp.horsevibe/10215} -> PackageSetting{906cc20 com.ash.strefaciszy/10220} BLOCKED
+06-11 12:59:07.319   686  1235 I AppsFilter: interaction: PackageSetting{4f1df77 com.example.strefa_ciszy/10216} -> PackageSetting{906cc20 com.ash.strefaciszy/10220} BLOCKED
+06-11 12:59:07.342  2869  2869 I Finsky:background: [2] adpn - Deduping intent android.intent.action.PACKAGE_ADDED
+06-11 12:59:07.350  2869  2869 I Finsky:background: [2] adpn - Received: android.intent.action.PACKAGE_ADDED, [6tVnMvq-lIcRDSzaSsfWhl4IZEZPu_iTs6l3ONmRbcI]
+06-11 12:59:07.352   530   530 I BpBinder: onLastStrongRef automatically unlinking death recipients: 
+06-11 12:59:07.364  2869  2869 I Finsky:background: [2] adpn - Deduping intent android.intent.action.PACKAGE_ADDED
+06-11 12:59:07.365  2869  3092 I Finsky:background: [61] RECEIVER_PACKAGE_MONITOR_BACKGROUND#logWorkEndAndFinishGoAsync: SUCCESS
+06-11 12:59:07.380  2869  5940 I Finsky:background: [120] Wrote row to frosting DB: 1167
+06-11 12:59:07.381   686  1321 D ActivityManager: sync unfroze 1731 com.google.android.googlequicksearchbox:search for 6
+06-11 12:59:07.388   686   760 I system_server: AssetManager2(0x7c193232d538) locale list changing from [] to [en-US]
+06-11 12:59:07.390  2869  5940 I Finsky:background: [120] Wrote row to frosting DB: 1168
+06-11 12:59:07.402   686  1321 D ActivityManager: sync unfroze 4709 com.google.android.adservices.api for 6
+06-11 12:59:07.406  4709  4709 D ActivityThread: Package [com.ash.strefaciszy] reported as REPLACED, but missing application info. Assuming REMOVED.
+06-11 12:59:07.406   993  1057 D WindowManagerShell: setLauncherKeepClearAreaHeight: visible=false, height=527
+06-11 12:59:07.407  4709  4709 D ActivityThread: Package [com.ash.strefaciszy] reported as REPLACED, but missing application info. Assuming REMOVED.
+06-11 12:59:07.411   993  1155 I ndroid.systemui: AssetManager2(0x7c19322fcb18) locale list changing from [] to [en-US]
+06-11 12:59:07.415   686  1236 D CompatChangeReporter: Compat change id reported: 309578419; UID 10220; state: ENABLED
+06-11 12:59:07.426  2869  5940 I Finsky:background: [120] Wrote row to frosting DB: 1169
+06-11 12:59:07.439   993  1156 W HWUI    : Image decoding logging dropped!
+06-11 12:59:07.440   686   937 D BackgroundInstallControlService: Package event received: 0
+06-11 12:59:07.440   686   937 D BackgroundInstallControlService: Package event received: 0
+06-11 12:59:07.472   686  1321 D ActivityManager: sync unfroze 3624 com.android.chrome for 6
+06-11 12:59:07.473   686  1321 D ActivityManager: sync unfroze 4666 com.google.android.webview:sandboxed_process0:org.chromium.content.app.SandboxedProcessService0:0 for 6
+06-11 12:59:07.514   686  2817 D CoreBackPreview: Window{b74ee6a u0 Splash Screen com.ash.strefaciszy}: Setting back callback OnBackInvokedCallbackInfo{mCallback=android.window.IOnBackInvokedCallback$Stub$Proxy@151a3f8, mPriority=0, mIsAnimationCallback=false, mOverrideBehavior=0}
+06-11 12:59:07.565  4666  4666 D ActivityThread: Package [com.ash.strefaciszy] reported as REPLACED, but missing application info. Assuming REMOVED.
+06-11 12:59:07.579  4666  4666 D ActivityThread: Package [com.ash.strefaciszy] reported as REPLACED, but missing application info. Assuming REMOVED.
+06-11 12:59:07.584  2427  2427 I Finsky  : [2] adpz - Received: android.intent.action.PACKAGE_ADDED, [6tVnMvq-lIcRDSzaSsfWhl4IZEZPu_iTs6l3ONmRbcI]
+06-11 12:59:07.585   686   686 W Looper  : Slow dispatch took 275ms main app=system_server main=true group=FOREGROUND h=com.android.server.notification.NotificationManagerService$WorkerHandler c=com.android.server.notification.NotificationManagerService$CancelNotificationRunnable@4f907a4 m=0
+06-11 12:59:07.590   993  5511 V WindowManagerShell: onTransitionReady(transaction=2946347566158)
+06-11 12:59:07.593   993  1057 V WindowManagerShell: onTransitionReady (#34) android.os.BinderProxy@b59ebdb: {id=34 t=OPEN f=0x0 trk=0 r=[0@Point(0, 0)] c=[
+06-11 12:59:07.593   993  1057 V WindowManagerShell:         {m=OPEN f=NONE leash=Surface(name=Task=56)/@0xb3646a2 sb=Rect(0, 0 - 1080, 2400) eb=Rect(0, 0 - 1080, 2400) epz=Point(1080, 2400) d=0 taskParent=-1},
+06-11 12:59:07.593   993  1057 V WindowManagerShell:         {m=TO_BACK f=SHOW_WALLPAPER leash=Surface(name=Task=1)/@0x2ed9f33 sb=Rect(0, 0 - 1080, 2400) eb=Rect(0, 0 - 1080, 2400) epz=Point(1080, 2400) d=0 taskParent=-1},
+06-11 12:59:07.593   993  1057 V WindowManagerShell:         {m=TO_BACK f=IS_WALLPAPER leash=Surface(name=WallpaperWindowToken{954f65a showWhenLocked=false})/@0xa2082f0 sb=Rect(0, 0 - 1080, 2400) eb=Rect(0, 0 - 1080, 2400) epz=Point(1080, 2400) d=0}
+06-11 12:59:07.593   993  1057 V WindowManagerShell:     ]}
+06-11 12:59:07.593   993  1057 V WindowManagerShell: Playing animation for (#34) android.os.BinderProxy@b59ebdb@0
+06-11 12:59:07.594   993  1057 V ShellRecents: RecentsTransitionHandler.startAnimation: no controller found
+06-11 12:59:07.594   993  1057 V WindowManagerShell: Transition doesn't have explicit remote, search filters for match for {id=34 t=OPEN f=0x0 trk=0 r=[0@Point(0, 0)] c=[{m=OPEN f=NONE leash=Surface(name=Task=56)/@0xb3646a2 sb=Rect(0, 0 - 1080, 2400) eb=Rect(0, 0 - 1080, 2400) epz=Point(1080, 2400) d=0 taskParent=-1},{m=TO_BACK f=SHOW_WALLPAPER leash=Surface(name=Task=1)/@0x2ed9f33 sb=Rect(0, 0 - 1080, 2400) eb=Rect(0, 0 - 1080, 2400) epz=Point(1080, 2400) d=0 taskParent=-1},{m=TO_BACK f=IS_WALLPAPER leash=Surface(name=WallpaperWindowToken{954f65a showWhenLocked=false})/@0xa2082f0 sb=Rect(0, 0 - 1080, 2400) eb=Rect(0, 0 - 1080, 2400) epz=Point(1080, 2400) d=0}]}
+06-11 12:59:07.594   993  1057 V WindowManagerShell:  Checking filter Pair{{types=[] flags=0x0] notFlags=0x0 checks=[{atype=undefined independent=true modes=[CLOSE,TO_BACK] flags=IN_TASK_WITH_EMBEDDED_ACTIVITY mustBeTask=false order=ANY topActivity=null launchCookie=null taskFragmentToken=android.os.BinderProxy@b0b5dd windowingMode=undefined}]} RemoteTransition { remoteTransition = android.window.IRemoteTransition$Stub$Proxy@894f552, appThread = android.app.IApplicationThread$Stub$Proxy@997a023, debugName = overlayBackTransition }}
+06-11 12:59:07.594   993  1057 V WindowManagerShell:  Checking filter Pair{{types=[] flags=0x0] notFlags=0x0 checks=[{atype=dream independent=true modes=[OPEN,TO_FRONT] flags=NONE mustBeTask=false order=ANY topActivity=null launchCookie=null windowingMode=undefined},{atype=home independent=true modes=[CLOSE,TO_BACK] flags=NONE mustBeTask=false order=ANY topActivity=null launchCookie=null windowingMode=undefined}]} RemoteTransition { remoteTransition = android.window.IRemoteTransition$Stub$Proxy@66c0920, appThread = android.app.IApplicationThread$Stub$Proxy@587d2d9, debugName = LauncherToDream }}
+06-11 12:59:07.594   993  1057 V WindowManagerShell:  Checking filter Pair{{types=[] flags=0x0] notFlags=0x100 checks=[{atype=home independent=true modes=[OPEN,TO_FRONT] flags=NONE mustBeTask=false order=TOP topActivity=ComponentInfo{com.google.android.apps.nexuslauncher/com.google.android.apps.nexuslauncher.NexusLauncherActivity} launchCookie=null windowingMode=undefined},{atype=standard independent=true modes=[CLOSE,TO_BACK] flags=NONE mustBeTask=false order=ANY topActivity=null launchCookie=null windowingMode=undefined},{NOT atype=undefined independent=true modes=[] flags=NONE mustBeTask=true order=ANY topActivity=null launchCookie=null customAnim=true windowingMode=undefined}]} RemoteTransition { remoteTransition = android.window.IRemoteTransition$Stub$Proxy@9e9149e, appThread = android.app.IApplicationThread$Stub$Proxy@cba1b7f, debugName = QuickstepLaunchHome }}
+06-11 12:59:07.594   993  1057 V WindowManagerShell:  Delegate animation for (#34) to null
+06-11 12:59:07.594   993  1057 V WindowManagerShell: start default transition animation, info = {id=34 t=OPEN f=0x0 trk=0 r=[0@Point(0, 0)] c=[{m=OPEN f=NONE leash=Surface(name=Task=56)/@0xb3646a2 sb=Rect(0, 0 - 1080, 2400) eb=Rect(0, 0 - 1080, 2400) epz=Point(1080, 2400) d=0 taskParent=-1},{m=TO_BACK f=SHOW_WALLPAPER leash=Surface(name=Task=1)/@0x2ed9f33 sb=Rect(0, 0 - 1080, 2400) eb=Rect(0, 0 - 1080, 2400) epz=Point(1080, 2400) d=0 taskParent=-1},{m=TO_BACK f=IS_WALLPAPER leash=Surface(name=WallpaperWindowToken{954f65a showWhenLocked=false})/@0xa2082f0 sb=Rect(0, 0 - 1080, 2400) eb=Rect(0, 0 - 1080, 2400) epz=Point(1080, 2400) d=0}]}
+06-11 12:59:07.594   993  1057 V WindowManagerShell: loadAnimation: anim=android.view.animation.AnimationSet@5d62aee animAttr=0x13 type=OPEN isEntrance=false
+06-11 12:59:07.644   993  1057 V WindowManagerShell: loadAnimation: anim=android.view.animation.AnimationSet@522de1c animAttr=0x12 type=OPEN isEntrance=true
+06-11 12:59:07.649   686   749 V WindowManager: Sent Transition (#34) createdAt=06-11 12:59:07.273 via request=TransitionRequestInfo { type = OPEN, triggerTask = TaskInfo{userId=0 taskId=56 effectiveUid=10220 displayId=0 isRunning=true baseIntent=Intent { act=android.intent.action.MAIN cat=[android.intent.category.LAUNCHER] flg=0x30000000 cmp=com.ash.strefaciszy/.MainActivity } baseActivity=ComponentInfo{com.ash.strefaciszy/com.ash.strefaciszy.MainActivity} topActivity=ComponentInfo{com.ash.strefaciszy/com.ash.strefaciszy.MainActivity} origActivity=null realActivity=ComponentInfo{com.ash.strefaciszy/com.ash.strefaciszy.MainActivity} numActivities=1 lastActiveTime=1810446 supportsMultiWindow=true resizeMode=1 isResizeable=true minWidth=-1 minHeight=-1 defaultMinSize=220 token=WCT{RemoteToken{5f8b52f Task{fb06187 #56 type=standard I=com.ash.strefaciszy/.MainActivity}}} topActivityType=1 pictureInPictureParams=null shouldDockBigOverlays=false launchIntoPipHostTaskId=-1 lastParentTaskIdBeforePip=-1 displayCutoutSafeInsets=Rect(0, 0 - 0, 0) topActivityInfo=ActivityInfo{373a73c com.ash.strefaciszy.MainActivity} launchCookies=[] positionInParent=Point(0, 0) parentTaskId=-1 isFocused=false isVisible=false isVisibleRequested=false isTopActivityNoDisplay=false isSleeping=false locusId=null displayAreaFeatureId=1 isTopActivityTransparent=false isActivityStackTransparent=false lastNonFullscreenBounds=Rect(284, 660 - 796, 1740) capturedLink=null capturedLinkTimestamp=0 requestedVisibleTypes=-9 topActivityRequestOpenInBrowserEducationTimestamp=0 appCompatTaskInfo=AppCompatTaskInfo { topActivityInSizeCompat=false eligibleForLetterboxEducation= false isLetterboxEducationEnabled= true isLetterboxDoubleTapEnabled= false eligibleForUserAspectRatioButton= false topActivityBoundsLetterboxed= false isFromLetterboxDoubleTap= false topActivityLetterboxVerticalPosition= -1 topActivityLetterboxHorizontalPosition= -1 topActivityLetterboxWidth=-1 topActivityLetterboxHeight=-1 topActivityAppBounds=Rect(0, 0 - 1080, 2400) isUserFullscreenOverrideEnabled=false isSystemFullscreenOverrideEnabled=false hasMinAspectRatioOverride=false topActivityLetterboxBounds=null cameraCompatTaskInfo=CameraCompatTaskInfo { freeformCameraCompatMode=inactive}} topActivityMainWindowFrame=null}, pipChange = null, remoteTransition = null, displayChange = null, flags = 0, debugId = 34 }
+06-11 12:59:07.649   686   749 V WindowManager:     startWCT=WindowContainerTransaction { changes= {} hops= [] errorCallbackToken=null taskFragmentOrganizer=null }
+06-11 12:59:07.658  3624  3624 D ActivityThread: Package [com.ash.strefaciszy] reported as REPLACED, but missing application info. Assuming REMOVED.
+06-11 12:59:07.673   993  1057 V WindowManagerShell:  animated by com.android.wm.shell.transition.DefaultTransitionHandler@49f00e2
+06-11 12:59:07.695  3624  3624 D ActivityThread: Package [com.ash.strefaciszy] reported as REPLACED, but missing application info. Assuming REMOVED.
+06-11 12:59:07.699   686   808 E AppOps  : attributionTag VCN not declared in manifest of android
+06-11 12:59:07.703   686   752 V GrammaticalInflectionUtils: AttributionSource: android.content.AttributionSource@5707b17c does not have READ_SYSTEM_GRAMMATICAL_GENDER permission.
+06-11 12:59:07.713   603   674 W IPCThreadState: Sending oneway calls to frozen process.
+06-11 12:59:07.725  3624  3628 W .android.chrome: Suspending all threads took: 7.686ms
+06-11 12:59:07.759   686  1321 W HWUI    : Image decoding logging dropped!
+06-11 12:59:07.773  1731  1731 D ActivityThread: Package [com.ash.strefaciszy] reported as REPLACED, but missing application info. Assuming REMOVED.
+06-11 12:59:07.778  1731  1731 D ActivityThread: Package [com.ash.strefaciszy] reported as REPLACED, but missing application info. Assuming REMOVED.
+06-11 12:59:07.782   686   937 D BackgroundInstallControlService: Package event received: 0
+06-11 12:59:07.791   459   459 I Zygote  : Entering forkRepeatedly native zygote loop
+06-11 12:59:07.867   686   848 I system_server: AssetManager2(0x7c1932330d78) locale list changing from [] to [en-US]
+06-11 12:59:07.884   686   749 V WindowManager:     info={id=34 t=OPEN f=0x0 trk=0 r=[0@Point(0, 0)] c=[
+06-11 12:59:07.884   686   749 V WindowManager:         {WCT{RemoteToken{5f8b52f Task{fb06187 #56 type=standard I=com.ash.strefaciszy/.MainActivity}}} m=OPEN f=NONE leash=Surface(name=Task=56)/@0xdeb8736 sb=Rect(0, 0 - 1080, 2400) eb=Rect(0, 0 - 1080, 2400) epz=Point(1080, 2400) d=0 taskParent=-1},
+06-11 12:59:07.884   686   749 V WindowManager:         {WCT{RemoteToken{8c45cd2 Task{a82f423 #1 type=home}}} m=TO_BACK f=SHOW_WALLPAPER leash=Surface(name=Task=1)/@0x43b7a9c sb=Rect(0, 0 - 1080, 2400) eb=Rect(0, 0 - 1080, 2400) epz=Point(1080, 2400) d=0 taskParent=-1},
+06-11 12:59:07.884   686   749 V WindowManager:         {m=TO_BACK f=IS_WALLPAPER leash=Surface(name=WallpaperWindowToken{954f65a showWhenLocked=false})/@0x4383a0f sb=Rect(0, 0 - 1080, 2400) eb=Rect(0, 0 - 1080, 2400) epz=Point(1080, 2400) d=0}
+06-11 12:59:07.884   686   749 V WindowManager:     ]}
+06-11 12:59:07.898   459   459 D Zygote  : Forked child process 5968
+06-11 12:59:07.911   686   762 W ActivityManager: Slow operation: 207ms so far, now at startProcess: returned from zygote!
+06-11 12:59:07.937   686   848 I system_server: AssetManager2(0x7c1932339a18) locale list changing from [] to [en-US]
+06-11 12:59:07.962   686   762 W ActivityManager: Slow operation: 258ms so far, now at startProcess: done updating battery stats
+06-11 12:59:07.962   686   762 W ActivityManager: Slow operation: 258ms so far, now at startProcess: building log message
+06-11 12:59:07.962   686   762 I ActivityManager: Start proc 5968:com.ash.strefaciszy/u0a220 for next-top-activity {com.ash.strefaciszy/com.ash.strefaciszy.MainActivity}
+06-11 12:59:07.962   686   762 W ActivityManager: Slow operation: 258ms so far, now at startProcess: starting to update pids map
+06-11 12:59:07.964   686   762 I ActivityManager: ProcessObserver broadcast disabled
+06-11 12:59:07.964   686   762 W ActivityManager: Slow operation: 261ms so far, now at startProcess: done updating pids map
+06-11 12:59:07.971  2869  2869 I Finsky:background: [2] Memory trim requested to level 40
+06-11 12:59:07.993   993  1057 V WindowManagerShell: Transition animation finished (aborted=false), notifying core (#34) android.os.BinderProxy@b59ebdb@0
+06-11 12:59:08.027  2427  2427 I Finsky  : [2] DTU: Received onPackageAdded, replacing: true
+06-11 12:59:08.048  2427  5949 I Finsky  : [171] SCH: Received scheduling request: Id: 12-1, Constraints: [{ L: 15000, D: 86400000, C: CHARGING_NONE, I: IDLE_NONE, N: NET_ANY, B: BATTERY_ANY }]
+06-11 12:59:08.071  1484  5951 I Auth    : (REDACTED) [SupervisedAccountIntentOperationV2] onHandleIntent: %s
+06-11 12:59:08.136   686   749 W Looper  : Slow dispatch took 272ms android.fg app=system_server main=false group=FOREGROUND h=android.os.Handler c=com.android.server.wm.TransitionController$Logger@ee3907 m=0
+06-11 12:59:08.136   686   749 W Looper  : Slow delivery took 426ms android.fg app=system_server main=false group=FOREGROUND h=android.os.Handler c=com.android.server.power.hint.HintManagerService$MyUidObserver$$ExternalSyntheticLambda0@d389a34 m=0
+06-11 12:59:08.137   686   749 V WindowManager: Finish Transition (#34): created at 06-11 12:59:07.273 collect-started=0.146ms request-sent=18.455ms started=63.337ms ready=298.007ms sent=307.79ms commit=95.349ms finished=757.037ms
+06-11 12:59:08.138   993  1057 V WindowManagerShell: Track 0 became idle
+06-11 12:59:08.138   993  1057 V WindowManagerShell: All active transition animations finished
+06-11 12:59:08.129  1289  5926 I ProximityAuth: [RecentAppsMediator] Package added: (user=UserHandle{0}) com.ash.strefaciszy
+06-11 12:59:08.141  5968  5968 I ash.strefaciszy: Late-enabling -Xcheck:jni
+06-11 12:59:08.153  1120  1120 D VRI[NexusLauncherActivity]: visibilityChanged oldVisibility=true newVisibility=false
+06-11 12:59:08.154  1120  1120 D NexusLauncherModelDelegate: notifySmartspaceEvent: SmartspaceTargetEvent{mSmartspaceTarget=null, mSmartspaceActionId='null', mEventType=7}
+06-11 12:59:08.154   686  2944 I system_server: AssetManager2(0x7c19324220d8) locale list changing from [] to [en-US]
+06-11 12:59:08.199  5968  5968 I ash.strefaciszy: Using CollectorTypeCMC GC.
+06-11 12:59:08.202  1484  1484 D BoundBrokerSvc: onBind: Intent { act=com.google.android.gms.chromesync.service.firstparty.START dat=chimera-action:/... xflg=0x4 cmp=com.google.android.gms/.chimera.GmsApiService }
+06-11 12:59:08.202  1484  1484 D BoundBrokerSvc: Loading bound service for intent: Intent { act=com.google.android.gms.chromesync.service.firstparty.START dat=chimera-action:/... xflg=0x4 cmp=com.google.android.gms/.chimera.GmsApiService }
+06-11 12:59:08.228   686  2944 W SignedPackage: Cannot get ApplicationInfo for package: com.google.android.devicelockcontroller
+06-11 12:59:08.238  5968  5968 W ash.strefaciszy: Unexpected CPU variant for x86: x86_64.
+06-11 12:59:08.238  5968  5968 W ash.strefaciszy: Known variants: atom, sandybridge, silvermont, goldmont, goldmont-plus, goldmont-without-sha-xsaves, tremont, kabylake, alderlake, default
+06-11 12:59:08.298   533   559 I adbd    : jdwp connection from 5968
+06-11 12:59:08.320   224   224 I lowmemorykiller: Kill 'com.android.camera2' (3046), uid 10151, oom_score_adj 995 to free 46672kB rss, 36756kB swap; reason: low watermark is breached
+06-11 12:59:08.327  1289  5929 I Fitness : (REDACTED) FitCleanupIntentOperation received Intent %s
+06-11 12:59:08.329  1484  5948 W SQLiteLog: (28) double-quoted string literal: "com.ash.strefaciszy"
+06-11 12:59:08.338  2427  2427 I Finsky  : [2] adpz - Received: android.intent.action.PACKAGE_ADDED, [6tVnMvq-lIcRDSzaSsfWhl4IZEZPu_iTs6l3ONmRbcI]
+06-11 12:59:08.353  2427  2427 I Finsky  : [2] adpz - Deduping intent android.intent.action.PACKAGE_ADDED
+06-11 12:59:08.358  2427  2427 I Finsky  : [2] adpz - Received: android.intent.action.PACKAGE_ADDED, [6tVnMvq-lIcRDSzaSsfWhl4IZEZPu_iTs6l3ONmRbcI]
+06-11 12:59:08.373  2427  2427 I Finsky  : [2] adpz - Deduping intent android.intent.action.PACKAGE_ADDED
+06-11 12:59:08.377  2427  2695 I Finsky  : [44] RECEIVER_PACKAGE_MONITOR#logWorkEndAndFinishGoAsync: SUCCESS
+06-11 12:59:08.392  1484  5686 I gle.android.gms: AssetManager2(0x7c19322b43b8) locale list changing from [] to [en-US]
+06-11 12:59:08.452   459   459 I Zygote  : Process 3046 exited due to signal 9 (Killed)
+06-11 12:59:08.454  5968  5968 D nativeloader: Load libframework-connectivity-tiramisu-jni.so using APEX ns com_android_tethering for caller /apex/com.android.tethering/javalib/framework-connectivity-t.jar: ok
+06-11 12:59:08.462  1731  2136 W acyb    : Abort, client detached.
+06-11 12:59:08.462  1731  2136 W acyb    : Abort, client detached.
+06-11 12:59:08.462   686  1762 I ActivityManager: Process com.android.camera2 (pid 3046) has died: cch+95 CEM 
+06-11 12:59:08.472   686   749 W Looper  : Drained
+06-11 12:59:08.481  1731  2136 W acyb    : Abort, client detached.
+06-11 12:59:08.491   686   763 I libprocessgroup: Removed cgroup /sys/fs/cgroup/apps/uid_10151/pid_3046
+06-11 12:59:08.500  2427  2427 I Finsky  : [2] Memory trim requested to level 40
+06-11 12:59:08.503  2427  2427 I Finsky  : [2] Flushing in-memory image cache
+06-11 12:59:08.550  1484  1771 I Icing   : IndexChimeraService.getServiceInterface callingPackage=com.google.android.gms componentName=AppsCorpus serviceId=36
+06-11 12:59:08.568   686  1159 V SafetySourceDataValidat: Package: com.android.vending has expected signature
+06-11 12:59:08.568   686  1159 V SafetySourceDataValidat: Package: com.android.vending has expected signature
+06-11 12:59:08.661   686   937 D BackgroundInstallControlService: Package event received: 0
+06-11 12:59:08.681   686   937 D BackgroundInstallControlService: Package event received: 0
+06-11 12:59:08.689  1484  4374 I Icing   : IndexChimeraService.getServiceInterface callingPackage=com.google.android.gms componentName=null serviceId=30
+06-11 12:59:08.692  5968  5968 D ApplicationLoaders: Returning zygote-cached class loader: /system_ext/framework/androidx.window.extensions.jar
+06-11 12:59:08.692  5968  5968 D ApplicationLoaders: Returning zygote-cached class loader: /system_ext/framework/androidx.window.sidecar.jar
+06-11 12:59:08.694  2427  2746 I Finsky  : [58] SCH: Scheduling phonesky job Id: 12-1, CT: 1749639547255, Constraints: [{ L: 15000, D: 86400000, C: CHARGING_NONE, I: IDLE_NONE, N: NET_ANY, B: BATTERY_ANY }]
+06-11 12:59:08.700  2427  2758 I Finsky  : [64] SCH: Scheduling 1 system job(s)
+06-11 12:59:08.700  2427  2758 I Finsky  : [64] SCH: Scheduling system job Id: 9235, L: 13555, D: 76334031, C: false, I: false, N: 1
+06-11 12:59:08.734  2427  2761 I Finsky  : [66] SCH: Scheduling phonesky job Id: 12-1, CT: 1749639548048, Constraints: [{ L: 15000, D: 86400000, C: CHARGING_NONE, I: IDLE_NONE, N: NET_ANY, B: BATTERY_ANY }]
+06-11 12:59:08.738  2427  2719 I Finsky  : [51] [ContentSync] finished, scheduled=true
+06-11 12:59:08.743  2427  2746 I Finsky  : [58] SCH: Scheduling 0 system job(s)
+06-11 12:59:08.744  2427  2746 I Finsky  : [58] [ContentSync] finished, scheduled=true
+06-11 12:59:08.819  2093  2271 I .apps.wellbeing: AssetManager2(0x7c19322ae2d8) locale list changing from [] to [en-US]
+06-11 12:59:08.826  2093  2271 I .apps.wellbeing: AssetManager2(0x7c19322a7ed8) locale list changing from [] to [en-US]
+06-11 12:59:08.846  2093  2271 I .apps.wellbeing: AssetManager2(0x7c19322a9af8) locale list changing from [] to [en-US]
+06-11 12:59:08.855  2093  2271 I .apps.wellbeing: AssetManager2(0x7c19322aba38) locale list changing from [] to [en-US]
+06-11 12:59:08.880  1484  5327 I gle.android.gms: AssetManager2(0x7c19322ad338) locale list changing from [] to [en-US]
+06-11 12:59:08.881  2093  2271 I .apps.wellbeing: AssetManager2(0x7c19322a7bb8) locale list changing from [] to [en-US]
+06-11 12:59:08.893  2093  2271 I .apps.wellbeing: AssetManager2(0x7c19322a68f8) locale list changing from [] to [en-US]
+06-11 12:59:08.907  1484  5327 I Icing   : Usage reports ok 2, Failed Usage reports 0, indexed 0, rejected 0
+06-11 12:59:08.923  2093  2271 I .apps.wellbeing: AssetManager2(0x7c19322ab0d8) locale list changing from [] to [en-US]
+06-11 12:59:08.931  2093  2271 I .apps.wellbeing: AssetManager2(0x7c19322bb438) locale list changing from [] to [en-US]
+06-11 12:59:08.937  2093  2271 I .apps.wellbeing: AssetManager2(0x7c19322bc3d8) locale list changing from [] to [en-US]
+06-11 12:59:08.942  2093  2271 I .apps.wellbeing: AssetManager2(0x7c19322ba7b8) locale list changing from [] to [en-US]
+06-11 12:59:08.971  2093  2271 I .apps.wellbeing: AssetManager2(0x7c19322b5678) locale list changing from [] to [en-US]
+06-11 12:59:08.991  2093  2271 I .apps.wellbeing: AssetManager2(0x7c19322bf2b8) locale list changing from [] to [en-US]
+06-11 12:59:09.006  1484  5686 I gle.android.gms: AssetManager2(0x7c19322aef58) locale list changing from [] to [en-US]
+06-11 12:59:09.014  2093  2271 I .apps.wellbeing: AssetManager2(0x7c19322b7bf8) locale list changing from [] to [en-US]
+06-11 12:59:09.019  2093  2271 I .apps.wellbeing: AssetManager2(0x7c19322bf5d8) locale list changing from [] to [en-US]
+06-11 12:59:09.022  1484  5327 I Icing   : Usage reports ok 0, Failed Usage reports 0, indexed 0, rejected 0
+06-11 12:59:09.050  2093  2271 I .apps.wellbeing: AssetManager2(0x7c19322c1b58) locale list changing from [] to [en-US]
+06-11 12:59:09.056  1484  5327 I Icing   : Indexing com.google.android.gms-apps from com.google.android.gms
+06-11 12:59:09.060  5968  5968 D nativeloader: Configuring clns-9 for other apk /data/app/~~RgGWHgb8km_KyjKibDBLHg==/com.ash.strefaciszy-MgCrAx4_o85pbZ4mRMXfTA==/base.apk. target_sdk_version=35, uses_libraries=, library_path=/data/app/~~RgGWHgb8km_KyjKibDBLHg==/com.ash.strefaciszy-MgCrAx4_o85pbZ4mRMXfTA==/lib/x86_64:/data/app/~~RgGWHgb8km_KyjKibDBLHg==/com.ash.strefaciszy-MgCrAx4_o85pbZ4mRMXfTA==/base.apk!/lib/x86_64, permitted_path=/data:/mnt/expand:/data/user/0/com.ash.strefaciszy
+06-11 12:59:09.061  2093  2271 I .apps.wellbeing: AssetManager2(0x7c19322bcd38) locale list changing from [] to [en-US]
+06-11 12:59:09.067  5968  5968 D CompatChangeReporter: Compat change id reported: 202956589; UID 10220; state: ENABLED
+06-11 12:59:09.068  1484  5327 I Icing   : Indexing done com.google.android.gms-apps
+06-11 12:59:09.074  5968  5968 I ash.strefaciszy: AssetManager2(0x7c19322a49b8) locale list changing from [] to [en-US]
+06-11 12:59:09.088  2093  2271 I .apps.wellbeing: AssetManager2(0x7c19322b6938) locale list changing from [] to [en-US]
+06-11 12:59:09.089  5968  5968 V GraphicsEnvironment: Currently set values for:
+06-11 12:59:09.089  5968  5968 V GraphicsEnvironment:   angle_gl_driver_selection_pkgs=[]
+06-11 12:59:09.089  5968  5968 V GraphicsEnvironment:   angle_gl_driver_selection_values=[]
+06-11 12:59:09.089  5968  5968 V GraphicsEnvironment: com.ash.strefaciszy is not listed in per-application setting
+06-11 12:59:09.089  5968  5968 V GraphicsEnvironment: ANGLE allowlist from config: 
+06-11 12:59:09.089  5968  5968 V GraphicsEnvironment: com.ash.strefaciszy is not listed in ANGLE allowlist or settings, returning default
+06-11 12:59:09.089  5968  5968 V GraphicsEnvironment: Neither updatable production driver nor prerelease driver is supported.
+06-11 12:59:09.106  5968  5968 I FirebaseApp: Device unlocked: initializing all Firebase APIs for app [DEFAULT]
+06-11 12:59:09.108  5968  5968 I FirebaseInitProvider: FirebaseApp initialization successful
+06-11 12:59:09.112  2093  2271 I .apps.wellbeing: AssetManager2(0x7c19322c0898) locale list changing from [] to [en-US]
+06-11 12:59:09.115  2093  2271 I .apps.wellbeing: AssetManager2(0x7c19322bfc18) locale list changing from [] to [en-US]
+06-11 12:59:09.119  2093  2271 I .apps.wellbeing: AssetManager2(0x7c19322c2198) locale list changing from [] to [en-US]
+06-11 12:59:09.122   686  1306 W OptProp : Cannot read opt property android.window.PROPERTY_COMPAT_ENABLE_FAKE_FOCUS
+06-11 12:59:09.123   686  1306 D CompatChangeReporter: Compat change id reported: 324203798; UID 10220; state: ENABLED
+06-11 12:59:09.127   686   937 D BackgroundInstallControlService: Package event received: 0
+06-11 12:59:09.127   686   937 D BackgroundInstallControlService: Package event received: 0
+06-11 12:59:09.132  5968  6015 I DisplayManager: Choreographer implicitly registered for the refresh rate.
+06-11 12:59:09.135  5968  5968 I ash.strefaciszy: AssetManager2(0x7c19322a8838) locale list changing from [] to [en-US]
+06-11 12:59:09.138  5968  5968 E TransactionExecutor: Failed to execute the transaction: tId:541247617 ClientTransaction{
+06-11 12:59:09.138  5968  5968 E TransactionExecutor: tId:541247617   transactionItems=[
+06-11 12:59:09.138  5968  5968 E TransactionExecutor: tId:541247617     LaunchActivityItem{activityToken=android.os.BinderProxy@e8a1d6,intent=Intent { act=android.intent.action.MAIN cat=[android.intent.category.LAUNCHER] flg=0x30000000 xflg=0x4 cmp=com.ash.strefaciszy/.MainActivity (has extras) },ident=52694470,info=ActivityInfo{94c3fb0 com.ash.strefaciszy.MainActivity},curConfig={1.0 310mcc260mnc [en_US] ldltr sw411dp w411dp h914dp 420dpi nrml long port finger qwerty/v/v dpad/v winConfig={ mBounds=Rect(0, 0 - 1080, 2400) mAppBounds=Rect(0, 0 - 1080, 2400) mMaxBounds=Rect(0, 0 - 1080, 2400) mDisplayRotation=ROTATION_0 mWindowingMode=fullscreen mActivityType=undefined mAlwaysOnTop=undefined mRotation=ROTATION_0} s.27 fontWeightAdjustment=0},overrideConfig={1.0 310mcc260mnc [en_US] ldltr sw411dp w411dp h914dp 420dpi nrml long port finger qwerty/v/v dpad/v winConfig={ mBounds=Rect(0, 0 - 1080, 2400) mAppBounds=Rect(0, 0 - 1080, 2400) mMaxBounds=Rect(0, 0 - 1080, 2400) mDisplayRotation=ROTATION_0 mWindowingMode=fullscreen mActivityType=standard mAlwaysOnTop=undefined mRotation=ROTATION_0} s.2 fontWeightAdjustment=0},deviceId=0,referrer=com.android.shell,procState=2,state=null,persistentState=null,pendingResults=null,pendingNewIntents=null,sceneTransitionInfo=null,profilerInfo=null,assistToken=android.os.BinderProxy@7d5bc2d,shareableActivityToken=android.os.BinderProxy@d250562,activityWindowInfo=ActivityWindowInfo{isEmbedded=false, taskBounds=Rect(0, 0 - 1080, 2400), taskFragmentBounds=Rect(0, 0 - 1080, 2400)}}
+06-11 12:59:09.138  5968  5968 E TransactionExecutor: tId:541247617     ResumeActivityItem{mActivityToken=android.os.BinderProxy@e8a1d6,procState=-1,isForward=true,shouldSendCompatFakeFocus=false}
+06-11 12:59:09.138  5968  5968 E TransactionExecutor: tId:541247617     Target activity: Not found for token: android.os.BinderProxy@e8a1d6
+06-11 12:59:09.138  5968  5968 E TransactionExecutor: tId:541247617   ]
+06-11 12:59:09.138  5968  5968 E TransactionExecutor: tId:541247617 }
+06-11 12:59:09.138  5968  5968 D AndroidRuntime: Shutting down VM
+--------- beginning of crash
+06-11 12:59:09.142  5968  5968 E AndroidRuntime: FATAL EXCEPTION: main
+06-11 12:59:09.142  5968  5968 E AndroidRuntime: Process: com.ash.strefaciszy, PID: 5968
+06-11 12:59:09.142  5968  5968 E AndroidRuntime: java.lang.RuntimeException: Unable to instantiate activity ComponentInfo{com.ash.strefaciszy/com.ash.strefaciszy.MainActivity}: java.lang.ClassNotFoundException: Didn't find class "com.ash.strefaciszy.MainActivity" on path: DexPathList[[zip file "/data/app/~~RgGWHgb8km_KyjKibDBLHg==/com.ash.strefaciszy-MgCrAx4_o85pbZ4mRMXfTA==/base.apk"],nativeLibraryDirectories=[/data/app/~~RgGWHgb8km_KyjKibDBLHg==/com.ash.strefaciszy-MgCrAx4_o85pbZ4mRMXfTA==/lib/x86_64, /data/app/~~RgGWHgb8km_KyjKibDBLHg==/com.ash.strefaciszy-MgCrAx4_o85pbZ4mRMXfTA==/base.apk!/lib/x86_64, /system/lib64, /system_ext/lib64]]
+06-11 12:59:09.142  5968  5968 E AndroidRuntime: 	at android.app.ActivityThread.performLaunchActivity(ActivityThread.java:4186)
+06-11 12:59:09.142  5968  5968 E AndroidRuntime: 	at android.app.ActivityThread.handleLaunchActivity(ActivityThread.java:4467)
+06-11 12:59:09.142  5968  5968 E AndroidRuntime: 	at android.app.servertransaction.LaunchActivityItem.execute(LaunchActivityItem.java:222)
+06-11 12:59:09.142  5968  5968 E AndroidRuntime: 	at android.app.servertransaction.TransactionExecutor.executeNonLifecycleItem(TransactionExecutor.java:133)
+06-11 12:59:09.142  5968  5968 E AndroidRuntime: 	at android.app.servertransaction.TransactionExecutor.executeTransactionItems(TransactionExecutor.java:103)
+06-11 12:59:09.142  5968  5968 E AndroidRuntime: 	at android.app.servertransaction.TransactionExecutor.execute(TransactionExecutor.java:80)
+06-11 12:59:09.142  5968  5968 E AndroidRuntime: 	at android.app.ActivityThread$H.handleMessage(ActivityThread.java:2823)
+06-11 12:59:09.142  5968  5968 E AndroidRuntime: 	at android.os.Handler.dispatchMessage(Handler.java:110)
+06-11 12:59:09.142  5968  5968 E AndroidRuntime: 	at android.os.Looper.loopOnce(Looper.java:248)
+06-11 12:59:09.142  5968  5968 E AndroidRuntime: 	at android.os.Looper.loop(Looper.java:338)
+06-11 12:59:09.142  5968  5968 E AndroidRuntime: 	at android.app.ActivityThread.main(ActivityThread.java:9067)
+06-11 12:59:09.142  5968  5968 E AndroidRuntime: 	at java.lang.reflect.Method.invoke(Native Method)
+06-11 12:59:09.142  5968  5968 E AndroidRuntime: 	at com.android.internal.os.RuntimeInit$MethodAndArgsCaller.run(RuntimeInit.java:593)
+06-11 12:59:09.142  5968  5968 E AndroidRuntime: 	at com.android.internal.os.ZygoteInit.main(ZygoteInit.java:932)
+06-11 12:59:09.142  5968  5968 E AndroidRuntime: Caused by: java.lang.ClassNotFoundException: Didn't find class "com.ash.strefaciszy.MainActivity" on path: DexPathList[[zip file "/data/app/~~RgGWHgb8km_KyjKibDBLHg==/com.ash.strefaciszy-MgCrAx4_o85pbZ4mRMXfTA==/base.apk"],nativeLibraryDirectories=[/data/app/~~RgGWHgb8km_KyjKibDBLHg==/com.ash.strefaciszy-MgCrAx4_o85pbZ4mRMXfTA==/lib/x86_64, /data/app/~~RgGWHgb8km_KyjKibDBLHg==/com.ash.strefaciszy-MgCrAx4_o85pbZ4mRMXfTA==/base.apk!/lib/x86_64, /system/lib64, /system_ext/lib64]]
+06-11 12:59:09.142  5968  5968 E AndroidRuntime: 	at dalvik.system.BaseDexClassLoader.findClass(BaseDexClassLoader.java:259)
+06-11 12:59:09.142  5968  5968 E AndroidRuntime: 	at java.lang.ClassLoader.loadClass(ClassLoader.java:637)
+06-11 12:59:09.142  5968  5968 E AndroidRuntime: 	at java.lang.ClassLoader.loadClass(ClassLoader.java:573)
+06-11 12:59:09.142  5968  5968 E AndroidRuntime: 	at android.app.AppComponentFactory.instantiateActivity(AppComponentFactory.java:95)
+06-11 12:59:09.142  5968  5968 E AndroidRuntime: 	at androidx.core.app.CoreComponentFactory.instantiateActivity(CoreComponentFactory.java:44)
+06-11 12:59:09.142  5968  5968 E AndroidRuntime: 	at android.app.Instrumentation.newActivity(Instrumentation.java:1443)
+06-11 12:59:09.142  5968  5968 E AndroidRuntime: 	at android.app.ActivityThread.performLaunchActivity(ActivityThread.java:4173)
+06-11 12:59:09.142  5968  5968 E AndroidRuntime: 	... 13 more
+06-11 12:59:09.144  2093  2271 I .apps.wellbeing: AssetManager2(0x7c19322bca18) locale list changing from [] to [en-US]
+06-11 12:59:09.152  2093  2271 I .apps.wellbeing: AssetManager2(0x7c19322cc738) locale list changing from [] to [en-US]
+06-11 12:59:09.153   686  6017 I DropBoxManagerService: add tag=data_app_crash isTagEnabled=true flags=0x2
+06-11 12:59:09.160  2093  2271 I .apps.wellbeing: AssetManager2(0x7c19322b9818) locale list changing from [] to [en-US]
+06-11 12:59:09.164   686  1235 W ActivityTaskManager:   Force finishing activity com.ash.strefaciszy/.MainActivity
+06-11 12:59:09.169   993  1057 V WindowManagerShell: Transition requested (#35): android.os.BinderProxy@e94a9c6 TransitionRequestInfo { type = CLOSE, triggerTask = TaskInfo{userId=0 taskId=56 effectiveUid=10220 displayId=0 isRunning=true baseIntent=Intent { act=android.intent.action.MAIN cat=[android.intent.category.LAUNCHER] flg=0x30000000 cmp=com.ash.strefaciszy/.MainActivity } baseActivity=ComponentInfo{com.ash.strefaciszy/com.ash.strefaciszy.MainActivity} topActivity=ComponentInfo{com.ash.strefaciszy/com.ash.strefaciszy.MainActivity} origActivity=null realActivity=ComponentInfo{com.ash.strefaciszy/com.ash.strefaciszy.MainActivity} numActivities=1 lastActiveTime=1812277 supportsMultiWindow=true resizeMode=1 isResizeable=true minWidth=-1 minHeight=-1 defaultMinSize=220 token=WCT{android.window.IWindowContainerToken$Stub$Proxy@62acd87} topActivityType=1 pictureInPictureParams=null shouldDockBigOverlays=false launchIntoPipHostTaskId=-1 lastParentTaskIdBeforePip=-1 displayCutoutSafeInsets=Rect(0, 0 - 0, 0) topActivityInfo=ActivityInfo{842d4b4 com.ash.strefaciszy.MainActivity} launchCookies=[] positionInParent=Point(0, 0) parentTaskId=-1 isFocused=true isVisible=true isVisibleRequested=true isTopActivityNoDisplay=false isSleeping=false locusId=null displayAreaFeatureId=1 isTopActivityTransparent=false isActivityStackTransparent=false lastNonFullscreenBounds=Rect(284, 660 - 796, 1740) capturedLink=null capturedLinkTimestamp=0 requestedVisibleTypes=-9 topActivityRequestOpenInBrowserEducationTimestamp=0 appCompatTaskInfo=AppCompatTaskInfo { topActivityInSizeCompat=false eligibleForLetterboxEducation= false isLetterboxEducationEnabled= true isLetterboxDoubleTapEnabled= false eligibleForUserAspectRatioButton= false topActivityBoundsLetterboxed= false isFromLetterboxDoubleTap= false topActivityLetterboxVerticalPosition= -1 topActivityLetterboxHorizontalPosition= -1 topActivityLetterboxWidth=-1 topActivityLetterboxHeight=-1 topActivityAppBounds=Rect(0, 0 - 1080, 2400) isUserFullscreenOverrideEnabled=false isSystemFullscreenOverrideEnabled=false hasMinAspectRatioOverride=false topActivityLetterboxBounds=null cameraCompatTaskInfo=CameraCompatTaskInfo { freeformCameraCompatMode=inactive}} topActivityMainWindowFrame=null}, pipChange = null, remoteTransition = null, displayChange = null, flags = 16, debugId = 35 }
+06-11 12:59:09.174   530   784 I BpBinder: onLastStrongRef automatically unlinking death recipients: 
+06-11 12:59:09.194  1120  1120 D VRI[NexusLauncherActivity]: visibilityChanged oldVisibility=false newVisibility=true
+06-11 12:59:09.203  1120  1120 D NexusLauncherModelDelegate: notifySmartspaceEvent: SmartspaceTargetEvent{mSmartspaceTarget=null, mSmartspaceActionId='null', mEventType=6}
+06-11 12:59:09.218  5968  5968 I Process : Sending signal. PID: 5968 SIG: 9
+06-11 12:59:09.220  1101  1286 D SatelliteController: iisInCarrierRoamingNbIotNtn: satellite is disabled
+06-11 12:59:09.236   530   530 I BpBinder: onLastStrongRef automatically unlinking death recipients: 
+06-11 12:59:09.287   686  2809 I ActivityManager: Process com.ash.strefaciszy (pid 5968) has died: fg  TOP 
+06-11 12:59:09.288   533   533 I adbd    : Remote process closed the socket (on MSG_PEEK)
+06-11 12:59:09.289   459   459 I Zygote  : Process 5968 exited due to signal 9 (Killed)
+06-11 12:59:09.289   686   763 I libprocessgroup: Removed cgroup /sys/fs/cgroup/apps/uid_10220/pid_5968
+06-11 12:59:09.294   686   884 D InetDiagMessage: Destroyed 0 sockets, proto=IPPROTO_TCP, family=AF_INET, states=14
+06-11 12:59:09.294   686   884 D InetDiagMessage: Destroyed 0 sockets, proto=IPPROTO_TCP, family=AF_INET6, states=14
+06-11 12:59:09.294   686   884 D InetDiagMessage: Destroyed live tcp sockets for uids={10220} in 1ms
+06-11 12:59:09.295   686   884 D InetDiagMessage: Destroyed 0 sockets, proto=IPPROTO_TCP, family=AF_INET, states=14
+06-11 12:59:09.295   686   884 D InetDiagMessage: Destroyed 0 sockets, proto=IPPROTO_TCP, family=AF_INET6, states=14
+06-11 12:59:09.295   686   884 D InetDiagMessage: Destroyed live tcp sockets for uids={20220} in 0ms
+06-11 12:59:09.299   993  1057 D WindowManagerShell: setLauncherKeepClearAreaHeight: visible=true, height=527
+06-11 12:59:09.299  1120  1144 E FrameEvents: addRelease: Did not find frame.
+06-11 12:59:09.300  1120  1120 D StatsLog: LAUNCHER_ONRESUME
+06-11 12:59:09.300   686   937 D BackgroundInstallControlService: Package event received: 0
+06-11 12:59:09.300   686   937 D BackgroundInstallControlService: Package event received: 0
+06-11 12:59:09.300   686   937 D BackgroundInstallControlService: Package event received: 0
+06-11 12:59:09.302   993  1021 V WindowManagerShell: onTransitionReady(transaction=2946347566177)
+06-11 12:59:09.303   993  1057 V WindowManagerShell: onTransitionReady (#35) android.os.BinderProxy@e94a9c6: {id=35 t=CLOSE f=0x10 trk=0 r=[0@Point(0, 0)] c=[
+06-11 12:59:09.303   993  1057 V WindowManagerShell:         {m=TO_FRONT f=SHOW_WALLPAPER|MOVE_TO_TOP leash=Surface(name=Task=1)/@0x87b98dd sb=Rect(0, 0 - 1080, 2400) eb=Rect(0, 0 - 1080, 2400) epz=Point(1080, 2400) d=0 taskParent=-1},
+06-11 12:59:09.303   993  1057 V WindowManagerShell:         {m=CLOSE f=NONE leash=Surface(name=Task=56)/@0xd219c52 sb=Rect(0, 0 - 1080, 2400) eb=Rect(0, 0 - 1080, 2400) epz=Point(1080, 2400) d=0 taskParent=-1},
+06-11 12:59:09.303   993  1057 V WindowManagerShell:         {m=TO_FRONT f=IS_WALLPAPER leash=Surface(name=WallpaperWindowToken{954f65a showWhenLocked=false})/@0xe5cbb23 sb=Rect(0, 0 - 1080, 2400) eb=Rect(0, 0 - 1080, 2400) epz=Point(1080, 2400) d=0}
+06-11 12:59:09.303   993  1057 V WindowManagerShell:     ]}
+06-11 12:59:09.303   993  1057 V WindowManagerShell: Playing animation for (#35) android.os.BinderProxy@e94a9c6@0
+06-11 12:59:09.303   993  1057 V ShellRecents: RecentsTransitionHandler.startAnimation: no controller found
+06-11 12:59:09.303   993  1057 V WindowManagerShell: Transition doesn't have explicit remote, search filters for match for {id=35 t=CLOSE f=0x10 trk=0 r=[0@Point(0, 0)] c=[{m=TO_FRONT f=SHOW_WALLPAPER|MOVE_TO_TOP leash=Surface(name=Task=1)/@0x87b98dd sb=Rect(0, 0 - 1080, 2400) eb=Rect(0, 0 - 1080, 2400) epz=Point(1080, 2400) d=0 taskParent=-1},{m=CLOSE f=NONE leash=Surface(name=Task=56)/@0xd219c52 sb=Rect(0, 0 - 1080, 2400) eb=Rect(0, 0 - 1080, 2400) epz=Point(1080, 2400) d=0 taskParent=-1},{m=TO_FRONT f=IS_WALLPAPER leash=Surface(name=WallpaperWindowToken{954f65a showWhenLocked=false})/@0xe5cbb23 sb=Rect(0, 0 - 1080, 2400) eb=Rect(0, 0 - 1080, 2400) epz=Point(1080, 2400) d=0}]}
+06-11 12:59:09.303   993  1057 V WindowManagerShell:  Checking filter Pair{{types=[] flags=0x0] notFlags=0x0 checks=[{atype=undefined independent=true modes=[CLOSE,TO_BACK] flags=IN_TASK_WITH_EMBEDDED_ACTIVITY mustBeTask=false order=ANY topActivity=null launchCookie=null taskFragmentToken=android.os.BinderProxy@b0b5dd windowingMode=undefined}]} RemoteTransition { remoteTransition = android.window.IRemoteTransition$Stub$Proxy@894f552, appThread = android.app.IApplicationThread$Stub$Proxy@997a023, debugName = overlayBackTransition }}
+06-11 12:59:09.303   993  1057 V WindowManagerShell:  Checking filter Pair{{types=[] flags=0x0] notFlags=0x0 checks=[{atype=dream independent=true modes=[OPEN,TO_FRONT] flags=NONE mustBeTask=false order=ANY topActivity=null launchCookie=null windowingMode=undefined},{atype=home independent=true modes=[CLOSE,TO_BACK] flags=NONE mustBeTask=false order=ANY topActivity=null launchCookie=null windowingMode=undefined}]} RemoteTransition { remoteTransition = android.window.IRemoteTransition$Stub$Proxy@66c0920, appThread = android.app.IApplicationThread$Stub$Proxy@587d2d9, debugName = LauncherToDream }}
+06-11 12:59:09.304   993  1057 V WindowManagerShell:  Checking filter Pair{{types=[] flags=0x0] notFlags=0x100 checks=[{atype=home independent=true modes=[OPEN,TO_FRONT] flags=NONE mustBeTask=false order=TOP topActivity=ComponentInfo{com.google.android.apps.nexuslauncher/com.google.android.apps.nexuslauncher.NexusLauncherActivity} launchCookie=null windowingMode=undefined},{atype=standard independent=true modes=[CLOSE,TO_BACK] flags=NONE mustBeTask=false order=ANY topActivity=null launchCookie=null windowingMode=undefined},{NOT atype=undefined independent=true modes=[] flags=NONE mustBeTask=true order=ANY topActivity=null launchCookie=null customAnim=true windowingMode=undefined}]} RemoteTransition { remoteTransition = android.window.IRemoteTransition$Stub$Proxy@9e9149e, appThread = android.app.IApplicationThread$Stub$Proxy@cba1b7f, debugName = QuickstepLaunchHome }}
+06-11 12:59:09.304   993  1057 D RemoteTransitionHandler: Found filterPair{{types=[] flags=0x0] notFlags=0x100 checks=[{atype=home independent=true modes=[OPEN,TO_FRONT] flags=NONE mustBeTask=false order=TOP topActivity=ComponentInfo{com.google.android.apps.nexuslauncher/com.google.android.apps.nexuslauncher.NexusLauncherActivity} launchCookie=null windowingMode=undefined},{atype=standard independent=true modes=[CLOSE,TO_BACK] flags=NONE mustBeTask=false order=ANY topActivity=null launchCookie=null windowingMode=undefined},{NOT atype=undefined independent=true modes=[] flags=NONE mustBeTask=true order=ANY topActivity=null launchCookie=null customAnim=true windowingMode=undefined}]} RemoteTransition { remoteTransition = android.window.IRemoteTransition$Stub$Proxy@9e9149e, appThread = android.app.IApplicationThread$Stub$Proxy@cba1b7f, debugName = QuickstepLaunchHome }}
+06-11 12:59:09.304   993  1057 V WindowManagerShell:  Delegate animation for (#35) to RemoteTransition { remoteTransition = android.window.IRemoteTransition$Stub$Proxy@9e9149e, appThread = android.app.IApplicationThread$Stub$Proxy@cba1b7f, debugName = QuickstepLaunchHome }
+06-11 12:59:09.310  1120  1120 D StateManager: createAtomicAnimation - fromState: Background, toState: Normal, partial trace:
+06-11 12:59:09.310  1120  1120 D StateManager: 	at com.android.quickstep.util.WorkspaceRevealAnim.prepareToAnimate(go/retraceme ee19ec8c009da7af1d458e7d1683a6f5bf3b93b44f6674aa108e1a3e78584fe0:22)
+06-11 12:59:09.310  1120  1120 D StateManager: 	at com.android.quickstep.util.WorkspaceRevealAnim.<init>(go/retraceme ee19ec8c009da7af1d458e7d1683a6f5bf3b93b44f6674aa108e1a3e78584fe0:11)
+06-11 12:59:09.310  1120  1120 D StateManager: 	at com.android.launcher3.QuickstepTransitionManager.createWallpaperOpenAnimations(go/retraceme ee19ec8c009da7af1d458e7d1683a6f5bf3b93b44f6674aa108e1a3e78584fe0:339)
+06-11 12:59:09.311  1120  1120 D b/311077782: LauncherAnimationRunner.setAnimation
+06-11 12:59:09.314  1120  1179 D QuickstepModelDelegate: notifyAppTargetEvent action=1 launchLocation=workspace/0/[-1,-1]/[1,1]
+06-11 12:59:09.320  1569  1849 I AiAiEcho: Predicting[0]:  [CONTEXT sampling_count=5 ]
+06-11 12:59:09.320  1569  1849 I AiAiEcho: EchoTargets: 
+06-11 12:59:09.320  1569  1849 I AiAiEcho: Filtered by AiAi flag check: 
+06-11 12:59:09.320  1569  1849 I AiAiEcho: [CONTEXT ratelimit_period="10 SECONDS" ]
+06-11 12:59:09.321  1120  1120 I NotificationListener: Handling notification state refresh for com.android.systemui#0
+06-11 12:59:09.321  1120  1120 I NotificationListener: Handling notification state refresh for android#0
+06-11 12:59:09.326  1569  1849 I AiAiEcho: #remoteViewsTwiddler: feature disabled.
+06-11 12:59:09.327  1569  1849 I AiAiEcho: #postPredictionTargets: Sending updates to UISurface home with targets# 0 (types=[])
+06-11 12:59:09.331  1120  1120 D SsBaseTemplateCard: No text view can be set up
+06-11 12:59:09.331  1120  1120 D SsBaseTemplateCard: Passed-in item info is null
+06-11 12:59:09.331  1120  1120 D SsBaseTemplateCard: Passed-in item info is null
+06-11 12:59:09.331  1120  1120 D SsBaseTemplateCard: Passed-in item info is null
+06-11 12:59:09.331  1120  1120 I SsBaseTemplateCard: Secondary card pane is null
+06-11 12:59:09.368   530   530 E SurfaceFlinger: Out of order buffers detected for RequestedLayerState{com.google.android.apps.nexuslauncher/com.google.android.apps.nexuslauncher.NexusLauncherActivity#288 parentId=59} producedId=12 frameNumber=18 -> producedId=12 frameNumber=2
+06-11 12:59:09.378   686   749 V WindowManager: Sent Transition (#35) createdAt=06-11 12:59:09.165 via request=TransitionRequestInfo { type = CLOSE, triggerTask = TaskInfo{userId=0 taskId=56 effectiveUid=10220 displayId=0 isRunning=true baseIntent=Intent { act=android.intent.action.MAIN cat=[android.intent.category.LAUNCHER] flg=0x30000000 cmp=com.ash.strefaciszy/.MainActivity } baseActivity=ComponentInfo{com.ash.strefaciszy/com.ash.strefaciszy.MainActivity} topActivity=ComponentInfo{com.ash.strefaciszy/com.ash.strefaciszy.MainActivity} origActivity=null realActivity=ComponentInfo{com.ash.strefaciszy/com.ash.strefaciszy.MainActivity} numActivities=1 lastActiveTime=1812277 supportsMultiWindow=true resizeMode=1 isResizeable=true minWidth=-1 minHeight=-1 defaultMinSize=220 token=WCT{RemoteToken{5f8b52f Task{fb06187 #56 type=standard I=com.ash.strefaciszy/.MainActivity}}} topActivityType=1 pictureInPictureParams=null shouldDockBigOverlays=false launchIntoPipHostTaskId=-1 lastParentTaskIdBeforePip=-1 displayCutoutSafeInsets=Rect(0, 0 - 0, 0) topActivityInfo=ActivityInfo{373a73c com.ash.strefaciszy.MainActivity} launchCookies=[] positionInParent=Point(0, 0) parentTaskId=-1 isFocused=true isVisible=true isVisibleRequested=true isTopActivityNoDisplay=false isSleeping=false locusId=null displayAreaFeatureId=1 isTopActivityTransparent=false isActivityStackTransparent=false lastNonFullscreenBounds=Rect(284, 660 - 796, 1740) capturedLink=null capturedLinkTimestamp=0 requestedVisibleTypes=-9 topActivityRequestOpenInBrowserEducationTimestamp=0 appCompatTaskInfo=AppCompatTaskInfo { topActivityInSizeCompat=false eligibleForLetterboxEducation= false isLetterboxEducationEnabled= true isLetterboxDoubleTapEnabled= false eligibleForUserAspectRatioButton= false topActivityBoundsLetterboxed= false isFromLetterboxDoubleTap= false topActivityLetterboxVerticalPosition= -1 topActivityLetterboxHorizontalPosition= -1 topActivityLetterboxWidth=-1 topActivityLetterboxHeight=-1 topActivityAppBounds=Rect(0, 0 - 1080, 2400) isUserFullscreenOverrideEnabled=false isSystemFullscreenOverrideEnabled=false hasMinAspectRatioOverride=false topActivityLetterboxBounds=null cameraCompatTaskInfo=CameraCompatTaskInfo { freeformCameraCompatMode=inactive}} topActivityMainWindowFrame=null}, pipChange = null, remoteTransition = null, displayChange = null, flags = 16, debugId = 35 }
+06-11 12:59:09.379   686   749 V WindowManager:     startWCT=WindowContainerTransaction { changes= {} hops= [] errorCallbackToken=null taskFragmentOrganizer=null }
+06-11 12:59:09.379   686   749 V WindowManager:     info={id=35 t=CLOSE f=0x10 trk=0 r=[0@Point(0, 0)] c=[
+06-11 12:59:09.379   686   749 V WindowManager:         {WCT{RemoteToken{8c45cd2 Task{a82f423 #1 type=home}}} m=TO_FRONT f=SHOW_WALLPAPER|MOVE_TO_TOP leash=Surface(name=Task=1)/@0x43b7a9c sb=Rect(0, 0 - 1080, 2400) eb=Rect(0, 0 - 1080, 2400) epz=Point(1080, 2400) d=0 taskParent=-1},
+06-11 12:59:09.379   686   749 V WindowManager:         {WCT{RemoteToken{5f8b52f Task{fb06187 #56 type=standard I=com.ash.strefaciszy/.MainActivity}}} m=CLOSE f=NONE leash=Surface(name=Task=56)/@0xdeb8736 sb=Rect(0, 0 - 1080, 2400) eb=Rect(0, 0 - 1080, 2400) epz=Point(1080, 2400) d=0 taskParent=-1},
+06-11 12:59:09.379   686   749 V WindowManager:         {m=TO_FRONT f=IS_WALLPAPER leash=Surface(name=WallpaperWindowToken{954f65a showWhenLocked=false})/@0x4383a0f sb=Rect(0, 0 - 1080, 2400) eb=Rect(0, 0 - 1080, 2400) epz=Point(1080, 2400) d=0}
+06-11 12:59:09.379   686   749 V WindowManager:     ]}
+06-11 12:59:09.391   993  1057 V WindowManagerShell:  animated by com.android.wm.shell.transition.RemoteTransitionHandler@17b35ea
+06-11 12:59:09.402   530   530 E SurfaceFlinger: Out of order buffers detected for RequestedLayerState{com.google.android.apps.nexuslauncher/com.google.android.apps.nexuslauncher.NexusLauncherActivity#288 parentId=59} producedId=12 frameNumber=18 -> producedId=12 frameNumber=3
+06-11 12:59:09.409   993  1155 W WindowOnBackDispatcher: sendCancelIfRunning: isInProgress=false callback=android.view.ViewRootImpl$$ExternalSyntheticLambda13@d4273bb
+06-11 12:59:09.409   686  1159 D CoreBackPreview: Window{b74ee6a u0 Splash Screen com.ash.strefaciszy EXITING}: Setting back callback null
+06-11 12:59:09.427   603  5318 W IPCThreadState: Sending oneway calls to frozen process.
+06-11 12:59:09.441   530   530 E SurfaceFlinger: Out of order buffers detected for RequestedLayerState{com.google.android.apps.nexuslauncher/com.google.android.apps.nexuslauncher.NexusLauncherActivity#288 parentId=59} producedId=12 frameNumber=18 -> producedId=12 frameNumber=4
+06-11 12:59:09.462   686   847 I ImeTracker: com.google.android.apps.nexuslauncher:1325cbf4: onRequestHide at ORIGIN_SERVER reason HIDE_SAME_WINDOW_FOCUSED_WITHOUT_EDITOR fromUser false
+06-11 12:59:09.464  2281  2281 I GoogleInputMethodService: GoogleInputMethodService.onFinishInput():1975 
+06-11 12:59:09.471  2281  2281 I Module  : DeviceLockedStatusModuleProvider$Module.updateDeviceLockedStatus():100 repeatCheckTimes = 0, locked = false
+06-11 12:59:09.472  2281  2281 I GoogleInputMethodService: GoogleInputMethodService.onStartInput():1247 onStartInput(EditorInfo{EditorInfo{packageName=com.google.android.apps.nexuslauncher, inputType=0, inputTypeString=NULL, enableLearning=false, autoCorrection=false, autoComplete=false, imeOptions=0, privateImeOptions=null, actionName=UNSPECIFIED, actionLabel=null, initialSelStart=-1, initialSelEnd=-1, initialCapsMode=0, label=null, fieldId=0, fieldName=null, extras=null, hintText=null, hintLocales=[]}}, false)
+06-11 12:59:09.472  2281  2281 I Module  : DeviceLockedStatusModuleProvider$Module.updateDeviceLockedStatus():100 repeatCheckTimes = 1, locked = false
+06-11 12:59:09.473   530   530 E SurfaceFlinger: Out of order buffers detected for RequestedLayerState{com.google.android.apps.nexuslauncher/com.google.android.apps.nexuslauncher.NexusLauncherActivity#288 parentId=59} producedId=12 frameNumber=18 -> producedId=12 frameNumber=5
+06-11 12:59:09.473   686  2809 W PackageConfigPersister: App-specific configuration not found for packageName: com.google.android.apps.nexuslauncher and userId: 0
+06-11 12:59:09.475  1120  1120 D InsetsController: hide(ime(), fromIme=false)
+06-11 12:59:09.476  1120  1120 I ImeTracker: com.google.android.apps.nexuslauncher:1325cbf4: onCancelled at PHASE_CLIENT_ALREADY_HIDDEN
+06-11 12:59:09.505   530   530 E SurfaceFlinger: Out of order buffers detected for RequestedLayerState{com.google.android.apps.nexuslauncher/com.google.android.apps.nexuslauncher.NexusLauncherActivity#288 parentId=59} producedId=12 frameNumber=18 -> producedId=12 frameNumber=6
+06-11 12:59:09.535   530   530 E SurfaceFlinger: Out of order buffers detected for RequestedLayerState{com.google.android.apps.nexuslauncher/com.google.android.apps.nexuslauncher.NexusLauncherActivity#288 parentId=59} producedId=12 frameNumber=18 -> producedId=12 frameNumber=7
+06-11 12:59:09.544  2093  2271 I .apps.wellbeing: AssetManager2(0x7c19322cc418) locale list changing from [] to [en-US]
+06-11 12:59:09.565   530   530 E SurfaceFlinger: Out of order buffers detected for RequestedLayerState{com.google.android.apps.nexuslauncher/com.google.android.apps.nexuslauncher.NexusLauncherActivity#288 parentId=59} producedId=12 frameNumber=18 -> producedId=12 frameNumber=8
+06-11 12:59:09.568  2093  2271 I .apps.wellbeing: AssetManager2(0x7c19322ccd78) locale list changing from [] to [en-US]
+06-11 12:59:09.583  2093  2271 I .apps.wellbeing: AssetManager2(0x7c19322cd6d8) locale list changing from [] to [en-US]
+06-11 12:59:09.595  2093  2271 I .apps.wellbeing: AssetManager2(0x7c19322d05b8) locale list changing from [] to [en-US]
+06-11 12:59:09.603   530   530 E SurfaceFlinger: Out of order buffers detected for RequestedLayerState{com.google.android.apps.nexuslauncher/com.google.android.apps.nexuslauncher.NexusLauncherActivity#288 parentId=59} producedId=12 frameNumber=18 -> producedId=12 frameNumber=9
+06-11 12:59:09.616  2093  2271 I .apps.wellbeing: AssetManager2(0x7c19322cd6d8) locale list changing from [] to [en-US]
+06-11 12:59:09.621  2093  2271 I .apps.wellbeing: AssetManager2(0x7c19322cc418) locale list changing from [] to [en-US]
+06-11 12:59:09.627  2093  2271 I .apps.wellbeing: AssetManager2(0x7c19322b9818) locale list changing from [] to [en-US]
+06-11 12:59:09.632  2093  2271 I .apps.wellbeing: AssetManager2(0x7c19322bca18) locale list changing from [] to [en-US]
+06-11 12:59:09.632   530   530 E SurfaceFlinger: Out of order buffers detected for RequestedLayerState{com.google.android.apps.nexuslauncher/com.google.android.apps.nexuslauncher.NexusLauncherActivity#288 parentId=59} producedId=12 frameNumber=18 -> producedId=12 frameNumber=10
+06-11 12:59:09.652  2093  2271 I .apps.wellbeing: AssetManager2(0x7c19322c75f8) locale list changing from [] to [en-US]
+06-11 12:59:09.662  2093  2271 I .apps.wellbeing: AssetManager2(0x7c19322cc738) locale list changing from [] to [en-US]
+06-11 12:59:09.668   530   530 E SurfaceFlinger: Out of order buffers detected for RequestedLayerState{com.google.android.apps.nexuslauncher/com.google.android.apps.nexuslauncher.NexusLauncherActivity#288 parentId=59} producedId=12 frameNumber=18 -> producedId=12 frameNumber=11
+06-11 12:59:09.669  1120  1120 D WorkspaceRevealAnim: onAnimationEnd: workspace alpha = 1.0
+06-11 12:59:09.670   993  1057 V WindowManagerShell: Transition animation finished (aborted=false), notifying core (#35) android.os.BinderProxy@e94a9c6@0
+06-11 12:59:09.671   686   749 V WindowManager: Finish Transition (#35): created at 06-11 12:59:09.165 collect-started=0.182ms request-sent=0.571ms started=53.081ms ready=132.318ms sent=134.811ms commit=19.122ms finished=505.116ms
+06-11 12:59:09.674   993  1057 V WindowManagerShell: Track 0 became idle
+06-11 12:59:09.674   993  1057 V WindowManagerShell: All active transition animations finished
+06-11 12:59:09.676   686   752 W ActivityTaskManager: Activity top resumed state loss timeout for ActivityRecord{52694470 u0 com.ash.strefaciszy/.MainActivity t-1 f}}
+06-11 12:59:09.693   686  4563 W HWUI    : Failed to initialize 101010-2 format, error = EGL_SUCCESS
+06-11 12:59:09.706   530   530 E SurfaceFlinger: Out of order buffers detected for RequestedLayerState{com.google.android.apps.nexuslauncher/com.google.android.apps.nexuslauncher.NexusLauncherActivity#288 parentId=59} producedId=12 frameNumber=18 -> producedId=12 frameNumber=12
+06-11 12:59:09.707  1120  1120 D RecentsView: onTaskRemoved: 56, not handling task stack changes
+06-11 12:59:09.707  1120  1120 D RecentsView: onTaskRemoved: 56, not handling task stack changes
+06-11 12:59:09.733  2093  2271 I .apps.wellbeing: AssetManager2(0x7c19322bfc18) locale list changing from [] to [en-US]
+06-11 12:59:09.737  2093  2271 I .apps.wellbeing: AssetManager2(0x7c19322c2e18) locale list changing from [] to [en-US]
+06-11 12:59:09.738   530   530 E SurfaceFlinger: Out of order buffers detected for RequestedLayerState{com.google.android.apps.nexuslauncher/com.google.android.apps.nexuslauncher.NexusLauncherActivity#288 parentId=59} producedId=12 frameNumber=18 -> producedId=12 frameNumber=13
+06-11 12:59:09.805  2093  2271 I .apps.wellbeing: AssetManager2(0x7c19322b6938) locale list changing from [] to [en-US]
+06-11 12:59:09.834  2093  2271 I .apps.wellbeing: AssetManager2(0x7c19322ba7b8) locale list changing from [] to [en-US]
+06-11 12:59:09.916  2093  2271 I .apps.wellbeing: AssetManager2(0x7c19322ab0d8) locale list changing from [] to [en-US]
+06-11 12:59:09.929  2093  2271 I .apps.wellbeing: AssetManager2(0x7c19322a7bb8) locale list changing from [] to [en-US]
+06-11 12:59:09.938  2093  2271 I .apps.wellbeing: AssetManager2(0x7c19322aba38) locale list changing from [] to [en-US]
+06-11 12:59:09.941  2093  2271 I .apps.wellbeing: AssetManager2(0x7c19322a3d38) locale list changing from [] to [en-US]
+06-11 12:59:09.951  2093  2271 I .apps.wellbeing: AssetManager2(0x7c19322a9af8) locale list changing from [] to [en-US]
+06-11 12:59:09.958  2093  2271 I .apps.wellbeing: AssetManager2(0x7c19322a7ed8) locale list changing from [] to [en-US]
+06-11 12:59:09.967  2093  2271 I .apps.wellbeing: AssetManager2(0x7c19322aa138) locale list changing from [] to [en-US]
+06-11 12:59:09.970  2093  2271 I .apps.wellbeing: AssetManager2(0x7c19322a8518) locale list changing from [] to [en-US]
+06-11 12:59:10.009  2093  2271 I .apps.wellbeing: AssetManager2(0x7c19322a5318) locale list changing from [] to [en-US]
+06-11 12:59:10.013  2093  2271 I .apps.wellbeing: AssetManager2(0x7c19322ab3f8) locale list changing from [] to [en-US]
+06-11 12:59:10.017  2093  2271 I .apps.wellbeing: AssetManager2(0x7c19322ac398) locale list changing from [] to [en-US]
+06-11 12:59:10.019  2093  2271 I .apps.wellbeing: AssetManager2(0x7c19322aa778) locale list changing from [] to [en-US]
+06-11 12:59:10.024  2093  2271 I .apps.wellbeing: AssetManager2(0x7c19322c7f58) locale list changing from [] to [en-US]
+06-11 12:59:10.083  2093  2271 I .apps.wellbeing: AssetManager2(0x7c19322c4a38) locale list changing from [] to [en-US]
+06-11 12:59:10.086  2093  2271 I .apps.wellbeing: AssetManager2(0x7c19322c8ef8) locale list changing from [] to [en-US]
+06-11 12:59:10.087  2093  2271 I .apps.wellbeing: AssetManager2(0x7c19322ca1b8) locale list changing from [] to [en-US]
+06-11 12:59:10.089  2093  2271 I .apps.wellbeing: AssetManager2(0x7c19322b2158) locale list changing from [] to [en-US]
+06-11 12:59:10.091  2093  2271 I .apps.wellbeing: AssetManager2(0x7c19322b78d8) locale list changing from [] to [en-US]
+06-11 12:59:10.092  2093  2271 I .apps.wellbeing: AssetManager2(0x7c19322c0258) locale list changing from [] to [en-US]
+06-11 12:59:10.096  2093  2271 I .apps.wellbeing: AssetManager2(0x7c19322c0ed8) locale list changing from [] to [en-US]
+06-11 12:59:10.110  2093  2271 I .apps.wellbeing: AssetManager2(0x7c19322aef58) locale list changing from [] to [en-US]
+06-11 12:59:10.119  2093  2271 I .apps.wellbeing: AssetManager2(0x7c19322a65d8) locale list changing from [] to [en-US]
+06-11 12:59:10.122  2093  2271 I .apps.wellbeing: AssetManager2(0x7c19322a97d8) locale list changing from [] to [en-US]
+06-11 12:59:10.137  2093  2271 I .apps.wellbeing: AssetManager2(0x7c19322aaa98) locale list changing from [] to [en-US]
+06-11 12:59:10.141  2093  2271 I .apps.wellbeing: AssetManager2(0x7c19322a6c18) locale list changing from [] to [en-US]
+06-11 12:59:10.143  2093  2271 I .apps.wellbeing: AssetManager2(0x7c19322a5638) locale list changing from [] to [en-US]
+06-11 12:59:10.147  2093  2271 I .apps.wellbeing: AssetManager2(0x7c19322b0218) locale list changing from [] to [en-US]
+06-11 12:59:10.156  2093  2271 I .apps.wellbeing: AssetManager2(0x7c193229feb8) locale list changing from [] to [en-US]
+06-11 12:59:10.161  2093  2271 I .apps.wellbeing: AssetManager2(0x7c19322adfb8) locale list changing from [] to [en-US]
+06-11 12:59:10.164  2093  2271 I .apps.wellbeing: AssetManager2(0x7c19322accf8) locale list changing from [] to [en-US]
+06-11 12:59:10.165  2093  2271 I .apps.wellbeing: AssetManager2(0x7c19322b1b18) locale list changing from [] to [en-US]
+06-11 12:59:10.166  2093  2271 I .apps.wellbeing: AssetManager2(0x7c19322afef8) locale list changing from [] to [en-US]
+06-11 12:59:10.167  2093  2271 I .apps.wellbeing: AssetManager2(0x7c19322b30f8) locale list changing from [] to [en-US]
+06-11 12:59:10.168  2093  2271 I .apps.wellbeing: AssetManager2(0x7c19322afbd8) locale list changing from [] to [en-US]
+06-11 12:59:10.169  2093  2271 I .apps.wellbeing: AssetManager2(0x7c19322b2798) locale list changing from [] to [en-US]
+06-11 12:59:10.172  2093  2271 I .apps.wellbeing: AssetManager2(0x7c19322ad658) locale list changing from [] to [en-US]
+06-11 12:59:10.174  2093  2271 I .apps.wellbeing: AssetManager2(0x7c19322b2dd8) locale list changing from [] to [en-US]
+06-11 12:59:10.176  2093  2271 I .apps.wellbeing: AssetManager2(0x7c19322af8b8) locale list changing from [] to [en-US]
+06-11 12:59:10.178  2093  2271 I .apps.wellbeing: AssetManager2(0x7c19322a81f8) locale list changing from [] to [en-US]
+06-11 12:59:10.184  2093  2271 I .apps.wellbeing: AssetManager2(0x7c193229ebf8) locale list changing from [] to [en-US]
+06-11 12:59:10.188  2093  2271 I .apps.wellbeing: AssetManager2(0x7c19322b0538) locale list changing from [] to [en-US]
+06-11 12:59:10.190  2093  2271 I .apps.wellbeing: AssetManager2(0x7c19322a5c78) locale list changing from [] to [en-US]
+06-11 12:59:10.191  2093  2271 I .apps.wellbeing: AssetManager2(0x7c19322b2478) locale list changing from [] to [en-US]
+06-11 12:59:10.192  2093  2271 I .apps.wellbeing: AssetManager2(0x7c19322abd58) locale list changing from [] to [en-US]
+06-11 12:59:10.195  2093  2271 I .apps.wellbeing: AssetManager2(0x7c19322b3418) locale list changing from [] to [en-US]
+06-11 12:59:10.198  2093  2271 I .apps.wellbeing: AssetManager2(0x7c193229fb98) locale list changing from [] to [en-US]
+06-11 12:59:10.202  2093  2271 I .apps.wellbeing: AssetManager2(0x7c19322b0858) locale list changing from [] to [en-US]
+06-11 12:59:10.236  2093  2271 I .apps.wellbeing: AssetManager2(0x7c19322b17f8) locale list changing from [] to [en-US]
+06-11 12:59:10.243  2093  2271 I .apps.wellbeing: AssetManager2(0x7c19322ac078) locale list changing from [] to [en-US]
+06-11 12:59:10.247  2093  2271 I .apps.wellbeing: AssetManager2(0x7c19322aec38) locale list changing from [] to [en-US]
+06-11 12:59:10.250  2093  2271 I .apps.wellbeing: AssetManager2(0x7c19322adc98) locale list changing from [] to [en-US]
+06-11 12:59:10.256  2093  2271 I .apps.wellbeing: AssetManager2(0x7c19322a30b8) locale list changing from [] to [en-US]
+06-11 12:59:10.258  2093  2271 I .apps.wellbeing: AssetManager2(0x7c19322ad018) locale list changing from [] to [en-US]
+06-11 12:59:10.259  2093  2271 I .apps.wellbeing: AssetManager2(0x7c19322ae918) locale list changing from [] to [en-US]
+06-11 12:59:10.267  2093  2271 I .apps.wellbeing: AssetManager2(0x7c19322b4d18) locale list changing from [] to [en-US]
+06-11 12:59:10.269  2093  2271 I .apps.wellbeing: AssetManager2(0x7c19322b3a58) locale list changing from [] to [en-US]
+06-11 12:59:10.272  2093  2271 I .apps.wellbeing: AssetManager2(0x7c19322a7578) locale list changing from [] to [en-US]
+06-11 12:59:10.274  2093  2271 I .apps.wellbeing: AssetManager2(0x7c19322c0bb8) locale list changing from [] to [en-US]
+06-11 12:59:10.289  2093  2271 I .apps.wellbeing: AssetManager2(0x7c19322b8b98) locale list changing from [] to [en-US]
+06-11 12:59:10.293  2093  2271 I .apps.wellbeing: AssetManager2(0x7c19322c6fb8) locale list changing from [] to [en-US]
+06-11 12:59:10.298  2093  2271 I .apps.wellbeing: AssetManager2(0x7c19322c59d8) locale list changing from [] to [en-US]
+06-11 12:59:10.300  2093  2271 I .apps.wellbeing: AssetManager2(0x7c19322c8278) locale list changing from [] to [en-US]
+06-11 12:59:10.302  2093  2271 I .apps.wellbeing: AssetManager2(0x7c19322c43f8) locale list changing from [] to [en-US]
+06-11 12:59:10.309  2093  2271 I .apps.wellbeing: AssetManager2(0x7c19322c8598) locale list changing from [] to [en-US]
+06-11 12:59:10.312  2093  2271 I .apps.wellbeing: AssetManager2(0x7c19322c1e78) locale list changing from [] to [en-US]
+06-11 12:59:10.318  2093  2271 I .apps.wellbeing: AssetManager2(0x7c19322d08d8) locale list changing from [] to [en-US]
+06-11 12:59:10.325  2093  2271 I .apps.wellbeing: AssetManager2(0x7c19322bd9b8) locale list changing from [] to [en-US]
+06-11 12:59:10.330  2093  2271 I .apps.wellbeing: AssetManager2(0x7c19322ba178) locale list changing from [] to [en-US]
+06-11 12:59:10.333  2093  2271 I .apps.wellbeing: AssetManager2(0x7c19322cbab8) locale list changing from [] to [en-US]
+06-11 12:59:10.340  2093  2271 I .apps.wellbeing: AssetManager2(0x7c19322b91d8) locale list changing from [] to [en-US]
+06-11 12:59:10.342  2093  2271 I .apps.wellbeing: AssetManager2(0x7c19322b5038) locale list changing from [] to [en-US]
+06-11 12:59:10.343  2093  2271 I .apps.wellbeing: AssetManager2(0x7c19322b8eb8) locale list changing from [] to [en-US]
+06-11 12:59:10.344  2093  2271 I .apps.wellbeing: AssetManager2(0x7c19322b62f8) locale list changing from [] to [en-US]
+06-11 12:59:10.347  2093  2271 I .apps.wellbeing: AssetManager2(0x7c19322b5998) locale list changing from [] to [en-US]
+06-11 12:59:10.348  2093  2271 I .apps.wellbeing: AssetManager2(0x7c19322b8238) locale list changing from [] to [en-US]
+06-11 12:59:10.349  2093  2271 I .apps.wellbeing: AssetManager2(0x7c19322b3d78) locale list changing from [] to [en-US]
+06-11 12:59:10.361  2093  2271 I .apps.wellbeing: AssetManager2(0x7c19322b4098) locale list changing from [] to [en-US]
+06-11 12:59:10.409  2093  2271 I .apps.wellbeing: AssetManager2(0x7c19322b3738) locale list changing from [] to [en-US]
+06-11 12:59:10.414  2093  2271 I .apps.wellbeing: AssetManager2(0x7c19322b8878) locale list changing from [] to [en-US]
+06-11 12:59:10.425  2093  2271 I .apps.wellbeing: AssetManager2(0x7c19322b94f8) locale list changing from [] to [en-US]
+06-11 12:59:10.469  2093  2271 I .apps.wellbeing: AssetManager2(0x7c19322b5fd8) locale list changing from [] to [en-US]
+06-11 12:59:10.475  2093  2271 I .apps.wellbeing: AssetManager2(0x7c19322b8558) locale list changing from [] to [en-US]
+06-11 12:59:10.480  2093  2271 I .apps.wellbeing: AssetManager2(0x7c19322b6c58) locale list changing from [] to [en-US]
+06-11 12:59:10.486  2093  2271 I .apps.wellbeing: AssetManager2(0x7c19322b6618) locale list changing from [] to [en-US]
+06-11 12:59:10.491  2093  2271 I .apps.wellbeing: AssetManager2(0x7c19322b9e58) locale list changing from [] to [en-US]
+06-11 12:59:10.503  2093  2271 I .apps.wellbeing: AssetManager2(0x7c19322b43b8) locale list changing from [] to [en-US]
+06-11 12:59:10.797   686  1662 E TaskPersister: File error accessing recents directory (directory doesn't exist?).
