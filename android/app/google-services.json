@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "734098285346",
+    "project_id": "strefa-ciszy",
+    "storage_bucket": "strefa-ciszy.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:734098285346:android:35076c831ae883eb8c7b7b",
+        "android_client_info": {
+          "package_name": "com.ash.strefaciszy"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyDkXiS4JP9iySRXxzOiI1oN0_EmI6Tx208"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

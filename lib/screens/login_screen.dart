@@ -1,0 +1,70 @@
+import 'package:flutter/material.dart';
+import 'package:firebase_auth/firebase_auth.dart';
+
+class LoginScreen extends StatefulWidget {
+  static const String routeName = '/login';
+  @override
+  _LoginScreenState createState() => _LoginScreenState();
+}
+
+class _LoginScreenState extends State<LoginScreen> {
+  final _emailCtrl = TextEditingController();
+  final _passCtrl = TextEditingController();
+  String? _error;
+
+  @override
+  void dispose() {
+    _emailCtrl.dispose();
+    _passCtrl.dispose();
+    super.dispose();
+  }
+
+  Future<void> _signIn() async {
+    setState(() => _error = null);
+    try {
+      await FirebaseAuth.instance.signInWithEmailAndPassword(
+        email: _emailCtrl.text.trim(),
+        password: _passCtrl.text.trim(),
+      );
+    } on FirebaseAuthException catch (e) {
+      setState(() => _error = e.message);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      body: Center(
+        child: SingleChildScrollView(
+          padding: EdgeInsets.symmetric(horizontal: 32),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Image.asset('assets/images/strefa_ciszy_logo.png', width: 200),
+              SizedBox(height: 48),
+
+              if (_error != null) ...[
+                Text(_error!, style: TextStyle(color: Colors.red)),
+                SizedBox(height: 16),
+              ],
+
+              TextField(
+                controller: _emailCtrl,
+                decoration: InputDecoration(labelText: 'Email'),
+                keyboardType: TextInputType.emailAddress,
+              ),
+              SizedBox(height: 16),
+              TextField(
+                controller: _passCtrl,
+                decoration: InputDecoration(labelText: 'Password'),
+                obscureText: true,
+              ),
+              SizedBox(height: 32),
+              ElevatedButton(onPressed: _signIn, child: Text('Sign In')),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
