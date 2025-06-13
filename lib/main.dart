@@ -1,18 +1,19 @@
 // lib/main.dart
 
 import 'firebase_options.dart';
-
 import 'package:flutter/material.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
-
+import 'package:intl/date_symbol_data_local.dart';
+import 'package:flutter_localizations/flutter_localizations.dart';
 import 'screens/login_screen.dart';
 import 'screens/main_menu_screen.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
+  await initializeDateFormatting('pl_PL', null);
   runApp(const StrefaCiszyApp());
 }
 
@@ -24,7 +25,14 @@ class StrefaCiszyApp extends StatelessWidget {
     return MaterialApp(
       title: 'Strefa Ciszy',
       theme: ThemeData(primarySwatch: Colors.blue),
-      home: AuthGate(),
+      locale: const Locale('pl', 'PL'),
+      supportedLocales: const [Locale('pl', 'PL')],
+      localizationsDelegates: const [
+        GlobalMaterialLocalizations.delegate,
+        GlobalWidgetsLocalizations.delegate,
+        GlobalCupertinoLocalizations.delegate,
+      ],
+      home: const AuthGate(),
     );
   }
 }
@@ -38,24 +46,26 @@ class AuthGate extends StatelessWidget {
       stream: FirebaseAuth.instance.authStateChanges(),
       builder: (ctx, authSnap) {
         if (authSnap.connectionState == ConnectionState.waiting) {
-          return Scaffold(body: Center(child: CircularProgressIndicator()));
+          return const Scaffold(
+            body: Center(child: CircularProgressIndicator()),
+          );
         }
         if (!authSnap.hasData) {
-          return LoginScreen();
+          return const LoginScreen();
         }
-
         final uid = authSnap.data!.uid;
         return FutureBuilder<DocumentSnapshot<Map<String, dynamic>>>(
           future: FirebaseFirestore.instance.collection('users').doc(uid).get(),
           builder: (ctx, roleSnap) {
             if (roleSnap.connectionState != ConnectionState.done) {
-              return Scaffold(body: Center(child: CircularProgressIndicator()));
+              return const Scaffold(
+                body: Center(child: CircularProgressIndicator()),
+              );
             }
             final data = roleSnap.data?.data();
-            final role =
-                (data != null && data['role'] is String)
-                    ? data['role'] as String
-                    : 'user';
+            final role = (data != null && data['role'] is String)
+                ? data['role'] as String
+                : 'user';
             return MainMenuScreen(role: role);
           },
         );
