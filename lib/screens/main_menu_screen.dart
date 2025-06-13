@@ -1,7 +1,11 @@
 // lib/screens/main_menu_screen.dart
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:strefa_ciszy/screens/customer_list_screen.dart';
+import 'package:strefa_ciszy/screens/inventory_list_screen.dart';
+import 'package:strefa_ciszy/screens/item_detail_screen.dart';
 import 'manage_users_screen.dart';
+import 'scan_screen.dart';
 
 class MainMenuScreen extends StatelessWidget {
   final String role;
@@ -54,7 +58,36 @@ class MainMenuScreen extends StatelessWidget {
           ListTile(
             leading: Icon(Icons.inventory_2),
             title: Text('Inwenteryzacja'),
-            onTap: () {},
+            onTap: () {
+              Navigator.of(
+                context,
+              ).push(MaterialPageRoute(builder: (_) => InventoryListScreen()));
+            },
+          ),
+          ListTile(
+            leading: Icon(Icons.person),
+            title: Text('Klienci'),
+            onTap: () {
+              Navigator.of(
+                context,
+              ).push(MaterialPageRoute(builder: (_) => CustomerListScreen()));
+            },
+          ),
+          ListTile(
+            leading: Icon(Icons.qr_code_scanner),
+            title: Text('Scan Item'),
+            onTap: () async {
+              final code = await Navigator.of(
+                context,
+              ).push<String>(MaterialPageRoute(builder: (_) => ScanScreen()));
+              if (code != null) {
+                Navigator.of(context).push(
+                  MaterialPageRoute(
+                    builder: (_) => ItemDetailScreen(code: code),
+                  ),
+                );
+              }
+            },
           ),
           ListTile(
             leading: Icon(Icons.settings),
