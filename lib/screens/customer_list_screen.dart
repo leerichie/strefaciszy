@@ -55,8 +55,9 @@ class _CustomerListScreenState extends State<CustomerListScreen> {
       body: StreamBuilder<QuerySnapshot>(
         stream: _col.orderBy('createdAt', descending: true).snapshots(),
         builder: (ctx, snap) {
-          if (snap.connectionState == ConnectionState.waiting)
+          if (snap.connectionState == ConnectionState.waiting) {
             return Center(child: CircularProgressIndicator());
+          }
           if (snap.hasError) return Center(child: Text('Error: ${snap.error}'));
 
           final docs = snap.data!.docs;
@@ -91,8 +92,8 @@ class _CustomerListScreenState extends State<CustomerListScreen> {
       ),
       floatingActionButton: FloatingActionButton(
         tooltip: 'Add Customer',
-        child: Icon(Icons.person_add),
         onPressed: _addCustomer,
+        child: Icon(Icons.person_add),
       ),
     );
   }

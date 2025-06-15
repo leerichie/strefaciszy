@@ -4,7 +4,6 @@ const functions = require('firebase-functions');
 const admin     = require('firebase-admin');
 admin.initializeApp();
 
-// Helper: parse & verify the bearer token, and enforce admin
 async function verifyAdmin(req, res) {
   const auth = req.header('Authorization') || '';
   const match = auth.match(/^Bearer (.+)$/);
@@ -28,6 +27,7 @@ async function verifyAdmin(req, res) {
 
   return decoded.uid;
 }
+
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -74,14 +74,14 @@ exports.createUserHttp = functions.https.onRequest(async (req, res) => {
   const adminUid = await verifyAdmin(req, res);
   if (!adminUid) return;
 
-  const {email, password, role} = req.body;
+  const {name, email, password, role} = req.body;
   if (!email || !password || !role) {
     return res.status(400).json({error: 'Missing parameters'});
   }
 
   try {
-    const user = await admin.auth().createUser({email, password});
-    await admin.firestore().collection('users').doc(user.uid).set({role});
+    const user = await admin.auth().createUser({displayName: name, email, password});
+    await admin.firestore().collection('users').doc(user.uid).set({name, role});
     return res.json({uid: user.uid, email: user.email, role});
   } catch (e) {
     console.error('Error creating user:', e);

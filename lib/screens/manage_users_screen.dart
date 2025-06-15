@@ -24,10 +24,12 @@ class _ManageUsersScreenState extends State<ManageUsersScreen> {
   Future<List<Map<String, dynamic>>> _loadUsers() async {
     final user = FirebaseAuth.instance.currentUser;
     print("🔑 currentUser.uid = ${user?.uid}");
+
     if (user != null) {
-      final token = await user.getIdToken(true);
-      print("🔑 got new ID token: ${token?.substring(0, 50)}…");
+      final result = await user.getIdTokenResult(true);
+      print("🔥 Custom claims = ${result.claims}");
     }
+
     return _svc.listUsers();
   }
 
@@ -38,61 +40,63 @@ class _ManageUsersScreenState extends State<ManageUsersScreen> {
   }
 
   Future<void> _showAddDialog() async {
+    String name = '';
     String email = '';
     String pwd = '';
     String role = 'user';
 
     await showDialog<void>(
       context: context,
-      builder:
-          (ctx) => AlertDialog(
-            title: Text('Add Employee'),
-            content: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                TextField(
-                  decoration: InputDecoration(labelText: 'Email'),
-                  onChanged: (v) => email = v,
-                ),
-                TextField(
-                  decoration: InputDecoration(labelText: 'Password'),
-                  obscureText: true,
-                  onChanged: (v) => pwd = v,
-                ),
-                DropdownButtonFormField<String>(
-                  decoration: InputDecoration(labelText: 'Role'),
-                  value: role,
-                  items:
-                      ['admin', 'user']
-                          .map(
-                            (r) => DropdownMenuItem(value: r, child: Text(r)),
-                          )
-                          .toList(),
-                  onChanged: (v) => role = v ?? 'user',
-                ),
-              ],
+      builder: (ctx) => AlertDialog(
+        title: Text('Add Employee'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            TextField(
+              decoration: InputDecoration(labelText: 'Imię i nazwisko'),
+              onChanged: (v) => name = v.trim(),
             ),
-            actions: [
-              TextButton(
-                onPressed: () => Navigator.pop(ctx),
-                child: Text('Cancel'),
-              ),
-              ElevatedButton(
-                onPressed: () {
-                  Navigator.pop(ctx);
-                  _svc
-                      .createUser(email.trim(), pwd, role)
-                      .then((_) => _reload())
-                      .catchError((e) {
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          SnackBar(content: Text('Error creating user: $e')),
-                        );
-                      });
-                },
-                child: Text('Create'),
-              ),
-            ],
+            TextField(
+              decoration: InputDecoration(labelText: 'Email'),
+              onChanged: (v) => email = v,
+            ),
+            TextField(
+              decoration: InputDecoration(labelText: 'Password'),
+              obscureText: true,
+              onChanged: (v) => pwd = v,
+            ),
+            DropdownButtonFormField<String>(
+              decoration: InputDecoration(labelText: 'Role'),
+              value: role,
+              items: [
+                'admin',
+                'user',
+              ].map((r) => DropdownMenuItem(value: r, child: Text(r))).toList(),
+              onChanged: (v) => role = v ?? 'user',
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: Text('Cancel'),
           ),
+          ElevatedButton(
+            onPressed: () {
+              Navigator.pop(ctx);
+              _svc
+                  .createUser(name, email.trim(), pwd, role)
+                  .then((_) => _reload())
+                  .catchError((e) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(content: Text('Error creating user: $e')),
+                    );
+                  });
+            },
+            child: Text('Create'),
+          ),
+        ],
+      ),
     );
   }
 
@@ -144,8 +148,9 @@ class _ManageUsersScreenState extends State<ManageUsersScreen> {
                       icon: Icon(Icons.edit),
                       tooltip: 'Toggle role',
                       onPressed: () async {
-                        final newRole =
-                            (u['role'] == 'admin') ? 'user' : 'admin';
+                        final newRole = (u['role'] == 'admin')
+                            ? 'user'
+                            : 'admin';
                         try {
                           await _svc.updateUserRole(u['uid'], newRole);
                           _reload();
@@ -163,20 +168,19 @@ class _ManageUsersScreenState extends State<ManageUsersScreen> {
                       onPressed: () async {
                         final confirm = await showDialog<bool>(
                           context: context,
-                          builder:
-                              (ctx2) => AlertDialog(
-                                title: Text('Delete ${u['email']}?'),
-                                actions: [
-                                  TextButton(
-                                    child: Text('Cancel'),
-                                    onPressed: () => Navigator.pop(ctx2, false),
-                                  ),
-                                  ElevatedButton(
-                                    child: Text('Delete'),
-                                    onPressed: () => Navigator.pop(ctx2, true),
-                                  ),
-                                ],
+                          builder: (ctx2) => AlertDialog(
+                            title: Text('Delete ${u['email']}?'),
+                            actions: [
+                              TextButton(
+                                child: Text('Cancel'),
+                                onPressed: () => Navigator.pop(ctx2, false),
                               ),
+                              ElevatedButton(
+                                child: Text('Delete'),
+                                onPressed: () => Navigator.pop(ctx2, true),
+                              ),
+                            ],
+                          ),
                         );
                         if (confirm == true) {
                           try {

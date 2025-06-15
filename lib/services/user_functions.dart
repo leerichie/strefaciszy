@@ -28,6 +28,7 @@ class UserFunctions {
   }
 
   Future<Map<String, dynamic>> createUser(
+    String name,
     String email,
     String password,
     String role,
@@ -42,7 +43,12 @@ class UserFunctions {
         'Authorization': 'Bearer $idToken',
         'Content-Type': 'application/json',
       },
-      body: jsonEncode({'email': email, 'password': password, 'role': role}),
+      body: jsonEncode({
+        'displayName': name,
+        'email': email,
+        'password': password,
+        'role': role,
+      }),
     );
 
     if (resp.statusCode != 200) {

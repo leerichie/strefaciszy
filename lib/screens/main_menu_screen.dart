@@ -4,6 +4,8 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:strefa_ciszy/screens/customer_list_screen.dart';
 import 'package:strefa_ciszy/screens/inventory_list_screen.dart';
 import 'package:strefa_ciszy/screens/item_detail_screen.dart';
+import 'package:strefa_ciszy/screens/rw_documents_screen.dart';
+import 'package:strefa_ciszy/screens/reports_screen.dart';
 import 'manage_users_screen.dart';
 import 'scan_screen.dart';
 
@@ -35,7 +37,7 @@ class MainMenuScreen extends StatelessWidget {
         padding: EdgeInsets.all(16),
         children: [
           Text(
-            'Witaj w Strefie Ciszy!',
+            'Strefa Ciszy: inventory',
             style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold),
             textAlign: TextAlign.center,
           ),
@@ -89,6 +91,29 @@ class MainMenuScreen extends StatelessWidget {
               }
             },
           ),
+
+          ListTile(
+            leading: Icon(Icons.list_alt_rounded),
+            title: Text('Dok. RW/MM'),
+            onTap: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(builder: (ctx) => RWDocumentsScreen()),
+              );
+            },
+          ),
+
+          ListTile(
+            leading: Icon(Icons.list_alt_rounded),
+            title: Text('Raporty'),
+            onTap: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(builder: (ctx) => ReportsScreen()),
+              );
+            },
+          ),
+
           ListTile(
             leading: Icon(Icons.settings),
             title: Text('Konfig.'),

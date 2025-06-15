@@ -7,16 +7,18 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_storage/firebase_storage.dart';
 import 'package:path/path.dart' show basename;
+import 'package:strefa_ciszy/models/rw_document.dart';
+import 'package:strefa_ciszy/models/stock_item.dart';
 
 class ProjectEditorScreen extends StatefulWidget {
   final String customerId;
   final String projectId;
 
   const ProjectEditorScreen({
-    Key? key,
+    super.key,
     required this.customerId,
     required this.projectId,
-  }) : super(key: key);
+  });
 
   @override
   _ProjectEditorScreenState createState() => _ProjectEditorScreenState();
@@ -42,19 +44,43 @@ class _ProjectEditorScreenState extends State<ProjectEditorScreen> {
     _loadAll();
   }
 
+  Future<void> _saveRWDocument(String type) async {
+    final user = FirebaseAuth.instance.currentUser;
+    if (user == null) return;
+
+    final rwDoc = RWDocument(
+      id: '',
+      projectId: widget.projectId,
+      projectName: _title,
+      createdBy: user.uid,
+      createdAt: DateTime.now(),
+      type: type,
+      items: _stockItems
+          .map(
+            (item) => {
+              'itemId': item.id,
+              'name': item.name,
+              'quantity': item.quantity,
+            },
+          )
+          .toList(),
+    );
+
+    await FirebaseFirestore.instance
+        .collection('rw_documents')
+        .add(rwDoc.toMap());
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(SnackBar(content: Text('Saved as $type')));
+  }
+
   Future<void> _loadAll() async {
     final stockSnap = await FirebaseFirestore.instance
         .collection('stock_items')
         .get();
-    _stockItems = stockSnap.docs.map((d) {
-      final m = d.data();
-      return StockItem(
-        id: d.id,
-        name: m['name'] as String? ?? '—',
-        unit: m['unit'] as String? ?? '',
-        quantity: m['quantity'] as int? ?? 0,
-      );
-    }).toList();
+    _stockItems = stockSnap.docs
+        .map((d) => StockItem.fromMap(d.data(), d.id))
+        .toList();
 
     final projRef = FirebaseFirestore.instance
         .collection('customers')
@@ -120,7 +146,7 @@ class _ProjectEditorScreenState extends State<ProjectEditorScreen> {
     String custom = existing?.customName ?? '';
     int qty = existing?.requestedQty ?? 0;
     String unit = existing?.unit ?? 'szt';
-    final _formKey = GlobalKey<FormState>();
+    final formKey = GlobalKey<FormState>();
 
     final searchController = TextEditingController(
       text: isStock && itemRef.isNotEmpty
@@ -142,7 +168,7 @@ class _ProjectEditorScreenState extends State<ProjectEditorScreen> {
             content: SizedBox(
               width: double.maxFinite,
               child: Form(
-                key: _formKey,
+                key: formKey,
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
                   children: [
@@ -152,10 +178,10 @@ class _ProjectEditorScreenState extends State<ProjectEditorScreen> {
                       decoration: InputDecoration(labelText: 'Produkt'),
                       items: [
                         DropdownMenuItem(
-                          child: Text('W Magazynie'),
                           value: true,
+                          child: Text('W Magazynie'),
                         ),
-                        DropdownMenuItem(child: Text('Custom'), value: false),
+                        DropdownMenuItem(value: false, child: Text('Custom')),
                       ],
                       onChanged: (v) => setState(() => isStock = v!),
                     ),
@@ -253,7 +279,7 @@ class _ProjectEditorScreenState extends State<ProjectEditorScreen> {
               ),
               ElevatedButton(
                 onPressed: () {
-                  if (!_formKey.currentState!.validate()) return;
+                  if (!formKey.currentState!.validate()) return;
                   if (isStock && itemRef.isEmpty) {
                     ScaffoldMessenger.of(context).showSnackBar(
                       SnackBar(content: Text('Please select an item.')),
@@ -555,6 +581,21 @@ class _ProjectEditorScreenState extends State<ProjectEditorScreen> {
 
                     SizedBox(height: 32),
 
+                    // report save
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                      children: [
+                        ElevatedButton(
+                          onPressed: () => _saveRWDocument('RW'),
+                          child: Text('Zapisz RW'),
+                        ),
+                        ElevatedButton(
+                          onPressed: () => _saveRWDocument('MM'),
+                          child: Text('Zapisz MM'),
+                        ),
+                      ],
+                    ),
+
                     // Save / Confirm buttons
                     Row(
                       mainAxisAlignment: MainAxisAlignment.spaceEvenly,
@@ -578,26 +619,15 @@ class _ProjectEditorScreenState extends State<ProjectEditorScreen> {
 
   Widget _buildCompactRow(int index) {
     final ln = _lines[index];
-    final name = ln.isStock
-        ? _stockItems
-              .firstWhere(
-                (s) => s.id == ln.itemRef,
-                orElse: () =>
-                    StockItem(id: '', name: 'Unknown', unit: '', quantity: 0),
-              )
-              .name
-        : ln.customName;
+    final stockItem = _stockItems.firstWhere(
+      (s) => s.id == ln.itemRef,
+      orElse: () => StockItem(id: '', name: 'Unknown', unit: '', quantity: 0),
+    );
+
+    final name = ln.isStock ? stockItem.name : ln.customName;
     final qty = ln.requestedQty;
-    final totalStock = ln.isStock
-        ? _stockItems
-              .firstWhere(
-                (s) => s.id == ln.itemRef,
-                orElse: () =>
-                    StockItem(id: '', name: '', unit: '', quantity: 0),
-              )
-              .quantity
-        : 0;
-    final remaining = totalStock - ln.requestedQty;
+    final totalStock = ln.isStock ? stockItem.quantity : 0;
+    final remaining = totalStock - qty;
     final enough = remaining > 0;
 
     return ListTile(
@@ -663,16 +693,4 @@ class ProjectLine {
     }
     return map;
   }
-}
-
-class StockItem {
-  final String id, name, unit;
-  final int quantity;
-
-  StockItem({
-    required this.id,
-    required this.name,
-    required this.unit,
-    required this.quantity,
-  });
 }

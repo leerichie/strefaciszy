@@ -53,20 +53,21 @@ class AuthGate extends StatelessWidget {
         if (!authSnap.hasData) {
           return const LoginScreen();
         }
-        final uid = authSnap.data!.uid;
-        return FutureBuilder<DocumentSnapshot<Map<String, dynamic>>>(
-          future: FirebaseFirestore.instance.collection('users').doc(uid).get(),
-          builder: (ctx, roleSnap) {
-            if (roleSnap.connectionState != ConnectionState.done) {
+
+        final user = authSnap.data!;
+        return FutureBuilder<IdTokenResult>(
+          future: user.getIdTokenResult(true),
+          builder: (ctx, tokenSnap) {
+            if (tokenSnap.connectionState != ConnectionState.done) {
               return const Scaffold(
                 body: Center(child: CircularProgressIndicator()),
               );
             }
-            final data = roleSnap.data?.data();
-            final role = (data != null && data['role'] is String)
-                ? data['role'] as String
-                : 'user';
-            return MainMenuScreen(role: role);
+
+            final claims = tokenSnap.data?.claims ?? {};
+            final isAdmin = claims['admin'] == true;
+
+            return MainMenuScreen(role: isAdmin ? 'admin' : 'user');
           },
         );
       },
