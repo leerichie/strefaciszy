@@ -55,8 +55,14 @@ class _CustomerListScreenState extends State<CustomerListScreen> {
       body: StreamBuilder<QuerySnapshot>(
         stream: _col.orderBy('createdAt', descending: true).snapshots(),
         builder: (ctx, snap) {
+<<<<<<< HEAD
           if (snap.connectionState == ConnectionState.waiting)
             return Center(child: CircularProgressIndicator());
+=======
+          if (snap.connectionState == ConnectionState.waiting) {
+            return Center(child: CircularProgressIndicator());
+          }
+>>>>>>> 027e8f4f7a9b33da39b80636990a8c0971b810ed
           if (snap.hasError) return Center(child: Text('Error: ${snap.error}'));
 
           final docs = snap.data!.docs;
@@ -91,8 +97,13 @@ class _CustomerListScreenState extends State<CustomerListScreen> {
       ),
       floatingActionButton: FloatingActionButton(
         tooltip: 'Add Customer',
+<<<<<<< HEAD
         child: Icon(Icons.person_add),
         onPressed: _addCustomer,
+=======
+        onPressed: _addCustomer,
+        child: Icon(Icons.person_add),
+>>>>>>> 027e8f4f7a9b33da39b80636990a8c0971b810ed
       ),
     );
   }

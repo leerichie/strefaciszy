@@ -4,6 +4,11 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:strefa_ciszy/screens/customer_list_screen.dart';
 import 'package:strefa_ciszy/screens/inventory_list_screen.dart';
 import 'package:strefa_ciszy/screens/item_detail_screen.dart';
+<<<<<<< HEAD
+=======
+import 'package:strefa_ciszy/screens/rw_documents_screen.dart';
+import 'package:strefa_ciszy/screens/reports_screen.dart';
+>>>>>>> 027e8f4f7a9b33da39b80636990a8c0971b810ed
 import 'manage_users_screen.dart';
 import 'scan_screen.dart';
 
@@ -35,7 +40,11 @@ class MainMenuScreen extends StatelessWidget {
         padding: EdgeInsets.all(16),
         children: [
           Text(
+<<<<<<< HEAD
             'Witaj w Strefie Ciszy!',
+=======
+            'Strefa Ciszy: inventory',
+>>>>>>> 027e8f4f7a9b33da39b80636990a8c0971b810ed
             style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold),
             textAlign: TextAlign.center,
           ),
@@ -89,6 +98,32 @@ class MainMenuScreen extends StatelessWidget {
               }
             },
           ),
+<<<<<<< HEAD
+=======
+
+          ListTile(
+            leading: Icon(Icons.list_alt_rounded),
+            title: Text('Dok. RW/MM'),
+            onTap: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(builder: (ctx) => RWDocumentsScreen()),
+              );
+            },
+          ),
+
+          ListTile(
+            leading: Icon(Icons.list_alt_rounded),
+            title: Text('Raporty'),
+            onTap: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(builder: (ctx) => ReportsScreen()),
+              );
+            },
+          ),
+
+>>>>>>> 027e8f4f7a9b33da39b80636990a8c0971b810ed
           ListTile(
             leading: Icon(Icons.settings),
             title: Text('Konfig.'),

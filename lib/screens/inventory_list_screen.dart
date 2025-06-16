@@ -125,13 +125,20 @@ class _InventoryListScreenState extends State<InventoryListScreen> {
 
       // add new item fab for admins
       floatingActionButton: FloatingActionButton(
+<<<<<<< HEAD
         child: Icon(Icons.add),
+=======
+>>>>>>> 027e8f4f7a9b33da39b80636990a8c0971b810ed
         onPressed: () {
           Navigator.of(
             context,
           ).push(MaterialPageRoute(builder: (_) => AddItemScreen()));
         },
         tooltip: 'Add Inventory Item',
+<<<<<<< HEAD
+=======
+        child: Icon(Icons.add),
+>>>>>>> 027e8f4f7a9b33da39b80636990a8c0971b810ed
       ),
     );
   }

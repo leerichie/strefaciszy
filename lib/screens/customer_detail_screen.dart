@@ -263,8 +263,14 @@ class _CustomerDetailScreenState extends State<CustomerDetailScreen> {
         title: FutureBuilder<DocumentSnapshot>(
           future: _customerRef.get(),
           builder: (ctx, snap) {
+<<<<<<< HEAD
             if (snap.connectionState != ConnectionState.done)
               return Text('...');
+=======
+            if (snap.connectionState != ConnectionState.done) {
+              return Text('...');
+            }
+>>>>>>> 027e8f4f7a9b33da39b80636990a8c0971b810ed
             final data = snap.data?.data() as Map<String, dynamic>?;
             final name = data?['name'] as String? ?? '';
             return Text('$name Projects');
@@ -274,8 +280,14 @@ class _CustomerDetailScreenState extends State<CustomerDetailScreen> {
       body: StreamBuilder<QuerySnapshot>(
         stream: _projectsCol.orderBy('createdAt', descending: true).snapshots(),
         builder: (ctx, snap) {
+<<<<<<< HEAD
           if (snap.connectionState == ConnectionState.waiting)
             return Center(child: CircularProgressIndicator());
+=======
+          if (snap.connectionState == ConnectionState.waiting) {
+            return Center(child: CircularProgressIndicator());
+          }
+>>>>>>> 027e8f4f7a9b33da39b80636990a8c0971b810ed
           if (snap.hasError) return Center(child: Text('Error: ${snap.error}'));
           final docs = snap.data!.docs;
           if (docs.isEmpty) return Center(child: Text('No projects yet.'));
