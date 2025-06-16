@@ -201,10 +201,7 @@
 				9705A1C41CF9048500538489 /* Embed Frameworks */,
 				3B06AD1E1E4923F5004D2608 /* Thin Binary */,
 				B2E61C0394FCA76266D15B4A /* [CP] Embed Pods Frameworks */,
-<<<<<<< HEAD
-=======
 				917B6196F6D13FDBA40198AA /* [CP] Copy Pods Resources */,
->>>>>>> 027e8f4f7a9b33da39b80636990a8c0971b810ed
 			);
 			buildRules = (
 			);
@@ -337,8 +334,6 @@
 			shellScript = "diff \"${PODS_PODFILE_DIR_PATH}/Podfile.lock\" \"${PODS_ROOT}/Manifest.lock\" > /dev/null\nif [ $? != 0 ] ; then\n    # print error to STDERR\n    echo \"error: The sandbox is not in sync with the Podfile.lock. Run 'pod install' or update your CocoaPods installation.\" >&2\n    exit 1\nfi\n# This output is used by Xcode 'outputs' to avoid re-running this script phase.\necho \"SUCCESS\" > \"${SCRIPT_OUTPUT_FILE_0}\"\n";
 			showEnvVarsInLog = 0;
 		};
-<<<<<<< HEAD
-=======
 		917B6196F6D13FDBA40198AA /* [CP] Copy Pods Resources */ = {
 			isa = PBXShellScriptBuildPhase;
 			buildActionMask = 2147483647;
@@ -347,16 +342,19 @@
 			inputFileListPaths = (
 				"${PODS_ROOT}/Target Support Files/Pods-Runner/Pods-Runner-resources-${CONFIGURATION}-input-files.xcfilelist",
 			);
+			inputPaths = (
+			);
 			name = "[CP] Copy Pods Resources";
 			outputFileListPaths = (
 				"${PODS_ROOT}/Target Support Files/Pods-Runner/Pods-Runner-resources-${CONFIGURATION}-output-files.xcfilelist",
+			);
+			outputPaths = (
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 			shellPath = /bin/sh;
 			shellScript = "\"${PODS_ROOT}/Target Support Files/Pods-Runner/Pods-Runner-resources.sh\"\n";
 			showEnvVarsInLog = 0;
 		};
->>>>>>> 027e8f4f7a9b33da39b80636990a8c0971b810ed
 		9740EEB61CF901F6004384FC /* Run Script */ = {
 			isa = PBXShellScriptBuildPhase;
 			alwaysOutOfDate = 1;
@@ -380,9 +378,13 @@
 			inputFileListPaths = (
 				"${PODS_ROOT}/Target Support Files/Pods-Runner/Pods-Runner-frameworks-${CONFIGURATION}-input-files.xcfilelist",
 			);
+			inputPaths = (
+			);
 			name = "[CP] Embed Pods Frameworks";
 			outputFileListPaths = (
 				"${PODS_ROOT}/Target Support Files/Pods-Runner/Pods-Runner-frameworks-${CONFIGURATION}-output-files.xcfilelist",
+			);
+			outputPaths = (
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 			shellPath = /bin/sh;
@@ -501,19 +503,13 @@
 				DEVELOPMENT_TEAM = 22M54DWB2P;
 				ENABLE_BITCODE = NO;
 				INFOPLIST_FILE = Runner/Info.plist;
-<<<<<<< HEAD
-=======
 				INFOPLIST_KEY_CFBundleDisplayName = "Strefa Ciszy";
->>>>>>> 027e8f4f7a9b33da39b80636990a8c0971b810ed
-				IPHONEOS_DEPLOYMENT_TARGET = 13.0;
+				IPHONEOS_DEPLOYMENT_TARGET = 15.6;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
-<<<<<<< HEAD
-=======
 				MARKETING_VERSION = 1;
->>>>>>> 027e8f4f7a9b33da39b80636990a8c0971b810ed
 				PRODUCT_BUNDLE_IDENTIFIER = com.ash.strefaciszy;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SWIFT_OBJC_BRIDGING_HEADER = "Runner/Runner-Bridging-Header.h";
@@ -693,19 +689,13 @@
 				DEVELOPMENT_TEAM = 22M54DWB2P;
 				ENABLE_BITCODE = NO;
 				INFOPLIST_FILE = Runner/Info.plist;
-<<<<<<< HEAD
-=======
 				INFOPLIST_KEY_CFBundleDisplayName = "Strefa Ciszy";
->>>>>>> 027e8f4f7a9b33da39b80636990a8c0971b810ed
-				IPHONEOS_DEPLOYMENT_TARGET = 13.0;
+				IPHONEOS_DEPLOYMENT_TARGET = 15.6;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
-<<<<<<< HEAD
-=======
 				MARKETING_VERSION = 1;
->>>>>>> 027e8f4f7a9b33da39b80636990a8c0971b810ed
 				PRODUCT_BUNDLE_IDENTIFIER = com.ash.strefaciszy;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SWIFT_OBJC_BRIDGING_HEADER = "Runner/Runner-Bridging-Header.h";
@@ -725,19 +715,13 @@
 				DEVELOPMENT_TEAM = 22M54DWB2P;
 				ENABLE_BITCODE = NO;
 				INFOPLIST_FILE = Runner/Info.plist;
-<<<<<<< HEAD
-=======
 				INFOPLIST_KEY_CFBundleDisplayName = "Strefa Ciszy";
->>>>>>> 027e8f4f7a9b33da39b80636990a8c0971b810ed
-				IPHONEOS_DEPLOYMENT_TARGET = 13.0;
+				IPHONEOS_DEPLOYMENT_TARGET = 15.6;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
-<<<<<<< HEAD
-=======
 				MARKETING_VERSION = 1;
->>>>>>> 027e8f4f7a9b33da39b80636990a8c0971b810ed
 				PRODUCT_BUNDLE_IDENTIFIER = com.ash.strefaciszy;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SWIFT_OBJC_BRIDGING_HEADER = "Runner/Runner-Bridging-Header.h";

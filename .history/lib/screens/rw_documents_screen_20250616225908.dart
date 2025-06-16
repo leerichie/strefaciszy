@@ -1,0 +1,308 @@
+// lib/screens/rw_documents_screen.dart
+import 'dart:typed_data';
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:excel/excel.dart';
+import 'package:flutter/material.dart';
+import 'package:intl/intl.dart';
+import 'package:strefa_ciszy/services/file_saver.dart';
+
+class RWDocumentsScreen extends StatefulWidget {
+  const RWDocumentsScreen({super.key});
+  @override
+  _RWDocumentsScreenState createState() => _RWDocumentsScreenState();
+}
+
+class _RWDocumentsScreenState extends State<RWDocumentsScreen> {
+  String? _selectedType;
+  String _userFilter = '';
+  DateTime? _fromDate;
+  DateTime? _toDate;
+  Map<String, String> userNames = {};
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(title: Text('Dokumenty RW/MM')),
+      body: StreamBuilder<QuerySnapshot>(
+        stream: FirebaseFirestore.instance
+            .collection('rw_documents')
+            .orderBy('createdAt', descending: true)
+            .snapshots(),
+        builder: (ctx, snap) {
+          if (snap.connectionState == ConnectionState.waiting) {
+            return Center(child: CircularProgressIndicator());
+          }
+          final docs = snap.data!.docs;
+          final filtered = docs.where((doc) {
+            final d = doc.data()! as Map<String, dynamic>;
+            final typeMatch =
+                _selectedType == null || d['type'] == _selectedType;
+            final userMatch =
+                _userFilter.isEmpty ||
+                (d['createdBy'] ?? '').toString().toLowerCase().contains(
+                  _userFilter,
+                );
+            final created =
+                DateTime.tryParse(d['createdAt'] ?? '') ??
+                DateTime.fromMillisecondsSinceEpoch(0);
+            final fromOk = _fromDate == null || !created.isBefore(_fromDate!);
+            final toOk = _toDate == null || !created.isAfter(_toDate!);
+            return typeMatch && userMatch && fromOk && toOk;
+          }).toList();
+          if (filtered.isEmpty) {
+            return Center(child: Text('Brak zapisanych dokumentów.'));
+          }
+          return Column(
+            children: [
+              DropdownButton<String>(
+                value: _selectedType,
+                hint: Text('Typ dokumentu'),
+                items: ['RW', 'MM']
+                    .map(
+                      (type) =>
+                          DropdownMenuItem(value: type, child: Text(type)),
+                    )
+                    .toList(),
+                onChanged: (value) => setState(() => _selectedType = value),
+              ),
+              Padding(
+                padding: EdgeInsets.symmetric(horizontal: 16),
+                child: TextField(
+                  decoration: InputDecoration(labelText: 'Użytkownik'),
+                  onChanged: (value) =>
+                      setState(() => _userFilter = value.trim().toLowerCase()),
+                ),
+              ),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  ElevatedButton(
+                    onPressed: () {
+                      setState(() {
+                        _selectedType = null;
+                        _userFilter = '';
+                        _fromDate = null;
+                        _toDate = null;
+                      });
+                    },
+                    child: Text('Resetuj filtry'),
+                  ),
+                  TextButton(
+                    onPressed: () async {
+                      final picked = await showDatePicker(
+                        context: context,
+                        initialDate: _fromDate ?? DateTime.now(),
+                        firstDate: DateTime(2020),
+                        lastDate: DateTime(2100),
+                      );
+                      if (picked != null) setState(() => _fromDate = picked);
+                    },
+                    child: Text(
+                      _fromDate == null
+                          ? 'Data od'
+                          : 'Od: ${DateFormat('dd.MM.yyyy', 'pl_PL').format(_fromDate!)}',
+                    ),
+                  ),
+                  TextButton(
+                    onPressed: () async {
+                      final picked = await showDatePicker(
+                        context: context,
+                        initialDate: _toDate ?? DateTime.now(),
+                        firstDate: DateTime(2020),
+                        lastDate: DateTime(2100),
+                      );
+                      if (picked != null) setState(() => _toDate = picked);
+                    },
+                    child: Text(
+                      _toDate == null
+                          ? 'Data do'
+                          : 'Do: ${DateFormat('dd.MM.yyyy', 'pl_PL').format(_toDate!)}',
+                    ),
+                  ),
+                ],
+              ),
+              Expanded(
+                child: ListView.builder(
+                  itemCount: filtered.length,
+                  itemBuilder: (ctx, i) {
+                    final doc = filtered[i];
+                    final d = doc.data()! as Map<String, dynamic>;
+                    final rawDate = d['createdAt'] as String? ?? '';
+                    final dt = DateTime.tryParse(rawDate) ?? DateTime.now();
+                    final date = DateFormat(
+                      'dd.MM.yyyy HH:mm',
+                      'pl_PL',
+                    ).format(dt);
+                    final uid = d['createdBy'] ?? '';
+                    _fetchUserName(uid);
+                    return ListTile(
+                      title: Text('${d['type']} — ${d['projectName'] ?? ''}'),
+                      subtitle: Text(
+                        'Data: $date\nUżytkownik: ${userNames[uid] ?? uid}',
+                      ),
+                      isThreeLine: true,
+                      onTap: () => _showDetailsDialog(context, d),
+                    );
+                  },
+                ),
+              ),
+            ],
+          );
+        },
+      ),
+    );
+  }
+
+  void _showDetailsDialog(BuildContext context, Map<String, dynamic> d) {
+    final rawDate = d['createdAt'] as String? ?? '';
+    final dt = DateTime.tryParse(rawDate) ?? DateTime.now();
+    final date = DateFormat('dd.MM.yyyy HH:mm', 'pl_PL').format(dt);
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: Text('Szczegóły dokumentu'),
+        content: SingleChildScrollView(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text('Projekt: ${d['projectName']}'),
+              Text('Typ: ${d['type']}'),
+              Text('Utworzono: $date'),
+              SizedBox(height: 12),
+              Text('Materiały:'),
+              ...((d['items'] as List<dynamic>?) ?? []).map(
+                (item) => Text('${item['name']} — ${item['quantity']} szt'),
+              ),
+            ],
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: Text('Zamknij'),
+          ),
+          TextButton(
+            onPressed: () async {
+              Navigator.pop(ctx);
+              await _exportToExcel(context, d);
+            },
+            child: Text('Exportuj do Excel'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _fetchUserName(String uid) async {
+    if (userNames.containsKey(uid)) return;
+    try {
+      final snap = await FirebaseFirestore.instance
+          .collection('users')
+          .doc(uid)
+          .get();
+      final data = snap.data();
+      setState(() {
+        userNames[uid] = data?['name'] ?? data?['email'] ?? uid;
+      });
+    } catch (_) {
+      setState(() {
+        userNames[uid] = uid;
+      });
+    }
+  }
+
+  Future<void> _exportToExcel(
+    BuildContext context,
+    Map<String, dynamic> data,
+  ) async {
+    final excel = Excel.createExcel();
+    final sheet = excel['Dokument'];
+    final headerStyle = CellStyle(
+      bold: true,
+      fontSize: 14,
+      horizontalAlign: HorizontalAlign.Center,
+    );
+    final labelStyle = CellStyle(bold: true, fontSize: 12);
+    final valueStyle = CellStyle(fontSize: 12);
+    final raw = data['createdAt'] as String? ?? '';
+    final dt = DateTime.tryParse(raw) ?? DateTime.now();
+    final dateStr = DateFormat('dd.MM.yyyy', 'pl_PL').format(dt);
+    final timeStr = DateFormat('HH:mm', 'pl_PL').format(dt);
+    sheet.merge(
+      CellIndex.indexByColumnRow(columnIndex: 0, rowIndex: 0),
+      CellIndex.indexByColumnRow(columnIndex: 4, rowIndex: 0),
+    );
+    final titleCell = sheet.cell(
+      CellIndex.indexByColumnRow(columnIndex: 0, rowIndex: 0),
+    );
+    titleCell.value = TextCellValue('DOKUMENT ${data['type'] ?? ''}');
+    titleCell.cellStyle = headerStyle;
+    sheet.appendRow(<CellValue>[]);
+    final customer = data['customerName'] as String? ?? '—';
+    final project = data['projectName'] as String? ?? '—';
+    sheet.appendRow([
+      TextCellValue('Klient:'),
+      TextCellValue(customer),
+      TextCellValue('Projekt:'),
+      TextCellValue(project),
+      TextCellValue('Utworzono:'),
+      TextCellValue('$dateStr $timeStr'),
+    ]);
+    for (var col = 0; col < 6; col++) {
+      sheet
+          .cell(CellIndex.indexByColumnRow(columnIndex: col, rowIndex: 2))
+          .cellStyle = (col.isEven
+          ? labelStyle
+          : valueStyle);
+    }
+    sheet.appendRow(<CellValue>[]);
+    sheet.appendRow([TextCellValue('Nazwa materiału'), TextCellValue('Ilość')]);
+    sheet
+            .cell(CellIndex.indexByColumnRow(columnIndex: 0, rowIndex: 4))
+            .cellStyle =
+        headerStyle;
+    sheet
+            .cell(CellIndex.indexByColumnRow(columnIndex: 1, rowIndex: 4))
+            .cellStyle =
+        headerStyle;
+    var row = 5;
+    for (final item in (data['items'] as List<dynamic>? ?? [])) {
+      sheet.appendRow([
+        TextCellValue(item['name'] as String? ?? ''),
+        TextCellValue(item['quantity']?.toString() ?? ''),
+      ]);
+      sheet
+              .cell(CellIndex.indexByColumnRow(columnIndex: 0, rowIndex: row))
+              .cellStyle =
+          valueStyle;
+      sheet
+              .cell(CellIndex.indexByColumnRow(columnIndex: 1, rowIndex: row))
+              .cellStyle =
+          valueStyle;
+      row++;
+    }
+    final bytes = Uint8List.fromList(excel.encode()!);
+    final safeProject = (data['projectName'] as String? ?? 'dokument')
+        .replaceAll(RegExp(r'\s+'), '_');
+    final stamp = DateFormat(
+      'dd.MM.yyyy_HH.mm',
+      'pl_PL',
+    ).format(DateTime.now());
+    final filename = '${safeProject}_$stamp';
+    final savedPath = await FileSaver.saveFile(
+      bytes,
+      filename: filename,
+      mimeType:
+          'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+    );
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(
+          savedPath != null
+              ? 'Zapisano plik: $savedPath'
+              : 'Pobrano plik: $filename.xlsx',
+        ),
+      ),
+    );
+  }
+}

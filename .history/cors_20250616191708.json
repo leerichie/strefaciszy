@@ -1,0 +1,9 @@
+[
+    {
+      "origin": ["https://strefa-ciszy.web.app"],
+      "method": ["GET", "HEAD"],
+      "responseHeader": ["Content-Type"],
+      "maxAgeSeconds": 3600
+    }
+  ]
+  
