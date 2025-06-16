@@ -1,15 +1,20 @@
-import 'package:flutter/material.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:intl/intl.dart';
-import 'package:excel/excel.dart';
+// lib/screens/rw_documents_screen.dart
 import 'dart:io';
+import 'dart:typed_data';
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:excel/excel.dart';
+import 'package:flutter/material.dart';
+import 'package:intl/intl.dart';
 import 'package:path_provider/path_provider.dart';
+import 'package:strefa_ciszy/services/file_saver.dart';
+import 'package:url_launcher/url_launcher.dart';
+import 'package:flutter_email_sender/flutter_email_sender.dart';
+import 'package:permission_handler/permission_handler.dart';
 
 class RWDocumentsScreen extends StatefulWidget {
   const RWDocumentsScreen({super.key});
-
   @override
-  State<RWDocumentsScreen> createState() => _RWDocumentsScreenState();
+  _RWDocumentsScreenState createState() => _RWDocumentsScreenState();
 }
 
 class _RWDocumentsScreenState extends State<RWDocumentsScreen> {
@@ -28,42 +33,41 @@ class _RWDocumentsScreenState extends State<RWDocumentsScreen> {
             .collection('rw_documents')
             .orderBy('createdAt', descending: true)
             .snapshots(),
-        builder: (ctx, snapshot) {
-          if (snapshot.connectionState == ConnectionState.waiting) {
+        builder: (ctx, snap) {
+          if (snap.connectionState == ConnectionState.waiting) {
             return Center(child: CircularProgressIndicator());
           }
-
-          final docs = snapshot.data!.docs;
+          final docs = snap.data!.docs;
           final filtered = docs.where((doc) {
-            final data = doc.data() as Map<String, dynamic>;
-
+            final d = doc.data()! as Map<String, dynamic>;
             final typeMatch =
-                _selectedType == null || data['type'] == _selectedType;
+                _selectedType == null || d['type'] == _selectedType;
             final userMatch =
                 _userFilter.isEmpty ||
-                (data['createdBy'] ?? '').toLowerCase().contains(_userFilter);
-
+                (d['createdBy'] ?? '').toString().toLowerCase().contains(
+                  _userFilter,
+                );
             final created =
-                DateTime.tryParse(data['createdAt'] ?? '') ?? DateTime(2000);
+                DateTime.tryParse(d['createdAt'] ?? '') ??
+                DateTime.fromMillisecondsSinceEpoch(0);
             final fromOk = _fromDate == null || !created.isBefore(_fromDate!);
             final toOk = _toDate == null || !created.isAfter(_toDate!);
-
             return typeMatch && userMatch && fromOk && toOk;
           }).toList();
-
           if (filtered.isEmpty) {
             return Center(child: Text('Brak zapisanych dokumentów.'));
           }
-
           return Column(
             children: [
-              // Filters
               DropdownButton<String>(
                 value: _selectedType,
                 hint: Text('Typ dokumentu'),
-                items: ['RW', 'MM'].map((type) {
-                  return DropdownMenuItem(value: type, child: Text(type));
-                }).toList(),
+                items: ['RW', 'MM']
+                    .map(
+                      (type) =>
+                          DropdownMenuItem(value: type, child: Text(type)),
+                    )
+                    .toList(),
                 onChanged: (value) => setState(() => _selectedType = value),
               ),
               Padding(
@@ -101,7 +105,7 @@ class _RWDocumentsScreenState extends State<RWDocumentsScreen> {
                     child: Text(
                       _fromDate == null
                           ? 'Data od'
-                          : 'Od: ${DateFormat('yyyy-MM-dd').format(_fromDate!)}',
+                          : 'Od: ${DateFormat('dd.MM.yyyy', 'pl_PL').format(_fromDate!)}',
                     ),
                   ),
                   TextButton(
@@ -117,7 +121,7 @@ class _RWDocumentsScreenState extends State<RWDocumentsScreen> {
                     child: Text(
                       _toDate == null
                           ? 'Data do'
-                          : 'Do: ${DateFormat('yyyy-MM-dd').format(_toDate!)}',
+                          : 'Do: ${DateFormat('dd.MM.yyyy', 'pl_PL').format(_toDate!)}',
                     ),
                   ),
                 ],
@@ -127,62 +131,22 @@ class _RWDocumentsScreenState extends State<RWDocumentsScreen> {
                   itemCount: filtered.length,
                   itemBuilder: (ctx, i) {
                     final doc = filtered[i];
-                    final data = doc.data() as Map<String, dynamic>;
-
-                    final createdAt = (data['createdAt'] as String?) ?? '';
+                    final d = doc.data()! as Map<String, dynamic>;
+                    final rawDate = d['createdAt'] as String? ?? '';
+                    final dt = DateTime.tryParse(rawDate) ?? DateTime.now();
                     final date = DateFormat(
-                      'yyyy-MM-dd HH:mm',
-                    ).format(DateTime.tryParse(createdAt) ?? DateTime.now());
-
-                    final uid = data['createdBy'] ?? '';
+                      'dd.MM.yyyy HH:mm',
+                      'pl_PL',
+                    ).format(dt);
+                    final uid = d['createdBy'] ?? '';
                     _fetchUserName(uid);
                     return ListTile(
-                      title: Text(
-                        '${data['type'] ?? 'RW'} - ${data['projectName'] ?? ''}',
-                      ),
+                      title: Text('${d['type']} — ${d['projectName'] ?? ''}'),
                       subtitle: Text(
                         'Data: $date\nUżytkownik: ${userNames[uid] ?? uid}',
                       ),
-
                       isThreeLine: true,
-                      onTap: () => showDialog(
-                        context: context,
-                        builder: (ctx) => AlertDialog(
-                          title: Text('Szczegóły dokumentu'),
-                          content: ConstrainedBox(
-                            constraints: BoxConstraints(maxWidth: 400),
-                            child: SingleChildScrollView(
-                              child: Column(
-                                mainAxisSize: MainAxisSize.min,
-                                children: [
-                                  Text('Projekt: ${data['projectName']}'),
-                                  Text('Typ: ${data['type']}'),
-                                  Text('Utworzono: $date'),
-                                  SizedBox(height: 10),
-                                  Text('Materiały:'),
-                                  ...((data['items'] as List<dynamic>?) ?? []).map(
-                                    (item) => Text(
-                                      '${item['name']} - ${item['quantity']} szt',
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            ),
-                          ),
-                          actions: [
-                            TextButton(
-                              onPressed: () => Navigator.pop(ctx),
-                              child: Text('Zamknij'),
-                            ),
-                            TextButton(
-                              onPressed: () async {
-                                await _exportToExcel(context, data);
-                              },
-                              child: Text('Eksportuj do Excel'),
-                            ),
-                          ],
-                        ),
-                      ),
+                      onTap: () => _showDetailsDialog(context, d),
                     );
                   },
                 ),
@@ -194,67 +158,231 @@ class _RWDocumentsScreenState extends State<RWDocumentsScreen> {
     );
   }
 
+  void _showDetailsDialog(BuildContext context, Map<String, dynamic> data) {
+    final rawTs = data['createdAt'] as String? ?? '';
+    final dt = DateTime.tryParse(rawTs) ?? DateTime.now();
+    final date = DateFormat('dd.MM.yyyy HH:mm', 'pl_PL').format(dt);
+
+    final uid = data['createdBy'] as String? ?? '';
+    final name = userNames[uid] ?? '...';
+
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: Text('Szczegóły dokumentu'),
+        content: SingleChildScrollView(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text('Projekt: ${data['projectName']}'),
+              Text('Typ: ${data['type']}'),
+              Text('Utworzono: $date'),
+              Text('Użytkownik: $name'),
+              SizedBox(height: 16),
+              Text('Materiały:'),
+              ...((data['items'] as List<dynamic>?) ?? []).map(
+                (item) => Text('${item['name']} — ${item['quantity']} szt'),
+              ),
+            ],
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: Text('Zamknij'),
+          ),
+          TextButton(
+            onPressed: () =>
+                _exportToExcel(context, data, shareAfterExport: false),
+            child: Text('Exportuj do Excel'),
+          ),
+          TextButton(
+            onPressed: () =>
+                _exportToExcel(context, data, shareAfterExport: true),
+            child: Text('Wyślij mailem'),
+          ),
+        ],
+      ),
+    );
+  }
+
   Future<void> _fetchUserName(String uid) async {
     if (userNames.containsKey(uid)) return;
-
     try {
       final snap = await FirebaseFirestore.instance
           .collection('users')
           .doc(uid)
           .get();
       final data = snap.data();
-      final name = data?['name'] ?? data?['email'] ?? uid;
       setState(() {
-        userNames[uid] = name;
+        userNames[uid] = data?['name'] ?? data?['email'] ?? uid;
       });
-    } catch (e) {
+    } catch (_) {
       setState(() {
-        userNames[uid] = uid; // fallback
+        userNames[uid] = uid;
       });
+    }
+  }
+
+  Future<void> _shareViaEmail(String filePath, String fileName) async {
+    final Email email = Email(
+      body: 'Raport w załączniku: $fileName',
+      subject: fileName,
+      recipients: [],
+      attachmentPaths: [filePath],
+      isHTML: false,
+    );
+
+    try {
+      await FlutterEmailSender.send(email);
+    } catch (error) {
+      final mailto = Uri(
+        scheme: 'mailto',
+        query: Uri.encodeFull(
+          'subject=$fileName&body=Załącz plik ręcznie z lokalizacji: $filePath',
+        ),
+      );
+
+      if (await canLaunchUrl(mailto)) {
+        await launchUrl(mailto);
+      } else {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('Nie ma apka email.')));
+      }
     }
   }
 
   Future<void> _exportToExcel(
     BuildContext context,
-    Map<String, dynamic> data,
-  ) async {
+    Map<String, dynamic> data, {
+    bool shareAfterExport = false,
+  }) async {
     final excel = Excel.createExcel();
     final sheet = excel['Dokument'];
+    final headerStyle = CellStyle(bold: true, fontSize: 14);
+    final labelStyle = CellStyle(bold: true, fontSize: 12);
+    final valueStyle = CellStyle(fontSize: 12);
 
-    // Header
+    // build and style header row
     sheet.appendRow([
-      TextCellValue('Typ'),
-      TextCellValue('Projekt'),
-      TextCellValue('Utworzono'),
-      TextCellValue('Użytkownik'),
+      TextCellValue('Typ:'),
+      TextCellValue('Klient:'),
+      TextCellValue('Projekt:'),
+      TextCellValue('Utworzono:'),
+      TextCellValue('Użytkownik:'),
     ]);
-
-    sheet.appendRow([
-      TextCellValue(data['type'] ?? ''),
-      TextCellValue(data['projectName'] ?? ''),
-      TextCellValue(data['createdAt'] ?? ''),
-      TextCellValue(data['createdBy'] ?? ''),
-    ]);
-
-    sheet.appendRow([]);
-    sheet.appendRow([TextCellValue('Nazwa materiału'), TextCellValue('Ilość')]);
-
-    for (var item in (data['items'] as List<dynamic>? ?? [])) {
-      sheet.appendRow([
-        TextCellValue(item['name'] ?? ''),
-        TextCellValue(item['quantity'].toString()),
-      ]);
+    for (var c = 0; c < 5; c++) {
+      sheet
+              .cell(CellIndex.indexByColumnRow(columnIndex: c, rowIndex: 0))
+              .cellStyle =
+          headerStyle;
     }
 
-    final bytes = excel.encode();
-    final dir = await getApplicationDocumentsDirectory();
-    final file = File(
-      '${dir.path}/dokument_${DateTime.now().millisecondsSinceEpoch}.xlsx',
-    );
-    await file.writeAsBytes(bytes!);
+    // parse and format timestamp
+    final rawTs = data['createdAt'] as String? ?? '';
+    final dt = DateTime.tryParse(rawTs) ?? DateTime.now();
+    final dateStr = DateFormat('dd.MM.yyyy', 'pl_PL').format(dt);
+    final timeStr = DateFormat('HH:mm', 'pl_PL').format(dt);
 
-    ScaffoldMessenger.of(
-      context,
-    ).showSnackBar(SnackBar(content: Text('Zapisano plik: ${file.path}')));
+    // fetch display name
+    final uid = data['createdBy'] as String? ?? '';
+    final createdByName = userNames[uid] ?? uid;
+
+    // values row
+    sheet.appendRow([
+      TextCellValue(data['type'] ?? ''),
+      TextCellValue(data['customerName'] ?? ''),
+      TextCellValue(data['projectName'] ?? ''),
+      TextCellValue('$dateStr $timeStr'),
+      TextCellValue(createdByName),
+    ]);
+    for (var c = 0; c < 5; c++) {
+      sheet
+              .cell(CellIndex.indexByColumnRow(columnIndex: c, rowIndex: 1))
+              .cellStyle =
+          valueStyle;
+    }
+
+    sheet.appendRow(<CellValue>[]);
+
+    sheet.appendRow([TextCellValue('Nazwa materiału'), TextCellValue('Ilość')]);
+    sheet
+            .cell(CellIndex.indexByColumnRow(columnIndex: 0, rowIndex: 3))
+            .cellStyle =
+        labelStyle;
+    sheet
+            .cell(CellIndex.indexByColumnRow(columnIndex: 1, rowIndex: 3))
+            .cellStyle =
+        labelStyle;
+
+    var row = 4;
+    for (final item in (data['items'] as List<dynamic>? ?? [])) {
+      sheet.appendRow([
+        TextCellValue(item['name'] ?? ''),
+        TextCellValue(item['quantity']?.toString() ?? ''),
+      ]);
+      sheet
+              .cell(CellIndex.indexByColumnRow(columnIndex: 0, rowIndex: row))
+              .cellStyle =
+          valueStyle;
+      sheet
+              .cell(CellIndex.indexByColumnRow(columnIndex: 1, rowIndex: row))
+              .cellStyle =
+          valueStyle;
+      row++;
+    }
+
+    final safeProj = (data['projectName'] as String? ?? 'dokument').replaceAll(
+      RegExp(r'\s+'),
+      '_',
+    );
+    final stamp = DateFormat(
+      'dd.MM.yyyy_HH.mm',
+      'pl_PL',
+    ).format(DateTime.now());
+    final filename = '${safeProj}_$stamp';
+
+    // save
+    final bytes = Uint8List.fromList(excel.encode()!);
+    String? savedPath;
+    try {
+      if (Platform.isAndroid) {
+        final status = await Permission.storage.request();
+        if (!status.isGranted) {
+          ScaffoldMessenger.of(
+            context,
+          ).showSnackBar(SnackBar(content: Text('Brak uprawnień')));
+          return;
+        }
+      }
+
+      Directory? directory;
+      if (Platform.isAndroid) {
+        directory = Directory('/storage/emulated/0/Download');
+      } else {
+        directory = await getApplicationDocumentsDirectory();
+      }
+
+      final filePath = '${directory.path}/$filename.xlsx';
+      final file = File(filePath);
+      await file.writeAsBytes(bytes);
+      savedPath = filePath;
+    } catch (e) {
+      debugPrint('Error saving file: $e');
+    }
+
+    if (savedPath != null) {
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('Zapisano plik: $savedPath')));
+      if (shareAfterExport) {
+        await _shareViaEmail(savedPath, '$filename.xlsx');
+      }
+    } else {
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('Nie udało się zapisać')));
+    }
   }
 }

@@ -120,7 +120,7 @@ class _ManageUsersScreenState extends State<ManageUsersScreen> {
           mainAxisSize: MainAxisSize.min,
           children: [
             TextField(
-              decoration: InputDecoration(labelText: 'Imie'),
+              decoration: InputDecoration(labelText: 'Imię'),
               controller: nameController,
               onChanged: (v) => name = v.trim(),
             ),
@@ -130,12 +130,12 @@ class _ManageUsersScreenState extends State<ManageUsersScreen> {
               onChanged: (v) => email = v.trim(),
             ),
             TextField(
-              decoration: InputDecoration(labelText: 'Nowe haslo'),
+              decoration: InputDecoration(labelText: 'Nowe hasło'),
               obscureText: true,
               onChanged: (v) => password = v,
             ),
             DropdownButtonFormField<String>(
-              decoration: InputDecoration(labelText: 'Dostep'),
+              decoration: InputDecoration(labelText: 'Dostęp'),
               value: role,
               items: [
                 'admin',

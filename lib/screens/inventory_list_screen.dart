@@ -1,14 +1,14 @@
-// lib/screens/inventory_list_screen.dart
-
 import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:strefa_ciszy/screens/add_item_screen.dart';
-import 'package:strefa_ciszy/screens/scan_screen.dart';
 import 'package:strefa_ciszy/screens/item_detail_screen.dart';
+import 'package:strefa_ciszy/screens/scan_screen.dart';
 
 class InventoryListScreen extends StatefulWidget {
-  const InventoryListScreen({super.key});
+  final bool isAdmin;
+  const InventoryListScreen({Key? key, required this.isAdmin})
+    : super(key: key);
 
   @override
   _InventoryListScreenState createState() => _InventoryListScreenState();
@@ -53,7 +53,7 @@ class _InventoryListScreenState extends State<InventoryListScreen> {
   Widget _buildCategoryChip(String? value, String label) {
     final selected = (value ?? '') == _category;
     return Padding(
-      padding: const EdgeInsets.only(right: 8),
+      padding: EdgeInsets.only(right: 8),
       child: ChoiceChip(
         label: Text(label),
         selected: selected,
@@ -70,7 +70,7 @@ class _InventoryListScreenState extends State<InventoryListScreen> {
         bottom: PreferredSize(
           preferredSize: Size.fromHeight(56),
           child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+            padding: EdgeInsets.symmetric(horizontal: 16, vertical: 8),
             child: TextField(
               decoration: InputDecoration(
                 hintText: 'Szukaj po nazwie…',
@@ -106,7 +106,7 @@ class _InventoryListScreenState extends State<InventoryListScreen> {
           SizedBox(height: 8),
           Expanded(
             child: StreamBuilder<QuerySnapshot>(
-              stream: _query.snapshots(), // now only does category & ordering
+              stream: _query.snapshots(),
               builder: (ctx, snap) {
                 if (snap.connectionState == ConnectionState.waiting) {
                   return Center(child: CircularProgressIndicator());
@@ -114,34 +114,52 @@ class _InventoryListScreenState extends State<InventoryListScreen> {
                 if (snap.hasError) {
                   return Center(child: Text('Error: ${snap.error}'));
                 }
-
-                // 1) grab all docs
                 final docs = snap.data!.docs;
-
-                // 2) apply case‐insensitive substring filter on client
                 final filtered = _search.isEmpty
                     ? docs
                     : docs.where((d) {
                         final name = (d['name'] as String).toLowerCase();
                         return name.contains(_search.toLowerCase());
                       }).toList();
-
                 if (filtered.isEmpty) {
                   return Center(child: Text('Nie znaleziono produktów.'));
                 }
-
                 return ListView.separated(
                   itemCount: filtered.length,
                   separatorBuilder: (_, __) => Divider(height: 1),
                   itemBuilder: (ctx, i) {
-                    final d = filtered[i].data()! as Map<String, dynamic>;
+                    final snap = filtered[i];
+                    final d = snap.data()! as Map<String, dynamic>;
                     return ListTile(
                       title: Text(d['name'] ?? '—'),
                       subtitle: Text(
-                        'Ilosc: ${d['quantity']}\nCategory: ${d['category']}',
+                        'Ilość: ${d['quantity']}\nKategoria: ${d['category']}',
                       ),
                       isThreeLine: true,
-                      trailing: Text(d['barcode'] ?? ''),
+                      trailing: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Text(
+                            '${d['barcode'] ?? ""}',
+                            style: TextStyle(
+                              fontSize: 12,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                          if (widget.isAdmin) ...[
+                            SizedBox(width: 8),
+                            IconButton(
+                              icon: Icon(Icons.delete, color: Colors.red),
+                              onPressed: () {
+                                FirebaseFirestore.instance
+                                    .collection('stock_items')
+                                    .doc(snap.id)
+                                    .delete();
+                              },
+                            ),
+                          ],
+                        ],
+                      ),
                       onTap: () => Navigator.of(context).push(
                         MaterialPageRoute(
                           builder: (_) =>

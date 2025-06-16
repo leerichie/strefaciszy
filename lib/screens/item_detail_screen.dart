@@ -45,7 +45,7 @@ class ItemDetailScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: Text('Szczegoly')),
+      appBar: AppBar(title: Text('Szczegóły')),
       body: FutureBuilder<QuerySnapshot>(
         future: _fetchItem(),
         builder: (ctx, snap) {
@@ -100,14 +100,14 @@ class ItemDetailScreen extends StatelessWidget {
                 ),
                 SizedBox(height: 8),
                 Text('SKU: ${data['sku'] ?? '—'}'),
-                Text('Category: ${data['category'] ?? '—'}'),
-                Text('Location: ${data['location'] ?? '—'}'),
-                Text('Barcode: ${data['barcode'] ?? '—'}'),
+                Text('Kategoria: ${data['category'] ?? '—'}'),
+                Text('Magazyn: ${data['location'] ?? '—'}'),
+                Text('Kod Kreskowy: ${data['barcode'] ?? '—'}'),
                 SizedBox(height: 16),
 
                 Row(
                   children: [
-                    Text('Quantity ($unit):', style: TextStyle(fontSize: 18)),
+                    Text('Ilość ($unit):', style: TextStyle(fontSize: 18)),
                     Spacer(),
                     IconButton(
                       icon: Icon(Icons.remove),

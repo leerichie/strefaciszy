@@ -61,9 +61,11 @@ class MainMenuScreen extends StatelessWidget {
             leading: Icon(Icons.inventory_2),
             title: Text('Inwentaryzacja'),
             onTap: () {
-              Navigator.of(
-                context,
-              ).push(MaterialPageRoute(builder: (_) => InventoryListScreen()));
+              Navigator.of(context).push(
+                MaterialPageRoute(
+                  builder: (_) => InventoryListScreen(isAdmin: isAdmin),
+                ),
+              );
             },
           ),
 

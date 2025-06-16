@@ -1,11 +1,12 @@
-import 'dart:io';
+import 'dart:typed_data';
 
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:cross_file/cross_file.dart';
 import 'package:excel/excel.dart';
 import 'package:flutter/material.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:intl/intl.dart';
-import 'package:path_provider/path_provider.dart';
 import 'package:share_plus/share_plus.dart';
+import 'package:strefa_ciszy/services/file_saver.dart';
 
 class FilteredReportScreen extends StatelessWidget {
   final String reportType;
@@ -69,11 +70,12 @@ class FilteredReportScreen extends StatelessWidget {
 
             final matchItem =
                 itemFilter == null ||
-                items.any((item) {
-                  return (item['name'] ?? '').toString().toLowerCase().contains(
-                    itemFilter!.toLowerCase(),
-                  );
-                });
+                items.any(
+                  (item) => (item['name'] ?? '')
+                      .toString()
+                      .toLowerCase()
+                      .contains(itemFilter!.toLowerCase()),
+                );
 
             final matchUsage =
                 usageType == 'Wszystkie' ||
@@ -137,6 +139,7 @@ class FilteredReportScreen extends StatelessWidget {
     final excel = Excel.createExcel();
     final sheet = excel['Raport'];
 
+    // Header row
     sheet.appendRow([
       TextCellValue('Data'),
       TextCellValue('Użytkownik'),
@@ -147,13 +150,13 @@ class FilteredReportScreen extends StatelessWidget {
       TextCellValue('Typ zużycia'),
     ]);
 
+    // Data rows
     for (final doc in docs) {
       final data = doc.data() as Map<String, dynamic>;
       final created = data['createdAt'] ?? '';
       final user = data['createdBy'] ?? '';
       final type = data['type'] ?? '';
       final project = data['projectName'] ?? '';
-
       final items = (data['items'] as List?) ?? [];
 
       for (final item in items) {
@@ -165,6 +168,7 @@ class FilteredReportScreen extends StatelessWidget {
             ? 'Zużyte'
             : '';
 
+        // filter out if needed
         if (itemFilter != null &&
             itemFilter!.isNotEmpty &&
             !name.toLowerCase().contains(itemFilter!.toLowerCase())) {
@@ -183,22 +187,29 @@ class FilteredReportScreen extends StatelessWidget {
       }
     }
 
-    final bytes = excel.encode();
-    final dir = await getApplicationDocumentsDirectory();
-    final file = File(
-      '${dir.path}/raport_${DateTime.now().millisecondsSinceEpoch}.xlsx',
-    );
-    await file.writeAsBytes(bytes!);
+    final raw = excel.encode()!;
+    final bytes = Uint8List.fromList(raw);
 
-    ScaffoldMessenger.of(
-      context,
-    ).showSnackBar(SnackBar(content: Text('Zapisano plik: ${file.path}')));
+    final now = DateTime.now();
+    final formattedDate = DateFormat('dd.MM.yyyy_HH.mm', 'pl_PL').format(now);
 
-    // 📤 Share via email or apps
-    await Share.shareXFiles(
-      [XFile(file.path)],
-      text: 'Raport materiałowy Strefa Ciszy',
-      subject: 'Raport RW/MM z aplikacji',
+    final filename = '${reportType}_$formattedDate';
+
+    final savedPath = await FileSaver.saveFile(
+      bytes,
+      filename: filename,
+      mimeType:
+          'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
     );
+
+    if (savedPath != null) {
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('Zapisano plik: $savedPath.xlsx')));
+    } else {
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('Pobrano plik: $filename.xlsx')));
+    }
   }
 }
