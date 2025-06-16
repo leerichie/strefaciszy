@@ -1,56 +1,69 @@
 {
-    "functions": {
-      "runtime": "nodejs18",
-      "source": "functions",
-      "ignore": [
-        "node_modules",
-        ".git",
-        "firebase-debug.log",
-        "firebase-debug.*.log",
-        "*.local"
-      ],
-      "predeploy": [
-        "npm --prefix \"$RESOURCE_DIR\" run lint"
-      ]
-    },
-    "flutter": {
-      "platforms": {
-        "android": {
-          "default": {
-            "projectId": "strefa-ciszy",
-            "appId": "1:734098285346:android:35076c831ae883eb8c7b7b",
-            "fileOutput": "android/app/google-services.json"
-          }
-        },
-        "ios": {
-          "default": {
-            "projectId": "strefa-ciszy",
-            "appId": "1:734098285346:ios:70263400213519028c7b7b",
-            "uploadDebugSymbols": false,
-            "fileOutput": "ios/Runner/GoogleService-Info.plist"
-          }
-        },
-        "macos": {
-          "default": {
-            "projectId": "strefa-ciszy",
-            "appId": "1:734098285346:ios:f59d270ad2fa4e588c7b7b",
-            "uploadDebugSymbols": false,
-            "fileOutput": "macos/Runner/GoogleService-Info.plist"
-          }
-        },
-        "dart": {
-          "lib/firebase_options.dart": {
-            "projectId": "strefa-ciszy",
-            "configurations": {
-              "android": "1:734098285346:android:35076c831ae883eb8c7b7b",
-              "ios": "1:734098285346:ios:70263400213519028c7b7b",
-              "macos": "1:734098285346:ios:f59d270ad2fa4e588c7b7b",
-              "web": "1:734098285346:web:6c0d95b707cf6b408c7b7b",
-              "windows": "1:734098285346:web:9a3276fecdea0dbf8c7b7b"
-            }
+  "functions": {
+    "runtime": "nodejs18",
+    "source": "functions",
+    "ignore": [
+      "node_modules",
+      ".git",
+      "firebase-debug.log",
+      "firebase-debug.*.log",
+      "*.local"
+    ],
+    "predeploy": [
+      "npm --prefix \"$RESOURCE_DIR\" run lint:fix"
+    ]
+  },
+  "flutter": {
+    "platforms": {
+      "android": {
+        "default": {
+          "projectId": "strefa-ciszy",
+          "appId": "1:734098285346:android:35076c831ae883eb8c7b7b",
+          "fileOutput": "android/app/google-services.json"
+        }
+      },
+      "ios": {
+        "default": {
+          "projectId": "strefa-ciszy",
+          "appId": "1:734098285346:ios:70263400213519028c7b7b",
+          "uploadDebugSymbols": false,
+          "fileOutput": "ios/Runner/GoogleService-Info.plist"
+        }
+      },
+      "macos": {
+        "default": {
+          "projectId": "strefa-ciszy",
+          "appId": "1:734098285346:ios:f59d270ad2fa4e588c7b7b",
+          "uploadDebugSymbols": false,
+          "fileOutput": "macos/Runner/GoogleService-Info.plist"
+        }
+      },
+      "dart": {
+        "lib/firebase_options.dart": {
+          "projectId": "strefa-ciszy",
+          "configurations": {
+            "android": "1:734098285346:android:35076c831ae883eb8c7b7b",
+            "ios": "1:734098285346:ios:70263400213519028c7b7b",
+            "macos": "1:734098285346:ios:f59d270ad2fa4e588c7b7b",
+            "web": "1:734098285346:web:6c0d95b707cf6b408c7b7b",
+            "windows": "1:734098285346:web:9a3276fecdea0dbf8c7b7b"
           }
         }
       }
     }
+  },
+  "hosting": {
+    "public": "build/web",
+    "ignore": [
+      "firebase.json",
+      "**/.*",
+      "**/node_modules/**"
+    ],
+    "rewrites": [
+      {
+        "source": "**",
+        "destination": "/index.html"
+      }
+    ]
   }
-  
+}

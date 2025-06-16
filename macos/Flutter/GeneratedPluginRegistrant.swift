@@ -12,11 +12,8 @@ import firebase_auth
 import firebase_core
 import firebase_storage
 import mobile_scanner
-<<<<<<< HEAD
-=======
 import path_provider_foundation
 import share_plus
->>>>>>> 027e8f4f7a9b33da39b80636990a8c0971b810ed
 
 func RegisterGeneratedPlugins(registry: FlutterPluginRegistry) {
   FLTFirebaseFirestorePlugin.register(with: registry.registrar(forPlugin: "FLTFirebaseFirestorePlugin"))
@@ -26,9 +23,6 @@ func RegisterGeneratedPlugins(registry: FlutterPluginRegistry) {
   FLTFirebaseCorePlugin.register(with: registry.registrar(forPlugin: "FLTFirebaseCorePlugin"))
   FLTFirebaseStoragePlugin.register(with: registry.registrar(forPlugin: "FLTFirebaseStoragePlugin"))
   MobileScannerPlugin.register(with: registry.registrar(forPlugin: "MobileScannerPlugin"))
-<<<<<<< HEAD
-=======
   PathProviderPlugin.register(with: registry.registrar(forPlugin: "PathProviderPlugin"))
   SharePlusMacosPlugin.register(with: registry.registrar(forPlugin: "SharePlusMacosPlugin"))
->>>>>>> 027e8f4f7a9b33da39b80636990a8c0971b810ed
 }

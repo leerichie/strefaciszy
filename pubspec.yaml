@@ -26,13 +26,11 @@ dependencies:
   intl: ^0.20.2
   flutter_localizations:
     sdk: flutter
-<<<<<<< HEAD
-=======
+
   excel: ^4.0.6
   path_provider: ^2.1.5
   permission_handler: ^12.0.0+1
   share_plus: ^11.0.0
->>>>>>> 027e8f4f7a9b33da39b80636990a8c0971b810ed
 
 dev_dependencies:
   flutter_test:

@@ -1,5 +1,6 @@
 // lib/screens/add_item_screen.dart
 
+import 'dart:async';
 import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
@@ -17,37 +18,42 @@ class AddItemScreen extends StatefulWidget {
 
 class _AddItemScreenState extends State<AddItemScreen> {
   final _formKey = GlobalKey<FormState>();
-
-  // Controllers
   final _nameCtrl = TextEditingController();
   final _skuCtrl = TextEditingController();
-  final _categoryCtrl = TextEditingController();
   late TextEditingController _barcodeCtrl;
   final _quantityCtrl = TextEditingController(text: '0');
   final _locationCtrl = TextEditingController();
-
-  // Fields
   String _unit = 'szt';
-
-  // State
+  String? _selectedCategory;
   File? _pickedImage;
   bool _saving = false;
   String? _error;
 
   final _picker = ImagePicker();
-  final _storage = FirebaseStorage.instance.ref();
+  late StreamSubscription<QuerySnapshot> _catSub;
+  List<String> _categories = [];
 
   @override
   void initState() {
     super.initState();
     _barcodeCtrl = TextEditingController(text: widget.initialBarcode ?? '');
+    // subscribe to categories
+    _catSub = FirebaseFirestore.instance
+        .collection('categories')
+        .orderBy('name')
+        .snapshots()
+        .listen((snap) {
+          setState(() {
+            _categories = snap.docs.map((d) => d['name'] as String).toList();
+          });
+        });
   }
 
   @override
   void dispose() {
+    _catSub.cancel();
     _nameCtrl.dispose();
     _skuCtrl.dispose();
-    _categoryCtrl.dispose();
     _barcodeCtrl.dispose();
     _quantityCtrl.dispose();
     _locationCtrl.dispose();
@@ -59,22 +65,51 @@ class _AddItemScreenState extends State<AddItemScreen> {
     if (x != null) setState(() => _pickedImage = File(x.path));
   }
 
+  Future<void> _addCategory() async {
+    String? newName;
+    await showDialog<void>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: Text('Nowa Kategoria'),
+        content: TextField(
+          decoration: InputDecoration(labelText: 'Nazwa'),
+          onChanged: (v) => newName = v.trim(),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: Text('Anuluj'),
+          ),
+          ElevatedButton(
+            onPressed: () {
+              if (newName != null && newName!.isNotEmpty) {
+                FirebaseFirestore.instance.collection('categories').add({
+                  'name': newName,
+                });
+                setState(() => _selectedCategory = newName);
+              }
+              Navigator.pop(ctx);
+            },
+            child: Text('Dodaj'),
+          ),
+        ],
+      ),
+    );
+  }
+
   Future<void> _save() async {
     if (!_formKey.currentState!.validate()) return;
     setState(() {
       _saving = true;
       _error = null;
     });
-
     try {
       final uid = FirebaseAuth.instance.currentUser!.uid;
       final col = FirebaseFirestore.instance.collection('stock_items');
-
       final docRef = await col.add({
         'name': _nameCtrl.text.trim(),
         'sku': _skuCtrl.text.trim(),
-        'category': _categoryCtrl.text.trim(),
-        'barcode': _barcodeCtrl.text.trim(),
+        'category': _selectedCategory,
         'quantity': int.parse(_quantityCtrl.text.trim()),
         'unit': _unit,
         'location': _locationCtrl.text.trim(),
@@ -83,17 +118,13 @@ class _AddItemScreenState extends State<AddItemScreen> {
         'updatedAt': FieldValue.serverTimestamp(),
         'updatedBy': uid,
       });
-
       if (_pickedImage != null) {
         final path = 'stock_images/${docRef.id}.jpg';
         final ref = FirebaseStorage.instance.ref(path);
-
         await ref.putFile(_pickedImage!);
         final url = await ref.getDownloadURL();
-
         await docRef.update({'imageUrl': url});
       }
-
       Navigator.of(context).pop();
     } catch (e) {
       setState(() {
@@ -117,81 +148,85 @@ class _AddItemScreenState extends State<AddItemScreen> {
                   children: [
                     if (_error != null)
                       Text(_error!, style: TextStyle(color: Colors.red)),
-                    // Name
                     TextFormField(
                       controller: _nameCtrl,
-                      decoration: InputDecoration(labelText: 'Name'),
+                      decoration: InputDecoration(labelText: 'Nazwa'),
                       validator: (v) => v!.isEmpty ? 'Required' : null,
                     ),
                     SizedBox(height: 12),
-
-                    // SKU
                     TextFormField(
                       controller: _skuCtrl,
                       decoration: InputDecoration(labelText: 'SKU'),
                       validator: (v) => v!.isEmpty ? 'Required' : null,
                     ),
                     SizedBox(height: 12),
-
-                    // Category
-                    TextFormField(
-                      controller: _categoryCtrl,
-                      decoration: InputDecoration(labelText: 'Category'),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: DropdownButtonFormField<String>(
+                            decoration: InputDecoration(labelText: 'Kategoria'),
+                            value: _selectedCategory,
+                            items: _categories.map((cat) {
+                              return DropdownMenuItem(
+                                value: cat,
+                                child: Text(
+                                  cat[0].toUpperCase() + cat.substring(1),
+                                ),
+                              );
+                            }).toList(),
+                            onChanged: (cat) =>
+                                setState(() => _selectedCategory = cat),
+                            validator: (cat) => cat == null ? 'Wybierz' : null,
+                          ),
+                        ),
+                        IconButton(
+                          icon: Icon(Icons.add_circle_outline),
+                          tooltip: 'Nowa kategoria',
+                          onPressed: _addCategory,
+                        ),
+                      ],
                     ),
                     SizedBox(height: 12),
-
-                    // Barcode
                     TextFormField(
                       controller: _barcodeCtrl,
-                      decoration: InputDecoration(labelText: 'Barcode'),
+                      decoration: InputDecoration(labelText: 'Kod Kreskowy'),
                     ),
                     SizedBox(height: 12),
-
-                    // Quantity
                     TextFormField(
                       controller: _quantityCtrl,
-                      decoration: InputDecoration(labelText: 'Quantity'),
+                      decoration: InputDecoration(labelText: 'Ilość'),
                       keyboardType: TextInputType.number,
                       validator: (v) =>
-                          int.tryParse(v!) == null ? 'Enter a number' : null,
+                          int.tryParse(v!) == null ? 'Wpisz cyfrę' : null,
                     ),
                     SizedBox(height: 12),
-
-                    // Unit selector
                     DropdownButtonFormField<String>(
                       value: _unit,
-                      decoration: InputDecoration(labelText: 'Unit'),
-                      items: [
-                        DropdownMenuItem(value: 'szt', child: Text('szt')),
-                        DropdownMenuItem(value: 'm', child: Text('m')),
-                        DropdownMenuItem(value: 'kg', child: Text('kg')),
-                        // add more units if needed
-                      ],
+                      decoration: InputDecoration(labelText: 'Jm.'),
+                      items: ['szt', 'm', 'kg', 'kpl']
+                          .map(
+                            (u) => DropdownMenuItem(value: u, child: Text(u)),
+                          )
+                          .toList(),
                       onChanged: (v) => setState(() => _unit = v!),
                     ),
                     SizedBox(height: 12),
-
-                    // Location
                     TextFormField(
                       controller: _locationCtrl,
-                      decoration: InputDecoration(labelText: 'Location'),
+                      decoration: InputDecoration(labelText: 'Magazyn'),
                     ),
                     SizedBox(height: 12),
-
-                    // Photo preview & picker
                     if (_pickedImage != null)
                       Image.file(_pickedImage!, height: 150),
                     ElevatedButton.icon(
                       icon: Icon(Icons.camera_alt),
-                      label: Text('Pick Photo'),
+                      label: Text('Dodaj Fotkę'),
                       onPressed: _pickImage,
                     ),
                     SizedBox(height: 24),
-
-                    // Save button
                     ElevatedButton(
                       onPressed: _save,
-                      child: Text('Create Item'),
+                      child: Text('Zapisz produkt'),
                     ),
                   ],
                 ),

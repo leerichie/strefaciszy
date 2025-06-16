@@ -1,5 +1,3 @@
-// lib/screens/manage_users_screen.dart
-
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import '../services/user_functions.dart';
@@ -24,19 +22,12 @@ class _ManageUsersScreenState extends State<ManageUsersScreen> {
   Future<List<Map<String, dynamic>>> _loadUsers() async {
     final user = FirebaseAuth.instance.currentUser;
     print("🔑 currentUser.uid = ${user?.uid}");
-<<<<<<< HEAD
-    if (user != null) {
-      final token = await user.getIdToken(true);
-      print("🔑 got new ID token: ${token?.substring(0, 50)}…");
-    }
-=======
 
     if (user != null) {
       final result = await user.getIdTokenResult(true);
       print("🔥 Custom claims = ${result.claims}");
     }
 
->>>>>>> 027e8f4f7a9b33da39b80636990a8c0971b810ed
     return _svc.listUsers();
   }
 
@@ -47,100 +38,50 @@ class _ManageUsersScreenState extends State<ManageUsersScreen> {
   }
 
   Future<void> _showAddDialog() async {
-<<<<<<< HEAD
-=======
     String name = '';
->>>>>>> 027e8f4f7a9b33da39b80636990a8c0971b810ed
     String email = '';
     String pwd = '';
     String role = 'user';
 
     await showDialog<void>(
       context: context,
-<<<<<<< HEAD
-      builder:
-          (ctx) => AlertDialog(
-            title: Text('Add Employee'),
-            content: Column(
+      builder: (ctx) => AlertDialog(
+        title: Text('Dodaj pracownik'),
+        content: ConstrainedBox(
+          constraints: BoxConstraints(maxWidth: 400),
+          child: SingleChildScrollView(
+            child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
+                TextField(
+                  decoration: InputDecoration(labelText: 'Imię i nazwisko'),
+                  onChanged: (v) => name = v.trim(),
+                ),
                 TextField(
                   decoration: InputDecoration(labelText: 'Email'),
                   onChanged: (v) => email = v,
                 ),
                 TextField(
-                  decoration: InputDecoration(labelText: 'Password'),
+                  decoration: InputDecoration(labelText: 'Hasło'),
                   obscureText: true,
                   onChanged: (v) => pwd = v,
                 ),
                 DropdownButtonFormField<String>(
-                  decoration: InputDecoration(labelText: 'Role'),
+                  decoration: InputDecoration(labelText: 'Dostęp'),
                   value: role,
-                  items:
-                      ['admin', 'user']
-                          .map(
-                            (r) => DropdownMenuItem(value: r, child: Text(r)),
-                          )
-                          .toList(),
+                  items: ['admin', 'user']
+                      .map((r) => DropdownMenuItem(value: r, child: Text(r)))
+                      .toList(),
                   onChanged: (v) => role = v ?? 'user',
                 ),
               ],
             ),
-            actions: [
-              TextButton(
-                onPressed: () => Navigator.pop(ctx),
-                child: Text('Cancel'),
-              ),
-              ElevatedButton(
-                onPressed: () {
-                  Navigator.pop(ctx);
-                  _svc
-                      .createUser(email.trim(), pwd, role)
-                      .then((_) => _reload())
-                      .catchError((e) {
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          SnackBar(content: Text('Error creating user: $e')),
-                        );
-                      });
-                },
-                child: Text('Create'),
-              ),
-            ],
           ),
-=======
-      builder: (ctx) => AlertDialog(
-        title: Text('Add Employee'),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            TextField(
-              decoration: InputDecoration(labelText: 'Imię i nazwisko'),
-              onChanged: (v) => name = v.trim(),
-            ),
-            TextField(
-              decoration: InputDecoration(labelText: 'Email'),
-              onChanged: (v) => email = v,
-            ),
-            TextField(
-              decoration: InputDecoration(labelText: 'Password'),
-              obscureText: true,
-              onChanged: (v) => pwd = v,
-            ),
-            DropdownButtonFormField<String>(
-              decoration: InputDecoration(labelText: 'Role'),
-              value: role,
-              items: [
-                'admin',
-                'user',
-              ].map((r) => DropdownMenuItem(value: r, child: Text(r))).toList(),
-              onChanged: (v) => role = v ?? 'user',
-            ),
-          ],
         ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(ctx),
-            child: Text('Cancel'),
+            child: Text('Anuluj'),
           ),
           ElevatedButton(
             onPressed: () {
@@ -154,31 +95,102 @@ class _ManageUsersScreenState extends State<ManageUsersScreen> {
                     );
                   });
             },
-            child: Text('Create'),
+            child: Text('Zapisz'),
           ),
         ],
       ),
->>>>>>> 027e8f4f7a9b33da39b80636990a8c0971b810ed
+    );
+  }
+
+  Future<void> _showEditUserDialog(Map<String, dynamic> user) async {
+    String name = user['name'] ?? '';
+    String email = user['email'] ?? '';
+    String password = '';
+    String role = user['role'] ?? 'user';
+    bool isAdmin = role == 'admin';
+
+    final nameController = TextEditingController(text: name);
+    final emailController = TextEditingController(text: email);
+
+    await showDialog<void>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: Text('Edytuj uzytkownika'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            TextField(
+              decoration: InputDecoration(labelText: 'Imie'),
+              controller: nameController,
+              onChanged: (v) => name = v.trim(),
+            ),
+            TextField(
+              decoration: InputDecoration(labelText: 'Email'),
+              controller: emailController,
+              onChanged: (v) => email = v.trim(),
+            ),
+            TextField(
+              decoration: InputDecoration(labelText: 'Nowe haslo'),
+              obscureText: true,
+              onChanged: (v) => password = v,
+            ),
+            DropdownButtonFormField<String>(
+              decoration: InputDecoration(labelText: 'Dostep'),
+              value: role,
+              items: [
+                'admin',
+                'user',
+              ].map((r) => DropdownMenuItem(value: r, child: Text(r))).toList(),
+              onChanged: isAdmin ? null : (v) => role = v ?? role,
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            child: Text('Anuluj'),
+            onPressed: () => Navigator.pop(ctx),
+          ),
+          ElevatedButton(
+            child: Text('Zapisz'),
+            onPressed: () async {
+              Navigator.pop(ctx);
+              try {
+                await _svc.updateUserDetails(
+                  uid: user['uid'],
+                  name: name != user['name'] ? name : null,
+                  email: email != user['email'] ? email : null,
+                  password: password.isNotEmpty ? password : null,
+                  role: role != user['role'] ? role : null,
+                );
+
+                _reload();
+              } catch (e) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(content: Text('Error saving user: $e')),
+                );
+              }
+            },
+          ),
+        ],
+      ),
     );
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: Text('Manage Users')),
+      appBar: AppBar(title: Text('Zarzadzac uzytkownikow')),
       floatingActionButton: FloatingActionButton(
-        tooltip: 'Add Employee',
+        tooltip: 'Dodal pracownika',
         onPressed: _showAddDialog,
         child: Icon(Icons.add),
       ),
       body: FutureBuilder<List<Map<String, dynamic>>>(
         future: _usersFuture,
         builder: (ctx, snapshot) {
-          // Loading
           if (snapshot.connectionState == ConnectionState.waiting) {
             return Center(child: CircularProgressIndicator());
           }
-          // Error
           if (snapshot.hasError) {
             return Center(
               child: Text(
@@ -188,83 +200,48 @@ class _ManageUsersScreenState extends State<ManageUsersScreen> {
               ),
             );
           }
-          // No data or empty
+
           final users = snapshot.data;
           if (users == null || users.isEmpty) {
-            return Center(child: Text('No users found.'));
+            return Center(child: Text('Nie znalaziono uzytkownika.'));
           }
-          // Show list
+
           return ListView.separated(
             itemCount: users.length,
             separatorBuilder: (_, __) => Divider(),
             itemBuilder: (ctx, i) {
               final u = users[i];
               return ListTile(
-                title: Text(u['email'] ?? '—'),
-                subtitle: Text('Role: ${u['role']}'),
+                title: Text(u['name'] ?? '—'),
+                subtitle: Text('${u['email']} \nDostęp: ${u['role']}'),
+
                 trailing: Row(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    // Toggle role
                     IconButton(
                       icon: Icon(Icons.edit),
-                      tooltip: 'Toggle role',
-                      onPressed: () async {
-<<<<<<< HEAD
-                        final newRole =
-                            (u['role'] == 'admin') ? 'user' : 'admin';
-=======
-                        final newRole = (u['role'] == 'admin')
-                            ? 'user'
-                            : 'admin';
->>>>>>> 027e8f4f7a9b33da39b80636990a8c0971b810ed
-                        try {
-                          await _svc.updateUserRole(u['uid'], newRole);
-                          _reload();
-                        } catch (e) {
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            SnackBar(content: Text('Error updating role: $e')),
-                          );
-                        }
-                      },
+                      tooltip: 'Edytuj uzytkownika',
+                      onPressed: () => _showEditUserDialog(u),
                     ),
-                    // Delete user
                     IconButton(
                       icon: Icon(Icons.delete),
-                      tooltip: 'Delete user',
+                      tooltip: 'Usuń użytkownika',
                       onPressed: () async {
                         final confirm = await showDialog<bool>(
                           context: context,
-<<<<<<< HEAD
-                          builder:
-                              (ctx2) => AlertDialog(
-                                title: Text('Delete ${u['email']}?'),
-                                actions: [
-                                  TextButton(
-                                    child: Text('Cancel'),
-                                    onPressed: () => Navigator.pop(ctx2, false),
-                                  ),
-                                  ElevatedButton(
-                                    child: Text('Delete'),
-                                    onPressed: () => Navigator.pop(ctx2, true),
-                                  ),
-                                ],
-                              ),
-=======
                           builder: (ctx2) => AlertDialog(
-                            title: Text('Delete ${u['email']}?'),
+                            title: Text('Usun ${u['email']}?'),
                             actions: [
                               TextButton(
-                                child: Text('Cancel'),
+                                child: Text('Anuluj'),
                                 onPressed: () => Navigator.pop(ctx2, false),
                               ),
                               ElevatedButton(
-                                child: Text('Delete'),
+                                child: Text('Usun'),
                                 onPressed: () => Navigator.pop(ctx2, true),
                               ),
                             ],
                           ),
->>>>>>> 027e8f4f7a9b33da39b80636990a8c0971b810ed
                         );
                         if (confirm == true) {
                           try {

@@ -28,10 +28,7 @@ class UserFunctions {
   }
 
   Future<Map<String, dynamic>> createUser(
-<<<<<<< HEAD
-=======
     String name,
->>>>>>> 027e8f4f7a9b33da39b80636990a8c0971b810ed
     String email,
     String password,
     String role,
@@ -46,16 +43,12 @@ class UserFunctions {
         'Authorization': 'Bearer $idToken',
         'Content-Type': 'application/json',
       },
-<<<<<<< HEAD
-      body: jsonEncode({'email': email, 'password': password, 'role': role}),
-=======
       body: jsonEncode({
-        'displayName': name,
+        'name': name,
         'email': email,
         'password': password,
         'role': role,
       }),
->>>>>>> 027e8f4f7a9b33da39b80636990a8c0971b810ed
     );
 
     if (resp.statusCode != 200) {
@@ -98,6 +91,38 @@ class UserFunctions {
         'Content-Type': 'application/json',
       },
       body: jsonEncode({'uid': uid}),
+    );
+
+    if (resp.statusCode != 200) {
+      final body = jsonDecode(resp.body);
+      throw Exception('Error ${resp.statusCode}: ${body['error']}');
+    }
+  }
+
+  Future<void> updateUserDetails({
+    required String uid,
+    String? name,
+    String? email,
+    String? password,
+    String? role,
+  }) async {
+    final user = FirebaseAuth.instance.currentUser;
+    if (user == null) throw Exception('Not signed in');
+    final idToken = await user.getIdToken();
+
+    final resp = await http.post(
+      Uri.parse('$_baseUrl/updateUserDetailsHttp'),
+      headers: {
+        'Authorization': 'Bearer $idToken',
+        'Content-Type': 'application/json',
+      },
+      body: jsonEncode({
+        'uid': uid,
+        'name': name,
+        'email': email,
+        'password': password,
+        'role': role,
+      }),
     );
 
     if (resp.statusCode != 200) {

@@ -1,9 +1,11 @@
 // lib/screens/inventory_list_screen.dart
 
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:strefa_ciszy/screens/add_item_screen.dart';
-import 'item_detail_screen.dart';
+import 'package:strefa_ciszy/screens/scan_screen.dart';
+import 'package:strefa_ciszy/screens/item_detail_screen.dart';
 
 class InventoryListScreen extends StatefulWidget {
   const InventoryListScreen({super.key});
@@ -15,40 +17,63 @@ class InventoryListScreen extends StatefulWidget {
 class _InventoryListScreenState extends State<InventoryListScreen> {
   String _search = '';
   String _category = '';
+  List<String> _categories = [];
+  late StreamSubscription<QuerySnapshot> _catSub;
+
+  @override
+  void initState() {
+    super.initState();
+    _catSub = FirebaseFirestore.instance
+        .collection('categories')
+        .orderBy('name')
+        .snapshots()
+        .listen((snap) {
+          setState(() {
+            _categories = snap.docs.map((d) => d['name'] as String).toList();
+          });
+        });
+  }
+
+  @override
+  void dispose() {
+    _catSub.cancel();
+    super.dispose();
+  }
 
   Query get _query {
     var q = FirebaseFirestore.instance
         .collection('stock_items')
         .orderBy('name');
-
     if (_category.isNotEmpty) {
       q = q.where('category', isEqualTo: _category);
     }
-
-    if (_search.isNotEmpty) {
-      final end =
-          _search.substring(0, _search.length - 1) +
-          String.fromCharCode(_search.codeUnitAt(_search.length - 1) + 1);
-      q = q
-          .where('name', isGreaterThanOrEqualTo: _search)
-          .where('name', isLessThan: end);
-    }
-
     return q;
+  }
+
+  Widget _buildCategoryChip(String? value, String label) {
+    final selected = (value ?? '') == _category;
+    return Padding(
+      padding: const EdgeInsets.only(right: 8),
+      child: ChoiceChip(
+        label: Text(label),
+        selected: selected,
+        onSelected: (_) => setState(() => _category = value ?? ''),
+      ),
+    );
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: Text('Inventory'),
+        title: Text('Inwentaryzacja'),
         bottom: PreferredSize(
           preferredSize: Size.fromHeight(56),
           child: Padding(
             padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
             child: TextField(
               decoration: InputDecoration(
-                hintText: 'Search by name…',
+                hintText: 'Szukaj po nazwie…',
                 prefixIcon: Icon(Icons.search),
                 border: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(8),
@@ -60,8 +85,6 @@ class _InventoryListScreenState extends State<InventoryListScreen> {
           ),
         ),
       ),
-
-      // category filter row
       body: Column(
         children: [
           SizedBox(height: 8),
@@ -70,21 +93,20 @@ class _InventoryListScreenState extends State<InventoryListScreen> {
             padding: EdgeInsets.symmetric(horizontal: 16),
             child: Row(
               children: [
-                _buildCategoryChip(null, 'All'),
-                _buildCategoryChip('cables', 'Cables'),
-                _buildCategoryChip('projectors', 'Projectors'),
-                _buildCategoryChip('speakers', 'Speakers'),
-                _buildCategoryChip('sweets', 'Sweets'),
-                // add more categories as needed
+                _buildCategoryChip(null, 'Wszystko'),
+                ..._categories.map(
+                  (cat) => _buildCategoryChip(
+                    cat,
+                    cat[0].toUpperCase() + cat.substring(1),
+                  ),
+                ),
               ],
             ),
           ),
           SizedBox(height: 8),
-
-          // the actual list
           Expanded(
             child: StreamBuilder<QuerySnapshot>(
-              stream: _query.snapshots(),
+              stream: _query.snapshots(), // now only does category & ordering
               builder: (ctx, snap) {
                 if (snap.connectionState == ConnectionState.waiting) {
                   return Center(child: CircularProgressIndicator());
@@ -92,19 +114,31 @@ class _InventoryListScreenState extends State<InventoryListScreen> {
                 if (snap.hasError) {
                   return Center(child: Text('Error: ${snap.error}'));
                 }
+
+                // 1) grab all docs
                 final docs = snap.data!.docs;
-                if (docs.isEmpty) {
-                  return Center(child: Text('No items found.'));
+
+                // 2) apply case‐insensitive substring filter on client
+                final filtered = _search.isEmpty
+                    ? docs
+                    : docs.where((d) {
+                        final name = (d['name'] as String).toLowerCase();
+                        return name.contains(_search.toLowerCase());
+                      }).toList();
+
+                if (filtered.isEmpty) {
+                  return Center(child: Text('Nie znaleziono produktów.'));
                 }
+
                 return ListView.separated(
-                  itemCount: docs.length,
+                  itemCount: filtered.length,
                   separatorBuilder: (_, __) => Divider(height: 1),
                   itemBuilder: (ctx, i) {
-                    final d = docs[i].data()! as Map<String, dynamic>;
+                    final d = filtered[i].data()! as Map<String, dynamic>;
                     return ListTile(
                       title: Text(d['name'] ?? '—'),
                       subtitle: Text(
-                        'Qty: ${d['quantity']}\nCategory: ${d['category']}',
+                        'Ilosc: ${d['quantity']}\nCategory: ${d['category']}',
                       ),
                       isThreeLine: true,
                       trailing: Text(d['barcode'] ?? ''),
@@ -122,39 +156,12 @@ class _InventoryListScreenState extends State<InventoryListScreen> {
           ),
         ],
       ),
-
-      // add new item fab for admins
       floatingActionButton: FloatingActionButton(
-<<<<<<< HEAD
+        onPressed: () => Navigator.of(
+          context,
+        ).push(MaterialPageRoute(builder: (_) => AddItemScreen())),
+        tooltip: 'Dodaj do inwentaryzacji',
         child: Icon(Icons.add),
-=======
->>>>>>> 027e8f4f7a9b33da39b80636990a8c0971b810ed
-        onPressed: () {
-          Navigator.of(
-            context,
-          ).push(MaterialPageRoute(builder: (_) => AddItemScreen()));
-        },
-        tooltip: 'Add Inventory Item',
-<<<<<<< HEAD
-=======
-        child: Icon(Icons.add),
->>>>>>> 027e8f4f7a9b33da39b80636990a8c0971b810ed
-      ),
-    );
-  }
-
-  Widget _buildCategoryChip(String? value, String label) {
-    final selected = (value ?? '') == _category;
-    return Padding(
-      padding: const EdgeInsets.only(right: 8),
-      child: ChoiceChip(
-        label: Text(label),
-        selected: selected,
-        onSelected: (_) {
-          setState(() {
-            _category = value ?? '';
-          });
-        },
       ),
     );
   }

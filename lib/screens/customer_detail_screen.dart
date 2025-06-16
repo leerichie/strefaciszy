@@ -6,7 +6,12 @@ import 'project_editor_screen.dart';
 
 class CustomerDetailScreen extends StatefulWidget {
   final String customerId;
-  const CustomerDetailScreen({super.key, required this.customerId});
+  final bool isAdmin;
+  const CustomerDetailScreen({
+    super.key,
+    required this.customerId,
+    required this.isAdmin,
+  });
 
   @override
   _CustomerDetailScreenState createState() => _CustomerDetailScreenState();
@@ -34,13 +39,13 @@ class _CustomerDetailScreenState extends State<CustomerDetailScreen> {
       context: context,
       builder: (ctx) => StatefulBuilder(
         builder: (ctx, setState) => AlertDialog(
-          title: Text('New Project'),
+          title: Text('Nowy Projekt'),
           content: SingleChildScrollView(
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
                 TextField(
-                  decoration: InputDecoration(labelText: 'Project Title'),
+                  decoration: InputDecoration(labelText: 'Nazwa projektu'),
                   onChanged: (v) => title = v.trim(),
                 ),
                 SizedBox(height: 8),
@@ -49,7 +54,7 @@ class _CustomerDetailScreenState extends State<CustomerDetailScreen> {
                     Expanded(
                       child: Text(
                         startDate == null
-                            ? 'Start Date'
+                            ? 'Start'
                             : DateFormat(
                                 'dd.MM.yyyy',
                                 'pl_PL',
@@ -57,7 +62,7 @@ class _CustomerDetailScreenState extends State<CustomerDetailScreen> {
                       ),
                     ),
                     TextButton(
-                      child: Text('Select'),
+                      child: Text('Wybieraj'),
                       onPressed: () async {
                         final dt = await showDatePicker(
                           context: ctx,
@@ -77,7 +82,7 @@ class _CustomerDetailScreenState extends State<CustomerDetailScreen> {
                     Expanded(
                       child: Text(
                         estimatedEndDate == null
-                            ? 'Estimated End Date'
+                            ? 'Oczek. Koniec'
                             : DateFormat(
                                 'dd.MM.yyyy',
                                 'pl_PL',
@@ -85,7 +90,7 @@ class _CustomerDetailScreenState extends State<CustomerDetailScreen> {
                       ),
                     ),
                     TextButton(
-                      child: Text('Select'),
+                      child: Text('Wybieraj'),
                       onPressed: () async {
                         final dt = await showDatePicker(
                           context: ctx,
@@ -101,7 +106,7 @@ class _CustomerDetailScreenState extends State<CustomerDetailScreen> {
                 ),
                 SizedBox(height: 8),
                 TextField(
-                  decoration: InputDecoration(labelText: 'Estimated Cost'),
+                  decoration: InputDecoration(labelText: 'Oszac. koszt'),
                   keyboardType: TextInputType.number,
                   onChanged: (v) => costStr = v.trim(),
                 ),
@@ -151,14 +156,14 @@ class _CustomerDetailScreenState extends State<CustomerDetailScreen> {
       context: context,
       builder: (ctx) => StatefulBuilder(
         builder: (ctx, setState) => AlertDialog(
-          title: Text('Edit Project'),
+          title: Text('Edytuj projekt'),
           content: SingleChildScrollView(
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
                 TextField(
                   controller: TextEditingController(text: title),
-                  decoration: InputDecoration(labelText: 'Project Title'),
+                  decoration: InputDecoration(labelText: 'Nazwa projektu'),
                   onChanged: (v) => title = v.trim(),
                 ),
                 SizedBox(height: 8),
@@ -167,7 +172,7 @@ class _CustomerDetailScreenState extends State<CustomerDetailScreen> {
                     Expanded(
                       child: Text(
                         startDate == null
-                            ? 'Start Date'
+                            ? 'Start'
                             : DateFormat(
                                 'dd.MM.yyyy',
                                 'pl_PL',
@@ -175,7 +180,7 @@ class _CustomerDetailScreenState extends State<CustomerDetailScreen> {
                       ),
                     ),
                     TextButton(
-                      child: Text('Select'),
+                      child: Text('Wybieraj'),
                       onPressed: () async {
                         final dt = await showDatePicker(
                           context: ctx,
@@ -195,7 +200,7 @@ class _CustomerDetailScreenState extends State<CustomerDetailScreen> {
                     Expanded(
                       child: Text(
                         estimatedEndDate == null
-                            ? 'Estimated End Date'
+                            ? 'Oczek. koniec'
                             : DateFormat(
                                 'dd.MM.yyyy',
                                 'pl_PL',
@@ -203,7 +208,7 @@ class _CustomerDetailScreenState extends State<CustomerDetailScreen> {
                       ),
                     ),
                     TextButton(
-                      child: Text('Select'),
+                      child: Text('Wybieraj'),
                       onPressed: () async {
                         final dt = await showDatePicker(
                           context: ctx,
@@ -220,7 +225,7 @@ class _CustomerDetailScreenState extends State<CustomerDetailScreen> {
                 SizedBox(height: 8),
                 TextField(
                   controller: TextEditingController(text: costStr),
-                  decoration: InputDecoration(labelText: 'Estimated Cost'),
+                  decoration: InputDecoration(labelText: 'Oszac. koszt'),
                   keyboardType: TextInputType.number,
                   onChanged: (v) => costStr = v.trim(),
                 ),
@@ -230,7 +235,7 @@ class _CustomerDetailScreenState extends State<CustomerDetailScreen> {
           actions: [
             TextButton(
               onPressed: () => Navigator.pop(ctx),
-              child: Text('Cancel'),
+              child: Text('Anuluj'),
             ),
             ElevatedButton(
               onPressed: () {
@@ -248,7 +253,7 @@ class _CustomerDetailScreenState extends State<CustomerDetailScreen> {
                 doc.update(updates);
                 Navigator.pop(ctx);
               },
-              child: Text('Save'),
+              child: Text('Zapisz'),
             ),
           ],
         ),
@@ -263,14 +268,9 @@ class _CustomerDetailScreenState extends State<CustomerDetailScreen> {
         title: FutureBuilder<DocumentSnapshot>(
           future: _customerRef.get(),
           builder: (ctx, snap) {
-<<<<<<< HEAD
-            if (snap.connectionState != ConnectionState.done)
-              return Text('...');
-=======
             if (snap.connectionState != ConnectionState.done) {
               return Text('...');
             }
->>>>>>> 027e8f4f7a9b33da39b80636990a8c0971b810ed
             final data = snap.data?.data() as Map<String, dynamic>?;
             final name = data?['name'] as String? ?? '';
             return Text('$name Projects');
@@ -280,24 +280,22 @@ class _CustomerDetailScreenState extends State<CustomerDetailScreen> {
       body: StreamBuilder<QuerySnapshot>(
         stream: _projectsCol.orderBy('createdAt', descending: true).snapshots(),
         builder: (ctx, snap) {
-<<<<<<< HEAD
-          if (snap.connectionState == ConnectionState.waiting)
-            return Center(child: CircularProgressIndicator());
-=======
           if (snap.connectionState == ConnectionState.waiting) {
             return Center(child: CircularProgressIndicator());
           }
->>>>>>> 027e8f4f7a9b33da39b80636990a8c0971b810ed
-          if (snap.hasError) return Center(child: Text('Error: ${snap.error}'));
+          if (snap.hasError) {
+            return Center(child: Text('Error: ${snap.error}'));
+          }
           final docs = snap.data!.docs;
-          if (docs.isEmpty) return Center(child: Text('No projects yet.'));
+          if (docs.isEmpty) {
+            return Center(child: Text('Brak projektów.'));
+          }
           return ListView.separated(
             itemCount: docs.length,
             separatorBuilder: (_, __) => Divider(),
             itemBuilder: (ctx, i) {
               final d = docs[i];
               final data = d.data()! as Map<String, dynamic>;
-              final status = data['status'] as String? ?? 'draft';
               final ts = data['createdAt'] as Timestamp?;
               final startTs = data['startDate'] as Timestamp?;
               final endTs = data['estimatedEndDate'] as Timestamp?;
@@ -324,25 +322,58 @@ class _CustomerDetailScreenState extends State<CustomerDetailScreen> {
                   ? '${cost.toStringAsFixed(2)} zł'
                   : '';
               final lines = <String>[
-                'Status: $status',
+                'Status: ${data['status'] ?? 'draft'}',
                 if (start.isNotEmpty) 'Start: $start',
                 if (end.isNotEmpty) 'End: $end',
                 if (costStr.isNotEmpty) 'Cost: $costStr',
                 if (created.isNotEmpty) 'Created: $created',
               ];
+
               return ListTile(
                 title: Text(data['title'] ?? '—'),
                 subtitle: Text(lines.join('\n')),
                 isThreeLine: true,
-                trailing: IconButton(
-                  icon: Icon(Icons.edit),
-                  onPressed: () => _editProject(d.id, data),
+                trailing: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    if (widget.isAdmin)
+                      IconButton(
+                        icon: Icon(Icons.delete, color: Colors.red),
+                        onPressed: () async {
+                          final ok = await showDialog<bool>(
+                            context: context,
+                            builder: (ctx) => AlertDialog(
+                              title: Text('Usuń projekt?'),
+                              content: Text('Na pewno usunąć ten projekt?'),
+                              actions: [
+                                TextButton(
+                                  onPressed: () => Navigator.pop(ctx, false),
+                                  child: Text('Anuluj'),
+                                ),
+                                ElevatedButton(
+                                  onPressed: () => Navigator.pop(ctx, true),
+                                  child: Text('Usuń'),
+                                ),
+                              ],
+                            ),
+                          );
+                          if (ok == true) {
+                            await _projectsCol.doc(d.id).delete();
+                          }
+                        },
+                      ),
+                    IconButton(
+                      icon: Icon(Icons.edit),
+                      onPressed: () => _editProject(d.id, data),
+                    ),
+                  ],
                 ),
                 onTap: () => Navigator.of(context).push(
                   MaterialPageRoute(
                     builder: (_) => ProjectEditorScreen(
                       customerId: widget.customerId,
                       projectId: d.id,
+                      isAdmin: widget.isAdmin,
                     ),
                   ),
                 ),
@@ -351,10 +382,12 @@ class _CustomerDetailScreenState extends State<CustomerDetailScreen> {
           );
         },
       ),
-      floatingActionButton: FloatingActionButton(
-        onPressed: _addProject,
-        child: Icon(Icons.playlist_add),
-      ),
+      floatingActionButton: widget.isAdmin
+          ? FloatingActionButton(
+              onPressed: _addProject,
+              child: Icon(Icons.playlist_add),
+            )
+          : null,
     );
   }
 }

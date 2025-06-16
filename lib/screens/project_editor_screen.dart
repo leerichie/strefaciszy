@@ -7,28 +7,20 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_storage/firebase_storage.dart';
 import 'package:path/path.dart' show basename;
-<<<<<<< HEAD
-=======
 import 'package:strefa_ciszy/models/rw_document.dart';
 import 'package:strefa_ciszy/models/stock_item.dart';
->>>>>>> 027e8f4f7a9b33da39b80636990a8c0971b810ed
 
 class ProjectEditorScreen extends StatefulWidget {
+  final bool isAdmin;
   final String customerId;
   final String projectId;
 
   const ProjectEditorScreen({
-<<<<<<< HEAD
-    Key? key,
-    required this.customerId,
-    required this.projectId,
-  }) : super(key: key);
-=======
     super.key,
     required this.customerId,
     required this.projectId,
+    required this.isAdmin,
   });
->>>>>>> 027e8f4f7a9b33da39b80636990a8c0971b810ed
 
   @override
   _ProjectEditorScreenState createState() => _ProjectEditorScreenState();
@@ -54,8 +46,6 @@ class _ProjectEditorScreenState extends State<ProjectEditorScreen> {
     _loadAll();
   }
 
-<<<<<<< HEAD
-=======
   Future<void> _saveRWDocument(String type) async {
     final user = FirebaseAuth.instance.currentUser;
     if (user == null) return;
@@ -83,29 +73,16 @@ class _ProjectEditorScreenState extends State<ProjectEditorScreen> {
         .add(rwDoc.toMap());
     ScaffoldMessenger.of(
       context,
-    ).showSnackBar(SnackBar(content: Text('Saved as $type')));
+    ).showSnackBar(SnackBar(content: Text('Zapisany jako $type')));
   }
 
->>>>>>> 027e8f4f7a9b33da39b80636990a8c0971b810ed
   Future<void> _loadAll() async {
     final stockSnap = await FirebaseFirestore.instance
         .collection('stock_items')
         .get();
-<<<<<<< HEAD
-    _stockItems = stockSnap.docs.map((d) {
-      final m = d.data();
-      return StockItem(
-        id: d.id,
-        name: m['name'] as String? ?? '—',
-        unit: m['unit'] as String? ?? '',
-        quantity: m['quantity'] as int? ?? 0,
-      );
-    }).toList();
-=======
     _stockItems = stockSnap.docs
         .map((d) => StockItem.fromMap(d.data(), d.id))
         .toList();
->>>>>>> 027e8f4f7a9b33da39b80636990a8c0971b810ed
 
     final projRef = FirebaseFirestore.instance
         .collection('customers')
@@ -143,7 +120,7 @@ class _ProjectEditorScreenState extends State<ProjectEditorScreen> {
       builder: (ctx) {
         String draft = _notes;
         return AlertDialog(
-          title: Text('Edit Notes'),
+          title: Text('Edytuj Notatki'),
           content: TextFormField(
             initialValue: draft,
             maxLines: 5,
@@ -152,11 +129,11 @@ class _ProjectEditorScreenState extends State<ProjectEditorScreen> {
           actions: [
             TextButton(
               onPressed: () => Navigator.pop(ctx, null),
-              child: Text('Cancel'),
+              child: Text('Anuluj'),
             ),
             ElevatedButton(
               onPressed: () => Navigator.pop(ctx, draft),
-              child: Text('Save'),
+              child: Text('Zapisz'),
             ),
           ],
         );
@@ -171,11 +148,7 @@ class _ProjectEditorScreenState extends State<ProjectEditorScreen> {
     String custom = existing?.customName ?? '';
     int qty = existing?.requestedQty ?? 0;
     String unit = existing?.unit ?? 'szt';
-<<<<<<< HEAD
-    final _formKey = GlobalKey<FormState>();
-=======
     final formKey = GlobalKey<FormState>();
->>>>>>> 027e8f4f7a9b33da39b80636990a8c0971b810ed
 
     final searchController = TextEditingController(
       text: isStock && itemRef.isNotEmpty
@@ -197,11 +170,7 @@ class _ProjectEditorScreenState extends State<ProjectEditorScreen> {
             content: SizedBox(
               width: double.maxFinite,
               child: Form(
-<<<<<<< HEAD
-                key: _formKey,
-=======
                 key: formKey,
->>>>>>> 027e8f4f7a9b33da39b80636990a8c0971b810ed
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
                   children: [
@@ -211,17 +180,10 @@ class _ProjectEditorScreenState extends State<ProjectEditorScreen> {
                       decoration: InputDecoration(labelText: 'Produkt'),
                       items: [
                         DropdownMenuItem(
-<<<<<<< HEAD
-                          child: Text('W Magazynie'),
-                          value: true,
-                        ),
-                        DropdownMenuItem(child: Text('Custom'), value: false),
-=======
                           value: true,
                           child: Text('W Magazynie'),
                         ),
                         DropdownMenuItem(value: false, child: Text('Custom')),
->>>>>>> 027e8f4f7a9b33da39b80636990a8c0971b810ed
                       ],
                       onChanged: (v) => setState(() => isStock = v!),
                     ),
@@ -233,8 +195,8 @@ class _ProjectEditorScreenState extends State<ProjectEditorScreen> {
                         controller: searchController,
                         decoration: InputDecoration(
                           labelText: itemRef.isEmpty
-                              ? 'Szukaj item'
-                              : 'Wybrany item',
+                              ? 'Szukaj produkt'
+                              : 'Wybrany produkt',
                           // prefixIcon: Icon(Icons.search),
                         ),
                         onChanged: (v) {
@@ -301,7 +263,7 @@ class _ProjectEditorScreenState extends State<ProjectEditorScreen> {
                     DropdownButtonFormField<String>(
                       value: unit,
                       decoration: InputDecoration(labelText: 'jm.'),
-                      items: ['szt', 'm', 'kg']
+                      items: ['szt', 'm', 'kg', 'kpl']
                           .map(
                             (u) => DropdownMenuItem(value: u, child: Text(u)),
                           )
@@ -319,14 +281,10 @@ class _ProjectEditorScreenState extends State<ProjectEditorScreen> {
               ),
               ElevatedButton(
                 onPressed: () {
-<<<<<<< HEAD
-                  if (!_formKey.currentState!.validate()) return;
-=======
                   if (!formKey.currentState!.validate()) return;
->>>>>>> 027e8f4f7a9b33da39b80636990a8c0971b810ed
                   if (isStock && itemRef.isEmpty) {
                     ScaffoldMessenger.of(context).showSnackBar(
-                      SnackBar(content: Text('Please select an item.')),
+                      SnackBar(content: Text('Wybieraj produkt.')),
                     );
                     return;
                   }
@@ -466,13 +424,50 @@ class _ProjectEditorScreenState extends State<ProjectEditorScreen> {
   Widget build(BuildContext context) {
     if (_loading) {
       return Scaffold(
-        appBar: AppBar(title: Text('Loading…')),
+        appBar: AppBar(title: Text('Ładowanie...')),
         body: Center(child: CircularProgressIndicator()),
       );
     }
 
     return Scaffold(
-      appBar: AppBar(title: Text('Edit Project')),
+      appBar: AppBar(
+        title: Text('Edytuj projekt'),
+        actions: [
+          if (widget.isAdmin)
+            IconButton(
+              icon: Icon(Icons.delete, color: Colors.red),
+              onPressed: () async {
+                final confirm = await showDialog<bool>(
+                  context: context,
+                  builder: (ctx) => AlertDialog(
+                    title: Text('Usuń projekt?'),
+                    content: Text('Czy na pewno chcesz usunąć ten projekt?'),
+                    actions: [
+                      TextButton(
+                        onPressed: () => Navigator.of(ctx).pop(false),
+                        child: Text('Anuluj'),
+                      ),
+                      ElevatedButton(
+                        onPressed: () => Navigator.of(ctx).pop(true),
+                        child: Text('Usuń'),
+                      ),
+                    ],
+                  ),
+                );
+                if (confirm == true) {
+                  await FirebaseFirestore.instance
+                      .collection('customers')
+                      .doc(widget.customerId)
+                      .collection('projects')
+                      .doc(widget.projectId)
+                      .delete();
+                  Navigator.of(context).pop();
+                }
+              },
+            ),
+        ],
+      ),
+
       body: Padding(
         padding: EdgeInsets.all(16),
         child: _saving
@@ -605,9 +600,7 @@ class _ProjectEditorScreenState extends State<ProjectEditorScreen> {
                               child: GestureDetector(
                                 onTap: _openNotes,
                                 child: Text(
-                                  _notes.isNotEmpty
-                                      ? _notes
-                                      : 'Tap to add notes',
+                                  _notes.isNotEmpty ? _notes : 'Dodaj notatke',
                                   maxLines: 2,
                                   overflow: TextOverflow.ellipsis,
                                   style: TextStyle(
@@ -625,8 +618,6 @@ class _ProjectEditorScreenState extends State<ProjectEditorScreen> {
 
                     SizedBox(height: 32),
 
-<<<<<<< HEAD
-=======
                     // report save
                     Row(
                       mainAxisAlignment: MainAxisAlignment.spaceEvenly,
@@ -642,18 +633,17 @@ class _ProjectEditorScreenState extends State<ProjectEditorScreen> {
                       ],
                     ),
 
->>>>>>> 027e8f4f7a9b33da39b80636990a8c0971b810ed
                     // Save / Confirm buttons
                     Row(
                       mainAxisAlignment: MainAxisAlignment.spaceEvenly,
                       children: [
                         ElevatedButton(
                           onPressed: _saveDraft,
-                          child: Text('Save Draft'),
+                          child: Text('Wersja Robocza'),
                         ),
                         ElevatedButton(
                           onPressed: _confirmProject,
-                          child: Text('Confirm'),
+                          child: Text('Zatwierdz'),
                         ),
                       ],
                     ),
@@ -666,28 +656,6 @@ class _ProjectEditorScreenState extends State<ProjectEditorScreen> {
 
   Widget _buildCompactRow(int index) {
     final ln = _lines[index];
-<<<<<<< HEAD
-    final name = ln.isStock
-        ? _stockItems
-              .firstWhere(
-                (s) => s.id == ln.itemRef,
-                orElse: () =>
-                    StockItem(id: '', name: 'Unknown', unit: '', quantity: 0),
-              )
-              .name
-        : ln.customName;
-    final qty = ln.requestedQty;
-    final totalStock = ln.isStock
-        ? _stockItems
-              .firstWhere(
-                (s) => s.id == ln.itemRef,
-                orElse: () =>
-                    StockItem(id: '', name: '', unit: '', quantity: 0),
-              )
-              .quantity
-        : 0;
-    final remaining = totalStock - ln.requestedQty;
-=======
     final stockItem = _stockItems.firstWhere(
       (s) => s.id == ln.itemRef,
       orElse: () => StockItem(id: '', name: 'Unknown', unit: '', quantity: 0),
@@ -697,7 +665,6 @@ class _ProjectEditorScreenState extends State<ProjectEditorScreen> {
     final qty = ln.requestedQty;
     final totalStock = ln.isStock ? stockItem.quantity : 0;
     final remaining = totalStock - qty;
->>>>>>> 027e8f4f7a9b33da39b80636990a8c0971b810ed
     final enough = remaining > 0;
 
     return ListTile(
@@ -764,18 +731,3 @@ class ProjectLine {
     return map;
   }
 }
-<<<<<<< HEAD
-
-class StockItem {
-  final String id, name, unit;
-  final int quantity;
-
-  StockItem({
-    required this.id,
-    required this.name,
-    required this.unit,
-    required this.quantity,
-  });
-}
-=======
->>>>>>> 027e8f4f7a9b33da39b80636990a8c0971b810ed

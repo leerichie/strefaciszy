@@ -44,6 +44,7 @@ class _LoginScreenState extends State<LoginScreen> {
             mainAxisSize: MainAxisSize.min,
             children: [
               Image.asset('assets/images/strefa_ciszy_logo.png', width: 200),
+              Text('_Inventory'),
               SizedBox(height: 48),
 
               if (_error != null) ...[
@@ -59,20 +60,19 @@ class _LoginScreenState extends State<LoginScreen> {
               SizedBox(height: 16),
               TextField(
                 controller: _passCtrl,
-                decoration: InputDecoration(labelText: 'Password'),
+                decoration: InputDecoration(labelText: 'Hasło'),
                 obscureText: true,
               ),
               SizedBox(height: 32),
               ElevatedButton(
                 onPressed: _isLoading ? null : _signIn,
-                child:
-                    _isLoading
-                        ? SizedBox(
-                          width: 24,
-                          height: 24,
-                          child: CircularProgressIndicator(strokeWidth: 2),
-                        )
-                        : Text('Sign In'),
+                child: _isLoading
+                    ? SizedBox(
+                        width: 24,
+                        height: 24,
+                        child: CircularProgressIndicator(strokeWidth: 2),
+                      )
+                    : Text('Zaloguj sie'),
               ),
             ],
           ),

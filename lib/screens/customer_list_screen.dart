@@ -6,7 +6,8 @@ import 'package:intl/intl.dart';
 import 'customer_detail_screen.dart';
 
 class CustomerListScreen extends StatefulWidget {
-  const CustomerListScreen({super.key});
+  final bool isAdmin;
+  const CustomerListScreen({super.key, required this.isAdmin});
 
   @override
   _CustomerListScreenState createState() => _CustomerListScreenState();
@@ -20,20 +21,19 @@ class _CustomerListScreenState extends State<CustomerListScreen> {
     await showDialog<void>(
       context: context,
       builder: (ctx) => AlertDialog(
-        title: Text('Add Customer'),
+        title: Text('Dodaj klient'),
         content: TextField(
-          decoration: InputDecoration(labelText: 'Customer Name'),
+          decoration: InputDecoration(labelText: 'Nazwa Klienta'),
           onChanged: (v) => name = v.trim(),
         ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(ctx),
-            child: Text('Cancel'),
+            child: Text('Anuluj'),
           ),
           ElevatedButton(
             onPressed: () {
               if (name.isNotEmpty) {
-                final uid = DateTime.now().millisecondsSinceEpoch.toString();
                 _col.add({
                   'name': name,
                   'createdAt': FieldValue.serverTimestamp(),
@@ -41,7 +41,7 @@ class _CustomerListScreenState extends State<CustomerListScreen> {
               }
               Navigator.pop(ctx);
             },
-            child: Text('Create'),
+            child: Text('Zapisz'),
           ),
         ],
       ),
@@ -51,23 +51,20 @@ class _CustomerListScreenState extends State<CustomerListScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('Customers')),
+      appBar: AppBar(title: const Text('Klienci')),
       body: StreamBuilder<QuerySnapshot>(
         stream: _col.orderBy('createdAt', descending: true).snapshots(),
         builder: (ctx, snap) {
-<<<<<<< HEAD
-          if (snap.connectionState == ConnectionState.waiting)
-            return Center(child: CircularProgressIndicator());
-=======
           if (snap.connectionState == ConnectionState.waiting) {
             return Center(child: CircularProgressIndicator());
           }
->>>>>>> 027e8f4f7a9b33da39b80636990a8c0971b810ed
-          if (snap.hasError) return Center(child: Text('Error: ${snap.error}'));
+          if (snap.hasError) {
+            return Center(child: Text('Error: ${snap.error}'));
+          }
 
           final docs = snap.data!.docs;
           if (docs.isEmpty) {
-            return Center(child: Text('No customers yet.'));
+            return Center(child: Text('Brak klienci.'));
           }
 
           return ListView.separated(
@@ -87,24 +84,30 @@ class _CustomerListScreenState extends State<CustomerListScreen> {
                 subtitle: ts != null ? Text(date) : null,
                 onTap: () => Navigator.of(context).push(
                   MaterialPageRoute(
-                    builder: (_) => CustomerDetailScreen(customerId: d.id),
+                    builder: (_) => CustomerDetailScreen(
+                      customerId: d.id,
+                      isAdmin: widget.isAdmin,
+                    ),
                   ),
                 ),
+                trailing: widget.isAdmin
+                    ? IconButton(
+                        icon: Icon(Icons.delete, color: Colors.red),
+                        onPressed: () => _col.doc(d.id).delete(),
+                      )
+                    : null,
               );
             },
           );
         },
       ),
-      floatingActionButton: FloatingActionButton(
-        tooltip: 'Add Customer',
-<<<<<<< HEAD
-        child: Icon(Icons.person_add),
-        onPressed: _addCustomer,
-=======
-        onPressed: _addCustomer,
-        child: Icon(Icons.person_add),
->>>>>>> 027e8f4f7a9b33da39b80636990a8c0971b810ed
-      ),
+      floatingActionButton: widget.isAdmin
+          ? FloatingActionButton(
+              tooltip: 'Dodaj Klient',
+              onPressed: _addCustomer,
+              child: Icon(Icons.person_add),
+            )
+          : null,
     );
   }
 }

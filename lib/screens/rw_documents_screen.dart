@@ -149,20 +149,25 @@ class _RWDocumentsScreenState extends State<RWDocumentsScreen> {
                         context: context,
                         builder: (ctx) => AlertDialog(
                           title: Text('Szczegóły dokumentu'),
-                          content: Column(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              Text('Projekt: ${data['projectName']}'),
-                              Text('Typ: ${data['type']}'),
-                              Text('Utworzono: $date'),
-                              SizedBox(height: 10),
-                              Text('Materiały:'),
-                              ...((data['items'] as List<dynamic>?) ?? []).map(
-                                (item) => Text(
-                                  '${item['name']} - ${item['quantity']} szt',
-                                ),
+                          content: ConstrainedBox(
+                            constraints: BoxConstraints(maxWidth: 400),
+                            child: SingleChildScrollView(
+                              child: Column(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  Text('Projekt: ${data['projectName']}'),
+                                  Text('Typ: ${data['type']}'),
+                                  Text('Utworzono: $date'),
+                                  SizedBox(height: 10),
+                                  Text('Materiały:'),
+                                  ...((data['items'] as List<dynamic>?) ?? []).map(
+                                    (item) => Text(
+                                      '${item['name']} - ${item['quantity']} szt',
+                                    ),
+                                  ),
+                                ],
                               ),
-                            ],
+                            ),
                           ),
                           actions: [
                             TextButton(

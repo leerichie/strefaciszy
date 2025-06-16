@@ -45,23 +45,16 @@ class ItemDetailScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: Text('Product Details')),
+      appBar: AppBar(title: Text('Szczegoly')),
       body: FutureBuilder<QuerySnapshot>(
         future: _fetchItem(),
         builder: (ctx, snap) {
-<<<<<<< HEAD
-          if (snap.connectionState == ConnectionState.waiting)
-            return Center(child: CircularProgressIndicator());
-          if (snap.hasError)
-            return Center(child: Text('Error loading item:\n${snap.error}'));
-=======
           if (snap.connectionState == ConnectionState.waiting) {
             return Center(child: CircularProgressIndicator());
           }
           if (snap.hasError) {
             return Center(child: Text('Error loading item:\n${snap.error}'));
           }
->>>>>>> 027e8f4f7a9b33da39b80636990a8c0971b810ed
 
           final docs = snap.data!.docs;
           if (docs.isEmpty) {
@@ -69,10 +62,7 @@ class ItemDetailScreen extends StatelessWidget {
               child: Column(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  Text(
-                    'No product found for\n“$code”',
-                    textAlign: TextAlign.center,
-                  ),
+                  Text('Nie znaleziono:\n“$code”', textAlign: TextAlign.center),
                   SizedBox(height: 16),
                   ElevatedButton(
                     onPressed: () => Navigator.of(context).push(
@@ -80,7 +70,7 @@ class ItemDetailScreen extends StatelessWidget {
                         builder: (_) => AddItemScreen(initialBarcode: code),
                       ),
                     ),
-                    child: Text('Add New Product'),
+                    child: Text('Dodaj nowy produkt'),
                   ),
                 ],
               ),
@@ -140,7 +130,7 @@ class ItemDetailScreen extends StatelessWidget {
                         builder: (_) => EditItemScreen(doc.id, data: data),
                       ),
                     ),
-                    child: Text('Edit Details'),
+                    child: Text('Edytuj szczegoly'),
                   ),
                 ),
               ],

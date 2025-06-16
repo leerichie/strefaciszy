@@ -115,7 +115,7 @@ class _ScanScreenState extends State<ScanScreen> {
               Padding(
                 padding: const EdgeInsets.all(12),
                 child: Text(
-                  'Scanned: $_scannedCode',
+                  'Skanowany: $_scannedCode',
                   style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
                 ),
               ),
