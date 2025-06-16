@@ -7,16 +7,28 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_storage/firebase_storage.dart';
 import 'package:path/path.dart' show basename;
+<<<<<<< HEAD
+=======
+import 'package:strefa_ciszy/models/rw_document.dart';
+import 'package:strefa_ciszy/models/stock_item.dart';
+>>>>>>> 027e8f4f7a9b33da39b80636990a8c0971b810ed
 
 class ProjectEditorScreen extends StatefulWidget {
   final String customerId;
   final String projectId;
 
   const ProjectEditorScreen({
+<<<<<<< HEAD
     Key? key,
     required this.customerId,
     required this.projectId,
   }) : super(key: key);
+=======
+    super.key,
+    required this.customerId,
+    required this.projectId,
+  });
+>>>>>>> 027e8f4f7a9b33da39b80636990a8c0971b810ed
 
   @override
   _ProjectEditorScreenState createState() => _ProjectEditorScreenState();
@@ -42,10 +54,44 @@ class _ProjectEditorScreenState extends State<ProjectEditorScreen> {
     _loadAll();
   }
 
+<<<<<<< HEAD
+=======
+  Future<void> _saveRWDocument(String type) async {
+    final user = FirebaseAuth.instance.currentUser;
+    if (user == null) return;
+
+    final rwDoc = RWDocument(
+      id: '',
+      projectId: widget.projectId,
+      projectName: _title,
+      createdBy: user.uid,
+      createdAt: DateTime.now(),
+      type: type,
+      items: _stockItems
+          .map(
+            (item) => {
+              'itemId': item.id,
+              'name': item.name,
+              'quantity': item.quantity,
+            },
+          )
+          .toList(),
+    );
+
+    await FirebaseFirestore.instance
+        .collection('rw_documents')
+        .add(rwDoc.toMap());
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(SnackBar(content: Text('Saved as $type')));
+  }
+
+>>>>>>> 027e8f4f7a9b33da39b80636990a8c0971b810ed
   Future<void> _loadAll() async {
     final stockSnap = await FirebaseFirestore.instance
         .collection('stock_items')
         .get();
+<<<<<<< HEAD
     _stockItems = stockSnap.docs.map((d) {
       final m = d.data();
       return StockItem(
@@ -55,6 +101,11 @@ class _ProjectEditorScreenState extends State<ProjectEditorScreen> {
         quantity: m['quantity'] as int? ?? 0,
       );
     }).toList();
+=======
+    _stockItems = stockSnap.docs
+        .map((d) => StockItem.fromMap(d.data(), d.id))
+        .toList();
+>>>>>>> 027e8f4f7a9b33da39b80636990a8c0971b810ed
 
     final projRef = FirebaseFirestore.instance
         .collection('customers')
@@ -120,7 +171,11 @@ class _ProjectEditorScreenState extends State<ProjectEditorScreen> {
     String custom = existing?.customName ?? '';
     int qty = existing?.requestedQty ?? 0;
     String unit = existing?.unit ?? 'szt';
+<<<<<<< HEAD
     final _formKey = GlobalKey<FormState>();
+=======
+    final formKey = GlobalKey<FormState>();
+>>>>>>> 027e8f4f7a9b33da39b80636990a8c0971b810ed
 
     final searchController = TextEditingController(
       text: isStock && itemRef.isNotEmpty
@@ -142,7 +197,11 @@ class _ProjectEditorScreenState extends State<ProjectEditorScreen> {
             content: SizedBox(
               width: double.maxFinite,
               child: Form(
+<<<<<<< HEAD
                 key: _formKey,
+=======
+                key: formKey,
+>>>>>>> 027e8f4f7a9b33da39b80636990a8c0971b810ed
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
                   children: [
@@ -152,10 +211,17 @@ class _ProjectEditorScreenState extends State<ProjectEditorScreen> {
                       decoration: InputDecoration(labelText: 'Produkt'),
                       items: [
                         DropdownMenuItem(
+<<<<<<< HEAD
                           child: Text('W Magazynie'),
                           value: true,
                         ),
                         DropdownMenuItem(child: Text('Custom'), value: false),
+=======
+                          value: true,
+                          child: Text('W Magazynie'),
+                        ),
+                        DropdownMenuItem(value: false, child: Text('Custom')),
+>>>>>>> 027e8f4f7a9b33da39b80636990a8c0971b810ed
                       ],
                       onChanged: (v) => setState(() => isStock = v!),
                     ),
@@ -253,7 +319,11 @@ class _ProjectEditorScreenState extends State<ProjectEditorScreen> {
               ),
               ElevatedButton(
                 onPressed: () {
+<<<<<<< HEAD
                   if (!_formKey.currentState!.validate()) return;
+=======
+                  if (!formKey.currentState!.validate()) return;
+>>>>>>> 027e8f4f7a9b33da39b80636990a8c0971b810ed
                   if (isStock && itemRef.isEmpty) {
                     ScaffoldMessenger.of(context).showSnackBar(
                       SnackBar(content: Text('Please select an item.')),
@@ -555,6 +625,24 @@ class _ProjectEditorScreenState extends State<ProjectEditorScreen> {
 
                     SizedBox(height: 32),
 
+<<<<<<< HEAD
+=======
+                    // report save
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                      children: [
+                        ElevatedButton(
+                          onPressed: () => _saveRWDocument('RW'),
+                          child: Text('Zapisz RW'),
+                        ),
+                        ElevatedButton(
+                          onPressed: () => _saveRWDocument('MM'),
+                          child: Text('Zapisz MM'),
+                        ),
+                      ],
+                    ),
+
+>>>>>>> 027e8f4f7a9b33da39b80636990a8c0971b810ed
                     // Save / Confirm buttons
                     Row(
                       mainAxisAlignment: MainAxisAlignment.spaceEvenly,
@@ -578,6 +666,7 @@ class _ProjectEditorScreenState extends State<ProjectEditorScreen> {
 
   Widget _buildCompactRow(int index) {
     final ln = _lines[index];
+<<<<<<< HEAD
     final name = ln.isStock
         ? _stockItems
               .firstWhere(
@@ -598,6 +687,17 @@ class _ProjectEditorScreenState extends State<ProjectEditorScreen> {
               .quantity
         : 0;
     final remaining = totalStock - ln.requestedQty;
+=======
+    final stockItem = _stockItems.firstWhere(
+      (s) => s.id == ln.itemRef,
+      orElse: () => StockItem(id: '', name: 'Unknown', unit: '', quantity: 0),
+    );
+
+    final name = ln.isStock ? stockItem.name : ln.customName;
+    final qty = ln.requestedQty;
+    final totalStock = ln.isStock ? stockItem.quantity : 0;
+    final remaining = totalStock - qty;
+>>>>>>> 027e8f4f7a9b33da39b80636990a8c0971b810ed
     final enough = remaining > 0;
 
     return ListTile(
@@ -664,6 +764,7 @@ class ProjectLine {
     return map;
   }
 }
+<<<<<<< HEAD
 
 class StockItem {
   final String id, name, unit;
@@ -676,3 +777,5 @@ class StockItem {
     required this.quantity,
   });
 }
+=======
+>>>>>>> 027e8f4f7a9b33da39b80636990a8c0971b810ed

@@ -49,10 +49,19 @@ class ItemDetailScreen extends StatelessWidget {
       body: FutureBuilder<QuerySnapshot>(
         future: _fetchItem(),
         builder: (ctx, snap) {
+<<<<<<< HEAD
           if (snap.connectionState == ConnectionState.waiting)
             return Center(child: CircularProgressIndicator());
           if (snap.hasError)
             return Center(child: Text('Error loading item:\n${snap.error}'));
+=======
+          if (snap.connectionState == ConnectionState.waiting) {
+            return Center(child: CircularProgressIndicator());
+          }
+          if (snap.hasError) {
+            return Center(child: Text('Error loading item:\n${snap.error}'));
+          }
+>>>>>>> 027e8f4f7a9b33da39b80636990a8c0971b810ed
 
           final docs = snap.data!.docs;
           if (docs.isEmpty) {
