@@ -36,7 +36,6 @@ class _ProjectEditorScreenState extends State<ProjectEditorScreen> {
   }
 
   Future<void> _loadAll() async {
-    // 1) load stock_items
     final stockSnap = await FirebaseFirestore.instance
         .collection('stock_items')
         .get();
@@ -50,7 +49,6 @@ class _ProjectEditorScreenState extends State<ProjectEditorScreen> {
       );
     }).toList();
 
-    // 2) load project doc
     final projRef = FirebaseFirestore.instance
         .collection('customers')
         .doc(widget.customerId)
@@ -82,14 +80,13 @@ class _ProjectEditorScreenState extends State<ProjectEditorScreen> {
         final _dlgFormKey = GlobalKey<FormState>();
 
         return AlertDialog(
-          title: Text('New Line'),
+          title: Text('Dodaj produkt'),
           content: Form(
             key: _dlgFormKey,
             child: SingleChildScrollView(
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  // Type selector
                   DropdownButtonFormField<bool>(
                     value: isStock,
                     items: [
@@ -97,7 +94,7 @@ class _ProjectEditorScreenState extends State<ProjectEditorScreen> {
                       DropdownMenuItem(child: Text('Custom'), value: false),
                     ],
                     onChanged: (v) => isStock = v!,
-                    decoration: InputDecoration(labelText: 'Type'),
+                    decoration: InputDecoration(labelText: 'Typ'),
                   ),
 
                   SizedBox(height: 8),
@@ -119,7 +116,7 @@ class _ProjectEditorScreenState extends State<ProjectEditorScreen> {
                     )
                   else
                     TextFormField(
-                      decoration: InputDecoration(labelText: 'Custom Name'),
+                      decoration: InputDecoration(labelText: 'Custom nazwa'),
                       onChanged: (v) => customName = v,
                       validator: (v) =>
                           (v == null || v.trim().isEmpty) ? 'Required' : null,
@@ -127,9 +124,8 @@ class _ProjectEditorScreenState extends State<ProjectEditorScreen> {
 
                   SizedBox(height: 8),
 
-                  // Quantity
                   TextFormField(
-                    decoration: InputDecoration(labelText: 'Qty'),
+                    decoration: InputDecoration(labelText: 'Ilość'),
                     keyboardType: TextInputType.number,
                     onChanged: (v) => requestedQty = int.tryParse(v) ?? 0,
                     validator: (v) {
@@ -140,14 +136,13 @@ class _ProjectEditorScreenState extends State<ProjectEditorScreen> {
 
                   SizedBox(height: 8),
 
-                  // Unit
                   DropdownButtonFormField<String>(
                     value: unit,
                     items: ['szt', 'm', 'kg']
                         .map((u) => DropdownMenuItem(value: u, child: Text(u)))
                         .toList(),
                     onChanged: (v) => unit = v!,
-                    decoration: InputDecoration(labelText: 'Unit'),
+                    decoration: InputDecoration(labelText: 'Jm.'),
                   ),
                 ],
               ),
@@ -384,7 +379,6 @@ class _ProjectEditorScreenState extends State<ProjectEditorScreen> {
             ),
             SizedBox(width: 8),
 
-            // **Make this Expanded** so it shrinks if needed
             Expanded(
               child: line.isStock
                   ? DropdownButtonFormField<String?>(
