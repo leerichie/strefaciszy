@@ -1,6 +1,7 @@
 // lib/screens/project_editor_screen.dart
 
 import 'dart:io';
+import 'package:intl/intl.dart';
 import 'package:mobile_scanner/mobile_scanner.dart';
 import 'scan_screen.dart';
 import 'package:image_picker/image_picker.dart';
@@ -43,17 +44,45 @@ class _ProjectEditorScreenState extends State<ProjectEditorScreen> {
   List<StockItem> _stockItems = [];
   List<ProjectLine> _lines = [];
 
+  String get _previewNotes {
+    final lines = _notes.split('\n').where((l) => l.trim().isNotEmpty).toList();
+    if (lines.length <= 4) return lines.join('\n');
+    return '${lines.take(4).join('\n')}\n…';
+  }
+
   @override
   void initState() {
     super.initState();
     _loadAll();
   }
 
+  Future<void> _persistProject() async {
+    final projRef = FirebaseFirestore.instance
+        .collection('customers')
+        .doc(widget.customerId)
+        .collection('projects')
+        .doc(widget.projectId);
+    await projRef.update({
+      'items': _lines.map((l) => l.toMap()).toList(),
+      'notes': _notes,
+      'images': await Future.wait(
+        _images.map((img) async {
+          if (img.path.startsWith('http')) return img.path;
+          final fileName = basename(img.path);
+          final ref = FirebaseStorage.instance.ref(
+            'project_images/${widget.projectId}/$fileName',
+          );
+          final task = await ref.putFile(File(img.path));
+          return task.ref.getDownloadURL();
+        }),
+      ),
+    });
+  }
+
   Future<void> _saveRWDocument(String type) async {
     final user = FirebaseAuth.instance.currentUser;
     if (user == null) return;
 
-    // build only the lines you actually added
     final itemsData = _lines.map((ln) {
       if (ln.isStock) {
         final stock = _stockItems.firstWhere((s) => s.id == ln.itemRef);
@@ -125,41 +154,85 @@ class _ProjectEditorScreenState extends State<ProjectEditorScreen> {
     setState(() => _loading = false);
   }
 
-  Future<void> _openGallery() async {
-    final picked = await _picker.pickMultiImage();
-    if (picked.isNotEmpty) {
-      setState(() {
-        _images.addAll(picked);
-      });
+  Future<void> _openNotes() async {
+    String draft = _notes;
+    final updated = await showDialog<String>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Edytuj notatki'),
+        content: TextFormField(
+          initialValue: draft,
+          maxLines: null,
+          decoration: const InputDecoration(
+            hintText: 'Edytuj wszystkie notatki…',
+          ),
+          onChanged: (v) => draft = v,
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, null),
+            child: const Text('Anuluj'),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.pop(ctx, draft.trim()),
+            child: const Text('Zapisz'),
+          ),
+        ],
+      ),
+    );
+    if (updated != null) {
+      setState(() => _notes = updated);
+      try {
+        await FirebaseFirestore.instance
+            .collection('customers')
+            .doc(widget.customerId)
+            .collection('projects')
+            .doc(widget.projectId)
+            .update({'notes': _notes});
+      } catch (e) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('Błąd zapisu notatek: $e')));
+      }
     }
   }
 
-  Future<void> _openNotes() async {
-    final text = await showDialog<String>(
-      context: context,
-      builder: (ctx) {
-        String draft = _notes;
-        return AlertDialog(
-          title: Text('Edytuj Notatki'),
-          content: TextFormField(
-            initialValue: draft,
-            maxLines: 5,
-            onChanged: (v) => draft = v,
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(ctx, null),
-              child: Text('Anuluj'),
-            ),
-            ElevatedButton(
-              onPressed: () => Navigator.pop(ctx, draft),
-              child: Text('Zapisz'),
-            ),
-          ],
-        );
-      },
-    );
-    if (text != null) setState(() => _notes = text);
+  Future<void> _openGallery() async {
+    final picked = await _picker.pickMultiImage();
+    if (picked == null || picked.isEmpty) return;
+    setState(() => _images.addAll(picked));
+
+    // upload new images only
+    final storage = FirebaseStorage.instance;
+    final List<String> newUrls = [];
+    for (final img in picked) {
+      final fileName = basename(img.path);
+      final ref = storage.ref('project_images/${widget.projectId}/$fileName');
+      try {
+        final task = await ref.putFile(File(img.path));
+        final url = await task.ref.getDownloadURL();
+        newUrls.add(url);
+      } catch (e) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('Błąd uploadu zdjęcia: $e')));
+      }
+    }
+
+    if (newUrls.isNotEmpty) {
+      try {
+        await FirebaseFirestore.instance
+            .collection('customers')
+            .doc(widget.customerId)
+            .collection('projects')
+            .doc(widget.projectId)
+            .update({'images': FieldValue.arrayUnion(newUrls)});
+      } catch (e) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('Błąd zapisu obrazów: $e')));
+      }
+    }
   }
 
   Future<ProjectLine?> _openLineDialog({ProjectLine? existing}) async {
@@ -221,7 +294,6 @@ class _ProjectEditorScreenState extends State<ProjectEditorScreen> {
                           suffixIcon: IconButton(
                             icon: const Icon(Icons.qr_code_scanner),
                             onPressed: () async {
-                              // 1) Open scanner in returnCode mode
                               final rawCode = await Navigator.of(context)
                                   .push<String>(
                                     MaterialPageRoute(
@@ -230,7 +302,6 @@ class _ProjectEditorScreenState extends State<ProjectEditorScreen> {
                                     ),
                                   );
                               if (rawCode != null) {
-                                // 2) Lookup stock item by barcode
                                 final snap = await FirebaseFirestore.instance
                                     .collection('stock_items')
                                     .where('barcode', isEqualTo: rawCode)
@@ -260,7 +331,10 @@ class _ProjectEditorScreenState extends State<ProjectEditorScreen> {
                           ),
                         ),
                         onChanged: (v) {
-                          if (itemRef.isNotEmpty) setState(() => itemRef = '');
+                          // Always clear any previous selection and rebuild
+                          setState(() {
+                            itemRef = '';
+                          });
                         },
                         validator: (v) {
                           if (isStock && itemRef.isEmpty) {
@@ -271,7 +345,8 @@ class _ProjectEditorScreenState extends State<ProjectEditorScreen> {
                       ),
 
                       // Live suggestions when typing
-                      if (query.isNotEmpty && itemRef.isEmpty) ...[
+                      if (searchController.text.isNotEmpty &&
+                          itemRef.isEmpty) ...[
                         const SizedBox(height: 8),
                         SizedBox(
                           height: 200,
@@ -294,7 +369,7 @@ class _ProjectEditorScreenState extends State<ProjectEditorScreen> {
                         ),
                       ],
                     ]
-                    // 2b) CUSTOM ITEM
+                    // 2b) CUSTOM
                     else
                       TextFormField(
                         initialValue: custom,
@@ -530,7 +605,6 @@ class _ProjectEditorScreenState extends State<ProjectEditorScreen> {
                 key: _formKey,
                 child: Column(
                   children: [
-                    // Title field
                     TextFormField(
                       initialValue: _title,
                       decoration: InputDecoration(labelText: 'Projekt:'),
@@ -540,7 +614,6 @@ class _ProjectEditorScreenState extends State<ProjectEditorScreen> {
                     ),
                     SizedBox(height: 16),
 
-                    // Existing lines
                     if (_lines.isNotEmpty)
                       Expanded(
                         child: ListView.builder(
@@ -549,7 +622,6 @@ class _ProjectEditorScreenState extends State<ProjectEditorScreen> {
                         ),
                       ),
 
-                    // Add-line button
                     Align(
                       alignment: Alignment.centerRight,
                       child: ElevatedButton(
@@ -568,142 +640,155 @@ class _ProjectEditorScreenState extends State<ProjectEditorScreen> {
 
                     Divider(height: 32),
 
+                    // … inside your Form’s Column …
+
                     // PREVIEW / ATTACHMENTS
                     Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        // Row 1: Images
-                        Row(
-                          children: [
-                            ElevatedButton(
-                              onPressed: _openGallery,
-                              style: ElevatedButton.styleFrom(
-                                shape: CircleBorder(),
-                                padding: EdgeInsets.all(12),
-                                elevation: 4,
-                                backgroundColor: Theme.of(
-                                  context,
-                                ).colorScheme.primary,
+                        // 1) Bordered images row
+                        Container(
+                          decoration: BoxDecoration(
+                            border: Border.all(color: Colors.grey.shade400),
+                            borderRadius: BorderRadius.circular(4),
+                          ),
+                          padding: const EdgeInsets.all(8),
+                          child: Row(
+                            children: [
+                              ElevatedButton(
+                                onPressed: _openGallery,
+                                child: const Icon(Icons.photo_library),
                               ),
-                              child: Icon(
-                                Icons.photo_library,
-                                color: Colors.white,
-                              ),
-                            ),
-                            // … in your build()’s preview section …
-                            if (_images.isNotEmpty) ...[
-                              SizedBox(width: 12),
-                              Expanded(
-                                child: SizedBox(
-                                  height: 48,
-                                  child: ListView.builder(
-                                    scrollDirection: Axis.horizontal,
-                                    itemCount: _images.length,
-                                    itemBuilder: (_, i) {
-                                      final path = _images[i].path;
-                                      final thumb = path.startsWith('http')
-                                          ? Image.network(
-                                              path,
-                                              width: 48,
-                                              height: 48,
-                                              fit: BoxFit.contain,
-                                            )
-                                          : Image.file(
-                                              File(path),
-                                              width: 48,
-                                              height: 48,
-                                              fit: BoxFit.contain,
-                                            );
-
-                                      return GestureDetector(
-                                        onTap: _openGallery,
-                                        child: Padding(
+                              if (_images.isNotEmpty) ...[
+                                const SizedBox(width: 12),
+                                Expanded(
+                                  child: SizedBox(
+                                    height: 48,
+                                    child: ListView.builder(
+                                      scrollDirection: Axis.horizontal,
+                                      itemCount: _images.length,
+                                      itemBuilder: (_, i) {
+                                        final path = _images[i].path;
+                                        final thumb = path.startsWith('http')
+                                            ? Image.network(
+                                                path,
+                                                width: 48,
+                                                height: 48,
+                                                fit: BoxFit.cover,
+                                              )
+                                            : Image.file(
+                                                File(path),
+                                                width: 48,
+                                                height: 48,
+                                                fit: BoxFit.cover,
+                                              );
+                                        return Padding(
                                           padding: const EdgeInsets.only(
                                             right: 8,
                                           ),
                                           child: thumb,
-                                        ),
-                                      );
-                                    },
+                                        );
+                                      },
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ],
+                          ),
+                        ),
+
+                        // 2) Divider line
+                        const SizedBox(height: 16),
+                        const Divider(height: 1, color: Colors.grey),
+                        const SizedBox(height: 16),
+
+                        // 3) Bordered notes area
+                        Container(
+                          decoration: BoxDecoration(
+                            border: Border.all(color: Colors.grey.shade400),
+                            borderRadius: BorderRadius.circular(4),
+                          ),
+                          padding: const EdgeInsets.all(8),
+                          child: Row(
+                            children: [
+                              ElevatedButton(
+                                onPressed: _openNotes,
+                                child: const Icon(Icons.note_add),
+                              ),
+                              const SizedBox(width: 12),
+                              Expanded(
+                                child: GestureDetector(
+                                  onTap: _openNotes,
+                                  child: Text(
+                                    _notes.isNotEmpty
+                                        ? _notes
+                                        : 'Dodaj notatke',
+                                    maxLines: 5,
+                                    overflow: TextOverflow.ellipsis,
+                                    style: TextStyle(
+                                      fontStyle: _notes.isEmpty
+                                          ? FontStyle.italic
+                                          : FontStyle.normal,
+                                    ),
                                   ),
                                 ),
                               ),
                             ],
-                          ],
-                        ),
-
-                        SizedBox(height: 16),
-
-                        // Row 2: Notes
-                        Row(
-                          children: [
-                            ElevatedButton(
-                              onPressed: _openNotes,
-                              style: ElevatedButton.styleFrom(
-                                shape: CircleBorder(),
-                                padding: EdgeInsets.all(12),
-                                elevation: 4,
-                                backgroundColor: Theme.of(
-                                  context,
-                                ).colorScheme.primary,
-                              ),
-                              child: Icon(Icons.note_add, color: Colors.white),
-                            ),
-                            SizedBox(width: 12),
-                            Expanded(
-                              child: GestureDetector(
-                                onTap: _openNotes,
-                                child: Text(
-                                  _notes.isNotEmpty ? _notes : 'Dodaj notatke',
-                                  maxLines: 2,
-                                  overflow: TextOverflow.ellipsis,
-                                  style: TextStyle(
-                                    fontStyle: _notes.isEmpty
-                                        ? FontStyle.italic
-                                        : FontStyle.normal,
-                                  ),
-                                ),
-                              ),
-                            ),
-                          ],
+                          ),
                         ),
                       ],
                     ),
 
                     SizedBox(height: 32),
-
-                    // report save
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                      children: [
-                        ElevatedButton(
-                          onPressed: () => _saveRWDocument('RW'),
-                          child: Text('Zapisz RW'),
-                        ),
-                        ElevatedButton(
-                          onPressed: () => _saveRWDocument('MM'),
-                          child: Text('Zapisz MM'),
-                        ),
-                      ],
-                    ),
-
-                    // Save / Confirm buttons
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                      children: [
-                        ElevatedButton(
-                          onPressed: _saveDraft,
-                          child: Text('Wersja Robocza'),
-                        ),
-                        ElevatedButton(
-                          onPressed: _confirmProject,
-                          child: Text('Zatwierdz'),
-                        ),
-                      ],
-                    ),
                   ],
                 ),
               ),
+      ),
+      bottomNavigationBar: SafeArea(
+        top: false,
+        child: Padding(
+          padding: EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Row(
+                children: [
+                  Expanded(
+                    child: ElevatedButton(
+                      onPressed: () => _saveRWDocument('RW'),
+                      child: const Text('Zapisz RW'),
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: ElevatedButton(
+                      onPressed: () => _saveRWDocument('MM'),
+                      child: const Text('Zapisz MM'),
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 8),
+              Row(
+                children: [
+                  Expanded(
+                    child: ElevatedButton(
+                      onPressed: _saveDraft,
+                      child: const Text('Wersja Robocza'),
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: ElevatedButton(
+                      onPressed: _confirmProject,
+                      child: const Text('Zatwierdź'),
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ),
       ),
     );
   }

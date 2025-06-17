@@ -83,7 +83,6 @@ class _InventoryListScreenState extends State<InventoryListScreen> {
             padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
             child: Row(
               children: [
-                // 🔍 search box
                 Expanded(
                   child: TextField(
                     controller: _searchController,
@@ -120,12 +119,10 @@ class _InventoryListScreenState extends State<InventoryListScreen> {
             child: Row(
               children: [
                 _buildCategoryChip(null, 'Wszystko'),
-                ..._categories.map(
-                  (cat) => _buildCategoryChip(
-                    cat,
-                    cat[0].toUpperCase() + cat.substring(1),
-                  ),
-                ),
+                ..._categories.map((cat) {
+                  final label = cat[0].toUpperCase() + cat.substring(1);
+                  return _buildCategoryChip(cat, label);
+                }),
               ],
             ),
           ),

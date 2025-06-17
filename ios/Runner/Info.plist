@@ -30,6 +30,9 @@
 	<true/>
 	<key>UILaunchStoryboardName</key>
 	<string>LaunchScreen</string>
+	<key>FirebaseAppCheckDebugToken</key>
+	<string>4DB145E8-1279-4E9F-B69E-25A461D53C21</string>
+
 	<key>UIMainStoryboardFile</key>
 	<string>Main</string>
 	<key>UISupportedInterfaceOrientations</key>

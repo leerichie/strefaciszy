@@ -20,23 +20,21 @@ class MainMenuScreen extends StatelessWidget {
     await FirebaseAuth.instance.signOut();
   }
 
-  // Future<void> _patchAddProducerField() async {
-  //   final batch = FirebaseFirestore.instance.batch();
-  //   final itemsSnap = await FirebaseFirestore.instance
-  //       .collection('stock_items')
-  //       .get();
+  // Future<void> seedCategories() async {
+  //   final db = FirebaseFirestore.instance;
+  //   final snap = await db.collection('stock_items').get();
+  //   final names = snap.docs
+  //       .map((d) => (d.data()['category'] as String?)?.trim())
+  //       .where((c) => c != null && c.isNotEmpty)
+  //       .toSet();
 
-  //   for (final doc in itemsSnap.docs) {
-  //     final data = doc.data();
-  //     if (!data.containsKey('producent')) {
-  //       batch.update(
-  //         FirebaseFirestore.instance.collection('stock_items').doc(doc.id),
-  //         {'producent': ''},
-  //       );
-  //     }
+  //   final batch = db.batch();
+  //   for (final name in names) {
+  //     final doc = db.collection('categories').doc();
+  //     batch.set(doc, {'name': name});
   //   }
-
   //   await batch.commit();
+  //   print('Seeded ${names.length} categories');
   // }
 
   @override
@@ -136,12 +134,12 @@ class MainMenuScreen extends StatelessWidget {
           //   Padding(
           //     padding: const EdgeInsets.only(top: 32),
           //     child: ElevatedButton(
-          //       child: const Text('Patch: add producent field'),
+          //       child: const Text('Patch: add categories'),
           //       onPressed: () async {
-          //         await _patchAddProducerField();
+          //         await seedCategories();
           //         ScaffoldMessenger.of(context).showSnackBar(
           //           const SnackBar(
-          //             content: Text('Finished patching producent field.'),
+          //             content: Text('Finished patching categories.'),
           //           ),
           //         );
           //       },

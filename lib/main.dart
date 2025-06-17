@@ -1,21 +1,29 @@
-// lib/main.dart
-
-import 'firebase_options.dart';
 import 'package:flutter/material.dart';
 import 'package:firebase_core/firebase_core.dart';
+// import 'package:firebase_app_check/firebase_app_check.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:intl/date_symbol_data_local.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 
+import 'firebase_options.dart';
 import 'screens/login_screen.dart';
 import 'screens/main_menu_screen.dart';
 
-void main() async {
+Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
-  // print('Web API key → ${Firebase.app().options.apiKey}');
 
-  await initializeDateFormatting('pl_PL', null);
+  // await FirebaseAppCheck.instance.activate(
+  //   androidProvider: AndroidProvider.debug,
+  //   appleProvider: AppleProvider.debug,
+  //   webProvider: ReCaptchaV3Provider(
+  //     '6LeBX2QrAAAAAKfgNEf1JLC7QO6fXdrLSbl2GsB3',
+  //   ),
+  // );
+
+  // final appCheckToken = await FirebaseAppCheck.instance.getToken(true);
+  // debugPrint('🔑 AppCheck debug token → $appCheckToken');
+
   runApp(const StrefaCiszyApp());
 }
 
@@ -55,7 +63,6 @@ class AuthGate extends StatelessWidget {
         if (!authSnap.hasData) {
           return const LoginScreen();
         }
-
         final user = authSnap.data!;
         return FutureBuilder<IdTokenResult>(
           future: user.getIdTokenResult(true),
@@ -65,10 +72,8 @@ class AuthGate extends StatelessWidget {
                 body: Center(child: CircularProgressIndicator()),
               );
             }
-
             final claims = tokenSnap.data?.claims ?? {};
             final isAdmin = claims['admin'] == true;
-
             return MainMenuScreen(role: isAdmin ? 'admin' : 'user');
           },
         );
