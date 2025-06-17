@@ -3,7 +3,6 @@ import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:strefa_ciszy/screens/add_item_screen.dart';
 import 'package:strefa_ciszy/screens/item_detail_screen.dart';
-import 'package:strefa_ciszy/screens/scan_screen.dart';
 
 class InventoryListScreen extends StatefulWidget {
   final bool isAdmin;
@@ -19,10 +18,12 @@ class _InventoryListScreenState extends State<InventoryListScreen> {
   String _category = '';
   List<String> _categories = [];
   late StreamSubscription<QuerySnapshot> _catSub;
+  late final TextEditingController _searchController;
 
   @override
   void initState() {
     super.initState();
+    _searchController = TextEditingController();
     _catSub = FirebaseFirestore.instance
         .collection('categories')
         .orderBy('name')
@@ -36,8 +37,17 @@ class _InventoryListScreenState extends State<InventoryListScreen> {
 
   @override
   void dispose() {
+    _searchController.dispose();
     _catSub.cancel();
     super.dispose();
+  }
+
+  void _resetSearch() {
+    FocusScope.of(context).unfocus();
+    setState(() {
+      _searchController.clear();
+      _search = '';
+    });
   }
 
   Query get _query {
@@ -66,25 +76,41 @@ class _InventoryListScreenState extends State<InventoryListScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: Text('Inwentaryzacja'),
+        title: const Text('Inwentaryzacja'),
         bottom: PreferredSize(
-          preferredSize: Size.fromHeight(56),
+          preferredSize: const Size.fromHeight(56),
           child: Padding(
-            padding: EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-            child: TextField(
-              decoration: InputDecoration(
-                hintText: 'Szukaj po nazwie…',
-                prefixIcon: Icon(Icons.search),
-                border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(8),
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+            child: Row(
+              children: [
+                // 🔍 search box
+                Expanded(
+                  child: TextField(
+                    controller: _searchController,
+                    decoration: InputDecoration(
+                      hintText: 'Wyszukaj…',
+                      prefixIcon: const Icon(Icons.search),
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      isDense: true,
+                    ),
+                    onChanged: (v) => setState(() => _search = v.trim()),
+                  ),
                 ),
-                isDense: true,
-              ),
-              onChanged: (v) => setState(() => _search = v.trim()),
+                const SizedBox(width: 8),
+
+                IconButton(
+                  tooltip: 'Resetuj filtr',
+                  icon: const Icon(Icons.refresh),
+                  onPressed: _resetSearch,
+                ),
+              ],
             ),
           ),
         ),
       ),
+
       body: Column(
         children: [
           SizedBox(height: 8),
@@ -140,30 +166,27 @@ class _InventoryListScreenState extends State<InventoryListScreen> {
                         mainAxisSize: MainAxisSize.min,
                         children: [
                           Text(
-                            '${d['barcode'] ?? ""}',
-                            style: TextStyle(
+                            '${d['barcode'] ?? ''}',
+                            style: const TextStyle(
                               fontSize: 12,
                               fontWeight: FontWeight.bold,
                             ),
                           ),
                           if (widget.isAdmin) ...[
-                            SizedBox(width: 8),
+                            const SizedBox(width: 8),
                             IconButton(
-                              icon: Icon(Icons.delete, color: Colors.red),
-                              onPressed: () {
-                                FirebaseFirestore.instance
-                                    .collection('stock_items')
-                                    .doc(snap.id)
-                                    .delete();
-                              },
+                              icon: const Icon(Icons.delete, color: Colors.red),
+                              onPressed: () => FirebaseFirestore.instance
+                                  .collection('stock_items')
+                                  .doc(snap.id)
+                                  .delete(),
                             ),
                           ],
                         ],
                       ),
                       onTap: () => Navigator.of(context).push(
                         MaterialPageRoute(
-                          builder: (_) =>
-                              ItemDetailScreen(code: d['barcode'] ?? ''),
+                          builder: (_) => ItemDetailScreen(itemId: snap.id),
                         ),
                       ),
                     );

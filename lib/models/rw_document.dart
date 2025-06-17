@@ -4,7 +4,7 @@ class RWDocument {
   final String projectName;
   final String createdBy;
   final DateTime createdAt;
-  final String type; // 'RW' or 'MM'
+  final String type;
   final List<Map<String, dynamic>> items;
 
   RWDocument({
@@ -24,7 +24,16 @@ class RWDocument {
       'createdBy': createdBy,
       'createdAt': createdAt.toIso8601String(),
       'type': type,
-      'items': items,
+      'items': items
+          .map(
+            (item) => {
+              'itemId': item['itemId'],
+              'name': item['name'],
+              'quantity': item['quantity'],
+              'unit': item['unit'],
+            },
+          )
+          .toList(),
     };
   }
 }

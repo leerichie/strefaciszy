@@ -1,18 +1,16 @@
 // lib/screens/rw_documents_screen.dart
-import 'dart:io';
-import 'dart:typed_data';
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:excel/excel.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
-import 'package:path_provider/path_provider.dart';
+import 'package:open_file/open_file.dart';
 import 'package:strefa_ciszy/services/file_saver.dart';
-import 'package:url_launcher/url_launcher.dart';
-import 'package:flutter_email_sender/flutter_email_sender.dart';
-import 'package:permission_handler/permission_handler.dart';
+import 'package:syncfusion_flutter_xlsio/xlsio.dart' as xlsio;
 
 class RWDocumentsScreen extends StatefulWidget {
-  const RWDocumentsScreen({super.key});
+  final String? customerId;
+  const RWDocumentsScreen({Key? key, this.customerId}) : super(key: key);
+
   @override
   _RWDocumentsScreenState createState() => _RWDocumentsScreenState();
 }
@@ -24,143 +22,232 @@ class _RWDocumentsScreenState extends State<RWDocumentsScreen> {
   DateTime? _toDate;
   Map<String, String> userNames = {};
 
+  late final TextEditingController _searchController;
+
+  Stream<QuerySnapshot> get _stream {
+    final db = FirebaseFirestore.instance;
+    if (widget.customerId != null) {
+      return db
+          .collection('customers')
+          .doc(widget.customerId)
+          .collection('rw_documents')
+          .orderBy('createdAt', descending: true)
+          .snapshots();
+    } else {
+      return db
+          .collection('rw_documents')
+          .orderBy('createdAt', descending: true)
+          .snapshots();
+    }
+  }
+
+  @override
+  void initState() {
+    super.initState();
+    _searchController = TextEditingController();
+  }
+
+  @override
+  void dispose() {
+    _searchController.dispose();
+    super.dispose();
+  }
+
   @override
   Widget build(BuildContext context) {
+    final isClientView = widget.customerId != null;
+
     return Scaffold(
-      appBar: AppBar(title: Text('Dokumenty RW/MM')),
-      body: StreamBuilder<QuerySnapshot>(
-        stream: FirebaseFirestore.instance
-            .collection('rw_documents')
-            .orderBy('createdAt', descending: true)
-            .snapshots(),
-        builder: (ctx, snap) {
-          if (snap.connectionState == ConnectionState.waiting) {
-            return Center(child: CircularProgressIndicator());
-          }
-          final docs = snap.data!.docs;
-          final filtered = docs.where((doc) {
-            final d = doc.data()! as Map<String, dynamic>;
-            final typeMatch =
-                _selectedType == null || d['type'] == _selectedType;
-            final userMatch =
-                _userFilter.isEmpty ||
-                (d['createdBy'] ?? '').toString().toLowerCase().contains(
-                  _userFilter,
-                );
-            final created =
-                DateTime.tryParse(d['createdAt'] ?? '') ??
-                DateTime.fromMillisecondsSinceEpoch(0);
-            final fromOk = _fromDate == null || !created.isBefore(_fromDate!);
-            final toOk = _toDate == null || !created.isAfter(_toDate!);
-            return typeMatch && userMatch && fromOk && toOk;
-          }).toList();
-          if (filtered.isEmpty) {
-            return Center(child: Text('Brak zapisanych dokumentów.'));
-          }
-          return Column(
-            children: [
-              DropdownButton<String>(
-                value: _selectedType,
-                hint: Text('Typ dokumentu'),
-                items: ['RW', 'MM']
-                    .map(
-                      (type) =>
-                          DropdownMenuItem(value: type, child: Text(type)),
-                    )
-                    .toList(),
-                onChanged: (value) => setState(() => _selectedType = value),
-              ),
-              Padding(
-                padding: EdgeInsets.symmetric(horizontal: 16),
-                child: TextField(
-                  decoration: InputDecoration(labelText: 'Użytkownik'),
-                  onChanged: (value) =>
-                      setState(() => _userFilter = value.trim().toLowerCase()),
+      appBar: AppBar(
+        title: Text(isClientView ? 'RW/MM - klienta' : 'RW/MM - wszystkie'),
+      ),
+      body: Column(
+        children: [
+          // FILTER
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+            child: Column(
+              children: [
+                Row(
+                  children: [
+                    Expanded(
+                      child: DropdownButton<String>(
+                        value: _selectedType,
+                        hint: const Text('Typ dokumentu'),
+                        items: ['RW', 'MM']
+                            .map(
+                              (t) => DropdownMenuItem(value: t, child: Text(t)),
+                            )
+                            .toList(),
+                        onChanged: (val) => setState(() => _selectedType = val),
+                      ),
+                    ),
+
+                    TextButton.icon(
+                      icon: const Icon(Icons.refresh),
+                      label: const Text('Resetuj'),
+                      style: TextButton.styleFrom(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 16,
+                          vertical: 12,
+                        ),
+                      ),
+                      onPressed: () {
+                        setState(() {
+                          _selectedType = null;
+                          _userFilter = '';
+                          _fromDate = null;
+                          _toDate = null;
+                          _searchController.clear();
+                        });
+                      },
+                    ),
+                  ],
                 ),
-              ),
-              Row(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  ElevatedButton(
-                    onPressed: () {
-                      setState(() {
-                        _selectedType = null;
-                        _userFilter = '';
-                        _fromDate = null;
-                        _toDate = null;
-                      });
-                    },
-                    child: Text('Resetuj filtry'),
+
+                const SizedBox(height: 6),
+                TextField(
+                  controller: _searchController,
+                  decoration: const InputDecoration(
+                    labelText: 'Wyszukaj...',
+                    prefixIcon: Icon(Icons.search),
+                    border: OutlineInputBorder(),
+                    isDense: true,
                   ),
-                  TextButton(
-                    onPressed: () async {
-                      final picked = await showDatePicker(
-                        context: context,
-                        initialDate: _fromDate ?? DateTime.now(),
-                        firstDate: DateTime(2020),
-                        lastDate: DateTime(2100),
-                      );
-                      if (picked != null) setState(() => _fromDate = picked);
-                    },
-                    child: Text(
-                      _fromDate == null
-                          ? 'Data od'
-                          : 'Od: ${DateFormat('dd.MM.yyyy', 'pl_PL').format(_fromDate!)}',
-                    ),
-                  ),
-                  TextButton(
-                    onPressed: () async {
-                      final picked = await showDatePicker(
-                        context: context,
-                        initialDate: _toDate ?? DateTime.now(),
-                        firstDate: DateTime(2020),
-                        lastDate: DateTime(2100),
-                      );
-                      if (picked != null) setState(() => _toDate = picked);
-                    },
-                    child: Text(
-                      _toDate == null
-                          ? 'Data do'
-                          : 'Do: ${DateFormat('dd.MM.yyyy', 'pl_PL').format(_toDate!)}',
-                    ),
-                  ),
-                ],
-              ),
-              Expanded(
-                child: ListView.builder(
+                  onChanged: (v) => setState(() => _userFilter = v.trim()),
+                ),
+              ],
+            ),
+          ),
+          const Divider(height: 1),
+          Expanded(
+            child: StreamBuilder<QuerySnapshot>(
+              stream: _stream,
+              builder: (ctx, snap) {
+                if (snap.hasError) {
+                  return Center(child: Text('Error: ${snap.error}'));
+                }
+                if (!snap.hasData) {
+                  return const Center(child: CircularProgressIndicator());
+                }
+
+                final docs = snap.data!.docs;
+                final filtered = docs.where((doc) {
+                  final d = doc.data() as Map<String, dynamic>;
+
+                  // parse createdAt safely
+                  DateTime created;
+                  final rawCreated = d['createdAt'];
+                  if (rawCreated is Timestamp) {
+                    created = rawCreated.toDate();
+                  } else if (rawCreated is String) {
+                    created = DateTime.tryParse(rawCreated) ?? DateTime(2000);
+                  } else {
+                    created = DateTime(2000);
+                  }
+
+                  final uid = d['createdBy'] ?? '';
+                  final uName =
+                      userNames[uid]?.toLowerCase() ?? uid.toLowerCase();
+                  final proj = (d['projectName'] ?? '')
+                      .toString()
+                      .toLowerCase();
+
+                  final textOk =
+                      _userFilter.isEmpty ||
+                      uName.contains(_userFilter.toLowerCase()) ||
+                      proj.contains(_userFilter.toLowerCase());
+                  final typeOk =
+                      _selectedType == null || d['type'] == _selectedType;
+                  final fromOk =
+                      _fromDate == null || !created.isBefore(_fromDate!);
+                  final toOk = _toDate == null || !created.isAfter(_toDate!);
+
+                  return textOk && typeOk && fromOk && toOk;
+                }).toList();
+
+                if (filtered.isEmpty) {
+                  return const Center(
+                    child: Text('Brak zapisanych dokumentów.'),
+                  );
+                }
+
+                return ListView.builder(
                   itemCount: filtered.length,
                   itemBuilder: (ctx, i) {
                     final doc = filtered[i];
-                    final d = doc.data()! as Map<String, dynamic>;
-                    final rawDate = d['createdAt'] as String? ?? '';
-                    final dt = DateTime.tryParse(rawDate) ?? DateTime.now();
+                    final d = doc.data() as Map<String, dynamic>;
+
+                    // format the createdAt for display
+                    DateTime ts;
+                    final rawTs = d['createdAt'];
+                    if (rawTs is Timestamp) {
+                      ts = rawTs.toDate();
+                    } else if (rawTs is String) {
+                      ts = DateTime.tryParse(rawTs) ?? DateTime.now();
+                    } else {
+                      ts = DateTime.now();
+                    }
                     final date = DateFormat(
-                      'dd.MM.yyyy HH:mm',
+                      'dd.MM.yyyy • HH:mm',
                       'pl_PL',
-                    ).format(dt);
+                    ).format(ts);
+
                     final uid = d['createdBy'] ?? '';
                     _fetchUserName(uid);
+
                     return ListTile(
                       title: Text('${d['type']} — ${d['projectName'] ?? ''}'),
-                      subtitle: Text(
-                        'Data: $date\nUżytkownik: ${userNames[uid] ?? uid}',
+                      subtitle: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Row(
+                            children: [
+                              const Icon(
+                                Icons.calendar_today,
+                                size: 16,
+                                color: Colors.grey,
+                              ),
+                              const SizedBox(width: 4),
+                              Text(date),
+                            ],
+                          ),
+                          Row(
+                            children: [
+                              const Icon(
+                                Icons.person,
+                                size: 16,
+                                color: Colors.grey,
+                              ),
+                              const SizedBox(width: 4),
+                              Text(userNames[uid] ?? uid),
+                            ],
+                          ),
+                        ],
                       ),
                       isThreeLine: true,
                       onTap: () => _showDetailsDialog(context, d),
                     );
                   },
-                ),
-              ),
-            ],
-          );
-        },
+                );
+              },
+            ),
+          ),
+        ],
       ),
     );
   }
 
   void _showDetailsDialog(BuildContext context, Map<String, dynamic> data) {
-    final rawTs = data['createdAt'] as String? ?? '';
-    final dt = DateTime.tryParse(rawTs) ?? DateTime.now();
+    DateTime dt;
+    final raw = data['createdAt'];
+    if (raw is Timestamp) {
+      dt = raw.toDate();
+    } else if (raw is String) {
+      dt = DateTime.tryParse(raw) ?? DateTime.now();
+    } else {
+      dt = DateTime.now();
+    }
     final date = DateFormat('dd.MM.yyyy HH:mm', 'pl_PL').format(dt);
 
     final uid = data['createdBy'] as String? ?? '';
@@ -169,19 +256,45 @@ class _RWDocumentsScreenState extends State<RWDocumentsScreen> {
     showDialog(
       context: context,
       builder: (ctx) => AlertDialog(
-        title: Text('Szczegóły dokumentu'),
+        title: Text('Szczegóły - ${data['type']}'),
         content: SingleChildScrollView(
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Text('Projekt: ${data['projectName']}'),
-              Text('Typ: ${data['type']}'),
               Text('Utworzono: $date'),
               Text('Użytkownik: $name'),
               SizedBox(height: 16),
               Text('Materiały:'),
               ...((data['items'] as List<dynamic>?) ?? []).map(
-                (item) => Text('${item['name']} — ${item['quantity']} szt'),
+                (item) => Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 2.0),
+                  child: Row(
+                    children: [
+                      Expanded(
+                        flex: 4,
+                        child: Text(
+                          item['name'] ?? '',
+                          textAlign: TextAlign.left,
+                        ),
+                      ),
+                      Expanded(
+                        flex: 2,
+                        child: Text(
+                          '${item['quantity'] ?? ''}',
+                          textAlign: TextAlign.right,
+                        ),
+                      ),
+                      Expanded(
+                        flex: 2,
+                        child: Text(
+                          item['unit'] ?? '',
+                          textAlign: TextAlign.center,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
               ),
             ],
           ),
@@ -192,14 +305,8 @@ class _RWDocumentsScreenState extends State<RWDocumentsScreen> {
             child: Text('Zamknij'),
           ),
           TextButton(
-            onPressed: () =>
-                _exportToExcel(context, data, shareAfterExport: false),
+            onPressed: () => _exportToExcel(context, data),
             child: Text('Exportuj do Excel'),
-          ),
-          TextButton(
-            onPressed: () =>
-                _exportToExcel(context, data, shareAfterExport: true),
-            child: Text('Wyślij mailem'),
           ),
         ],
       ),
@@ -224,114 +331,78 @@ class _RWDocumentsScreenState extends State<RWDocumentsScreen> {
     }
   }
 
-  Future<void> _shareViaEmail(String filePath, String fileName) async {
-    final Email email = Email(
-      body: 'Raport w załączniku: $fileName',
-      subject: fileName,
-      recipients: [],
-      attachmentPaths: [filePath],
-      isHTML: false,
-    );
-
-    try {
-      await FlutterEmailSender.send(email);
-    } catch (error) {
-      final mailto = Uri(
-        scheme: 'mailto',
-        query: Uri.encodeFull(
-          'subject=$fileName&body=Załącz plik ręcznie z lokalizacji: $filePath',
-        ),
-      );
-
-      if (await canLaunchUrl(mailto)) {
-        await launchUrl(mailto);
-      } else {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text('Nie ma apka email.')));
-      }
-    }
-  }
-
   Future<void> _exportToExcel(
     BuildContext context,
-    Map<String, dynamic> data, {
-    bool shareAfterExport = false,
-  }) async {
-    final excel = Excel.createExcel();
-    final sheet = excel['Dokument'];
-    final headerStyle = CellStyle(bold: true, fontSize: 14);
-    final labelStyle = CellStyle(bold: true, fontSize: 12);
-    final valueStyle = CellStyle(fontSize: 12);
+    Map<String, dynamic> data,
+  ) async {
+    final workbook = xlsio.Workbook();
+    final sheet = workbook.worksheets[0];
+    sheet.name = 'Dokument';
 
-    // build and style header row
-    sheet.appendRow([
-      TextCellValue('Typ:'),
-      TextCellValue('Klient:'),
-      TextCellValue('Projekt:'),
-      TextCellValue('Utworzono:'),
-      TextCellValue('Użytkownik:'),
-    ]);
-    for (var c = 0; c < 5; c++) {
-      sheet
-              .cell(CellIndex.indexByColumnRow(columnIndex: c, rowIndex: 0))
-              .cellStyle =
-          headerStyle;
+    sheet.getRangeByName('A1').columnWidth = 30;
+    sheet.getRangeByName('B1').columnWidth = 20;
+    sheet.getRangeByName('C1').columnWidth = 30;
+    sheet.getRangeByName('D1').columnWidth = 20;
+
+    sheet.getRangeByName('A1').setText('Typ:');
+    sheet.getRangeByName('B1').setText('Projekt:');
+    sheet.getRangeByName('C1').setText('Utworzono:');
+    sheet.getRangeByName('D1').setText('Użytkownik:');
+    sheet.getRangeByName('A1:D1').cellStyle.bold = true;
+
+    // parse createdAt whether it's a Timestamp or a String
+    final rawTs = data['createdAt'];
+    DateTime dt;
+    if (rawTs is Timestamp) {
+      dt = rawTs.toDate();
+    } else if (rawTs is String) {
+      dt = DateTime.tryParse(rawTs) ?? DateTime.now();
+    } else {
+      dt = DateTime.now();
     }
+    final dateStr = DateFormat('dd.MM.yyyy HH:mm', 'pl_PL').format(dt);
 
-    // parse and format timestamp
-    final rawTs = data['createdAt'] as String? ?? '';
-    final dt = DateTime.tryParse(rawTs) ?? DateTime.now();
-    final dateStr = DateFormat('dd.MM.yyyy', 'pl_PL').format(dt);
-    final timeStr = DateFormat('HH:mm', 'pl_PL').format(dt);
-
-    // fetch display name
-    final uid = data['createdBy'] as String? ?? '';
+    final uid = data['createdBy'] ?? '';
     final createdByName = userNames[uid] ?? uid;
 
-    // values row
-    sheet.appendRow([
-      TextCellValue(data['type'] ?? ''),
-      TextCellValue(data['customerName'] ?? ''),
-      TextCellValue(data['projectName'] ?? ''),
-      TextCellValue('$dateStr $timeStr'),
-      TextCellValue(createdByName),
-    ]);
-    for (var c = 0; c < 5; c++) {
-      sheet
-              .cell(CellIndex.indexByColumnRow(columnIndex: c, rowIndex: 1))
-              .cellStyle =
-          valueStyle;
-    }
+    sheet.getRangeByName('A2').setText(data['type'] ?? '');
+    sheet.getRangeByName('B2').setText(data['projectName'] ?? '');
+    sheet.getRangeByName('C2').setText(dateStr);
+    sheet.getRangeByName('D2').setText(createdByName);
 
-    sheet.appendRow(<CellValue>[]);
+    final startRow = 4;
+    sheet.getRangeByName('A$startRow').setText('Materiał');
+    sheet.getRangeByName('B$startRow').setText('Ilość');
+    sheet.getRangeByName('C$startRow').setText('Jm');
+    final headerRange = sheet.getRangeByName('A$startRow:C$startRow');
+    headerRange.cellStyle.bold = true;
 
-    sheet.appendRow([TextCellValue('Nazwa materiału'), TextCellValue('Ilość')]);
-    sheet
-            .cell(CellIndex.indexByColumnRow(columnIndex: 0, rowIndex: 3))
-            .cellStyle =
-        labelStyle;
-    sheet
-            .cell(CellIndex.indexByColumnRow(columnIndex: 1, rowIndex: 3))
-            .cellStyle =
-        labelStyle;
+    sheet.getRangeByName('B$startRow').cellStyle.hAlign =
+        xlsio.HAlignType.right;
+    sheet.getRangeByName('C$startRow').cellStyle.hAlign =
+        xlsio.HAlignType.center;
 
-    var row = 4;
+    int row = startRow + 1;
     for (final item in (data['items'] as List<dynamic>? ?? [])) {
-      sheet.appendRow([
-        TextCellValue(item['name'] ?? ''),
-        TextCellValue(item['quantity']?.toString() ?? ''),
-      ]);
-      sheet
-              .cell(CellIndex.indexByColumnRow(columnIndex: 0, rowIndex: row))
-              .cellStyle =
-          valueStyle;
-      sheet
-              .cell(CellIndex.indexByColumnRow(columnIndex: 1, rowIndex: row))
-              .cellStyle =
-          valueStyle;
+      final name = item['name'] ?? '';
+      final qty = item['quantity']?.toString() ?? '';
+      final unit = item['unit']?.toString() ?? '';
+
+      sheet.getRangeByName('A$row').setText(name);
+
+      final qtyCell = sheet.getRangeByName('B$row');
+      qtyCell.setText(qty);
+      qtyCell.cellStyle.hAlign = xlsio.HAlignType.right;
+
+      final unitCell = sheet.getRangeByName('C$row');
+      unitCell.setText(unit);
+      unitCell.cellStyle.hAlign = xlsio.HAlignType.center;
+
       row++;
     }
+
+    final bytes = Uint8List.fromList(workbook.saveAsStream());
+    workbook.dispose();
 
     final safeProj = (data['projectName'] as String? ?? 'dokument').replaceAll(
       RegExp(r'\s+'),
@@ -343,46 +414,19 @@ class _RWDocumentsScreenState extends State<RWDocumentsScreen> {
     ).format(DateTime.now());
     final filename = '${safeProj}_$stamp';
 
-    // save
-    final bytes = Uint8List.fromList(excel.encode()!);
-    String? savedPath;
-    try {
-      if (Platform.isAndroid) {
-        final status = await Permission.storage.request();
-        if (!status.isGranted) {
-          ScaffoldMessenger.of(
-            context,
-          ).showSnackBar(SnackBar(content: Text('Brak uprawnień')));
-          return;
-        }
-      }
+    final savedPath = await FileSaver.saveFile(
+      bytes,
+      filename: filename,
+      mimeType:
+          'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+    );
 
-      Directory? directory;
-      if (Platform.isAndroid) {
-        directory = Directory('/storage/emulated/0/Download');
-      } else {
-        directory = await getApplicationDocumentsDirectory();
-      }
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text('Zapisano: ${savedPath ?? "plik pobrany"}')),
+    );
 
-      final filePath = '${directory.path}/$filename.xlsx';
-      final file = File(filePath);
-      await file.writeAsBytes(bytes);
-      savedPath = filePath;
-    } catch (e) {
-      debugPrint('Error saving file: $e');
-    }
-
-    if (savedPath != null) {
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text('Zapisano plik: $savedPath')));
-      if (shareAfterExport) {
-        await _shareViaEmail(savedPath, '$filename.xlsx');
-      }
-    } else {
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text('Nie udało się zapisać')));
+    if (savedPath != null && !kIsWeb) {
+      await OpenFile.open(savedPath);
     }
   }
 }

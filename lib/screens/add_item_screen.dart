@@ -10,7 +10,7 @@ import 'package:image_picker/image_picker.dart';
 
 class AddItemScreen extends StatefulWidget {
   final String? initialBarcode;
-  const AddItemScreen({super.key, this.initialBarcode});
+  const AddItemScreen({Key? key, this.initialBarcode}) : super(key: key);
 
   @override
   _AddItemScreenState createState() => _AddItemScreenState();
@@ -20,9 +20,10 @@ class _AddItemScreenState extends State<AddItemScreen> {
   final _formKey = GlobalKey<FormState>();
   final _nameCtrl = TextEditingController();
   final _skuCtrl = TextEditingController();
-  late TextEditingController _barcodeCtrl;
+  late final TextEditingController _barcodeCtrl;
   final _quantityCtrl = TextEditingController(text: '0');
   final _locationCtrl = TextEditingController();
+  late final TextEditingController _producerCtrl;
   String _unit = 'szt';
   String? _selectedCategory;
   File? _pickedImage;
@@ -30,14 +31,14 @@ class _AddItemScreenState extends State<AddItemScreen> {
   String? _error;
 
   final _picker = ImagePicker();
-  late StreamSubscription<QuerySnapshot> _catSub;
+  late final StreamSubscription<QuerySnapshot> _catSub;
   List<String> _categories = [];
 
   @override
   void initState() {
     super.initState();
     _barcodeCtrl = TextEditingController(text: widget.initialBarcode ?? '');
-    // subscribe to categories
+    _producerCtrl = TextEditingController();
     _catSub = FirebaseFirestore.instance
         .collection('categories')
         .orderBy('name')
@@ -55,6 +56,7 @@ class _AddItemScreenState extends State<AddItemScreen> {
     _nameCtrl.dispose();
     _skuCtrl.dispose();
     _barcodeCtrl.dispose();
+    _producerCtrl.dispose();
     _quantityCtrl.dispose();
     _locationCtrl.dispose();
     super.dispose();
@@ -70,15 +72,15 @@ class _AddItemScreenState extends State<AddItemScreen> {
     await showDialog<void>(
       context: context,
       builder: (ctx) => AlertDialog(
-        title: Text('Nowa Kategoria'),
+        title: const Text('Nowa Kategoria'),
         content: TextField(
-          decoration: InputDecoration(labelText: 'Nazwa'),
+          decoration: const InputDecoration(labelText: 'Nazwa'),
           onChanged: (v) => newName = v.trim(),
         ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(ctx),
-            child: Text('Anuluj'),
+            child: const Text('Anuluj'),
           ),
           ElevatedButton(
             onPressed: () {
@@ -90,7 +92,7 @@ class _AddItemScreenState extends State<AddItemScreen> {
               }
               Navigator.pop(ctx);
             },
-            child: Text('Dodaj'),
+            child: const Text('Dodaj'),
           ),
         ],
       ),
@@ -103,6 +105,7 @@ class _AddItemScreenState extends State<AddItemScreen> {
       _saving = true;
       _error = null;
     });
+
     try {
       final uid = FirebaseAuth.instance.currentUser!.uid;
       final col = FirebaseFirestore.instance.collection('stock_items');
@@ -110,6 +113,8 @@ class _AddItemScreenState extends State<AddItemScreen> {
         'name': _nameCtrl.text.trim(),
         'sku': _skuCtrl.text.trim(),
         'category': _selectedCategory,
+        'barcode': _barcodeCtrl.text.trim(),
+        'producent': _producerCtrl.text.trim(),
         'quantity': int.parse(_quantityCtrl.text.trim()),
         'unit': _unit,
         'location': _locationCtrl.text.trim(),
@@ -118,6 +123,7 @@ class _AddItemScreenState extends State<AddItemScreen> {
         'updatedAt': FieldValue.serverTimestamp(),
         'updatedBy': uid,
       });
+
       if (_pickedImage != null) {
         final path = 'stock_images/${docRef.id}.jpg';
         final ref = FirebaseStorage.instance.ref(path);
@@ -125,6 +131,7 @@ class _AddItemScreenState extends State<AddItemScreen> {
         final url = await ref.getDownloadURL();
         await docRef.update({'imageUrl': url});
       }
+
       Navigator.of(context).pop();
     } catch (e) {
       setState(() {
@@ -137,72 +144,84 @@ class _AddItemScreenState extends State<AddItemScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: Text('Dodaj towar')),
+      appBar: AppBar(title: const Text('Dodaj towar')),
       body: Padding(
-        padding: EdgeInsets.all(16),
+        padding: const EdgeInsets.all(16),
         child: _saving
-            ? Center(child: CircularProgressIndicator())
+            ? const Center(child: CircularProgressIndicator())
             : Form(
                 key: _formKey,
                 child: ListView(
                   children: [
                     if (_error != null)
-                      Text(_error!, style: TextStyle(color: Colors.red)),
+                      Text(_error!, style: const TextStyle(color: Colors.red)),
                     TextFormField(
                       controller: _nameCtrl,
-                      decoration: InputDecoration(labelText: 'Nazwa'),
+                      decoration: const InputDecoration(labelText: 'Nazwa'),
                       validator: (v) => v!.isEmpty ? 'Required' : null,
                     ),
-                    SizedBox(height: 12),
+                    const SizedBox(height: 12),
+                    TextFormField(
+                      controller: _producerCtrl,
+                      decoration: const InputDecoration(labelText: 'Producent'),
+                    ),
+                    const SizedBox(height: 12),
                     TextFormField(
                       controller: _skuCtrl,
-                      decoration: InputDecoration(labelText: 'SKU'),
+                      decoration: const InputDecoration(labelText: 'SKU'),
                       validator: (v) => v!.isEmpty ? 'Required' : null,
                     ),
-                    SizedBox(height: 12),
+                    const SizedBox(height: 12),
                     Row(
                       children: [
                         Expanded(
                           child: DropdownButtonFormField<String>(
-                            decoration: InputDecoration(labelText: 'Kategoria'),
+                            decoration: const InputDecoration(
+                              labelText: 'Kategoria',
+                            ),
                             value: _selectedCategory,
-                            items: _categories.map((cat) {
-                              return DropdownMenuItem(
-                                value: cat,
-                                child: Text(
-                                  cat[0].toUpperCase() + cat.substring(1),
-                                ),
-                              );
-                            }).toList(),
+                            items: _categories
+                                .map(
+                                  (cat) => DropdownMenuItem(
+                                    value: cat,
+                                    child: Text(
+                                      cat[0].toUpperCase() + cat.substring(1),
+                                    ),
+                                  ),
+                                )
+                                .toList(),
                             onChanged: (cat) =>
                                 setState(() => _selectedCategory = cat),
                             validator: (cat) => cat == null ? 'Wybierz' : null,
                           ),
                         ),
                         IconButton(
-                          icon: Icon(Icons.add_circle_outline),
+                          icon: const Icon(Icons.add_circle_outline),
                           tooltip: 'Nowa kategoria',
                           onPressed: _addCategory,
                         ),
                       ],
                     ),
-                    SizedBox(height: 12),
+                    const SizedBox(height: 12),
                     TextFormField(
                       controller: _barcodeCtrl,
-                      decoration: InputDecoration(labelText: 'Kod Kreskowy'),
+                      decoration: const InputDecoration(
+                        labelText: 'Kod Kreskowy',
+                      ),
                     ),
-                    SizedBox(height: 12),
+                    const SizedBox(height: 12),
+
                     TextFormField(
                       controller: _quantityCtrl,
-                      decoration: InputDecoration(labelText: 'Ilość'),
+                      decoration: const InputDecoration(labelText: 'Ilość'),
                       keyboardType: TextInputType.number,
                       validator: (v) =>
-                          int.tryParse(v!) == null ? 'Wpisz cyfrę' : null,
+                          int.tryParse(v!) == null ? 'Wpisz liczba' : null,
                     ),
-                    SizedBox(height: 12),
+                    const SizedBox(height: 12),
                     DropdownButtonFormField<String>(
                       value: _unit,
-                      decoration: InputDecoration(labelText: 'Jm.'),
+                      decoration: const InputDecoration(labelText: 'Jm.'),
                       items: ['szt', 'm', 'kg', 'kpl']
                           .map(
                             (u) => DropdownMenuItem(value: u, child: Text(u)),
@@ -210,23 +229,23 @@ class _AddItemScreenState extends State<AddItemScreen> {
                           .toList(),
                       onChanged: (v) => setState(() => _unit = v!),
                     ),
-                    SizedBox(height: 12),
+                    const SizedBox(height: 12),
                     TextFormField(
                       controller: _locationCtrl,
-                      decoration: InputDecoration(labelText: 'Magazyn'),
+                      decoration: const InputDecoration(labelText: 'Magazyn'),
                     ),
-                    SizedBox(height: 12),
+                    const SizedBox(height: 12),
                     if (_pickedImage != null)
                       Image.file(_pickedImage!, height: 150),
                     ElevatedButton.icon(
-                      icon: Icon(Icons.camera_alt),
-                      label: Text('Dodaj Fotkę'),
+                      icon: const Icon(Icons.camera_alt),
+                      label: const Text('Dodaj Fotka'),
                       onPressed: _pickImage,
                     ),
-                    SizedBox(height: 24),
+                    const SizedBox(height: 24),
                     ElevatedButton(
                       onPressed: _save,
-                      child: Text('Zapisz produkt'),
+                      child: const Text('Zapisz produkt'),
                     ),
                   ],
                 ),

@@ -1,6 +1,8 @@
 // lib/screens/project_editor_screen.dart
 
 import 'dart:io';
+import 'package:mobile_scanner/mobile_scanner.dart';
+import 'scan_screen.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
@@ -36,6 +38,7 @@ class _ProjectEditorScreenState extends State<ProjectEditorScreen> {
   final ImagePicker _picker = ImagePicker();
   List<XFile> _images = [];
   String _notes = '';
+  String? _previewRwDocId;
 
   List<StockItem> _stockItems = [];
   List<ProjectLine> _lines = [];
@@ -50,30 +53,47 @@ class _ProjectEditorScreenState extends State<ProjectEditorScreen> {
     final user = FirebaseAuth.instance.currentUser;
     if (user == null) return;
 
-    final rwDoc = RWDocument(
-      id: '',
-      projectId: widget.projectId,
-      projectName: _title,
-      createdBy: user.uid,
-      createdAt: DateTime.now(),
-      type: type,
-      items: _stockItems
-          .map(
-            (item) => {
-              'itemId': item.id,
-              'name': item.name,
-              'quantity': item.quantity,
-            },
-          )
-          .toList(),
-    );
+    // build only the lines you actually added
+    final itemsData = _lines.map((ln) {
+      if (ln.isStock) {
+        final stock = _stockItems.firstWhere((s) => s.id == ln.itemRef);
+        return {
+          'itemId': ln.itemRef,
+          'name': stock.name,
+          'quantity': ln.requestedQty,
+          'unit': ln.unit,
+        };
+      } else {
+        return {
+          'itemId': null,
+          'name': ln.customName,
+          'quantity': ln.requestedQty,
+          'unit': ln.unit,
+        };
+      }
+    }).toList();
 
-    await FirebaseFirestore.instance
+    final data = {
+      'type': type,
+      'projectId': widget.projectId,
+      'projectName': _title,
+      'createdBy': user.uid,
+      'createdAt': FieldValue.serverTimestamp(),
+      'status': 'preview',
+      'items': itemsData,
+    };
+
+    final docRef = await FirebaseFirestore.instance
+        .collection('customers')
+        .doc(widget.customerId)
         .collection('rw_documents')
-        .add(rwDoc.toMap());
+        .add(data);
+
+    setState(() => _previewRwDocId = docRef.id);
+
     ScaffoldMessenger.of(
       context,
-    ).showSnackBar(SnackBar(content: Text('Zapisany jako $type')));
+    ).showSnackBar(SnackBar(content: Text('Zapisany jako $type (preview)')));
   }
 
   Future<void> _loadAll() async {
@@ -177,8 +197,8 @@ class _ProjectEditorScreenState extends State<ProjectEditorScreen> {
                     // 1) Type selector
                     DropdownButtonFormField<bool>(
                       value: isStock,
-                      decoration: InputDecoration(labelText: 'Produkt'),
-                      items: [
+                      decoration: const InputDecoration(labelText: 'Produkt'),
+                      items: const [
                         DropdownMenuItem(
                           value: true,
                           child: Text('W Magazynie'),
@@ -188,8 +208,9 @@ class _ProjectEditorScreenState extends State<ProjectEditorScreen> {
                       onChanged: (v) => setState(() => isStock = v!),
                     ),
 
-                    SizedBox(height: 8),
+                    const SizedBox(height: 8),
 
+                    // 2a) STOCK ITEM with scanner icon
                     if (isStock) ...[
                       TextFormField(
                         controller: searchController,
@@ -197,24 +218,64 @@ class _ProjectEditorScreenState extends State<ProjectEditorScreen> {
                           labelText: itemRef.isEmpty
                               ? 'Szukaj produkt'
                               : 'Wybrany produkt',
-                          // prefixIcon: Icon(Icons.search),
+                          suffixIcon: IconButton(
+                            icon: const Icon(Icons.qr_code_scanner),
+                            onPressed: () async {
+                              // 1) Open scanner in returnCode mode
+                              final rawCode = await Navigator.of(context)
+                                  .push<String>(
+                                    MaterialPageRoute(
+                                      builder: (_) =>
+                                          ScanScreen(returnCode: true),
+                                    ),
+                                  );
+                              if (rawCode != null) {
+                                // 2) Lookup stock item by barcode
+                                final snap = await FirebaseFirestore.instance
+                                    .collection('stock_items')
+                                    .where('barcode', isEqualTo: rawCode)
+                                    .limit(1)
+                                    .get();
+                                if (snap.docs.isNotEmpty) {
+                                  final doc = snap.docs.first;
+                                  final s = StockItem.fromMap(
+                                    doc.data()! as Map<String, dynamic>,
+                                    doc.id,
+                                  );
+                                  setState(() {
+                                    itemRef = s.id;
+                                    searchController.text = s.name;
+                                  });
+                                } else {
+                                  ScaffoldMessenger.of(context).showSnackBar(
+                                    SnackBar(
+                                      content: Text(
+                                        'Produkt o kodzie $rawCode nie znaleziony',
+                                      ),
+                                    ),
+                                  );
+                                }
+                              }
+                            },
+                          ),
                         ),
                         onChanged: (v) {
-                          setState(() {
-                            // clear selection when user types
-                            if (itemRef.isNotEmpty) itemRef = '';
-                          });
+                          if (itemRef.isNotEmpty) setState(() => itemRef = '');
+                        },
+                        validator: (v) {
+                          if (isStock && itemRef.isEmpty) {
+                            return 'Wybierz produkt';
+                          }
+                          return null;
                         },
                       ),
 
-                      // Live results only when typing and nothing selected
+                      // Live suggestions when typing
                       if (query.isNotEmpty && itemRef.isEmpty) ...[
-                        SizedBox(height: 8),
+                        const SizedBox(height: 8),
                         SizedBox(
                           height: 200,
                           child: ListView.builder(
-                            shrinkWrap: true,
-                            physics: ClampingScrollPhysics(),
                             itemCount: filtered.length,
                             itemBuilder: (ctx, i) {
                               final s = filtered[i];
@@ -233,22 +294,24 @@ class _ProjectEditorScreenState extends State<ProjectEditorScreen> {
                         ),
                       ],
                     ]
-                    // 2b) CUSTOM
+                    // 2b) CUSTOM ITEM
                     else
                       TextFormField(
                         initialValue: custom,
-                        decoration: InputDecoration(labelText: 'Własny prod.'),
+                        decoration: const InputDecoration(
+                          labelText: 'Własny prod.',
+                        ),
                         validator: (v) =>
                             (v == null || v.trim().isEmpty) ? 'Required' : null,
                         onChanged: (v) => custom = v,
                       ),
 
-                    SizedBox(height: 8),
+                    const SizedBox(height: 8),
 
-                    // 3) Qty
+                    // 3) Quantity
                     TextFormField(
                       initialValue: qty.toString(),
-                      decoration: InputDecoration(labelText: 'Ilość'),
+                      decoration: const InputDecoration(labelText: 'Ilość'),
                       keyboardType: TextInputType.number,
                       validator: (v) {
                         final n = int.tryParse(v ?? '');
@@ -257,12 +320,12 @@ class _ProjectEditorScreenState extends State<ProjectEditorScreen> {
                       onChanged: (v) => qty = int.tryParse(v) ?? qty,
                     ),
 
-                    SizedBox(height: 8),
+                    const SizedBox(height: 8),
 
                     // 4) Unit
                     DropdownButtonFormField<String>(
                       value: unit,
-                      decoration: InputDecoration(labelText: 'jm.'),
+                      decoration: const InputDecoration(labelText: 'jm.'),
                       items: ['szt', 'm', 'kg', 'kpl']
                           .map(
                             (u) => DropdownMenuItem(value: u, child: Text(u)),
@@ -277,17 +340,11 @@ class _ProjectEditorScreenState extends State<ProjectEditorScreen> {
             actions: [
               TextButton(
                 onPressed: () => Navigator.of(ctx).pop(null),
-                child: Text('Anuluj'),
+                child: const Text('Anuluj'),
               ),
               ElevatedButton(
                 onPressed: () {
                   if (!formKey.currentState!.validate()) return;
-                  if (isStock && itemRef.isEmpty) {
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      SnackBar(content: Text('Wybieraj produkt.')),
-                    );
-                    return;
-                  }
                   Navigator.of(ctx).pop(
                     ProjectLine(
                       isStock: isStock,
@@ -357,6 +414,12 @@ class _ProjectEditorScreenState extends State<ProjectEditorScreen> {
 
   Future<void> _confirmProject() async {
     if (!_formKey.currentState!.validate()) return;
+    if (_previewRwDocId == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Najpierw zapisz RW/M—potem zatwierdź.')),
+      );
+      return;
+    }
     setState(() => _saving = true);
 
     final db = FirebaseFirestore.instance;
@@ -365,36 +428,23 @@ class _ProjectEditorScreenState extends State<ProjectEditorScreen> {
         .doc(widget.customerId)
         .collection('projects')
         .doc(widget.projectId);
+    final rwRef = db
+        .collection('customers')
+        .doc(widget.customerId)
+        .collection('rw_documents')
+        .doc(_previewRwDocId);
 
     try {
-      final storage = FirebaseStorage.instance;
-      final List<String> urls = [];
-      for (final img in _images) {
-        if (img.path.startsWith('http')) {
-          urls.add(img.path);
-        } else {
-          final fileName = basename(img.path);
-          final ref = storage.ref(
-            'project_images/${widget.projectId}/$fileName',
-          );
-          final uploadTask = await ref.putFile(File(img.path));
-          final downloadUrl = await uploadTask.ref.getDownloadURL();
-          urls.add(downloadUrl);
-        }
-      }
-
       await db.runTransaction((tx) async {
         for (final ln in _lines.where((l) => l.isStock)) {
           final stockRef = db.collection('stock_items').doc(ln.itemRef);
           final stockSnap = await tx.get(stockRef);
           final stockQty = (stockSnap.data()!['quantity'] ?? 0) as int;
-
           if (ln.requestedQty > stockQty) {
             throw Exception(
               "Not enough stock for ${stockSnap.data()!['name']}",
             );
           }
-
           tx.update(stockRef, {
             'quantity': stockQty - ln.requestedQty,
             'updatedAt': FieldValue.serverTimestamp(),
@@ -402,15 +452,19 @@ class _ProjectEditorScreenState extends State<ProjectEditorScreen> {
           });
         }
 
-        tx.update(projRef, {
-          'title': _title,
-          'status': 'confirmed',
-          'items': _lines.map((l) => l.toMap()).toList(),
-          'notes': _notes,
-          'images': urls,
-        });
+        tx.update(projRef, {'status': 'confirmed'});
       });
 
+      await rwRef.update({
+        'status': 'confirmed',
+        'confirmedAt': FieldValue.serverTimestamp(),
+      });
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Projekt zatwierdzony, zapasy zaktualizowane'),
+        ),
+      );
       Navigator.of(context).pop();
     } catch (e) {
       setState(() => _saving = false);

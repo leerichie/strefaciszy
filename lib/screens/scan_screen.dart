@@ -8,7 +8,9 @@ import 'add_item_screen.dart';
 import 'item_detail_screen.dart';
 
 class ScanScreen extends StatefulWidget {
-  const ScanScreen({super.key});
+  final bool returnCode;
+
+  const ScanScreen({Key? key, this.returnCode = false}) : super(key: key);
 
   @override
   _ScanScreenState createState() => _ScanScreenState();
@@ -47,9 +49,16 @@ class _ScanScreenState extends State<ScanScreen> {
         .get()
         .then((snap) {
           if (snap.docs.isNotEmpty) {
-            Navigator.of(context).pushReplacement(
-              MaterialPageRoute(builder: (_) => ItemDetailScreen(code: code)),
-            );
+            if (widget.returnCode) {
+              Navigator.of(context).pop(code);
+            } else {
+              final itemId = snap.docs.first.id;
+              Navigator.of(context).pushReplacement(
+                MaterialPageRoute(
+                  builder: (_) => ItemDetailScreen(itemId: itemId),
+                ),
+              );
+            }
           } else {
             setState(() {
               _isLoading = false;
@@ -82,11 +91,10 @@ class _ScanScreenState extends State<ScanScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: Text('Szukaj towar')),
+      appBar: AppBar(title: const Text('Szukaj towar')),
       body: SafeArea(
         child: Column(
           children: [
-            // 1) Live camera
             Expanded(
               flex: 1,
               child: MobileScanner(
@@ -94,44 +102,41 @@ class _ScanScreenState extends State<ScanScreen> {
                 onDetect: _onDetect,
               ),
             ),
-
             if (_isLoading)
-              Padding(
-                padding: const EdgeInsets.all(12),
+              const Padding(
+                padding: EdgeInsets.all(12),
                 child: CircularProgressIndicator(),
               ),
-
             if (_found == false)
               Padding(
                 padding: const EdgeInsets.all(12),
                 child: Text(
-                  'Nie ma takiego produktu “$_scannedCode”',
-                  style: TextStyle(fontSize: 16, color: Colors.red),
+                  'Nie ma produktu “$_scannedCode”',
+                  style: const TextStyle(fontSize: 16, color: Colors.red),
                   textAlign: TextAlign.center,
                 ),
               ),
-
             if (_scannedCode != null)
               Padding(
                 padding: const EdgeInsets.all(12),
                 child: Text(
                   'Skanowany: $_scannedCode',
-                  style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                  style: const TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.bold,
+                  ),
                 ),
               ),
-
-            // Manual entry
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
               child: TextField(
-                decoration: InputDecoration(
+                decoration: const InputDecoration(
                   labelText: 'Ręcznie szukać po nazwie lub kodu...',
                   border: OutlineInputBorder(),
                 ),
                 onSubmitted: _onManualEntry,
               ),
             ),
-
             if (_found == false)
               Padding(
                 padding: EdgeInsets.fromLTRB(
@@ -149,7 +154,7 @@ class _ScanScreenState extends State<ScanScreen> {
                       ),
                     );
                   },
-                  child: Text('Dodaj Nowy Produkt'),
+                  child: const Text('Dodaj Nowy Produkt'),
                 ),
               ),
           ],

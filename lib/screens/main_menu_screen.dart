@@ -1,5 +1,6 @@
 // lib/screens/main_menu_screen.dart
 
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
@@ -18,6 +19,25 @@ class MainMenuScreen extends StatelessWidget {
   Future<void> _signOut(BuildContext ctx) async {
     await FirebaseAuth.instance.signOut();
   }
+
+  // Future<void> _patchAddProducerField() async {
+  //   final batch = FirebaseFirestore.instance.batch();
+  //   final itemsSnap = await FirebaseFirestore.instance
+  //       .collection('stock_items')
+  //       .get();
+
+  //   for (final doc in itemsSnap.docs) {
+  //     final data = doc.data();
+  //     if (!data.containsKey('producent')) {
+  //       batch.update(
+  //         FirebaseFirestore.instance.collection('stock_items').doc(doc.id),
+  //         {'producent': ''},
+  //       );
+  //     }
+  //   }
+
+  //   await batch.commit();
+  // }
 
   @override
   Widget build(BuildContext context) {
@@ -38,7 +58,7 @@ class MainMenuScreen extends StatelessWidget {
         padding: EdgeInsets.all(16),
         children: [
           Text(
-            'Strefa Ciszy – inventory',
+            'Strefa Ciszy _inventory',
             style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold),
             textAlign: TextAlign.center,
           ),
@@ -85,17 +105,10 @@ class MainMenuScreen extends StatelessWidget {
             ListTile(
               leading: Icon(Icons.qr_code_scanner),
               title: Text('Skanuj'),
-              onTap: () async {
-                final code = await Navigator.of(
+              onTap: () {
+                Navigator.of(
                   context,
-                ).push<String>(MaterialPageRoute(builder: (_) => ScanScreen()));
-                if (code != null) {
-                  Navigator.of(context).push(
-                    MaterialPageRoute(
-                      builder: (_) => ItemDetailScreen(code: code),
-                    ),
-                  );
-                }
+                ).push(MaterialPageRoute(builder: (_) => ScanScreen()));
               },
             ),
 
@@ -119,11 +132,21 @@ class MainMenuScreen extends StatelessWidget {
             },
           ),
 
-          ListTile(
-            leading: Icon(Icons.settings),
-            title: Text('Konfig. (TODO)'),
-            onTap: () {},
-          ),
+          // if (isAdmin)
+          //   Padding(
+          //     padding: const EdgeInsets.only(top: 32),
+          //     child: ElevatedButton(
+          //       child: const Text('Patch: add producent field'),
+          //       onPressed: () async {
+          //         await _patchAddProducerField();
+          //         ScaffoldMessenger.of(context).showSnackBar(
+          //           const SnackBar(
+          //             content: Text('Finished patching producent field.'),
+          //           ),
+          //         );
+          //       },
+          //     ),
+          //   ),
         ],
       ),
     );

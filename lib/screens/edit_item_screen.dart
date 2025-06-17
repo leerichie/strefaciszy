@@ -7,6 +7,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_storage/firebase_storage.dart';
 import 'package:image_picker/image_picker.dart';
+import 'package:flutter/foundation.dart' show kIsWeb;
 
 class EditItemScreen extends StatefulWidget {
   final String docId;
@@ -25,7 +26,8 @@ class _EditItemScreenState extends State<EditItemScreen> {
       _categoryCtrl,
       _barcodeCtrl,
       _quantityCtrl,
-      _locationCtrl;
+      _locationCtrl,
+      _producerCtrl;
 
   String? _imageUrl;
   String _unit = 'szt';
@@ -52,6 +54,9 @@ class _EditItemScreenState extends State<EditItemScreen> {
     _unit = d['unit'] as String? ?? 'szt';
     _locationCtrl = TextEditingController(text: d['location'] as String? ?? '');
     _imageUrl = d['imageUrl'] as String?;
+    _producerCtrl = TextEditingController(
+      text: widget.data['producent'] as String? ?? '',
+    );
 
     // ← subscribe to Firestore 'categories' collection
     _catSub = FirebaseFirestore.instance
@@ -69,13 +74,14 @@ class _EditItemScreenState extends State<EditItemScreen> {
 
   @override
   void dispose() {
-    _catSub.cancel(); // ← cancel subscription
+    _catSub.cancel();
     _nameCtrl.dispose();
     _skuCtrl.dispose();
     _categoryCtrl.dispose();
     _barcodeCtrl.dispose();
     _quantityCtrl.dispose();
     _locationCtrl.dispose();
+    _producerCtrl.dispose();
     super.dispose();
   }
 
@@ -97,11 +103,9 @@ class _EditItemScreenState extends State<EditItemScreen> {
           ElevatedButton(
             onPressed: () {
               if (newName != null && newName!.isNotEmpty) {
-                // add to Firestore
                 FirebaseFirestore.instance.collection('categories').add({
                   'name': newName,
                 });
-                // immediately select it
                 setState(() => _categoryCtrl.text = newName!);
               }
               Navigator.pop(ctx);
@@ -116,16 +120,24 @@ class _EditItemScreenState extends State<EditItemScreen> {
   Future<void> _changePhoto() async {
     final x = await _picker.pickImage(source: ImageSource.camera);
     if (x == null) return;
+
     setState(() {
       _uploading = true;
       _error = null;
     });
+
     try {
-      final file = File(x.path);
       final ref = _storage.child('stock_images/${widget.docId}.jpg');
-      await ref.putFile(file);
+
+      if (kIsWeb) {
+        final bytes = await x.readAsBytes();
+        await ref.putData(bytes);
+      } else {
+        final file = File(x.path);
+        await ref.putFile(file);
+      }
+
       final url = await ref.getDownloadURL();
-      // update Firestore
       await FirebaseFirestore.instance
           .collection('stock_items')
           .doc(widget.docId)
@@ -134,6 +146,7 @@ class _EditItemScreenState extends State<EditItemScreen> {
             'updatedAt': FieldValue.serverTimestamp(),
             'updatedBy': FirebaseAuth.instance.currentUser!.uid,
           });
+
       setState(() {
         _imageUrl = url;
         _uploading = false;
@@ -159,6 +172,7 @@ class _EditItemScreenState extends State<EditItemScreen> {
           .doc(widget.docId)
           .update({
             'name': _nameCtrl.text.trim(),
+            'producent': _producerCtrl.text.trim(),
             'sku': _skuCtrl.text.trim(),
             'category': _categoryCtrl.text.trim(),
             'barcode': _barcodeCtrl.text.trim(),
@@ -199,13 +213,16 @@ class _EditItemScreenState extends State<EditItemScreen> {
                     ),
                     SizedBox(height: 12),
                     TextFormField(
+                      controller: _producerCtrl,
+                      decoration: const InputDecoration(labelText: 'Producent'),
+                    ),
+                    TextFormField(
                       controller: _skuCtrl,
                       decoration: InputDecoration(labelText: 'SKU'),
                       validator: (v) => v!.isEmpty ? 'Required' : null,
                     ),
                     SizedBox(height: 12),
 
-                    // ← replaced free-form with dropdown + add button
                     Row(
                       children: [
                         Expanded(
@@ -274,7 +291,7 @@ class _EditItemScreenState extends State<EditItemScreen> {
                       Image.network(_imageUrl!, height: 150),
                     ElevatedButton.icon(
                       icon: Icon(Icons.camera_alt),
-                      label: Text('Zapisz fotkę'),
+                      label: Text('Zapisz fotka'),
                       onPressed: _changePhoto,
                     ),
                     SizedBox(height: 24),
