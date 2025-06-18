@@ -18,7 +18,7 @@ class ScanScreen extends StatefulWidget {
 
 class _ScanScreenState extends State<ScanScreen> {
   final _controller = MobileScannerController(
-    detectionSpeed: DetectionSpeed.normal,
+    detectionSpeed: DetectionSpeed.noDuplicates,
     detectionTimeoutMs: 200,
     formats: [BarcodeFormat.ean13, BarcodeFormat.qrCode],
   );
@@ -76,14 +76,15 @@ class _ScanScreenState extends State<ScanScreen> {
 
   void _onDetect(BarcodeCapture capture) {
     final raw = capture.barcodes.first.rawValue;
-    if (raw != null && raw.isNotEmpty) {
-      _lookupCode(raw);
-    }
+    if (raw == null || raw.isEmpty) return;
+    _controller.stop();
+    _lookupCode(raw);
   }
 
   void _onManualEntry(String input) {
     final code = input.trim();
     if (code.isNotEmpty) {
+      _controller.stop();
       _lookupCode(code);
     }
   }
@@ -96,7 +97,6 @@ class _ScanScreenState extends State<ScanScreen> {
         child: Column(
           children: [
             Expanded(
-              flex: 1,
               child: MobileScanner(
                 controller: _controller,
                 onDetect: _onDetect,

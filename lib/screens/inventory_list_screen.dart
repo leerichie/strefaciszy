@@ -1,6 +1,9 @@
+// lib/screens/inventory_list_screen.dart
+
 import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:strefa_ciszy/models/stock_item.dart';
 import 'package:strefa_ciszy/screens/add_item_screen.dart';
 import 'package:strefa_ciszy/screens/item_detail_screen.dart';
 
@@ -17,8 +20,8 @@ class _InventoryListScreenState extends State<InventoryListScreen> {
   String _search = '';
   String _category = '';
   List<String> _categories = [];
-  late StreamSubscription<QuerySnapshot> _catSub;
   late final TextEditingController _searchController;
+  late final StreamSubscription<QuerySnapshot> _catSub;
 
   @override
   void initState() {
@@ -37,37 +40,55 @@ class _InventoryListScreenState extends State<InventoryListScreen> {
 
   @override
   void dispose() {
-    _searchController.dispose();
     _catSub.cancel();
+    _searchController.dispose();
     super.dispose();
   }
 
-  void _resetSearch() {
+  void _resetFilters() {
     FocusScope.of(context).unfocus();
     setState(() {
       _searchController.clear();
       _search = '';
+      _category = '';
     });
   }
 
-  Query get _query {
-    var q = FirebaseFirestore.instance
-        .collection('stock_items')
-        .orderBy('name');
+  /// Returns a Query<StockItem> that applies category + prefix‐search + name ordering.
+  Query<StockItem> get _stockQuery {
+    // Start with a Query so we can reassign after .where()
+    Query<Map<String, dynamic>> base = FirebaseFirestore.instance.collection(
+      'stock_items',
+    );
+
     if (_category.isNotEmpty) {
-      q = q.where('category', isEqualTo: _category);
+      base = base.where('category', isEqualTo: _category);
     }
-    return q;
+
+    // Firestore requires you orderBy before startAt/endAt
+    base = base.orderBy('name');
+
+    if (_search.isNotEmpty) {
+      base = base.startAt([_search]).endAt(['${_search}\uf8ff']);
+    }
+
+    // Convert raw Map<String,dynamic> into StockItem
+    return base.withConverter<StockItem>(
+      fromFirestore: (snap, _) => StockItem.fromMap(snap.data()!, snap.id),
+      toFirestore: (item, _) => item.toMap(),
+    );
   }
 
   Widget _buildCategoryChip(String? value, String label) {
     final selected = (value ?? '') == _category;
     return Padding(
-      padding: EdgeInsets.only(right: 8),
+      padding: const EdgeInsets.only(right: 8),
       child: ChoiceChip(
         label: Text(label),
         selected: selected,
-        onSelected: (_) => setState(() => _category = value ?? ''),
+        onSelected: (_) => setState(() {
+          _category = value ?? '';
+        }),
       ),
     );
   }
@@ -98,24 +119,22 @@ class _InventoryListScreenState extends State<InventoryListScreen> {
                   ),
                 ),
                 const SizedBox(width: 8),
-
                 IconButton(
                   tooltip: 'Resetuj filtr',
                   icon: const Icon(Icons.refresh),
-                  onPressed: _resetSearch,
+                  onPressed: _resetFilters,
                 ),
               ],
             ),
           ),
         ),
       ),
-
       body: Column(
         children: [
-          SizedBox(height: 8),
+          const SizedBox(height: 8),
           SingleChildScrollView(
             scrollDirection: Axis.horizontal,
-            padding: EdgeInsets.symmetric(horizontal: 16),
+            padding: const EdgeInsets.symmetric(horizontal: 16),
             child: Row(
               children: [
                 _buildCategoryChip(null, 'Wszystko'),
@@ -126,64 +145,44 @@ class _InventoryListScreenState extends State<InventoryListScreen> {
               ],
             ),
           ),
-          SizedBox(height: 8),
+          const SizedBox(height: 8),
           Expanded(
-            child: StreamBuilder<QuerySnapshot>(
-              stream: _query.snapshots(),
+            child: StreamBuilder<QuerySnapshot<StockItem>>(
+              stream: _stockQuery.snapshots(),
               builder: (ctx, snap) {
                 if (snap.connectionState == ConnectionState.waiting) {
-                  return Center(child: CircularProgressIndicator());
+                  return const Center(child: CircularProgressIndicator());
                 }
                 if (snap.hasError) {
                   return Center(child: Text('Error: ${snap.error}'));
                 }
-                final docs = snap.data!.docs;
-                final filtered = _search.isEmpty
-                    ? docs
-                    : docs.where((d) {
-                        final name = (d['name'] as String).toLowerCase();
-                        return name.contains(_search.toLowerCase());
-                      }).toList();
-                if (filtered.isEmpty) {
-                  return Center(child: Text('Nie znaleziono produktów.'));
+                final items = snap.data!.docs.map((d) => d.data()).toList();
+                if (items.isEmpty) {
+                  return const Center(child: Text('Nie znaleziono produktów.'));
                 }
                 return ListView.separated(
-                  itemCount: filtered.length,
-                  separatorBuilder: (_, __) => Divider(height: 1),
+                  itemCount: items.length,
+                  separatorBuilder: (_, __) => const Divider(height: 1),
                   itemBuilder: (ctx, i) {
-                    final snap = filtered[i];
-                    final d = snap.data()! as Map<String, dynamic>;
+                    final item = items[i];
                     return ListTile(
-                      title: Text(d['name'] ?? '—'),
+                      title: Text(item.name),
                       subtitle: Text(
-                        'Ilość: ${d['quantity']}\nKategoria: ${d['category']}',
+                        'Ilość: ${item.quantity}'
+                        '${item.unit != null ? ' ${item.unit}' : ''}',
                       ),
-                      isThreeLine: true,
-                      trailing: Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Text(
-                            '${d['barcode'] ?? ''}',
-                            style: const TextStyle(
-                              fontSize: 12,
-                              fontWeight: FontWeight.bold,
-                            ),
-                          ),
-                          if (widget.isAdmin) ...[
-                            const SizedBox(width: 8),
-                            IconButton(
+                      trailing: widget.isAdmin
+                          ? IconButton(
                               icon: const Icon(Icons.delete, color: Colors.red),
                               onPressed: () => FirebaseFirestore.instance
                                   .collection('stock_items')
-                                  .doc(snap.id)
+                                  .doc(item.id)
                                   .delete(),
-                            ),
-                          ],
-                        ],
-                      ),
+                            )
+                          : null,
                       onTap: () => Navigator.of(context).push(
                         MaterialPageRoute(
-                          builder: (_) => ItemDetailScreen(itemId: snap.id),
+                          builder: (_) => ItemDetailScreen(itemId: item.id),
                         ),
                       ),
                     );
@@ -198,8 +197,8 @@ class _InventoryListScreenState extends State<InventoryListScreen> {
         onPressed: () => Navigator.of(
           context,
         ).push(MaterialPageRoute(builder: (_) => AddItemScreen())),
-        tooltip: 'Dodaj do inwentaryzacji',
-        child: Icon(Icons.add),
+        tooltip: 'Dodaj pozycję',
+        child: const Icon(Icons.add),
       ),
     );
   }

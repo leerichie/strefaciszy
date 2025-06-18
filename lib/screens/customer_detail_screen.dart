@@ -353,8 +353,10 @@ class _CustomerDetailScreenState extends State<CustomerDetailScreen> {
           Expanded(
             child: StreamBuilder<QuerySnapshot>(
               stream: _projectsCol
+                  .where('status', whereIn: ['draft', 'RW', 'MM'])
                   .orderBy('createdAt', descending: true)
                   .snapshots(),
+
               builder: (ctx, snap) {
                 if (snap.connectionState == ConnectionState.waiting) {
                   return const Center(child: CircularProgressIndicator());
@@ -380,12 +382,9 @@ class _CustomerDetailScreenState extends State<CustomerDetailScreen> {
                   itemBuilder: (ctx, i) {
                     final d = filtered[i];
                     final data = d.data()! as Map<String, dynamic>;
-                    // build each project tile...
                     return ListTile(
                       title: Text(data['title'] ?? '—'),
-                      subtitle: Text(
-                        'Status: ${data['status'] ?? 'wersja robocza'}',
-                      ),
+                      subtitle: Text('Status: ${data['status']}'),
                       onTap: () => Navigator.of(context).push(
                         MaterialPageRoute(
                           builder: (_) => ProjectEditorScreen(
