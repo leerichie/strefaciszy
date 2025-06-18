@@ -1,5 +1,6 @@
 // lib/screens/main_menu_screen.dart
 
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
@@ -21,6 +22,23 @@ class MainMenuScreen extends StatelessWidget {
     await FirebaseAuth.instance.signOut();
   }
 
+  // Future<void> seedCategories() async {
+  //   final db = FirebaseFirestore.instance;
+  //   final snap = await db.collection('stock_items').get();
+  //   final names = snap.docs
+  //       .map((d) => (d.data()['category'] as String?)?.trim())
+  //       .where((c) => c != null && c.isNotEmpty)
+  //       .toSet();
+
+  //   final batch = db.batch();
+  //   for (final name in names) {
+  //     final doc = db.collection('categories').doc();
+  //     batch.set(doc, {'name': name});
+  //   }
+  //   await batch.commit();
+  //   print('Seeded ${names.length} categories');
+  // }
+
   Future<void> _downloadApp(BuildContext context) async {
     final url = Uri.parse('https://<YOUR-PROJECT>.web.app/app-release.apk');
     if (!await launchUrl(url, mode: LaunchMode.externalApplication)) {
@@ -33,7 +51,6 @@ class MainMenuScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final isAdmin = role == 'admin';
-
     return Scaffold(
       appBar: AppBar(
         title: Text('Panel'),
@@ -50,7 +67,7 @@ class MainMenuScreen extends StatelessWidget {
         padding: EdgeInsets.all(16),
         children: [
           Text(
-            'Strefa Ciszy – inventory',
+            'Strefa Ciszy _inventory',
             style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold),
             textAlign: TextAlign.center,
           ),
@@ -60,9 +77,11 @@ class MainMenuScreen extends StatelessWidget {
             ListTile(
               leading: Icon(Icons.admin_panel_settings),
               title: Text('Użytkowników'),
-              onTap: () => Navigator.of(
-                context,
-              ).push(MaterialPageRoute(builder: (_) => ManageUsersScreen())),
+              onTap: () {
+                Navigator.of(
+                  context,
+                ).push(MaterialPageRoute(builder: (_) => ManageUsersScreen()));
+              },
             ),
             Divider(),
           ],
@@ -70,56 +89,82 @@ class MainMenuScreen extends StatelessWidget {
           ListTile(
             leading: Icon(Icons.inventory_2),
             title: Text('Inwentaryzacja'),
-            onTap: () => Navigator.of(context).push(
-              MaterialPageRoute(
-                builder: (_) => InventoryListScreen(isAdmin: isAdmin),
-              ),
-            ),
+            onTap: () {
+              Navigator.of(context).push(
+                MaterialPageRoute(
+                  builder: (_) => InventoryListScreen(isAdmin: isAdmin),
+                ),
+              );
+            },
           ),
 
           ListTile(
             leading: Icon(Icons.person),
             title: Text('Klienci'),
-            onTap: () => Navigator.of(context).push(
-              MaterialPageRoute(
-                builder: (_) => CustomerListScreen(isAdmin: isAdmin),
-              ),
-            ),
+            onTap: () {
+              Navigator.of(context).push(
+                MaterialPageRoute(
+                  builder: (_) => CustomerListScreen(isAdmin: isAdmin),
+                ),
+              );
+            },
           ),
 
           if (!kIsWeb)
             ListTile(
               leading: Icon(Icons.qr_code_scanner),
               title: Text('Skanuj'),
-              onTap: () => Navigator.of(
-                context,
-              ).push(MaterialPageRoute(builder: (_) => ScanScreen())),
+              onTap: () {
+                Navigator.of(
+                  context,
+                ).push(MaterialPageRoute(builder: (_) => ScanScreen()));
+              },
             ),
 
           ListTile(
             leading: Icon(Icons.list_alt_rounded),
             title: Text('Dok. RW/MM'),
-            onTap: () => Navigator.of(
-              context,
-            ).push(MaterialPageRoute(builder: (_) => RWDocumentsScreen())),
+            onTap: () {
+              Navigator.of(
+                context,
+              ).push(MaterialPageRoute(builder: (_) => RWDocumentsScreen()));
+            },
           ),
 
           ListTile(
-            leading: Icon(Icons.bar_chart),
+            leading: Icon(Icons.list_alt_rounded),
             title: Text('Raporty'),
-            onTap: () => Navigator.of(
-              context,
-            ).push(MaterialPageRoute(builder: (_) => ReportsScreen())),
+            onTap: () {
+              Navigator.of(
+                context,
+              ).push(MaterialPageRoute(builder: (_) => ReportsScreen()));
+            },
           ),
-
-          Divider(height: 32),
 
           ListTile(
             leading: Icon(Icons.download_rounded),
-            title: Text('Pobierz sc_inventory'),
-            subtitle: Text('Android apk'),
+            title: Text('Pobierz aplikację'),
+            subtitle: Text('Android APK'),
+            onTap: _downloadApp,\
             onTap: () => _downloadApp(context),
+),
           ),
+
+          // if (isAdmin)
+          //   Padding(
+          //     padding: const EdgeInsets.only(top: 32),
+          //     child: ElevatedButton(
+          //       child: const Text('Patch: add categories'),
+          //       onPressed: () async {
+          //         await seedCategories();
+          //         ScaffoldMessenger.of(context).showSnackBar(
+          //           const SnackBar(
+          //             content: Text('Finished patching categories.'),
+          //           ),
+          //         );
+          //       },
+          //     ),
+          //   ),
         ],
       ),
     );

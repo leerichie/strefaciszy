@@ -115,7 +115,6 @@ Future<ProjectLine?> showProjectLineDialog(
                                             itemRef = doc.id;
                                             textCtrl.text =
                                                 data['name'] as String;
-                                            unit = data['unit'] as String;
                                           });
                                         } else {
                                           ScaffoldMessenger.of(

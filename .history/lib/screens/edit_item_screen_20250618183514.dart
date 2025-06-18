@@ -170,8 +170,8 @@ class _EditItemScreenState extends State<EditItemScreen> {
           .collection('stock_items')
           .doc(widget.docId)
           .update({
-            'producent': _producerCtrl.text.trim(),
             'name': _nameCtrl.text.trim(),
+            'producent': _producerCtrl.text.trim(),
             'sku': _skuCtrl.text.trim(),
             'category': _categoryCtrl.text.trim(),
             'barcode': _barcodeCtrl.text.trim(),
@@ -206,16 +206,15 @@ class _EditItemScreenState extends State<EditItemScreen> {
                     if (_error != null)
                       Text(_error!, style: TextStyle(color: Colors.red)),
                     TextFormField(
-                      controller: _producerCtrl,
-                      decoration: const InputDecoration(labelText: 'Producent'),
-                    ),
-                    TextFormField(
                       controller: _nameCtrl,
                       decoration: InputDecoration(labelText: 'Nazwa'),
                       validator: (v) => v!.isEmpty ? 'Required' : null,
                     ),
                     SizedBox(height: 12),
-
+                    TextFormField(
+                      controller: _producerCtrl,
+                      decoration: const InputDecoration(labelText: 'Producent'),
+                    ),
                     TextFormField(
                       controller: _skuCtrl,
                       decoration: InputDecoration(labelText: 'SKU'),

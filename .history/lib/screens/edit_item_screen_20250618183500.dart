@@ -57,6 +57,7 @@ class _EditItemScreenState extends State<EditItemScreen> {
     _locationCtrl = TextEditingController(text: d['location'] as String? ?? '');
     _imageUrl = d['imageUrl'] as String?;
 
+    // ← subscribe to Firestore 'categories' collection
     _catSub = FirebaseFirestore.instance
         .collection('categories')
         .orderBy('name')
@@ -73,14 +74,13 @@ class _EditItemScreenState extends State<EditItemScreen> {
   @override
   void dispose() {
     _catSub.cancel();
-    _producerCtrl.dispose();
     _nameCtrl.dispose();
     _skuCtrl.dispose();
     _categoryCtrl.dispose();
     _barcodeCtrl.dispose();
     _quantityCtrl.dispose();
     _locationCtrl.dispose();
-
+    _producerCtrl.dispose();
     super.dispose();
   }
 
@@ -170,8 +170,8 @@ class _EditItemScreenState extends State<EditItemScreen> {
           .collection('stock_items')
           .doc(widget.docId)
           .update({
-            'producent': _producerCtrl.text.trim(),
             'name': _nameCtrl.text.trim(),
+            'producent': _producerCtrl.text.trim(),
             'sku': _skuCtrl.text.trim(),
             'category': _categoryCtrl.text.trim(),
             'barcode': _barcodeCtrl.text.trim(),
@@ -206,16 +206,15 @@ class _EditItemScreenState extends State<EditItemScreen> {
                     if (_error != null)
                       Text(_error!, style: TextStyle(color: Colors.red)),
                     TextFormField(
-                      controller: _producerCtrl,
-                      decoration: const InputDecoration(labelText: 'Producent'),
-                    ),
-                    TextFormField(
                       controller: _nameCtrl,
                       decoration: InputDecoration(labelText: 'Nazwa'),
                       validator: (v) => v!.isEmpty ? 'Required' : null,
                     ),
                     SizedBox(height: 12),
-
+                    TextFormField(
+                      controller: _producerCtrl,
+                      decoration: const InputDecoration(labelText: 'Producent'),
+                    ),
                     TextFormField(
                       controller: _skuCtrl,
                       decoration: InputDecoration(labelText: 'SKU'),

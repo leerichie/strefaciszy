@@ -115,7 +115,6 @@ Future<ProjectLine?> showProjectLineDialog(
                                             itemRef = doc.id;
                                             textCtrl.text =
                                                 data['name'] as String;
-                                            unit = data['unit'] as String;
                                           });
                                         } else {
                                           ScaffoldMessenger.of(
@@ -140,7 +139,7 @@ Future<ProjectLine?> showProjectLineDialog(
                             },
                         onSelected: (s) => setState(() {
                           itemRef = s.id;
-                          unit = s.unit!;
+                          unit = s.unit; // ← grab the real unit here
                         }),
                       ),
 

@@ -159,12 +159,12 @@ class _AddItemScreenState extends State<AddItemScreen> {
                       controller: _producerCtrl,
                       decoration: const InputDecoration(labelText: 'Producent'),
                     ),
-                    const SizedBox(height: 12),
                     TextFormField(
                       controller: _nameCtrl,
                       decoration: const InputDecoration(labelText: 'Nazwa'),
                       validator: (v) => v!.isEmpty ? 'Required' : null,
                     ),
+                    const SizedBox(height: 12),
 
                     const SizedBox(height: 12),
                     TextFormField(

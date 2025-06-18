@@ -84,6 +84,7 @@ class ItemDetailScreen extends StatelessWidget {
                   children: [
                     _row('Producent', data['producent']),
                     _row('SKU', data['sku']),
+
                     _row('Kategoria', data['category']),
                     _row('Magazyn', data['location']),
                     _row('Kod Kreskowy', data['barcode']),

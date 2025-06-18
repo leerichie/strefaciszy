@@ -116,7 +116,7 @@ class MainMenuScreen extends StatelessWidget {
 
           ListTile(
             leading: Icon(Icons.download_rounded),
-            title: Text('Pobierz sc_inventory'),
+            title: Text('Pobierz apka'),
             subtitle: Text('Android apk'),
             onTap: () => _downloadApp(context),
           ),

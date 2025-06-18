@@ -359,7 +359,7 @@ class _ProjectEditorScreenState extends State<ProjectEditorScreen> {
                       return;
                     }
 
-                    setState(() => _lines.add(lineWithUnit));
+                    setState(() => _lines.add(newLine));
                   },
                   child: Icon(Icons.add),
                 ),
