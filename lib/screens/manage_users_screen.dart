@@ -20,13 +20,15 @@ class _ManageUsersScreenState extends State<ManageUsersScreen> {
   }
 
   Future<List<Map<String, dynamic>>> _loadUsers() async {
-    final user = FirebaseAuth.instance.currentUser;
-    print("🔑 currentUser.uid = ${user?.uid}");
+    final user = FirebaseAuth.instance.currentUser!;
 
-    if (user != null) {
-      final result = await user.getIdTokenResult(true);
-      print("🔥 Custom claims = ${result.claims}");
-    }
+    // reload user to pick up any claim changes
+    await user.reload();
+    final idToken = await user.getIdTokenResult(true);
+    final amIAdmin = idToken.claims?['admin'] == true;
+    print('🔥 refreshed claims – amIAdmin = $amIAdmin');
+    print("🔑 currentUser.uid = ${user.uid}");
+    print("🔥 Custom claims = ${idToken.claims}");
 
     return _svc.listUsers();
   }
@@ -84,16 +86,18 @@ class _ManageUsersScreenState extends State<ManageUsersScreen> {
             child: Text('Anuluj'),
           ),
           ElevatedButton(
-            onPressed: () {
+            onPressed: () async {
               Navigator.pop(ctx);
-              _svc
-                  .createUser(name, email.trim(), pwd, role)
-                  .then((_) => _reload())
-                  .catchError((e) {
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      SnackBar(content: Text('Error creating user: $e')),
-                    );
-                  });
+              try {
+                await _svc.createUser(name, email.trim(), pwd, role);
+                // force-refresh your own token so new claims (if any) stick
+                await FirebaseAuth.instance.currentUser!.getIdTokenResult(true);
+                _reload();
+              } catch (e) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(content: Text('Error creating user: $e')),
+                );
+              }
             },
             child: Text('Zapisz'),
           ),
@@ -115,7 +119,7 @@ class _ManageUsersScreenState extends State<ManageUsersScreen> {
     await showDialog<void>(
       context: context,
       builder: (ctx) => AlertDialog(
-        title: Text('Edytuj uzytkownika'),
+        title: Text('Edytuj użytkownika'),
         content: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
@@ -162,7 +166,8 @@ class _ManageUsersScreenState extends State<ManageUsersScreen> {
                   password: password.isNotEmpty ? password : null,
                   role: role != user['role'] ? role : null,
                 );
-
+                // if you changed your own role, refresh your token
+                await FirebaseAuth.instance.currentUser!.getIdTokenResult(true);
                 _reload();
               } catch (e) {
                 ScaffoldMessenger.of(context).showSnackBar(
@@ -179,9 +184,9 @@ class _ManageUsersScreenState extends State<ManageUsersScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: Text('Zarzadzac uzytkownikow')),
+      appBar: AppBar(title: Text('Zarządzaj użytkownikami')),
       floatingActionButton: FloatingActionButton(
-        tooltip: 'Dodal pracownika',
+        tooltip: 'Dodaj pracownika',
         onPressed: _showAddDialog,
         child: Icon(Icons.add),
       ),
@@ -203,7 +208,7 @@ class _ManageUsersScreenState extends State<ManageUsersScreen> {
 
           final users = snapshot.data;
           if (users == null || users.isEmpty) {
-            return Center(child: Text('Nie znalaziono uzytkownika.'));
+            return Center(child: Text('Nie znaleziono użytkowników.'));
           }
 
           return ListView.separated(
@@ -214,13 +219,12 @@ class _ManageUsersScreenState extends State<ManageUsersScreen> {
               return ListTile(
                 title: Text(u['name'] ?? '—'),
                 subtitle: Text('${u['email']} \nDostęp: ${u['role']}'),
-
                 trailing: Row(
                   mainAxisSize: MainAxisSize.min,
                   children: [
                     IconButton(
                       icon: Icon(Icons.edit),
-                      tooltip: 'Edytuj uzytkownika',
+                      tooltip: 'Edytuj użytkownika',
                       onPressed: () => _showEditUserDialog(u),
                     ),
                     IconButton(
@@ -230,14 +234,14 @@ class _ManageUsersScreenState extends State<ManageUsersScreen> {
                         final confirm = await showDialog<bool>(
                           context: context,
                           builder: (ctx2) => AlertDialog(
-                            title: Text('Usun ${u['email']}?'),
+                            title: Text('Usuń ${u['email']}?'),
                             actions: [
                               TextButton(
                                 child: Text('Anuluj'),
                                 onPressed: () => Navigator.pop(ctx2, false),
                               ),
                               ElevatedButton(
-                                child: Text('Usun'),
+                                child: Text('Usuń'),
                                 onPressed: () => Navigator.pop(ctx2, true),
                               ),
                             ],

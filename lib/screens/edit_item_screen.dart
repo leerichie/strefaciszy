@@ -21,13 +21,13 @@ class EditItemScreen extends StatefulWidget {
 class _EditItemScreenState extends State<EditItemScreen> {
   final _formKey = GlobalKey<FormState>();
 
-  late TextEditingController _nameCtrl,
+  late TextEditingController _producerCtrl,
+      _nameCtrl,
       _skuCtrl,
       _categoryCtrl,
       _barcodeCtrl,
       _quantityCtrl,
-      _locationCtrl,
-      _producerCtrl;
+      _locationCtrl;
 
   String? _imageUrl;
   String _unit = 'szt';
@@ -37,7 +37,6 @@ class _EditItemScreenState extends State<EditItemScreen> {
   final _picker = ImagePicker();
   final _storage = FirebaseStorage.instance.ref();
 
-  // ← new state for categories
   late StreamSubscription<QuerySnapshot> _catSub;
   List<String> _categories = [];
 
@@ -46,6 +45,9 @@ class _EditItemScreenState extends State<EditItemScreen> {
     super.initState();
     final d = widget.data;
 
+    _producerCtrl = TextEditingController(
+      text: widget.data['producent'] as String? ?? '',
+    );
     _nameCtrl = TextEditingController(text: d['name'] as String? ?? '');
     _skuCtrl = TextEditingController(text: d['sku'] as String? ?? '');
     _categoryCtrl = TextEditingController(text: d['category'] as String? ?? '');
@@ -54,11 +56,7 @@ class _EditItemScreenState extends State<EditItemScreen> {
     _unit = d['unit'] as String? ?? 'szt';
     _locationCtrl = TextEditingController(text: d['location'] as String? ?? '');
     _imageUrl = d['imageUrl'] as String?;
-    _producerCtrl = TextEditingController(
-      text: widget.data['producent'] as String? ?? '',
-    );
 
-    // ← subscribe to Firestore 'categories' collection
     _catSub = FirebaseFirestore.instance
         .collection('categories')
         .orderBy('name')
@@ -75,13 +73,14 @@ class _EditItemScreenState extends State<EditItemScreen> {
   @override
   void dispose() {
     _catSub.cancel();
+    _producerCtrl.dispose();
     _nameCtrl.dispose();
     _skuCtrl.dispose();
     _categoryCtrl.dispose();
     _barcodeCtrl.dispose();
     _quantityCtrl.dispose();
     _locationCtrl.dispose();
-    _producerCtrl.dispose();
+
     super.dispose();
   }
 
@@ -171,8 +170,8 @@ class _EditItemScreenState extends State<EditItemScreen> {
           .collection('stock_items')
           .doc(widget.docId)
           .update({
-            'name': _nameCtrl.text.trim(),
             'producent': _producerCtrl.text.trim(),
+            'name': _nameCtrl.text.trim(),
             'sku': _skuCtrl.text.trim(),
             'category': _categoryCtrl.text.trim(),
             'barcode': _barcodeCtrl.text.trim(),
@@ -207,15 +206,16 @@ class _EditItemScreenState extends State<EditItemScreen> {
                     if (_error != null)
                       Text(_error!, style: TextStyle(color: Colors.red)),
                     TextFormField(
+                      controller: _producerCtrl,
+                      decoration: const InputDecoration(labelText: 'Producent'),
+                    ),
+                    TextFormField(
                       controller: _nameCtrl,
                       decoration: InputDecoration(labelText: 'Nazwa'),
                       validator: (v) => v!.isEmpty ? 'Required' : null,
                     ),
                     SizedBox(height: 12),
-                    TextFormField(
-                      controller: _producerCtrl,
-                      decoration: const InputDecoration(labelText: 'Producent'),
-                    ),
+
                     TextFormField(
                       controller: _skuCtrl,
                       decoration: InputDecoration(labelText: 'SKU'),

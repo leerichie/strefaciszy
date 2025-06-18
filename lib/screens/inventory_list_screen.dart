@@ -54,9 +54,7 @@ class _InventoryListScreenState extends State<InventoryListScreen> {
     });
   }
 
-  /// Returns a Query<StockItem> that applies category + prefix‐search + name ordering.
   Query<StockItem> get _stockQuery {
-    // Start with a Query so we can reassign after .where()
     Query<Map<String, dynamic>> base = FirebaseFirestore.instance.collection(
       'stock_items',
     );
@@ -65,14 +63,12 @@ class _InventoryListScreenState extends State<InventoryListScreen> {
       base = base.where('category', isEqualTo: _category);
     }
 
-    // Firestore requires you orderBy before startAt/endAt
     base = base.orderBy('name');
 
     if (_search.isNotEmpty) {
       base = base.startAt([_search]).endAt(['${_search}\uf8ff']);
     }
 
-    // Convert raw Map<String,dynamic> into StockItem
     return base.withConverter<StockItem>(
       fromFirestore: (snap, _) => StockItem.fromMap(snap.data()!, snap.id),
       toFirestore: (item, _) => item.toMap(),

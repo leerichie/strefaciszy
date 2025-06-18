@@ -4,6 +4,7 @@ const functions = require('firebase-functions');
 const admin     = require('firebase-admin');
 admin.initializeApp();
 
+// Helper to verify caller is authenticated and has admin claim
 async function verifyAdmin(req, res) {
   const auth = req.header('Authorization') || '';
   const match = auth.match(/^Bearer (.+)$/);
@@ -12,20 +13,17 @@ async function verifyAdmin(req, res) {
     return null;
   }
 
-  let decoded;
   try {
-    decoded = await admin.auth().verifyIdToken(match[1]);
+    const decoded = await admin.auth().verifyIdToken(match[1]);
+    if (!decoded.admin) {
+      res.status(403).json({error: 'Admin only'});
+      return null;
+    }
+    return decoded.uid;
   } catch (e) {
-    res.status(401).json({error: 'Invalid token'});
+    res.status(401).json({error: 'Invalid or expired token'});
     return null;
   }
-
-  if (!decoded.admin) {
-    res.status(403).json({error: 'Admin only'});
-    return null;
-  }
-
-  return decoded.uid;
 }
 
 const corsHeaders = {
@@ -64,7 +62,7 @@ exports.listUsersHttp = functions.https.onRequest(async (req, res) => {
   }
 });
 
-// 2) Create a new user + Firestore role doc
+// 2) Create a new user + Firestore doc + custom claims
 exports.createUserHttp = functions.https.onRequest(async (req, res) => {
   if (req.method === 'OPTIONS') {
     return res.status(204).set(corsHeaders).send('');
@@ -81,8 +79,12 @@ exports.createUserHttp = functions.https.onRequest(async (req, res) => {
 
   try {
     const user = await admin.auth().createUser({displayName: name, email, password});
+
     await admin.firestore().collection('users').doc(user.uid).set({name, role});
 
+    if (role === 'admin') {
+      await admin.auth().setCustomUserClaims(user.uid, {admin: true});
+    }
 
     return res.json({uid: user.uid, email: user.email, role});
   } catch (e) {
@@ -91,7 +93,7 @@ exports.createUserHttp = functions.https.onRequest(async (req, res) => {
   }
 });
 
-// 3) Update a user’s role
+// 3) Update a user’s role + custom claims
 exports.updateUserRoleHttp = functions.https.onRequest(async (req, res) => {
   if (req.method === 'OPTIONS') {
     return res.status(204).set(corsHeaders).send('');
@@ -108,7 +110,9 @@ exports.updateUserRoleHttp = functions.https.onRequest(async (req, res) => {
 
   try {
     await admin.firestore().collection('users').doc(uid).update({role});
+
     await admin.auth().setCustomUserClaims(uid, {admin: role === 'admin'});
+
     return res.json({uid, role});
   } catch (e) {
     console.error('Error updating role:', e);
@@ -141,7 +145,6 @@ exports.deleteUserHttp = functions.https.onRequest(async (req, res) => {
   }
 });
 
-// 5) Update user email and/or password
 exports.updateUserDetailsHttp = functions.https.onRequest(async (req, res) => {
   if (req.method === 'OPTIONS') {
     return res.status(204).set(corsHeaders).send('');

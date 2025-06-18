@@ -328,6 +328,14 @@ class _ProjectEditorScreenState extends State<ProjectEditorScreen> {
                     );
                     if (newLine == null) return;
 
+                    final lineWithUnit = newLine.isStock
+                        ? newLine.copyWith(
+                            unit: _stockItems
+                                .firstWhere((s) => s.id == newLine.itemRef)
+                                .unit,
+                          )
+                        : newLine;
+
                     // Prevent duplicates
                     final isDup = newLine.isStock
                         ? _lines.any(
@@ -351,7 +359,7 @@ class _ProjectEditorScreenState extends State<ProjectEditorScreen> {
                       return;
                     }
 
-                    setState(() => _lines.add(newLine));
+                    setState(() => _lines.add(lineWithUnit));
                   },
                   child: Icon(Icons.add),
                 ),

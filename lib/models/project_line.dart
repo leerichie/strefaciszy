@@ -53,4 +53,24 @@ class ProjectLine {
     }
     return m;
   }
+
+  ProjectLine copyWith({
+    bool? isStock,
+    String? itemRef,
+    String? customName,
+    int? requestedQty,
+    String? unit,
+    int? originalStock,
+    int? previousQty,
+  }) {
+    return ProjectLine(
+      isStock: isStock ?? this.isStock,
+      itemRef: itemRef ?? this.itemRef,
+      customName: customName ?? this.customName,
+      requestedQty: requestedQty ?? this.requestedQty,
+      unit: unit ?? this.unit,
+      originalStock: originalStock ?? this.originalStock,
+      previousQty: previousQty ?? this.previousQty,
+    );
+  }
 }

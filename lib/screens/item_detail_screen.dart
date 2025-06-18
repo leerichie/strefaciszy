@@ -82,8 +82,8 @@ class ItemDetailScreen extends StatelessWidget {
                   columnWidths: const {0: IntrinsicColumnWidth()},
                   defaultVerticalAlignment: TableCellVerticalAlignment.middle,
                   children: [
-                    _row('SKU', data['sku']),
                     _row('Producent', data['producent']),
+                    _row('SKU', data['sku']),
                     _row('Kategoria', data['category']),
                     _row('Magazyn', data['location']),
                     _row('Kod Kreskowy', data['barcode']),
