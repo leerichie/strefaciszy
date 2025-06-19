@@ -12,6 +12,7 @@ class StockService {
     required String projectId,
     required String rwDocId,
     required Map<String, dynamic> rwDocData,
+    required bool isNew,
     required List<ProjectLine> lines,
     required String newStatus,
     required String userId,
@@ -23,18 +24,28 @@ class StockService {
         .doc(customerId)
         .collection('projects')
         .doc(projectId);
-    final rwRef = db.collection('rw_documents').doc(rwDocId);
+    final rwRef = projectRef.collection('rw_documents').doc(rwDocId);
 
     return db.runTransaction((tx) async {
       for (final ln in lines.where((l) => l.isStock)) {
         await _applyLineDelta(tx, ln, userId);
       }
 
-      tx.set(rwRef, rwDocData);
+      if (isNew) {
+        tx.set(rwRef, rwDocData);
+      } else {
+        tx.update(rwRef, {
+          'items': rwDocData['items'],
+          'type': rwDocData['type'],
+          'lastUpdatedAt': FieldValue.serverTimestamp(),
+          'lastUpdatedBy': userId,
+        });
+      }
 
       tx.update(projectRef, {
         'items': lines.map((l) => l.toMap()).toList(),
         'status': newStatus,
+        'lastRwDate': FieldValue.serverTimestamp(),
       });
     });
   }
@@ -85,13 +96,21 @@ class StockService {
     String type,
     List<ProjectLine> lines,
     List<StockItem> allStockItems,
+    String customerId,
   ) {
+    final createdDay = DateTime.utc(
+      createdAt.year,
+      createdAt.month,
+      createdAt.day,
+    );
     return {
       'id': id,
       'projectId': projectId,
       'projectName': projectName,
+      'customerId': customerId,
       'createdBy': createdBy,
       'createdAt': createdAt,
+      'createdDay': Timestamp.fromDate(createdDay),
       'type': type,
       'items': lines.map((l) {
         final name = l.isStock

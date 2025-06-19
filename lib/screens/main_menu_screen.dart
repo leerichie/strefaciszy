@@ -22,7 +22,7 @@ class MainMenuScreen extends StatelessWidget {
   }
 
   Future<void> _downloadApp(BuildContext context) async {
-    final url = Uri.parse('https://<YOUR-PROJECT>.web.app/app-release.apk');
+    final url = Uri.parse('https://strefa-ciszy.web.app/app-release.apk');
     if (!await launchUrl(url, mode: LaunchMode.externalApplication)) {
       ScaffoldMessenger.of(
         context,
@@ -50,7 +50,7 @@ class MainMenuScreen extends StatelessWidget {
         padding: EdgeInsets.all(16),
         children: [
           Text(
-            'Strefa Ciszy – inventory',
+            'Strefa Ciszy _inventory',
             style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold),
             textAlign: TextAlign.center,
           ),
@@ -116,10 +116,16 @@ class MainMenuScreen extends StatelessWidget {
 
           ListTile(
             leading: Icon(Icons.download_rounded),
-            title: Text('Pobierz sc_inventory'),
-            subtitle: Text('Android apk'),
+            title: Text('downlaoad apk (Android)'),
+            subtitle: Text('Android'),
             onTap: () => _downloadApp(context),
           ),
+          // ListTile(
+          //   leading: Icon(Icons.download_rounded),
+          //   title: Text('download ipa (iOS)'),
+          //   subtitle: Text('Apple'),
+          //   onTap: () => _downloadApp(context),
+          // ),
         ],
       ),
     );

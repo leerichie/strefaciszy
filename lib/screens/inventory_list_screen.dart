@@ -65,10 +65,6 @@ class _InventoryListScreenState extends State<InventoryListScreen> {
 
     base = base.orderBy('name');
 
-    if (_search.isNotEmpty) {
-      base = base.startAt([_search]).endAt(['${_search}\uf8ff']);
-    }
-
     return base.withConverter<StockItem>(
       fromFirestore: (snap, _) => StockItem.fromMap(snap.data()!, snap.id),
       toFirestore: (item, _) => item.toMap(),
@@ -152,20 +148,47 @@ class _InventoryListScreenState extends State<InventoryListScreen> {
                 if (snap.hasError) {
                   return Center(child: Text('Error: ${snap.error}'));
                 }
-                final items = snap.data!.docs.map((d) => d.data()).toList();
-                if (items.isEmpty) {
+
+                final allItems = snap.data!.docs.map((d) => d.data()).toList();
+
+                final queryLower = _search.toLowerCase();
+                final filtered = queryLower.isEmpty
+                    ? allItems
+                    : allItems.where((item) {
+                        final prod = item.producent?.toLowerCase() ?? '';
+                        final name = item.name.toLowerCase();
+                        return prod.contains(queryLower) ||
+                            name.contains(queryLower);
+                      }).toList();
+
+                if (filtered.isEmpty) {
                   return const Center(child: Text('Nie znaleziono produktów.'));
                 }
+
                 return ListView.separated(
-                  itemCount: items.length,
+                  itemCount: filtered.length,
                   separatorBuilder: (_, __) => const Divider(height: 1),
                   itemBuilder: (ctx, i) {
-                    final item = items[i];
+                    final item = filtered[i];
                     return ListTile(
-                      title: Text(item.name),
+                      isThreeLine: true,
+                      title: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            item.producent ?? '',
+                            style: TextStyle(
+                              fontSize: 16,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                          Text(item.name, style: TextStyle(fontSize: 14)),
+                        ],
+                      ),
                       subtitle: Text(
-                        'Ilość: ${item.quantity}'
+                        '• ${item.quantity}'
                         '${item.unit != null ? ' ${item.unit}' : ''}',
+                        style: TextStyle(fontSize: 12, color: Colors.grey[700]),
                       ),
                       trailing: widget.isAdmin
                           ? IconButton(
@@ -193,7 +216,7 @@ class _InventoryListScreenState extends State<InventoryListScreen> {
         onPressed: () => Navigator.of(
           context,
         ).push(MaterialPageRoute(builder: (_) => AddItemScreen())),
-        tooltip: 'Dodaj pozycję',
+        tooltip: 'Dodaj pozycja',
         child: const Icon(Icons.add),
       ),
     );

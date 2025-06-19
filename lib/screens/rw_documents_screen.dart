@@ -9,7 +9,9 @@ import 'package:syncfusion_flutter_xlsio/xlsio.dart' as xlsio;
 
 class RWDocumentsScreen extends StatefulWidget {
   final String? customerId;
-  const RWDocumentsScreen({Key? key, this.customerId}) : super(key: key);
+  final String? projectId;
+  const RWDocumentsScreen({Key? key, this.customerId, this.projectId})
+    : super(key: key);
 
   @override
   _RWDocumentsScreenState createState() => _RWDocumentsScreenState();
@@ -26,19 +28,30 @@ class _RWDocumentsScreenState extends State<RWDocumentsScreen> {
 
   Stream<QuerySnapshot> get _stream {
     final db = FirebaseFirestore.instance;
-    if (widget.customerId != null) {
+
+    if (widget.customerId != null && widget.projectId != null) {
       return db
           .collection('customers')
           .doc(widget.customerId)
+          .collection('projects')
+          .doc(widget.projectId)
           .collection('rw_documents')
-          .orderBy('createdAt', descending: true)
-          .snapshots();
-    } else {
-      return db
-          .collection('rw_documents')
-          .orderBy('createdAt', descending: true)
+          .orderBy('createdDay', descending: true)
           .snapshots();
     }
+
+    if (widget.customerId != null) {
+      return db
+          .collectionGroup('rw_documents')
+          .where('customerId', isEqualTo: widget.customerId)
+          .orderBy('createdDay', descending: true)
+          .snapshots();
+    }
+
+    return db
+        .collectionGroup('rw_documents')
+        .orderBy('createdDay', descending: true)
+        .snapshots();
   }
 
   @override
@@ -350,7 +363,6 @@ class _RWDocumentsScreenState extends State<RWDocumentsScreen> {
     sheet.getRangeByName('D1').setText('Użytkownik:');
     sheet.getRangeByName('A1:D1').cellStyle.bold = true;
 
-    // parse createdAt whether it's a Timestamp or a String
     final rawTs = data['createdAt'];
     DateTime dt;
     if (rawTs is Timestamp) {

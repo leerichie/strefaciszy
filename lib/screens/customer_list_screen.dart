@@ -81,7 +81,6 @@ class _CustomerListScreenState extends State<CustomerListScreen> {
             padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
             child: Row(
               children: [
-                // 🔍 SEARCH FIELD
                 Expanded(
                   child: TextField(
                     controller: _searchController,

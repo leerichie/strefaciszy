@@ -1,7 +1,6 @@
 // lib/widgets/project_line_dialog.dart
 
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:strefa_ciszy/models/project_line.dart';
 import 'package:strefa_ciszy/models/stock_item.dart';
@@ -14,12 +13,27 @@ Future<ProjectLine?> showProjectLineDialog(
 }) {
   bool isStock = existing?.isStock ?? true;
   String itemRef = existing?.itemRef ?? '';
+
+  String initialProductLabel = '';
+  if (existing?.isStock == true) {
+    final s = stockItems.firstWhere((s) => s.id == existing!.itemRef);
+    initialProductLabel = '${s.name}, ${s.producent}';
+  }
+  final productController = TextEditingController(text: initialProductLabel);
+
   final customController = TextEditingController(
     text: existing?.customName ?? '',
   );
   int qty = existing?.requestedQty ?? 0;
   String unit = existing?.unit ?? 'szt';
   final formKey = GlobalKey<FormState>();
+
+  String initialLabel = '';
+  if (existing?.isStock == true) {
+    final s = stockItems.firstWhere((s) => s.id == existing!.itemRef);
+    initialLabel = '${s.name}, ${s.producent}';
+  }
+  bool didInitAuto = false;
 
   return showModalBottomSheet<ProjectLine>(
     context: context,
@@ -50,7 +64,6 @@ Future<ProjectLine?> showProjectLineDialog(
                     ),
                     SizedBox(height: 16),
 
-                    // Product type selector
                     DropdownButtonFormField<bool>(
                       value: isStock,
                       decoration: InputDecoration(labelText: 'Produkt'),
@@ -67,6 +80,7 @@ Future<ProjectLine?> showProjectLineDialog(
                           isStock = v;
                           itemRef = '';
                           customController.clear();
+                          productController.clear();
                         });
                       },
                     ),
@@ -79,72 +93,79 @@ Future<ProjectLine?> showProjectLineDialog(
                           final q = te.text.toLowerCase();
                           if (q.isEmpty) return const <StockItem>[];
                           return stockItems.where(
-                            (s) => s.name.toLowerCase().contains(q),
+                            (s) =>
+                                s.name.toLowerCase().contains(q) ||
+                                s.producent!.toLowerCase().contains(q),
                           );
                         },
-                        displayStringForOption: (s) => s.name,
-                        fieldViewBuilder:
-                            (context, textCtrl, focusNode, onSubmit) {
-                              return TextFormField(
-                                controller: textCtrl,
-                                focusNode: focusNode,
-                                decoration: InputDecoration(
-                                  labelText: 'Szukaj produkt',
-                                  suffixIcon: IconButton(
-                                    icon: Icon(Icons.qr_code_scanner),
-                                    onPressed: () async {
-                                      final code = await Navigator.of(context)
-                                          .push<String>(
-                                            MaterialPageRoute(
-                                              builder: (_) =>
-                                                  ScanScreen(returnCode: true),
-                                              fullscreenDialog: true,
-                                            ),
-                                          );
-                                      if (code != null && code.isNotEmpty) {
-                                        final snap = await FirebaseFirestore
-                                            .instance
-                                            .collection('stock_items')
-                                            .where('barcode', isEqualTo: code)
-                                            .limit(1)
-                                            .get();
-                                        if (snap.docs.isNotEmpty) {
-                                          final doc = snap.docs.first;
-                                          final data = doc.data();
-                                          setState(() {
-                                            itemRef = doc.id;
-                                            textCtrl.text =
-                                                data['name'] as String;
-                                            unit = data['unit'] as String;
-                                          });
-                                        } else {
-                                          ScaffoldMessenger.of(
-                                            context,
-                                          ).showSnackBar(
-                                            SnackBar(
-                                              content: Text(
-                                                'Nie znaleziono produktu: $code',
-                                              ),
-                                            ),
-                                          );
-                                        }
-                                      }
-                                    },
-                                  ),
-                                ),
-                                onChanged: (_) => setState(() {}),
-                                validator: (v) => isStock && itemRef.isEmpty
-                                    ? 'Wybierz produkt.'
-                                    : null,
-                              );
-                            },
+                        displayStringForOption: (s) =>
+                            '${s.name}, ${s.producent}',
+                        fieldViewBuilder: (ctx, textCtrl, focusNode, onSubmit) {
+                          // seed in the existing name once
+                          if (!didInitAuto && initialLabel.isNotEmpty) {
+                            textCtrl.text = initialLabel;
+                            didInitAuto = true;
+                          }
+                          return TextFormField(
+                            controller: textCtrl,
+                            focusNode: focusNode,
+                            decoration: InputDecoration(
+                              labelText: 'Szukaj produkt',
+                              suffixIcon: IconButton(
+                                icon: Icon(Icons.qr_code_scanner),
+                                onPressed: () async {
+                                  final code = await Navigator.of(context)
+                                      .push<String>(
+                                        MaterialPageRoute(
+                                          builder: (_) =>
+                                              ScanScreen(returnCode: true),
+                                          fullscreenDialog: true,
+                                        ),
+                                      );
+                                  if (code != null && code.isNotEmpty) {
+                                    final snap = await FirebaseFirestore
+                                        .instance
+                                        .collection('stock_items')
+                                        .where('barcode', isEqualTo: code)
+                                        .limit(1)
+                                        .get();
+                                    if (snap.docs.isNotEmpty) {
+                                      final doc = snap.docs.first;
+                                      final data = doc.data();
+                                      setState(() {
+                                        itemRef = doc.id;
+                                        productController.text =
+                                            data['name'] as String;
+                                        unit = data['unit'] as String;
+                                      });
+                                    } else {
+                                      ScaffoldMessenger.of(
+                                        context,
+                                      ).showSnackBar(
+                                        SnackBar(
+                                          content: Text(
+                                            'Nie znaleziono produktu: $code',
+                                          ),
+                                        ),
+                                      );
+                                    }
+                                  }
+                                },
+                              ),
+                            ),
+                            onChanged: (_) => setState(() {}),
+                            validator: (v) => isStock && itemRef.isEmpty
+                                ? 'Wybierz produkt.'
+                                : null,
+                          );
+                        },
                         onSelected: (s) => setState(() {
                           itemRef = s.id;
                           unit = s.unit!;
+                          productController.text = '${s.name}, ${s.producent}';
                         }),
                       ),
 
-                    // Custom name field
                     if (!isStock)
                       TextFormField(
                         controller: customController,
@@ -157,7 +178,6 @@ Future<ProjectLine?> showProjectLineDialog(
                       ),
 
                     SizedBox(height: 12),
-                    // Quantity
                     TextFormField(
                       initialValue: qty.toString(),
                       decoration: InputDecoration(labelText: 'Ilość'),
@@ -183,7 +203,6 @@ Future<ProjectLine?> showProjectLineDialog(
                     ),
 
                     SizedBox(height: 12),
-                    // Unit
                     DropdownButtonFormField<String>(
                       value: unit,
                       decoration: InputDecoration(labelText: 'jm.'),
@@ -196,7 +215,6 @@ Future<ProjectLine?> showProjectLineDialog(
                     ),
 
                     SizedBox(height: 24),
-                    // Actions
                     Row(
                       mainAxisAlignment: MainAxisAlignment.spaceEvenly,
                       children: [

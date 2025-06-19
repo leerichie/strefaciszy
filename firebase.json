@@ -59,11 +59,20 @@
       "**/.*",
       "**/node_modules/**"
     ],
+    "predeploy": [
+      "flutter build web --release",
+      "flutter build apk --release",
+      "cp build/app/outputs/flutter-apk/app-release.apk build/web/app-release.apk"
+    ],
     "rewrites": [
       {
         "source": "**",
         "destination": "/index.html"
       }
     ]
+  },
+  "firestore": {
+    "rules": "firestore.rules",
+    "indexes": "firestore.indexes.json"
   }
 }

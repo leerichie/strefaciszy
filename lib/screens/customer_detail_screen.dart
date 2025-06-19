@@ -3,7 +3,6 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
-import 'package:strefa_ciszy/screens/rw_documents_screen.dart';
 import 'project_editor_screen.dart';
 
 class CustomerDetailScreen extends StatefulWidget {
@@ -338,18 +337,18 @@ class _CustomerDetailScreenState extends State<CustomerDetailScreen> {
       ),
       body: Column(
         children: [
-          ListTile(
-            leading: const Icon(Icons.list_alt_rounded),
-            title: const Text('Dok. RW/MM'),
-            onTap: () {
-              Navigator.of(context).push(
-                MaterialPageRoute(
-                  builder: (_) =>
-                      RWDocumentsScreen(customerId: widget.customerId),
-                ),
-              );
-            },
-          ),
+          // ListTile(
+          //   leading: const Icon(Icons.list_alt_rounded),
+          //   title: const Text('Dok. RW/MM'),
+          //   onTap: () {
+          //     Navigator.of(context).push(
+          //       MaterialPageRoute(
+          //         builder: (_) =>
+          //             RWDocumentsScreen(customerId: widget.customerId),
+          //       ),
+          //     );
+          //   },
+          // ),
           Expanded(
             child: StreamBuilder<QuerySnapshot>(
               stream: _projectsCol
@@ -382,6 +381,7 @@ class _CustomerDetailScreenState extends State<CustomerDetailScreen> {
                   itemBuilder: (ctx, i) {
                     final d = filtered[i];
                     final data = d.data()! as Map<String, dynamic>;
+
                     return ListTile(
                       title: Text(data['title'] ?? '—'),
                       subtitle: Text('Status: ${data['status']}'),
@@ -394,6 +394,42 @@ class _CustomerDetailScreenState extends State<CustomerDetailScreen> {
                           ),
                         ),
                       ),
+
+                      trailing: widget.isAdmin
+                          ? IconButton(
+                              icon: Icon(Icons.delete, color: Colors.red),
+                              tooltip: 'Usuń projekt',
+                              onPressed: () async {
+                                final ok = await showDialog<bool>(
+                                  context: context,
+                                  builder: (ctx2) => AlertDialog(
+                                    title: Text('Usuń projekt?'),
+                                    content: Text(
+                                      'Na pewno usunąć projekt "${data['title']}"?',
+                                    ),
+                                    actions: [
+                                      TextButton(
+                                        onPressed: () =>
+                                            Navigator.pop(ctx2, false),
+                                        child: Text('Anuluj'),
+                                      ),
+                                      ElevatedButton(
+                                        onPressed: () =>
+                                            Navigator.pop(ctx2, true),
+                                        child: Text('Usuń'),
+                                      ),
+                                    ],
+                                  ),
+                                );
+                                if (ok == true) {
+                                  await _projectsCol.doc(d.id).delete();
+                                  ScaffoldMessenger.of(context).showSnackBar(
+                                    SnackBar(content: Text('Projekt usunięty')),
+                                  );
+                                }
+                              },
+                            )
+                          : null,
                     );
                   },
                 );

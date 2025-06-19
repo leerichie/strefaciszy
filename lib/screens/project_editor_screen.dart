@@ -8,6 +8,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:strefa_ciszy/models/stock_item.dart';
 import 'package:strefa_ciszy/models/project_line.dart';
+import 'package:strefa_ciszy/screens/rw_documents_screen.dart';
 import 'package:strefa_ciszy/services/stock_service.dart';
 import 'package:strefa_ciszy/widgets/project_line_dialog.dart';
 import 'package:strefa_ciszy/models/rw_document.dart';
@@ -36,6 +37,8 @@ class _ProjectEditorScreenState extends State<ProjectEditorScreen> {
   bool _loading = true;
   bool _saving = false;
   bool _initialized = false;
+  bool _rwExistsToday = false;
+  bool _mmExistsToday = false;
 
   String _title = '';
   String _status = 'draft';
@@ -49,7 +52,6 @@ class _ProjectEditorScreenState extends State<ProjectEditorScreen> {
   @override
   void initState() {
     super.initState();
-    // Listen to stock items
     _stockSub = FirebaseFirestore.instance
         .collection('stock_items')
         .withConverter<StockItem>(
@@ -61,12 +63,36 @@ class _ProjectEditorScreenState extends State<ProjectEditorScreen> {
           setState(() => _stockItems = snap.docs.map((d) => d.data()).toList());
         });
     _loadAll();
+    _checkTodayExists('RW');
+    _checkTodayExists('MM');
+    _scheduleMidnightRollover();
   }
 
   @override
   void dispose() {
     _stockSub.cancel();
     super.dispose();
+  }
+
+  void _scheduleMidnightRollover() {
+    final now = DateTime.now();
+    final tomorrow = DateTime(
+      now.year,
+      now.month,
+      now.day,
+    ).add(Duration(days: 1));
+    final untilMidnight = tomorrow.difference(now);
+
+    Timer(untilMidnight, () async {
+      if (!mounted) return;
+
+      await _loadAll();
+
+      await _checkTodayExists('RW');
+      await _checkTodayExists('MM');
+
+      _scheduleMidnightRollover();
+    });
   }
 
   Future<void> _loadAll() async {
@@ -78,15 +104,28 @@ class _ProjectEditorScreenState extends State<ProjectEditorScreen> {
     final snap = await projRef.get();
     final data = snap.data()!;
 
+    final lastRwRaw = data['lastRwDate'];
+    DateTime? lastRwDate = lastRwRaw is Timestamp ? lastRwRaw.toDate() : null;
+    final now = DateTime.now();
+    final startOfDay = DateTime(now.year, now.month, now.day);
+    if (lastRwDate == null || lastRwDate.isBefore(startOfDay)) {
+      await projRef.update({
+        'items': <Map<String, dynamic>>[],
+        'status': 'draft',
+      });
+      _lines = [];
+    } else {
+      _lines = (data['items'] as List<dynamic>? ?? [])
+          .map((m) => ProjectLine.fromMap(m))
+          .toList();
+    }
+
     _title = data['title'] as String? ?? '';
     _status = data['status'] as String? ?? 'draft';
     _notes = data['notes'] as String? ?? '';
     _images = (data['images'] as List<dynamic>? ?? [])
         .cast<String>()
         .map((u) => XFile(u))
-        .toList();
-    _lines = (data['items'] as List<dynamic>? ?? [])
-        .map((m) => ProjectLine.fromMap(m as Map<String, dynamic>))
         .toList();
 
     setState(() {
@@ -95,43 +134,129 @@ class _ProjectEditorScreenState extends State<ProjectEditorScreen> {
     });
   }
 
+  Future<void> _checkTodayExists(String type) async {
+    final now = DateTime.now();
+    final startOfDay = DateTime(now.year, now.month, now.day);
+    final startOfTomorrow = startOfDay.add(Duration(days: 1));
+
+    final dayStamp = Timestamp.fromDate(
+      DateTime(now.year, now.month, now.day).toUtc(),
+    );
+
+    final snap = await FirebaseFirestore.instance
+        .collection('customers')
+        .doc(widget.customerId)
+        .collection('projects')
+        .doc(widget.projectId)
+        .collection('rw_documents')
+        .where('type', isEqualTo: type)
+        .where('createdAt', isGreaterThanOrEqualTo: startOfDay)
+        .where('createdAt', isLessThan: startOfTomorrow)
+        .orderBy('createdAt', descending: true)
+        .limit(1)
+        .get();
+
+    setState(() {
+      if (type == 'RW') {
+        _rwExistsToday = snap.docs.isNotEmpty;
+      } else /* 'MM' */ {
+        _mmExistsToday = snap.docs.isNotEmpty;
+      }
+    });
+  }
+
   Future<void> _saveRWDocument(String type) async {
     if (!_formKey.currentState!.validate()) return;
     final user = FirebaseAuth.instance.currentUser;
     if (user == null) return;
 
+    final filteredLines = _lines.where((l) => l.requestedQty > 0).toList();
+
     setState(() => _saving = true);
-    final rwId = FirebaseFirestore.instance.collection('rw_documents').doc().id;
+
+    final projectRef = FirebaseFirestore.instance
+        .collection('customers')
+        .doc(widget.customerId)
+        .collection('projects')
+        .doc(widget.projectId);
+    final rwCol = projectRef.collection('rw_documents');
+
+    final now = DateTime.now();
+    final startOfDay = DateTime(now.year, now.month, now.day);
+    final startOfTomorrow = startOfDay.add(Duration(days: 1));
+    final todaySnap = await rwCol
+        .where('type', isEqualTo: type)
+        .where('createdAt', isGreaterThanOrEqualTo: startOfDay)
+        .where('createdAt', isLessThan: startOfTomorrow)
+        .orderBy('createdAt', descending: true)
+        .limit(1)
+        .get();
+    final bool existsToday = todaySnap.docs.isNotEmpty;
+    final String rwId = existsToday ? todaySnap.docs.first.id : rwCol.doc().id;
+
+    final rwRef = rwCol.doc(rwId);
+    final docSnap = await rwRef.get();
+    if (docSnap.exists) {
+      final data = docSnap.data()!;
+      final rawTs = data['createdAt'];
+      final createdAtRaw = rawTs is Timestamp ? rawTs.toDate() : now;
+      if (createdAtRaw.isBefore(startOfDay) && !widget.isAdmin) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              'Tylko administrator może edytować dokumenty z poprzednich dni.',
+            ),
+          ),
+        );
+        setState(() => _saving = false);
+        return;
+      }
+    }
+
+    DateTime createdAt = now;
+    String createdBy = user.uid;
+    if (docSnap.exists) {
+      final data = docSnap.data()!;
+      final rawTs = data['createdAt'];
+      createdAt = rawTs is Timestamp ? rawTs.toDate() : createdAt;
+      createdBy = data['createdBy'] ?? user.uid;
+    }
+
     final rwData = StockService.buildRwDocMap(
       rwId,
       widget.projectId,
       _title,
-      user.uid,
-      DateTime.now(),
+      createdBy,
+      createdAt,
       type,
-      _lines,
+      filteredLines,
       _stockItems,
+      widget.customerId,
     );
-
     try {
       await StockService.applyProjectLinesTransaction(
         customerId: widget.customerId,
         projectId: widget.projectId,
         rwDocId: rwId,
         rwDocData: rwData,
-        lines: _lines,
+        isNew: !docSnap.exists,
+        lines: filteredLines,
         newStatus: type,
         userId: user.uid,
       );
+
+      setState(() {
+        _lines = filteredLines;
+      });
+
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Zapisano $type - magazyn aktualny')),
+        SnackBar(content: Text('Zapisano $type – magazyn aktualny')),
       );
-      await _loadAll();
+      await _checkTodayExists(type);
     } catch (e) {
       ScaffoldMessenger.of(
         context,
       ).showSnackBar(SnackBar(content: Text('Błąd zapisu: $e')));
-      Navigator.of(context).pop();
     } finally {
       setState(() => _saving = false);
     }
@@ -182,42 +307,58 @@ class _ProjectEditorScreenState extends State<ProjectEditorScreen> {
     return Scaffold(
       appBar: AppBar(
         title: Text('Edytuj projekt'),
-        actions: widget.isAdmin
-            ? [
-                IconButton(
-                  icon: Icon(Icons.delete, color: Colors.red),
-                  onPressed: () async {
-                    final confirm = await showDialog<bool>(
-                      context: context,
-                      builder: (dialogCtx) => AlertDialog(
-                        title: Text('Usuń projekt?'),
-                        content: Text('Potwierdź usunięcie projektu.'),
-                        actions: [
-                          TextButton(
-                            onPressed: () => Navigator.pop(dialogCtx, false),
-                            child: Text('Anuluj'),
-                          ),
-                          ElevatedButton(
-                            onPressed: () => Navigator.pop(dialogCtx, true),
-                            child: Text('Usuń'),
-                          ),
-                        ],
-                      ),
-                    );
-                    if (confirm == true) {
-                      await FirebaseFirestore.instance
-                          .collection('customers')
-                          .doc(widget.customerId)
-                          .collection('projects')
-                          .doc(widget.projectId)
-                          .delete();
-                      Navigator.pop(context);
-                    }
-                  },
+        actions: <Widget>[
+          IconButton(
+            icon: Icon(Icons.list_alt_rounded),
+            tooltip: 'Dokumenty RW/MM',
+            onPressed: () {
+              Navigator.of(context).push(
+                MaterialPageRoute(
+                  builder: (_) => RWDocumentsScreen(
+                    customerId: widget.customerId,
+                    projectId: widget.projectId,
+                  ),
                 ),
-              ]
-            : null,
+              );
+            },
+          ),
+
+          if (widget.isAdmin)
+            IconButton(
+              icon: Icon(Icons.delete, color: Colors.red),
+              tooltip: 'Usuń projekt',
+              onPressed: () async {
+                final confirm = await showDialog<bool>(
+                  context: context,
+                  builder: (dialogCtx) => AlertDialog(
+                    title: Text('Usuń projekt?'),
+                    content: Text('Potwierdź usunięcie projektu.'),
+                    actions: [
+                      TextButton(
+                        onPressed: () => Navigator.pop(dialogCtx, false),
+                        child: Text('Anuluj'),
+                      ),
+                      ElevatedButton(
+                        onPressed: () => Navigator.pop(dialogCtx, true),
+                        child: Text('Usuń'),
+                      ),
+                    ],
+                  ),
+                );
+                if (confirm == true) {
+                  await FirebaseFirestore.instance
+                      .collection('customers')
+                      .doc(widget.customerId)
+                      .collection('projects')
+                      .doc(widget.projectId)
+                      .delete();
+                  Navigator.pop(context);
+                }
+              },
+            ),
+        ],
       ),
+
       body: Padding(
         padding: EdgeInsets.all(16),
         child: Form(
@@ -232,7 +373,7 @@ class _ProjectEditorScreenState extends State<ProjectEditorScreen> {
               ),
               SizedBox(height: 16),
 
-              // preview and save RW
+              // preview & save RW
               if (_lines.isNotEmpty)
                 Expanded(
                   child: ListView.builder(
@@ -285,8 +426,9 @@ class _ProjectEditorScreenState extends State<ProjectEditorScreen> {
                                   _stockItems,
                                   existing: ln,
                                 );
-                                if (updated != null)
+                                if (updated != null) {
                                   setState(() => _lines[i] = updated);
+                                }
                               },
                             ),
                             IconButton(
@@ -367,18 +509,18 @@ class _ProjectEditorScreenState extends State<ProjectEditorScreen> {
 
               Divider(height: 32),
 
-              // Images & notes preview omitted for brevity
+              // Images & notes preview
               // Save buttons
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceEvenly,
                 children: [
                   ElevatedButton(
                     onPressed: () => _saveRWDocument('RW'),
-                    child: Text('Zapisz RW'),
+                    child: Text(_rwExistsToday ? 'Update RW' : 'Zapisz RW'),
                   ),
                   ElevatedButton(
                     onPressed: () => _saveRWDocument('MM'),
-                    child: Text('Zapisz MM'),
+                    child: Text(_mmExistsToday ? 'Update MM' : 'Zapisz MM'),
                   ),
                 ],
               ),
