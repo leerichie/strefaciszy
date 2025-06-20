@@ -391,6 +391,7 @@ class _CustomerDetailScreenState extends State<CustomerDetailScreen> {
                             customerId: widget.customerId,
                             projectId: d.id,
                             isAdmin: widget.isAdmin,
+                            rwId: null,
                           ),
                         ),
                       ),

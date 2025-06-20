@@ -4,20 +4,13 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:open_file/open_file.dart';
-import 'package:strefa_ciszy/screens/project_editor_screen.dart';
 import 'package:strefa_ciszy/services/file_saver.dart';
 import 'package:syncfusion_flutter_xlsio/xlsio.dart' as xlsio;
 
 class RWDocumentsScreen extends StatefulWidget {
   final String? customerId;
   final String? projectId;
-  final bool isAdmin;
-  const RWDocumentsScreen({
-    super.key,
-    this.customerId,
-    this.projectId,
-    required this.isAdmin,
-  });
+  const RWDocumentsScreen({super.key, this.customerId, this.projectId});
 
   @override
   _RWDocumentsScreenState createState() => _RWDocumentsScreenState();

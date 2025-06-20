@@ -172,6 +172,7 @@ class _ProjectEditorScreenState extends State<ProjectEditorScreen> {
     final user = FirebaseAuth.instance.currentUser;
     if (user == null) return;
 
+    // Prepare both full and filtered lists
     final fullLines = List<ProjectLine>.from(_lines);
     final filteredLines = fullLines.where((l) => l.requestedQty > 0).toList();
 
@@ -184,6 +185,7 @@ class _ProjectEditorScreenState extends State<ProjectEditorScreen> {
         .doc(widget.projectId);
     final rwCol = projectRef.collection('rw_documents');
 
+    // Determine today's RW doc ID
     final now = DateTime.now();
     final startOfDay = DateTime(now.year, now.month, now.day);
     final startOfTomorrow = startOfDay.add(Duration(days: 1));
@@ -198,6 +200,7 @@ class _ProjectEditorScreenState extends State<ProjectEditorScreen> {
     final rwId = existsToday ? todaySnap.docs.first.id : rwCol.doc().id;
     final rwRef = rwCol.doc(rwId);
 
+    // Permissions check for past docs
     final docSnap = await rwRef.get();
     if (docSnap.exists) {
       final createdAtRaw = (docSnap.data()!['createdAt'] as Timestamp).toDate();
@@ -214,6 +217,7 @@ class _ProjectEditorScreenState extends State<ProjectEditorScreen> {
       }
     }
 
+    // Preserve original createdAt/createdBy
     DateTime createdAt = now;
     String createdBy = user.uid;
     if (docSnap.exists) {
@@ -223,6 +227,7 @@ class _ProjectEditorScreenState extends State<ProjectEditorScreen> {
       createdBy = data['createdBy'] ?? createdBy;
     }
 
+    // Build the RW payload using only filteredLines
     final rwData = StockService.buildRwDocMap(
       rwId,
       widget.projectId,
@@ -236,6 +241,7 @@ class _ProjectEditorScreenState extends State<ProjectEditorScreen> {
     );
 
     try {
+      // 1) Apply the transaction on the full list so zeroed lines return stock
       await StockService.applyProjectLinesTransaction(
         customerId: widget.customerId,
         projectId: widget.projectId,
@@ -247,6 +253,7 @@ class _ProjectEditorScreenState extends State<ProjectEditorScreen> {
         userId: user.uid,
       );
 
+      // 2) If no lines remain, delete the now-empty RW doc
       if (filteredLines.isEmpty && docSnap.exists) {
         await rwRef.delete();
         ScaffoldMessenger.of(context).showSnackBar(
@@ -258,6 +265,7 @@ class _ProjectEditorScreenState extends State<ProjectEditorScreen> {
         );
       }
 
+      // 3) Update UI to drop zero-qty lines
       setState(() => _lines = filteredLines);
       await _checkTodayExists(type);
     } catch (e, stack) {
@@ -460,49 +468,6 @@ class _ProjectEditorScreenState extends State<ProjectEditorScreen> {
                                 }
 
                                 setState(() => _lines.removeAt(i));
-
-                                if (_lines.isEmpty) {
-                                  final projectRef = FirebaseFirestore.instance
-                                      .collection('customers')
-                                      .doc(widget.customerId)
-                                      .collection('projects')
-                                      .doc(widget.projectId);
-                                  final rwCol = projectRef.collection(
-                                    'rw_documents',
-                                  );
-                                  final now = DateTime.now();
-                                  final startOfDay = DateTime(
-                                    now.year,
-                                    now.month,
-                                    now.day,
-                                  );
-                                  final startOfTomorrow = startOfDay.add(
-                                    Duration(days: 1),
-                                  );
-                                  final snap = await rwCol
-                                      .where('type', isEqualTo: 'RW')
-                                      .where(
-                                        'createdAt',
-                                        isGreaterThanOrEqualTo: startOfDay,
-                                      )
-                                      .where(
-                                        'createdAt',
-                                        isLessThan: startOfTomorrow,
-                                      )
-                                      .limit(1)
-                                      .get();
-                                  if (snap.docs.isNotEmpty) {
-                                    await snap.docs.first.reference.delete();
-                                    ScaffoldMessenger.of(context).showSnackBar(
-                                      SnackBar(
-                                        content: Text(
-                                          'Usunięto pusty dokument RW',
-                                        ),
-                                      ),
-                                    );
-                                    setState(() => _rwExistsToday = false);
-                                  }
-                                }
                               },
                             ),
                           ],
@@ -514,8 +479,7 @@ class _ProjectEditorScreenState extends State<ProjectEditorScreen> {
 
               Align(
                 alignment: Alignment.centerRight,
-                child: FloatingActionButton(
-                  mini: false,
+                child: ElevatedButton(
                   onPressed: () async {
                     final newLine = await showProjectLineDialog(
                       context,
@@ -556,9 +520,7 @@ class _ProjectEditorScreenState extends State<ProjectEditorScreen> {
 
                     setState(() => _lines.add(lineWithUnit));
                   },
-                  tooltip: 'Dodaj',
-                  // backgroundColor: Theme.of(context).colorScheme.secondary,
-                  child: Icon(Icons.playlist_add, size: 28),
+                  child: Icon(Icons.add),
                 ),
               ),
 

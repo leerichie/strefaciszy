@@ -558,7 +558,7 @@ class _ProjectEditorScreenState extends State<ProjectEditorScreen> {
                   },
                   tooltip: 'Dodaj',
                   // backgroundColor: Theme.of(context).colorScheme.secondary,
-                  child: Icon(Icons.playlist_add, size: 28),
+                  child: Icon(Icons.add_shopping_cart_rounded, size: 28),
                 ),
               ),
 

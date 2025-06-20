@@ -98,15 +98,9 @@ class MainMenuScreen extends StatelessWidget {
           ListTile(
             leading: Icon(Icons.list_alt_rounded),
             title: Text('Dok. RW/MM'),
-            onTap: () => Navigator.of(context).push(
-              MaterialPageRoute(
-                builder: (_) => RWDocumentsScreen(
-                  customerId: null, // or pass a customerId
-                  projectId: null, // or pass a projectId
-                  isAdmin: isAdmin,
-                ),
-              ),
-            ),
+            onTap: () => Navigator.of(
+              context,
+            ).push(MaterialPageRoute(builder: (_) => RWDocumentsScreen())),
           ),
 
           ListTile(

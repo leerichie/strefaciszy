@@ -556,9 +556,9 @@ class _ProjectEditorScreenState extends State<ProjectEditorScreen> {
 
                     setState(() => _lines.add(lineWithUnit));
                   },
-                  tooltip: 'Dodaj',
-                  // backgroundColor: Theme.of(context).colorScheme.secondary,
-                  child: Icon(Icons.playlist_add, size: 28),
+                  tooltip: 'Dodaj pozycję',
+                  backgroundColor: Theme.of(context).colorScheme.primary,
+                  child: Icon(Icons.add_shopping_cart_rounded, size: 28),
                 ),
               ),
 

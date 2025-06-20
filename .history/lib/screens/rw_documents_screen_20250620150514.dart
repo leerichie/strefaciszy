@@ -4,7 +4,6 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:open_file/open_file.dart';
-import 'package:strefa_ciszy/screens/project_editor_screen.dart';
 import 'package:strefa_ciszy/services/file_saver.dart';
 import 'package:syncfusion_flutter_xlsio/xlsio.dart' as xlsio;
 

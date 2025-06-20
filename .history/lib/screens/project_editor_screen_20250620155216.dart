@@ -514,8 +514,12 @@ class _ProjectEditorScreenState extends State<ProjectEditorScreen> {
 
               Align(
                 alignment: Alignment.centerRight,
-                child: FloatingActionButton(
-                  mini: false,
+                child: ElevatedButton(
+                  style: ElevatedButton.styleFrom(
+                    minimumSize: Size(56, 56),
+                    padding: EdgeInsets.all(12),
+                    shape: CircleBorder(),
+                  ),
                   onPressed: () async {
                     final newLine = await showProjectLineDialog(
                       context,
@@ -556,9 +560,7 @@ class _ProjectEditorScreenState extends State<ProjectEditorScreen> {
 
                     setState(() => _lines.add(lineWithUnit));
                   },
-                  tooltip: 'Dodaj',
-                  // backgroundColor: Theme.of(context).colorScheme.secondary,
-                  child: Icon(Icons.playlist_add, size: 28),
+                  child: Icon(Icons.add_shopping_cart_rounded),
                 ),
               ),
 

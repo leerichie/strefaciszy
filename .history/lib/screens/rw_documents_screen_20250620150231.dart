@@ -4,7 +4,6 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:open_file/open_file.dart';
-import 'package:strefa_ciszy/screens/project_editor_screen.dart';
 import 'package:strefa_ciszy/services/file_saver.dart';
 import 'package:syncfusion_flutter_xlsio/xlsio.dart' as xlsio;
 
@@ -12,12 +11,7 @@ class RWDocumentsScreen extends StatefulWidget {
   final String? customerId;
   final String? projectId;
   final bool isAdmin;
-  const RWDocumentsScreen({
-    super.key,
-    this.customerId,
-    this.projectId,
-    required this.isAdmin,
-  });
+  const RWDocumentsScreen({super.key, this.customerId, this.projectId, required this.isAdmin});
 
   @override
   _RWDocumentsScreenState createState() => _RWDocumentsScreenState();
@@ -216,100 +210,61 @@ class _RWDocumentsScreenState extends State<RWDocumentsScreen> {
                     _fetchUserName(uid);
 
                     return ListTile(
-                      title: Text('${d['type']} — ${d['projectName'] ?? ''}'),
-                      subtitle: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Row(
-                            children: [
-                              const Icon(
-                                Icons.calendar_today,
-                                size: 16,
-                                color: Colors.grey,
-                              ),
-                              const SizedBox(width: 4),
-                              Text(date),
-                            ],
-                          ),
-                          Row(
-                            children: [
-                              const Icon(
-                                Icons.person,
-                                size: 16,
-                                color: Colors.grey,
-                              ),
-                              const SizedBox(width: 4),
-                              Text(userNames[uid] ?? uid),
-                            ],
-                          ),
-                        ],
-                      ),
-                      isThreeLine: true,
-                      onTap: () => _showDetailsDialog(context, d),
-                      trailing: widget.isAdmin
-                          ? Row(
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                // Edit button
-                                IconButton(
-                                  icon: Icon(Icons.edit, color: Colors.blue),
-                                  tooltip: 'Edytuj dokument',
-                                  onPressed: () {
-                                    Navigator.of(context).push(
-                                      MaterialPageRoute(
-                                        builder: (_) => ProjectEditorScreen(
-                                          customerId: widget.customerId!,
-                                          projectId: widget.projectId!,
-                                          isAdmin: true,
-                                          rwId: doc
-                                              .id, // you'll need to extend ctor to accept this
-                                        ),
-                                      ),
-                                    );
-                                  },
-                                ),
-                                // Delete button
-                                IconButton(
-                                  icon: Icon(Icons.delete, color: Colors.red),
-                                  tooltip: 'Usuń dokument',
-                                  onPressed: () async {
-                                    final confirm = await showDialog<bool>(
-                                      context: context,
-                                      builder: (ctx) => AlertDialog(
-                                        title: Text('Usuń dokument?'),
-                                        content: Text(
-                                          'Na pewno usunąć dokument ${d['type']}?',
-                                        ),
-                                        actions: [
-                                          TextButton(
-                                            onPressed: () =>
-                                                Navigator.pop(ctx, false),
-                                            child: Text('Anuluj'),
-                                          ),
-                                          ElevatedButton(
-                                            onPressed: () =>
-                                                Navigator.pop(ctx, true),
-                                            child: Text('Usuń'),
-                                          ),
-                                        ],
-                                      ),
-                                    );
-                                    if (confirm == true) {
-                                      await doc.reference.delete();
-                                      ScaffoldMessenger.of(
-                                        context,
-                                      ).showSnackBar(
-                                        SnackBar(
-                                          content: Text('Dokument usunięty'),
-                                        ),
-                                      );
-                                    }
-                                  },
-                                ),
-                              ],
-                            )
-                          : null,
-                    );
+  title: Text('${d['type']} — ${d['projectName'] ?? ''}'),
+  subtitle: /* your existing Column(...) */,
+  isThreeLine: true,
+  onTap: () => _showDetailsDialog(context, d),
+  trailing: widget.isAdmin
+    ? Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          // Edit
+          IconButton(
+            icon: Icon(Icons.edit, color: Colors.blue),
+            tooltip: 'Edytuj dokument',
+            onPressed: () {
+              Navigator.of(context).push(
+                MaterialPageRoute(
+                  builder: (_) => ProjectEditorScreen(
+                    customerId: widget.customerId!,
+                    projectId: widget.projectId!,
+                    isAdmin: true,
+                    rwId: doc.id,        // you’ll need to extend your editor to accept this
+                  ),
+                ),
+              );
+            },
+          ),
+
+          // Delete
+          IconButton(
+            icon: Icon(Icons.delete, color: Colors.red),
+            tooltip: 'Usuń dokument',
+            onPressed: () async {
+              final confirm = await showDialog<bool>(
+                context: context,
+                builder: (ctx) => AlertDialog(
+                  title: Text('Usuń dokument?'),
+                  content: Text('Na pewno usunąć dokument ${d['type']}?'),
+                  actions: [
+                    TextButton(onPressed: () => Navigator.pop(ctx, false), child: Text('Anuluj')),
+                    ElevatedButton(onPressed: () => Navigator.pop(ctx, true), child: Text('Usuń')),
+                  ],
+                ),
+              );
+              if (confirm == true) {
+                await doc.reference.delete();
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(content: Text('Dokument usunięty')),
+                );
+              }
+            },
+          ),
+        ],
+      )
+    : null,
+);
+
                   },
                 );
               },

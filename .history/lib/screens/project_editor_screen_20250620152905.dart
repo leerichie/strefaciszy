@@ -172,8 +172,7 @@ class _ProjectEditorScreenState extends State<ProjectEditorScreen> {
     final user = FirebaseAuth.instance.currentUser;
     if (user == null) return;
 
-    final fullLines = List<ProjectLine>.from(_lines);
-    final filteredLines = fullLines.where((l) => l.requestedQty > 0).toList();
+    final filteredLines = _lines.where((l) => l.requestedQty > 0).toList();
 
     setState(() => _saving = true);
 
@@ -194,13 +193,15 @@ class _ProjectEditorScreenState extends State<ProjectEditorScreen> {
         .orderBy('createdAt', descending: true)
         .limit(1)
         .get();
-    final existsToday = todaySnap.docs.isNotEmpty;
-    final rwId = existsToday ? todaySnap.docs.first.id : rwCol.doc().id;
-    final rwRef = rwCol.doc(rwId);
+    final bool existsToday = todaySnap.docs.isNotEmpty;
+    final String rwId = existsToday ? todaySnap.docs.first.id : rwCol.doc().id;
 
+    final rwRef = rwCol.doc(rwId);
     final docSnap = await rwRef.get();
     if (docSnap.exists) {
-      final createdAtRaw = (docSnap.data()!['createdAt'] as Timestamp).toDate();
+      final data = docSnap.data()!;
+      final rawTs = data['createdAt'];
+      final createdAtRaw = rawTs is Timestamp ? rawTs.toDate() : now;
       if (createdAtRaw.isBefore(startOfDay) && !widget.isAdmin) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
@@ -220,7 +221,7 @@ class _ProjectEditorScreenState extends State<ProjectEditorScreen> {
       final data = docSnap.data()!;
       final rawTs = data['createdAt'];
       createdAt = rawTs is Timestamp ? rawTs.toDate() : createdAt;
-      createdBy = data['createdBy'] ?? createdBy;
+      createdBy = data['createdBy'] ?? user.uid;
     }
 
     final rwData = StockService.buildRwDocMap(
@@ -234,7 +235,6 @@ class _ProjectEditorScreenState extends State<ProjectEditorScreen> {
       _stockItems,
       widget.customerId,
     );
-
     try {
       await StockService.applyProjectLinesTransaction(
         customerId: widget.customerId,
@@ -242,16 +242,16 @@ class _ProjectEditorScreenState extends State<ProjectEditorScreen> {
         rwDocId: rwId,
         rwDocData: rwData,
         isNew: !docSnap.exists,
-        lines: fullLines,
+        lines: filteredLines,
         newStatus: type,
         userId: user.uid,
       );
 
       if (filteredLines.isEmpty && docSnap.exists) {
         await rwRef.delete();
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Usunięto pusty dokument $type')),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('Usunięto pusty RW $type')));
       } else {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text('Zapisano $type – magazyn aktualny')),
@@ -261,7 +261,11 @@ class _ProjectEditorScreenState extends State<ProjectEditorScreen> {
       setState(() => _lines = filteredLines);
       await _checkTodayExists(type);
     } catch (e, stack) {
-      debugPrint('[_saveRWDocument] error: $e\n$stack');
+      // Log full error
+      debugPrint('[_saveRWDocument] error: $e');
+      debugPrint('$stack');
+
+      // Notify user
       ScaffoldMessenger.of(
         context,
       ).showSnackBar(SnackBar(content: Text('Błąd zapisu: $e')));
@@ -428,7 +432,7 @@ class _ProjectEditorScreenState extends State<ProjectEditorScreen> {
                           mainAxisSize: MainAxisSize.min,
                           children: [
                             IconButton(
-                              icon: Icon(Icons.edit, color: Colors.blue),
+                              icon: Icon(Icons.edit),
                               onPressed: () async {
                                 final updated = await showProjectLineDialog(
                                   context,
@@ -441,7 +445,7 @@ class _ProjectEditorScreenState extends State<ProjectEditorScreen> {
                               },
                             ),
                             IconButton(
-                              icon: Icon(Icons.delete, color: Colors.red),
+                              icon: Icon(Icons.delete),
                               onPressed: () async {
                                 final removed = _lines[i];
 
@@ -460,49 +464,6 @@ class _ProjectEditorScreenState extends State<ProjectEditorScreen> {
                                 }
 
                                 setState(() => _lines.removeAt(i));
-
-                                if (_lines.isEmpty) {
-                                  final projectRef = FirebaseFirestore.instance
-                                      .collection('customers')
-                                      .doc(widget.customerId)
-                                      .collection('projects')
-                                      .doc(widget.projectId);
-                                  final rwCol = projectRef.collection(
-                                    'rw_documents',
-                                  );
-                                  final now = DateTime.now();
-                                  final startOfDay = DateTime(
-                                    now.year,
-                                    now.month,
-                                    now.day,
-                                  );
-                                  final startOfTomorrow = startOfDay.add(
-                                    Duration(days: 1),
-                                  );
-                                  final snap = await rwCol
-                                      .where('type', isEqualTo: 'RW')
-                                      .where(
-                                        'createdAt',
-                                        isGreaterThanOrEqualTo: startOfDay,
-                                      )
-                                      .where(
-                                        'createdAt',
-                                        isLessThan: startOfTomorrow,
-                                      )
-                                      .limit(1)
-                                      .get();
-                                  if (snap.docs.isNotEmpty) {
-                                    await snap.docs.first.reference.delete();
-                                    ScaffoldMessenger.of(context).showSnackBar(
-                                      SnackBar(
-                                        content: Text(
-                                          'Usunięto pusty dokument RW',
-                                        ),
-                                      ),
-                                    );
-                                    setState(() => _rwExistsToday = false);
-                                  }
-                                }
                               },
                             ),
                           ],
@@ -514,8 +475,7 @@ class _ProjectEditorScreenState extends State<ProjectEditorScreen> {
 
               Align(
                 alignment: Alignment.centerRight,
-                child: FloatingActionButton(
-                  mini: false,
+                child: ElevatedButton(
                   onPressed: () async {
                     final newLine = await showProjectLineDialog(
                       context,
@@ -556,9 +516,7 @@ class _ProjectEditorScreenState extends State<ProjectEditorScreen> {
 
                     setState(() => _lines.add(lineWithUnit));
                   },
-                  tooltip: 'Dodaj',
-                  // backgroundColor: Theme.of(context).colorScheme.secondary,
-                  child: Icon(Icons.playlist_add, size: 28),
+                  child: Icon(Icons.add),
                 ),
               ),
 

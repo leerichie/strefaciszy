@@ -460,49 +460,6 @@ class _ProjectEditorScreenState extends State<ProjectEditorScreen> {
                                 }
 
                                 setState(() => _lines.removeAt(i));
-
-                                if (_lines.isEmpty) {
-                                  final projectRef = FirebaseFirestore.instance
-                                      .collection('customers')
-                                      .doc(widget.customerId)
-                                      .collection('projects')
-                                      .doc(widget.projectId);
-                                  final rwCol = projectRef.collection(
-                                    'rw_documents',
-                                  );
-                                  final now = DateTime.now();
-                                  final startOfDay = DateTime(
-                                    now.year,
-                                    now.month,
-                                    now.day,
-                                  );
-                                  final startOfTomorrow = startOfDay.add(
-                                    Duration(days: 1),
-                                  );
-                                  final snap = await rwCol
-                                      .where('type', isEqualTo: 'RW')
-                                      .where(
-                                        'createdAt',
-                                        isGreaterThanOrEqualTo: startOfDay,
-                                      )
-                                      .where(
-                                        'createdAt',
-                                        isLessThan: startOfTomorrow,
-                                      )
-                                      .limit(1)
-                                      .get();
-                                  if (snap.docs.isNotEmpty) {
-                                    await snap.docs.first.reference.delete();
-                                    ScaffoldMessenger.of(context).showSnackBar(
-                                      SnackBar(
-                                        content: Text(
-                                          'Usunięto pusty dokument RW',
-                                        ),
-                                      ),
-                                    );
-                                    setState(() => _rwExistsToday = false);
-                                  }
-                                }
                               },
                             ),
                           ],
@@ -514,8 +471,7 @@ class _ProjectEditorScreenState extends State<ProjectEditorScreen> {
 
               Align(
                 alignment: Alignment.centerRight,
-                child: FloatingActionButton(
-                  mini: false,
+                child: ElevatedButton(
                   onPressed: () async {
                     final newLine = await showProjectLineDialog(
                       context,
@@ -556,9 +512,7 @@ class _ProjectEditorScreenState extends State<ProjectEditorScreen> {
 
                     setState(() => _lines.add(lineWithUnit));
                   },
-                  tooltip: 'Dodaj',
-                  // backgroundColor: Theme.of(context).colorScheme.secondary,
-                  child: Icon(Icons.playlist_add, size: 28),
+                  child: Icon(Icons.add),
                 ),
               ),
 
