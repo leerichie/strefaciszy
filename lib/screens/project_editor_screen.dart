@@ -18,13 +18,15 @@ class ProjectEditorScreen extends StatefulWidget {
   final bool isAdmin;
   final String customerId;
   final String projectId;
+  final String? rwId;
 
   const ProjectEditorScreen({
-    Key? key,
+    super.key,
     required this.customerId,
     required this.projectId,
     required this.isAdmin,
-  }) : super(key: key);
+    this.rwId,
+  });
 
   @override
   _ProjectEditorScreenState createState() => _ProjectEditorScreenState();
@@ -170,7 +172,8 @@ class _ProjectEditorScreenState extends State<ProjectEditorScreen> {
     final user = FirebaseAuth.instance.currentUser;
     if (user == null) return;
 
-    final filteredLines = _lines.where((l) => l.requestedQty > 0).toList();
+    final fullLines = List<ProjectLine>.from(_lines);
+    final filteredLines = fullLines.where((l) => l.requestedQty > 0).toList();
 
     setState(() => _saving = true);
 
@@ -191,15 +194,13 @@ class _ProjectEditorScreenState extends State<ProjectEditorScreen> {
         .orderBy('createdAt', descending: true)
         .limit(1)
         .get();
-    final bool existsToday = todaySnap.docs.isNotEmpty;
-    final String rwId = existsToday ? todaySnap.docs.first.id : rwCol.doc().id;
-
+    final existsToday = todaySnap.docs.isNotEmpty;
+    final rwId = existsToday ? todaySnap.docs.first.id : rwCol.doc().id;
     final rwRef = rwCol.doc(rwId);
+
     final docSnap = await rwRef.get();
     if (docSnap.exists) {
-      final data = docSnap.data()!;
-      final rawTs = data['createdAt'];
-      final createdAtRaw = rawTs is Timestamp ? rawTs.toDate() : now;
+      final createdAtRaw = (docSnap.data()!['createdAt'] as Timestamp).toDate();
       if (createdAtRaw.isBefore(startOfDay) && !widget.isAdmin) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
@@ -219,7 +220,7 @@ class _ProjectEditorScreenState extends State<ProjectEditorScreen> {
       final data = docSnap.data()!;
       final rawTs = data['createdAt'];
       createdAt = rawTs is Timestamp ? rawTs.toDate() : createdAt;
-      createdBy = data['createdBy'] ?? user.uid;
+      createdBy = data['createdBy'] ?? createdBy;
     }
 
     final rwData = StockService.buildRwDocMap(
@@ -233,6 +234,7 @@ class _ProjectEditorScreenState extends State<ProjectEditorScreen> {
       _stockItems,
       widget.customerId,
     );
+
     try {
       await StockService.applyProjectLinesTransaction(
         customerId: widget.customerId,
@@ -240,20 +242,26 @@ class _ProjectEditorScreenState extends State<ProjectEditorScreen> {
         rwDocId: rwId,
         rwDocData: rwData,
         isNew: !docSnap.exists,
-        lines: filteredLines,
+        lines: fullLines,
         newStatus: type,
         userId: user.uid,
       );
 
-      setState(() {
-        _lines = filteredLines;
-      });
+      if (filteredLines.isEmpty && docSnap.exists) {
+        await rwRef.delete();
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Usunięto pusty dokument $type')),
+        );
+      } else {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Zapisano $type – magazyn aktualny')),
+        );
+      }
 
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Zapisano $type – magazyn aktualny')),
-      );
+      setState(() => _lines = filteredLines);
       await _checkTodayExists(type);
-    } catch (e) {
+    } catch (e, stack) {
+      debugPrint('[_saveRWDocument] error: $e\n$stack');
       ScaffoldMessenger.of(
         context,
       ).showSnackBar(SnackBar(content: Text('Błąd zapisu: $e')));
@@ -317,6 +325,7 @@ class _ProjectEditorScreenState extends State<ProjectEditorScreen> {
                   builder: (_) => RWDocumentsScreen(
                     customerId: widget.customerId,
                     projectId: widget.projectId,
+                    isAdmin: widget.isAdmin,
                   ),
                 ),
               );
@@ -419,7 +428,7 @@ class _ProjectEditorScreenState extends State<ProjectEditorScreen> {
                           mainAxisSize: MainAxisSize.min,
                           children: [
                             IconButton(
-                              icon: Icon(Icons.edit),
+                              icon: Icon(Icons.edit, color: Colors.blue),
                               onPressed: () async {
                                 final updated = await showProjectLineDialog(
                                   context,
@@ -432,7 +441,7 @@ class _ProjectEditorScreenState extends State<ProjectEditorScreen> {
                               },
                             ),
                             IconButton(
-                              icon: Icon(Icons.delete),
+                              icon: Icon(Icons.delete, color: Colors.red),
                               onPressed: () async {
                                 final removed = _lines[i];
 
@@ -451,6 +460,49 @@ class _ProjectEditorScreenState extends State<ProjectEditorScreen> {
                                 }
 
                                 setState(() => _lines.removeAt(i));
+
+                                if (_lines.isEmpty) {
+                                  final projectRef = FirebaseFirestore.instance
+                                      .collection('customers')
+                                      .doc(widget.customerId)
+                                      .collection('projects')
+                                      .doc(widget.projectId);
+                                  final rwCol = projectRef.collection(
+                                    'rw_documents',
+                                  );
+                                  final now = DateTime.now();
+                                  final startOfDay = DateTime(
+                                    now.year,
+                                    now.month,
+                                    now.day,
+                                  );
+                                  final startOfTomorrow = startOfDay.add(
+                                    Duration(days: 1),
+                                  );
+                                  final snap = await rwCol
+                                      .where('type', isEqualTo: 'RW')
+                                      .where(
+                                        'createdAt',
+                                        isGreaterThanOrEqualTo: startOfDay,
+                                      )
+                                      .where(
+                                        'createdAt',
+                                        isLessThan: startOfTomorrow,
+                                      )
+                                      .limit(1)
+                                      .get();
+                                  if (snap.docs.isNotEmpty) {
+                                    await snap.docs.first.reference.delete();
+                                    ScaffoldMessenger.of(context).showSnackBar(
+                                      SnackBar(
+                                        content: Text(
+                                          'Usunięto pusty dokument RW',
+                                        ),
+                                      ),
+                                    );
+                                    setState(() => _rwExistsToday = false);
+                                  }
+                                }
                               },
                             ),
                           ],
@@ -462,7 +514,8 @@ class _ProjectEditorScreenState extends State<ProjectEditorScreen> {
 
               Align(
                 alignment: Alignment.centerRight,
-                child: ElevatedButton(
+                child: FloatingActionButton(
+                  mini: false,
                   onPressed: () async {
                     final newLine = await showProjectLineDialog(
                       context,
@@ -503,7 +556,9 @@ class _ProjectEditorScreenState extends State<ProjectEditorScreen> {
 
                     setState(() => _lines.add(lineWithUnit));
                   },
-                  child: Icon(Icons.add),
+                  tooltip: 'Dodaj',
+                  // backgroundColor: Theme.of(context).colorScheme.secondary,
+                  child: Icon(Icons.playlist_add, size: 28),
                 ),
               ),
 

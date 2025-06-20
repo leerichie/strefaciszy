@@ -9,8 +9,7 @@ import 'package:strefa_ciszy/screens/item_detail_screen.dart';
 
 class InventoryListScreen extends StatefulWidget {
   final bool isAdmin;
-  const InventoryListScreen({Key? key, required this.isAdmin})
-    : super(key: key);
+  const InventoryListScreen({super.key, required this.isAdmin});
 
   @override
   _InventoryListScreenState createState() => _InventoryListScreenState();

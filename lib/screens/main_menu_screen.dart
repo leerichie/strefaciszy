@@ -7,7 +7,6 @@ import 'package:url_launcher/url_launcher.dart';
 
 import 'customer_list_screen.dart';
 import 'inventory_list_screen.dart';
-import 'item_detail_screen.dart';
 import 'rw_documents_screen.dart';
 import 'reports_screen.dart';
 import 'manage_users_screen.dart';
@@ -99,9 +98,15 @@ class MainMenuScreen extends StatelessWidget {
           ListTile(
             leading: Icon(Icons.list_alt_rounded),
             title: Text('Dok. RW/MM'),
-            onTap: () => Navigator.of(
-              context,
-            ).push(MaterialPageRoute(builder: (_) => RWDocumentsScreen())),
+            onTap: () => Navigator.of(context).push(
+              MaterialPageRoute(
+                builder: (_) => RWDocumentsScreen(
+                  customerId: null, // or pass a customerId
+                  projectId: null, // or pass a projectId
+                  isAdmin: isAdmin,
+                ),
+              ),
+            ),
           ),
 
           ListTile(

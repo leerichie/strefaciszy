@@ -6,7 +6,7 @@ import 'edit_item_screen.dart';
 
 class ItemDetailScreen extends StatelessWidget {
   final String itemId;
-  const ItemDetailScreen({Key? key, required this.itemId}) : super(key: key);
+  const ItemDetailScreen({super.key, required this.itemId});
 
   Future<void> _changeQuantity(String docId, int delta, int currentQty) async {
     final newQty = currentQty + delta;
@@ -132,7 +132,7 @@ TableRow _row(String label, dynamic value) => TableRow(
     Padding(
       padding: const EdgeInsets.only(right: 12, bottom: 4),
       child: Text(
-        label + ':',
+        '$label:',
         style: const TextStyle(fontWeight: FontWeight.w500),
       ),
     ),

@@ -10,7 +10,7 @@ import 'package:image_picker/image_picker.dart';
 
 class AddItemScreen extends StatefulWidget {
   final String? initialBarcode;
-  const AddItemScreen({Key? key, this.initialBarcode}) : super(key: key);
+  const AddItemScreen({super.key, this.initialBarcode});
 
   @override
   _AddItemScreenState createState() => _AddItemScreenState();

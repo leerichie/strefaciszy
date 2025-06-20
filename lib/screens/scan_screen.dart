@@ -10,7 +10,7 @@ import 'item_detail_screen.dart';
 class ScanScreen extends StatefulWidget {
   final bool returnCode;
 
-  const ScanScreen({Key? key, this.returnCode = false}) : super(key: key);
+  const ScanScreen({super.key, this.returnCode = false});
 
   @override
   _ScanScreenState createState() => _ScanScreenState();

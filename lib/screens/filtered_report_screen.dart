@@ -202,14 +202,8 @@ class FilteredReportScreen extends StatelessWidget {
           'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
     );
 
-    if (savedPath != null) {
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text('Zapisano plik: $savedPath.xlsx')));
-    } else {
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text('Pobrano plik: $filename.xlsx')));
-    }
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(SnackBar(content: Text('Zapisano plik: $savedPath.xlsx')));
   }
 }

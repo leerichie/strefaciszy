@@ -10,10 +10,10 @@ class CustomerDetailScreen extends StatefulWidget {
   final bool isAdmin;
 
   const CustomerDetailScreen({
-    Key? key,
+    super.key,
     required this.customerId,
     required this.isAdmin,
-  }) : super(key: key);
+  });
 
   @override
   _CustomerDetailScreenState createState() => _CustomerDetailScreenState();
