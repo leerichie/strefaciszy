@@ -19,99 +19,58 @@ class StockService {
     required String userId,
   }) async {
     final db = FirebaseFirestore.instance;
-
-    final projectRef = db
+    final projRef = db
         .collection('customers')
         .doc(customerId)
         .collection('projects')
         .doc(projectId);
-    final rwRef = projectRef.collection('rw_documents').doc(rwDocId);
+    final rwRef = projRef.collection('rw_documents').doc(rwDocId);
 
-    debugPrint('🏷️ Starting transaction for RW doc $rwDocId (isNew=$isNew)');
-    debugPrint('   Total lines passed in: ${lines.length}');
-    for (final ln in lines) {
-      debugPrint(
-        '   • ${ln.itemRef}: requestedQty=${ln.requestedQty}, previousQty=${ln.previousQty}',
-      );
-    }
-
-    final stockSnapshots = <String, DocumentSnapshot>{};
-
-    for (final ln in lines.where((l) => l.isStock || l.previousQty > 0)) {
-      final doc = await db.collection('stock_items').doc(ln.itemRef).get();
-      stockSnapshots[ln.itemRef] = doc;
-    }
-
-    try {
-      await db.runTransaction((tx) async {
-        for (final ln in lines.where((l) => l.isStock || l.previousQty > 0)) {
-          final snap = stockSnapshots[ln.itemRef];
-          if (snap == null || !snap.exists) {
-            throw Exception('Produkt ${ln.itemRef} nie istnieje');
-          }
-
-          final data = snap.data() as Map<String, dynamic>;
-
-          final currentQty = (data['quantity'] as int?) ?? 0;
-          final delta = ln.requestedQty - ln.previousQty;
-
-          debugPrint('🔄 Applying delta: $delta for ${ln.itemRef}');
-          debugPrint('➡️ Before stock update: ${ln.itemRef}');
-          debugPrint('   currentQty=$currentQty');
-          debugPrint('   delta=$delta');
-          debugPrint('   newQty=${currentQty - delta}');
-          debugPrint('   userId=$userId');
-
-          if (delta != 0) {
-            final newQty = currentQty - delta;
-
-            if (delta > 0 && delta > currentQty) {
-              throw Exception('Za mało ${data['name']} (brakuje $delta)');
-            }
-
-            tx.update(db.collection('stock_items').doc(ln.itemRef), {
-              'quantity': newQty,
-              'updatedAt': FieldValue.serverTimestamp(),
-              'updatedBy': userId,
-            });
-
-            debugPrint('🔄 Stock updated for ${ln.itemRef}');
-            debugPrint('   currentQty=$currentQty');
-            debugPrint('   delta=$delta');
-            debugPrint('   newQty=$newQty');
-          }
-
-          ln.previousQty = ln.requestedQty;
+    await db.runTransaction((tx) async {
+      // 1) For each stock‐line, atomically increment by –delta
+      for (final ln in lines.where((l) => l.isStock)) {
+        final stockRef = db.collection('stock_items').doc(ln.itemRef);
+        final snap = await tx.get(stockRef);
+        if (!snap.exists) throw Exception('Produkt ${ln.itemRef} nie istnieje');
+        final current = (snap.data()!['quantity'] as int?) ?? 0;
+        final delta = ln.requestedQty - ln.previousQty;
+        if (delta > 0 && delta > current) {
+          throw Exception('Za mało towaru (${ln.itemRef})');
         }
-
-        // Pre-read the RW document to avoid race conditions on set
-        if (isNew) {
-          tx.set(rwRef, rwDocData);
-        } else {
-          tx.update(rwRef, {
-            'items': rwDocData['items'],
-            'type': rwDocData['type'],
-            'lastUpdatedAt': FieldValue.serverTimestamp(),
-            'lastUpdatedBy': userId,
+        if (delta != 0) {
+          tx.update(stockRef, {
+            'quantity': FieldValue.increment(-delta),
+            'updatedAt': FieldValue.serverTimestamp(),
+            'updatedBy': userId,
           });
         }
+        // keep in‐memory in sync
+        ln.previousQty = ln.requestedQty;
+      }
 
-        // Clear zero-qty or removed lines completely from project.items
-        final remainingLines = lines
-            .where((l) => l.isStock && l.requestedQty > 0)
-            .toList();
-
-        tx.update(projectRef, {
-          'items': remainingLines.map((l) => l.toMap()).toList(),
-          'status': newStatus,
-          'lastRwDate': FieldValue.serverTimestamp(),
+      // 2) Create or update the RW doc
+      if (isNew) {
+        tx.set(rwRef, rwDocData);
+      } else {
+        tx.update(rwRef, {
+          'items': rwDocData['items'],
+          'type': rwDocData['type'],
+          'lastUpdatedAt': FieldValue.serverTimestamp(),
+          'lastUpdatedBy': userId,
         });
+      }
+
+      // 3) Write back the filtered project items
+      final remaining = lines
+          .where((l) => l.isStock && l.requestedQty > 0)
+          .map((l) => l.toMap())
+          .toList();
+      tx.update(projRef, {
+        'items': remaining,
+        'status': newStatus,
+        'lastRwDate': FieldValue.serverTimestamp(),
       });
-    } catch (e, st) {
-      debugPrint('❌ Transaction error in applyProjectLinesTransaction: $e');
-      debugPrint('📋 Stack trace:\n$st');
-      rethrow;
-    }
+    });
   }
 
   static Future<void> increaseQty(String itemId, int qty) async {

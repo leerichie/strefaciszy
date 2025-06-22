@@ -14,6 +14,7 @@ import 'package:strefa_ciszy/services/stock_service.dart';
 import 'package:strefa_ciszy/widgets/project_line_dialog.dart';
 import 'package:strefa_ciszy/models/rw_document.dart';
 import 'package:strefa_ciszy/screens/scan_screen.dart';
+import 'package:strefa_ciszy/services/audit_service.dart';
 
 class ProjectEditorScreen extends StatefulWidget {
   final bool isAdmin;
@@ -49,6 +50,7 @@ class _ProjectEditorScreenState extends State<ProjectEditorScreen> {
   String _status = 'draft';
   String _notes = '';
   List<XFile> _images = [];
+  String _customerName = '';
 
   late final StreamSubscription<QuerySnapshot<StockItem>> _stockSub;
   List<StockItem> _stockItems = [];
@@ -58,6 +60,17 @@ class _ProjectEditorScreenState extends State<ProjectEditorScreen> {
   @override
   void initState() {
     super.initState();
+    FirebaseFirestore.instance
+        .collection('customers')
+        .doc(widget.customerId)
+        .get()
+        .then((snap) {
+          if (snap.exists) {
+            setState(() {
+              _customerName = snap.data()!['name'] as String? ?? '';
+            });
+          }
+        });
     final today = DateTime.now();
     final created = widget.rwCreatedAt;
     _rwLocked =
@@ -184,6 +197,23 @@ class _ProjectEditorScreenState extends State<ProjectEditorScreen> {
     final user = FirebaseAuth.instance.currentUser;
     if (user == null) return;
 
+    // 0) Fetch human-readable client & project names
+    final custSnap = await FirebaseFirestore.instance
+        .collection('customers')
+        .doc(widget.customerId)
+        .get();
+    final customerName =
+        custSnap.data()?['name'] as String? ?? '<nieznany klient>';
+
+    final projSnap = await FirebaseFirestore.instance
+        .collection('customers')
+        .doc(widget.customerId)
+        .collection('projects')
+        .doc(widget.projectId)
+        .get();
+    final projectName =
+        projSnap.data()?['title'] as String? ?? '<nieznany projekt>';
+
     // 1) Prepare the lines
     final fullLines = List<ProjectLine>.from(_lines);
     final filteredLines = fullLines.where((l) => l.requestedQty > 0).toList();
@@ -262,22 +292,46 @@ class _ProjectEditorScreenState extends State<ProjectEditorScreen> {
     }
 
     if (filteredLines.isEmpty && docSnap.exists) {
-      // restore every previously-saved line
+      // 1) Restore stock for each previously-saved line
       for (final ln in fullLines.where((l) => l.previousQty > 0)) {
         try {
           await StockService.increaseQty(ln.itemRef, ln.previousQty);
           debugPrint('🔄 Restored ${ln.previousQty} for ${ln.itemRef}');
           ln.previousQty = 0;
         } catch (e) {
-          debugPrint("⚠️ Couldn't restore ${ln.itemRef}: $e");
+          debugPrint('⚠️ Couldn\'t restore ${ln.itemRef}: $e');
         }
       }
 
-      // delete the empty RW doc
-      await rwRef.delete();
-      debugPrint('🗑️ RW document $rwId deleted because no lines remain.');
+      // 2) Audit: log that the empty RW was removed
+      // 2) Lookup human-readable names up front:
+      final custSnap = await FirebaseFirestore.instance
+          .collection('customers')
+          .doc(widget.customerId)
+          .get();
+      final customerName = custSnap.data()?['name'] as String? ?? '–';
 
-      // clear out UI state
+      final projSnap = await FirebaseFirestore.instance
+          .collection('customers')
+          .doc(widget.customerId)
+          .collection('projects')
+          .doc(widget.projectId)
+          .get();
+      final projectName = projSnap.data()?['title'] as String? ?? '–';
+
+      // 3) Build a little “item1(qty), item2(qty)” summary:
+      final itemSummaries = filteredLines
+          .map((ln) {
+            final stock = _stockItems.firstWhere((s) => s.id == ln.itemRef);
+            return '${stock.name}(${ln.requestedQty})';
+          })
+          .join(', ');
+
+      // 3) Actually delete the RW doc
+      await rwRef.delete();
+      debugPrint('🗑️ RW document $rwId deleted (no lines left)');
+
+      // 4) Clear UI state
       setState(() {
         _lines.clear();
         _rwExistsToday = false;
@@ -306,6 +360,32 @@ class _ProjectEditorScreenState extends State<ProjectEditorScreen> {
         lines: fullLines,
         newStatus: type,
         userId: user.uid,
+      );
+
+      // build a “name(qty)” summary for the audit
+      final itemSummaries = filteredLines
+          .map((ln) {
+            if (ln.isStock) {
+              final stock = _stockItems.firstWhere((s) => s.id == ln.itemRef);
+              return '${stock.name}(${ln.requestedQty})';
+            } else {
+              return '${ln.customName}(${ln.requestedQty})';
+            }
+          })
+          .join(', ');
+
+      // log create/update
+      await AuditService.logAction(
+        action: existsToday
+            ? 'Zaktualizowano dokument RW'
+            : 'Utworzono dokument RW',
+        details: {
+          'Klient': customerName,
+          'Projekt': projectName,
+          'RW ID': rwId,
+          'Pozycji': filteredLines.length.toString(),
+          'Szczegóły': itemSummaries,
+        },
       );
 
       setState(() {
