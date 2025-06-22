@@ -249,6 +249,7 @@ Future<ProjectLine?> showProjectLineDialog(
                               unit: unit,
                               originalStock: chosen.quantity,
                               previousQty: existing?.previousQty ?? 0,
+                              updatedAt: DateTime.now(),
                             );
                             Navigator.of(ctx).pop(line);
                           },

@@ -1,17 +1,12 @@
 class ProjectLine {
   final bool isStock;
-
   final String itemRef;
-
   final String customName;
-
   int requestedQty;
-
   final String unit;
-
   final int originalStock;
-
   int previousQty;
+  final DateTime? updatedAt;
 
   ProjectLine({
     required this.isStock,
@@ -21,11 +16,13 @@ class ProjectLine {
     this.unit = 'szt',
     required this.originalStock,
     required this.previousQty,
+    this.updatedAt,
   });
 
   factory ProjectLine.fromMap(Map<String, dynamic> map) {
     final hasRef = map.containsKey('itemRef');
     final qty = map['requestedQty'] as int? ?? 0;
+
     return ProjectLine(
       isStock: hasRef,
       itemRef: map['itemRef'] as String? ?? '',
@@ -34,6 +31,9 @@ class ProjectLine {
       unit: map['unit'] as String? ?? 'szt',
       originalStock: map['originalStock'] as int? ?? qty,
       previousQty: map['previousQty'] as int? ?? qty,
+      updatedAt: map['updatedAt'] != null
+          ? DateTime.tryParse(map['updatedAt'])
+          : null,
     );
   }
 
@@ -43,6 +43,7 @@ class ProjectLine {
       'unit': unit,
       'originalStock': originalStock,
       'previousQty': previousQty,
+      'updatedAt': updatedAt?.toIso8601String(),
     };
     if (isStock) {
       m['itemRef'] = itemRef;
@@ -60,6 +61,7 @@ class ProjectLine {
     String? unit,
     int? originalStock,
     int? previousQty,
+    DateTime? updatedAt,
   }) {
     return ProjectLine(
       isStock: isStock ?? this.isStock,
@@ -69,6 +71,7 @@ class ProjectLine {
       unit: unit ?? this.unit,
       originalStock: originalStock ?? this.originalStock,
       previousQty: previousQty ?? this.previousQty,
+      updatedAt: updatedAt ?? this.updatedAt,
     );
   }
 }

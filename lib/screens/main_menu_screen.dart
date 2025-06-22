@@ -95,33 +95,32 @@ class MainMenuScreen extends StatelessWidget {
               ).push(MaterialPageRoute(builder: (_) => ScanScreen())),
             ),
 
-          ListTile(
-            leading: Icon(Icons.list_alt_rounded),
-            title: Text('Dok. RW/MM'),
-            onTap: () => Navigator.of(context).push(
-              MaterialPageRoute(
-                builder: (_) => RWDocumentsScreen(
-                  customerId: null, // or pass a customerId
-                  projectId: null, // or pass a projectId
-                  isAdmin: isAdmin,
-                ),
-              ),
-            ),
-          ),
+          // ListTile(
+          //   leading: Icon(Icons.list_alt_rounded),
+          //   title: Text('Dok. RW/MM'),
+          //   onTap: () => Navigator.of(context).push(
+          //     MaterialPageRoute(
+          //       builder: (_) => RWDocumentsScreen(
+          //         customerId: null, // or pass a customerId
+          //         projectId: null, // or pass a projectId
+          //         isAdmin: isAdmin,
+          //       ),
+          //     ),
+          //   ),
+          // ),
 
-          ListTile(
-            leading: Icon(Icons.bar_chart),
-            title: Text('Raporty'),
-            onTap: () => Navigator.of(
-              context,
-            ).push(MaterialPageRoute(builder: (_) => ReportsScreen())),
-          ),
-
+          // ListTile(
+          //   leading: Icon(Icons.bar_chart),
+          //   title: Text('Raporty'),
+          //   onTap: () => Navigator.of(
+          //     context,
+          //   ).push(MaterialPageRoute(builder: (_) => ReportsScreen())),
+          // ),
           Divider(height: 32),
 
           ListTile(
             leading: Icon(Icons.download_rounded),
-            title: Text('downlaoad apk (Android)'),
+            title: Text('download apk (Android)'),
             subtitle: Text('Android'),
             onTap: () => _downloadApp(context),
           ),

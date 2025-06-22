@@ -2,6 +2,7 @@
 
 import 'dart:async';
 import 'dart:io';
+import 'dart:core';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
@@ -19,6 +20,7 @@ class ProjectEditorScreen extends StatefulWidget {
   final String customerId;
   final String projectId;
   final String? rwId;
+  final DateTime? rwCreatedAt;
 
   const ProjectEditorScreen({
     super.key,
@@ -26,6 +28,7 @@ class ProjectEditorScreen extends StatefulWidget {
     required this.projectId,
     required this.isAdmin,
     this.rwId,
+    this.rwCreatedAt,
   });
 
   @override
@@ -50,10 +53,19 @@ class _ProjectEditorScreenState extends State<ProjectEditorScreen> {
   late final StreamSubscription<QuerySnapshot<StockItem>> _stockSub;
   List<StockItem> _stockItems = [];
   List<ProjectLine> _lines = [];
+  late final bool _rwLocked;
 
   @override
   void initState() {
     super.initState();
+    final today = DateTime.now();
+    final created = widget.rwCreatedAt;
+    _rwLocked =
+        !widget.isAdmin &&
+        created != null &&
+        (created.year != today.year ||
+            created.month != today.month ||
+            created.day != today.day);
     _stockSub = FirebaseFirestore.instance
         .collection('stock_items')
         .withConverter<StockItem>(
@@ -172,6 +184,7 @@ class _ProjectEditorScreenState extends State<ProjectEditorScreen> {
     final user = FirebaseAuth.instance.currentUser;
     if (user == null) return;
 
+    // 1) Prepare the lines
     final fullLines = List<ProjectLine>.from(_lines);
     final filteredLines = fullLines.where((l) => l.requestedQty > 0).toList();
 
@@ -184,6 +197,7 @@ class _ProjectEditorScreenState extends State<ProjectEditorScreen> {
         .doc(widget.projectId);
     final rwCol = projectRef.collection('rw_documents');
 
+    // 2) Find or create today's RW
     final now = DateTime.now();
     final startOfDay = DateTime(now.year, now.month, now.day);
     final startOfTomorrow = startOfDay.add(Duration(days: 1));
@@ -198,6 +212,7 @@ class _ProjectEditorScreenState extends State<ProjectEditorScreen> {
     final rwId = existsToday ? todaySnap.docs.first.id : rwCol.doc().id;
     final rwRef = rwCol.doc(rwId);
 
+    // 3) Prevent editing yesterday's doc for non-admins
     final docSnap = await rwRef.get();
     if (docSnap.exists) {
       final createdAtRaw = (docSnap.data()!['createdAt'] as Timestamp).toDate();
@@ -214,6 +229,7 @@ class _ProjectEditorScreenState extends State<ProjectEditorScreen> {
       }
     }
 
+    // 4) Determine createdAt/createdBy
     DateTime createdAt = now;
     String createdBy = user.uid;
     if (docSnap.exists) {
@@ -223,6 +239,7 @@ class _ProjectEditorScreenState extends State<ProjectEditorScreen> {
       createdBy = data['createdBy'] ?? createdBy;
     }
 
+    // 5) Build the RW data map
     final rwData = StockService.buildRwDocMap(
       rwId,
       widget.projectId,
@@ -235,36 +252,93 @@ class _ProjectEditorScreenState extends State<ProjectEditorScreen> {
       widget.customerId,
     );
 
+    // reset qty and debug
+    for (var ln in filteredLines) {
+      ln.previousQty ??= 0;
+
+      debugPrint(
+        '   • ${ln.itemRef}: requestedQty=${ln.requestedQty}, previousQty=${ln.previousQty}',
+      );
+    }
+
+    if (filteredLines.isEmpty) {
+      setState(() => _saving = false);
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Brak pozycji do zapisania do RW.')),
+      );
+      return;
+    }
+
     try {
+      // 6) Call the transaction
       await StockService.applyProjectLinesTransaction(
         customerId: widget.customerId,
         projectId: widget.projectId,
         rwDocId: rwId,
         rwDocData: rwData,
-        isNew: !docSnap.exists,
-        lines: fullLines,
+        isNew: !existsToday,
+        lines: filteredLines,
         newStatus: type,
         userId: user.uid,
       );
 
-      if (filteredLines.isEmpty && docSnap.exists) {
-        await rwRef.delete();
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Usunięto pusty dokument $type')),
-        );
-      } else {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Zapisano $type – magazyn aktualny')),
-        );
-      }
+      setState(() {
+        for (var ln in _lines) {
+          final matching = filteredLines.firstWhere(
+            (f) => f.itemRef == ln.itemRef,
+            orElse: () => ln,
+          );
+          if (ln.itemRef == matching.itemRef) {
+            ln.previousQty = matching.requestedQty;
+          }
+        }
+      });
 
-      setState(() => _lines = filteredLines);
-      await _checkTodayExists(type);
-    } catch (e, stack) {
-      debugPrint('[_saveRWDocument] error: $e\n$stack');
+      // 7) Feedback and cleanup if empty RW
+      // if (filteredLines.isEmpty && docSnap.exists) {
+      //   // Restore stock for previously saved lines
+      //   final oldLines = fullLines.where((l) => l.previousQty > 0).toList();
+      //   for (final line in oldLines) {
+      //     try {
+      //       final stockItem = _stockItems.firstWhere(
+      //         (s) => s.id == line.itemRef,
+      //       );
+      //       await StockService.increaseQty(stockItem.id, line.previousQty);
+      //     } catch (e) {
+      //       debugPrint('⚠️ Error restoring stock for ${line.itemRef}: $e');
+      //     }
+      //   }
+
+      //   // Delete the RW document
+      //   await rwRef.delete();
+
+      //   ScaffoldMessenger.of(context).showSnackBar(
+      //     SnackBar(
+      //       content: Text(
+      //         'Usunięto pusty dokument $type i przywrócono stan magazynowy',
+      //       ),
+      //     ),
+      //   );
+      // } else {
+      //   ScaffoldMessenger.of(context).showSnackBar(
+      //     SnackBar(content: Text('Zapisano $type – magazyn aktualny')),
+      //   );
+      // }
+
+      // 8) Re-check today’s RW state
+      try {
+        await _checkTodayExists(type);
+      } catch (e, st) {
+        debugPrint('⚠️ _checkTodayExists error: $e\n$st');
+      }
+    } catch (e, st) {
+      // — Debug logging on failure —
+      debugPrint('🔥 _saveRWDocument failed: $e');
+      debugPrint('📋 Stack trace:\n$st');
+
       ScaffoldMessenger.of(
         context,
-      ).showSnackBar(SnackBar(content: Text('Błąd zapisu: $e')));
+      ).showSnackBar(SnackBar(content: Text('Błąd zapisu: ${e.toString()}')));
     } finally {
       setState(() => _saving = false);
     }
@@ -303,6 +377,99 @@ class _ProjectEditorScreenState extends State<ProjectEditorScreen> {
     if (result != null) setState(() => _notes = result);
   }
 
+  Future<void> _cleanupEmptyRWIfNeeded() async {
+    if (_lines.isEmpty) {
+      final projectRef = FirebaseFirestore.instance
+          .collection('customers')
+          .doc(widget.customerId)
+          .collection('projects')
+          .doc(widget.projectId);
+      final rwCol = projectRef.collection('rw_documents');
+
+      final now = DateTime.now();
+      final startOfDay = DateTime(now.year, now.month, now.day);
+      final startOfTomorrow = startOfDay.add(Duration(days: 1));
+
+      final snap = await rwCol
+          .where('type', isEqualTo: 'RW')
+          .where('createdAt', isGreaterThanOrEqualTo: startOfDay)
+          .where('createdAt', isLessThan: startOfTomorrow)
+          .limit(1)
+          .get();
+
+      if (snap.docs.isNotEmpty) {
+        await snap.docs.first.reference.delete();
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('Usunięto pusty dokument RW')));
+        setState(() => _rwExistsToday = false);
+      }
+    }
+  }
+
+  Future<void> _deleteLineFromRW(ProjectLine line) async {
+    final rwCol = FirebaseFirestore.instance
+        .collection('customers')
+        .doc(widget.customerId)
+        .collection('projects')
+        .doc(widget.projectId)
+        .collection('rw_documents');
+
+    final today = DateTime.now();
+    final startOfDay = DateTime(today.year, today.month, today.day);
+    final startOfTomorrow = startOfDay.add(Duration(days: 1));
+
+    final rwSnap = await rwCol
+        .where('type', isEqualTo: 'RW')
+        .where('createdAt', isGreaterThanOrEqualTo: startOfDay)
+        .where('createdAt', isLessThan: startOfTomorrow)
+        .limit(1)
+        .get();
+
+    if (rwSnap.docs.isNotEmpty) {
+      final rwDoc = rwSnap.docs.first;
+      final rwId = rwDoc.id;
+      final rwData = rwDoc.data();
+
+      final List<dynamic> materials = List.from(rwData['lines'] ?? []);
+      final updated = materials.where((m) {
+        if (line.isStock) return m['itemRef'] != line.itemRef;
+        return m['customName'] != line.customName;
+      }).toList();
+
+      await rwCol.doc(rwId).update({'lines': updated});
+    }
+
+    // Restore stock
+    if (line.isStock) {
+      final stockRef = FirebaseFirestore.instance
+          .collection('stock_items')
+          .doc(line.itemRef);
+      await stockRef.update({
+        'quantity': FieldValue.increment(line.requestedQty),
+      });
+    }
+
+    // ❗️Remove from project items in Firestore
+    final projectRef = FirebaseFirestore.instance
+        .collection('customers')
+        .doc(widget.customerId)
+        .collection('projects')
+        .doc(widget.projectId);
+
+    final projSnap = await projectRef.get();
+    if (projSnap.exists) {
+      final items = List<Map<String, dynamic>>.from(
+        projSnap.data()?['items'] ?? [],
+      );
+      final newItems = items.where((m) {
+        if (line.isStock) return m['itemRef'] != line.itemRef;
+        return m['customName'] != line.customName;
+      }).toList();
+      await projectRef.update({'items': newItems});
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     if (_loading) {
@@ -315,7 +482,7 @@ class _ProjectEditorScreenState extends State<ProjectEditorScreen> {
     return Scaffold(
       appBar: AppBar(
         title: Text('Edytuj projekt'),
-        actions: <Widget>[
+        actions: [
           IconButton(
             icon: Icon(Icons.list_alt_rounded),
             tooltip: 'Dokumenty RW/MM',
@@ -331,7 +498,6 @@ class _ProjectEditorScreenState extends State<ProjectEditorScreen> {
               );
             },
           ),
-
           if (widget.isAdmin)
             IconButton(
               icon: Icon(Icons.delete, color: Colors.red),
@@ -374,6 +540,18 @@ class _ProjectEditorScreenState extends State<ProjectEditorScreen> {
           key: _formKey,
           child: Column(
             children: [
+              if (_rwLocked)
+                Padding(
+                  padding: const EdgeInsets.only(bottom: 8),
+                  child: Text(
+                    'Dokument RW jest zablokowany do edycji.',
+                    style: TextStyle(
+                      color: Colors.red,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                ),
+
               TextFormField(
                 initialValue: _title,
                 decoration: InputDecoration(labelText: 'Projekt'),
@@ -382,36 +560,89 @@ class _ProjectEditorScreenState extends State<ProjectEditorScreen> {
               ),
               SizedBox(height: 16),
 
-              // preview & save RW
+              if (_lines.any(
+                (l) => l.requestedQty > 0 && l.requestedQty != l.previousQty,
+              ))
+                Container(
+                  padding: EdgeInsets.all(8),
+                  margin: EdgeInsets.only(bottom: 8),
+                  decoration: BoxDecoration(
+                    color: Colors.orange.withValues(alpha: 0.15),
+                    borderRadius: BorderRadius.circular(6),
+                    border: Border.all(color: Colors.orange),
+                  ),
+                  child: Row(
+                    children: [
+                      Icon(Icons.warning_amber, color: Colors.orange),
+                      SizedBox(width: 8),
+                      Expanded(
+                        child: Text(
+                          'Preview. Kliknij "Zapisz RW", aby dodać do RW.',
+                          style: TextStyle(color: Colors.orange[900]),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+
               if (_lines.isNotEmpty)
                 Expanded(
                   child: ListView.builder(
                     itemCount: _lines.length,
-                    itemBuilder: (ctx, i) {
-                      final ln = _lines[i];
 
+                    itemBuilder: (ctx, i) {
+                      final today = DateTime.now();
+                      final ln = _lines[i];
                       final name = ln.isStock
                           ? _stockItems
                                 .firstWhere((s) => s.id == ln.itemRef)
                                 .name
                           : ln.customName;
-
                       final stockQty = ln.isStock
                           ? _stockItems
                                 .firstWhere((s) => s.id == ln.itemRef)
                                 .quantity
                           : ln.originalStock;
-
                       final delta = ln.requestedQty - ln.previousQty;
-
                       final previewQty = stockQty - delta;
-
                       final qtyColor = previewQty <= 0
                           ? Colors.red
                           : Colors.green;
 
+                      final isToday =
+                          ln.updatedAt == null ||
+                          (ln.updatedAt!.year == today.year &&
+                              ln.updatedAt!.month == today.month &&
+                              ln.updatedAt!.day == today.day);
+
+                      final isSynced =
+                          ln.requestedQty == ln.previousQty &&
+                          ln.requestedQty > 0;
+                      final isLineLocked =
+                          _rwLocked ||
+                          (isSynced && !isToday && !widget.isAdmin);
+
                       return ListTile(
-                        title: Text(name),
+                        title: Row(
+                          children: [
+                            Expanded(child: Text(name)),
+                            if (isSynced)
+                              Container(
+                                padding: EdgeInsets.symmetric(
+                                  horizontal: 6,
+                                  vertical: 2,
+                                ),
+                                decoration: BoxDecoration(
+                                  color: Colors.green.withValues(alpha: 0.15),
+                                  borderRadius: BorderRadius.circular(4),
+                                ),
+                                child: Text(
+                                  'Zapisany do RW',
+                                  style: TextStyle(color: Colors.green[900]),
+                                ),
+                              ),
+                          ],
+                        ),
                         subtitle: Text.rich(
                           TextSpan(
                             style: Theme.of(context).textTheme.bodyMedium,
@@ -428,154 +659,73 @@ class _ProjectEditorScreenState extends State<ProjectEditorScreen> {
                           mainAxisSize: MainAxisSize.min,
                           children: [
                             IconButton(
-                              icon: Icon(Icons.edit, color: Colors.blue),
-                              onPressed: () async {
-                                final updated = await showProjectLineDialog(
-                                  context,
-                                  _stockItems,
-                                  existing: ln,
-                                );
-                                if (updated != null) {
-                                  setState(() => _lines[i] = updated);
-                                }
-                              },
-                            ),
-                            IconButton(
-                              icon: Icon(Icons.delete, color: Colors.red),
-                              onPressed: () async {
-                                final removed = _lines[i];
-
-                                if (removed.isStock) {
-                                  final stockRef = FirebaseFirestore.instance
-                                      .collection('stock_items')
-                                      .doc(removed.itemRef);
-                                  await stockRef.update({
-                                    'quantity': FieldValue.increment(
-                                      removed.requestedQty,
-                                    ),
-                                    'updatedAt': FieldValue.serverTimestamp(),
-                                    'updatedBy':
-                                        FirebaseAuth.instance.currentUser!.uid,
-                                  });
-                                }
-
-                                setState(() => _lines.removeAt(i));
-
-                                if (_lines.isEmpty) {
-                                  final projectRef = FirebaseFirestore.instance
-                                      .collection('customers')
-                                      .doc(widget.customerId)
-                                      .collection('projects')
-                                      .doc(widget.projectId);
-                                  final rwCol = projectRef.collection(
-                                    'rw_documents',
-                                  );
-                                  final now = DateTime.now();
-                                  final startOfDay = DateTime(
-                                    now.year,
-                                    now.month,
-                                    now.day,
-                                  );
-                                  final startOfTomorrow = startOfDay.add(
-                                    Duration(days: 1),
-                                  );
-                                  final snap = await rwCol
-                                      .where('type', isEqualTo: 'RW')
-                                      .where(
-                                        'createdAt',
-                                        isGreaterThanOrEqualTo: startOfDay,
-                                      )
-                                      .where(
-                                        'createdAt',
-                                        isLessThan: startOfTomorrow,
-                                      )
-                                      .limit(1)
-                                      .get();
-                                  if (snap.docs.isNotEmpty) {
-                                    await snap.docs.first.reference.delete();
-                                    ScaffoldMessenger.of(context).showSnackBar(
-                                      SnackBar(
-                                        content: Text(
-                                          'Usunięto pusty dokument RW',
+                              icon: Icon(
+                                Icons.edit,
+                                color: isLineLocked ? Colors.grey : Colors.blue,
+                              ),
+                              onPressed: isLineLocked
+                                  ? () {
+                                      ScaffoldMessenger.of(
+                                        context,
+                                      ).showSnackBar(
+                                        SnackBar(
+                                          content: Text(
+                                            'Tylko administrator może edytować starsze pozycje',
+                                          ),
                                         ),
-                                      ),
-                                    );
-                                    setState(() => _rwExistsToday = false);
-                                  }
-                                }
-                              },
+                                      );
+                                    }
+                                  : () async {
+                                      final updated =
+                                          await showProjectLineDialog(
+                                            context,
+                                            _stockItems,
+                                            existing: ln,
+                                          );
+                                      if (updated != null) {
+                                        setState(() => _lines[i] = updated);
+                                      }
+                                    },
                             ),
+                            if (!isLineLocked)
+                              IconButton(
+                                icon: Icon(Icons.delete, color: Colors.red),
+                                onPressed: () async {
+                                  final removedLine = _lines[i];
+                                  setState(() => _lines.removeAt(i));
+                                  await _deleteLineFromRW(ln);
+                                  await _saveRWDocument('RW');
+
+                                  removedLine.previousQty = 0;
+                                  await _cleanupEmptyRWIfNeeded();
+                                },
+                              )
+                            else
+                              IconButton(
+                                icon: Icon(Icons.delete, color: Colors.grey),
+                                onPressed: () {
+                                  ScaffoldMessenger.of(context).showSnackBar(
+                                    SnackBar(
+                                      content: Text(
+                                        'Tylko administrator może usuwać starsze pozycje',
+                                      ),
+                                    ),
+                                  );
+                                },
+                              ),
                           ],
                         ),
                       );
                     },
                   ),
                 ),
-
-              Align(
-                alignment: Alignment.centerRight,
-                child: FloatingActionButton(
-                  mini: false,
-                  onPressed: () async {
-                    final newLine = await showProjectLineDialog(
-                      context,
-                      _stockItems,
-                    );
-                    if (newLine == null) return;
-
-                    final lineWithUnit = newLine.isStock
-                        ? newLine.copyWith(
-                            unit: _stockItems
-                                .firstWhere((s) => s.id == newLine.itemRef)
-                                .unit,
-                          )
-                        : newLine;
-
-                    // Prevent duplicates
-                    final isDup = newLine.isStock
-                        ? _lines.any(
-                            (l) => l.isStock && l.itemRef == newLine.itemRef,
-                          )
-                        : _lines.any(
-                            (l) =>
-                                !l.isStock &&
-                                l.customName.toLowerCase() ==
-                                    newLine.customName.toLowerCase(),
-                          );
-
-                    if (isDup) {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        SnackBar(
-                          content: Text(
-                            'Nie mozna dodac bo pozycja juz istnieje!',
-                          ),
-                        ),
-                      );
-                      return;
-                    }
-
-                    setState(() => _lines.add(lineWithUnit));
-                  },
-                  tooltip: 'Dodaj',
-                  // backgroundColor: Theme.of(context).colorScheme.secondary,
-                  child: Icon(Icons.playlist_add, size: 28),
-                ),
-              ),
-
-              Divider(height: 32),
-
-              // Images & notes preview
-              // Save buttons
+              SizedBox(height: 16),
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceEvenly,
                 children: [
                   ElevatedButton(
-                    onPressed: () => _saveRWDocument('RW'),
+                    onPressed: _rwLocked ? null : () => _saveRWDocument('RW'),
                     child: Text(_rwExistsToday ? 'Update RW' : 'Zapisz RW'),
-                  ),
-                  ElevatedButton(
-                    onPressed: () => _saveRWDocument('MM'),
-                    child: Text(_mmExistsToday ? 'Update MM' : 'Zapisz MM'),
                   ),
                 ],
               ),
@@ -583,6 +733,50 @@ class _ProjectEditorScreenState extends State<ProjectEditorScreen> {
           ),
         ),
       ),
+      floatingActionButton: _rwLocked
+          ? null
+          : FloatingActionButton(
+              onPressed: () async {
+                final newLine = await showProjectLineDialog(
+                  context,
+                  _stockItems,
+                );
+
+                if (newLine == null) return;
+
+                final lineWithUnit = newLine.isStock
+                    ? newLine.copyWith(
+                        unit: _stockItems
+                            .firstWhere((s) => s.id == newLine.itemRef)
+                            .unit,
+                      )
+                    : newLine;
+
+                final isDup = newLine.isStock
+                    ? _lines.any(
+                        (l) => l.isStock && l.itemRef == newLine.itemRef,
+                      )
+                    : _lines.any(
+                        (l) =>
+                            !l.isStock &&
+                            l.customName.toLowerCase() ==
+                                newLine.customName.toLowerCase(),
+                      );
+
+                if (isDup) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(
+                      content: Text('Nie mozna dodac bo pozycja juz istnieje!'),
+                    ),
+                  );
+                  return;
+                }
+
+                setState(() => _lines.add(lineWithUnit));
+              },
+              tooltip: 'Dodaj',
+              child: Icon(Icons.playlist_add, size: 28),
+            ),
     );
   }
 }
