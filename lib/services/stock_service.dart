@@ -37,14 +37,14 @@ class StockService {
 
     final stockSnapshots = <String, DocumentSnapshot>{};
 
-    for (final ln in lines.where((l) => l.isStock)) {
+    for (final ln in lines.where((l) => l.isStock || l.previousQty > 0)) {
       final doc = await db.collection('stock_items').doc(ln.itemRef).get();
       stockSnapshots[ln.itemRef] = doc;
     }
 
     try {
       await db.runTransaction((tx) async {
-        for (final ln in lines.where((l) => l.isStock)) {
+        for (final ln in lines.where((l) => l.isStock || l.previousQty > 0)) {
           final snap = stockSnapshots[ln.itemRef];
           if (snap == null || !snap.exists) {
             throw Exception('Produkt ${ln.itemRef} nie istnieje');
@@ -62,16 +62,23 @@ class StockService {
           debugPrint('   newQty=${currentQty - delta}');
           debugPrint('   userId=$userId');
 
-          if (delta > 0) {
-            if (delta > currentQty) {
+          if (delta != 0) {
+            final newQty = currentQty - delta;
+
+            if (delta > 0 && delta > currentQty) {
               throw Exception('Za mało ${data['name']} (brakuje $delta)');
             }
 
             tx.update(db.collection('stock_items').doc(ln.itemRef), {
-              'quantity': currentQty - delta,
+              'quantity': newQty,
               'updatedAt': FieldValue.serverTimestamp(),
               'updatedBy': userId,
             });
+
+            debugPrint('🔄 Stock updated for ${ln.itemRef}');
+            debugPrint('   currentQty=$currentQty');
+            debugPrint('   delta=$delta');
+            debugPrint('   newQty=$newQty');
           }
 
           ln.previousQty = ln.requestedQty;
@@ -89,12 +96,13 @@ class StockService {
           });
         }
 
-        final updatedLines = lines
+        // Clear zero-qty or removed lines completely from project.items
+        final remainingLines = lines
             .where((l) => l.isStock && l.requestedQty > 0)
             .toList();
 
         tx.update(projectRef, {
-          'items': updatedLines.map((l) => l.toMap()).toList(),
+          'items': remainingLines.map((l) => l.toMap()).toList(),
           'status': newStatus,
           'lastRwDate': FieldValue.serverTimestamp(),
         });

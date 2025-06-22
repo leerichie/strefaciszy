@@ -185,20 +185,27 @@ Future<ProjectLine?> showProjectLineDialog(
                       validator: (v) {
                         final n = int.tryParse(v ?? '');
                         if (n == null || n < 0) return 'Nieprawidłowa ilość';
+
                         if (isStock) {
-                          final available = stockItems
-                              .firstWhere(
-                                (s) => s.id == itemRef,
-                                orElse: () =>
-                                    StockItem(id: '', name: '', quantity: 0),
-                              )
-                              .quantity;
-                          if (n > available) {
-                            return 'Za mało w magazynie (max: $available)';
+                          final stockItem = stockItems.firstWhere(
+                            (s) => s.id == itemRef,
+                            orElse: () =>
+                                StockItem(id: '', name: '', quantity: 0),
+                          );
+
+                          final available = stockItem.quantity;
+                          final takenBefore = existing?.previousQty ?? 0;
+                          final delta = n - takenBefore;
+
+                          if (delta > available) {
+                            final maxTotal = available + takenBefore;
+                            return 'Za mało w magazynie (max: $maxTotal)';
                           }
                         }
+
                         return null;
                       },
+
                       onChanged: (v) => qty = int.tryParse(v) ?? qty,
                     ),
 
