@@ -189,15 +189,15 @@ class _InventoryListScreenState extends State<InventoryListScreen> {
                         '${item.unit != null ? ' ${item.unit}' : ''}',
                         style: TextStyle(fontSize: 12, color: Colors.grey[700]),
                       ),
-                      trailing: widget.isAdmin
-                          ? IconButton(
-                              icon: const Icon(Icons.delete, color: Colors.red),
-                              onPressed: () => FirebaseFirestore.instance
-                                  .collection('stock_items')
-                                  .doc(item.id)
-                                  .delete(),
-                            )
-                          : null,
+                      // trailing: widget.isAdmin
+                      //     ? IconButton(
+                      //         icon: const Icon(Icons.delete, color: Colors.red),
+                      //         onPressed: () => FirebaseFirestore.instance
+                      //             .collection('stock_items')
+                      //             .doc(item.id)
+                      //             .delete(),
+                      //       )
+                      //     : null,
                       onTap: () => Navigator.of(context).push(
                         MaterialPageRoute(
                           builder: (_) => ItemDetailScreen(itemId: item.id),
