@@ -261,39 +261,36 @@ class _ProjectEditorScreenState extends State<ProjectEditorScreen> {
       );
     }
 
-    if (filteredLines.isEmpty && docSnap.exists) {
-      // restore every previously-saved line
-      for (final ln in fullLines.where((l) => l.previousQty > 0)) {
-        try {
-          await StockService.increaseQty(ln.itemRef, ln.previousQty);
-          debugPrint('🔄 Restored ${ln.previousQty} for ${ln.itemRef}');
-          ln.previousQty = 0;
-        } catch (e) {
-          debugPrint("⚠️ Couldn't restore ${ln.itemRef}: $e");
-        }
-      }
-
-      // delete the empty RW doc
-      await rwRef.delete();
-      debugPrint('🗑️ RW document $rwId deleted because no lines remain.');
-
-      // clear out UI state
-      setState(() {
-        _lines.clear();
-        _rwExistsToday = false;
-      });
-
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(
-            'Usunięto pusty dokument $type i przywrócono stan magazynowy',
-          ),
-        ),
-      );
-
-      setState(() => _saving = false);
-      return;
+   if (filteredLines.isEmpty && docSnap.exists) {
+  // restore every previously-saved line
+  for (final ln in fullLines.where((l) => l.previousQty > 0)) {
+    try {
+      await StockService.increaseQty(ln.itemRef, ln.previousQty);
+      debugPrint('🔄 Restored ${ln.previousQty} for ${ln.itemRef}');
+      ln.previousQty = 0;
+    } catch (e) {
+      debugPrint('⚠️ Couldn't restore ${ln.itemRef}: $e');
     }
+  }
+
+  // delete the empty RW doc
+  await rwRef.delete();
+  debugPrint('🗑️ RW document $rwId deleted because no lines remain.');
+
+  // clear out UI state
+  setState(() {
+    _lines.clear();
+    _rwExistsToday = false;
+  });
+
+  ScaffoldMessenger.of(context).showSnackBar(
+    SnackBar(content: Text('Usunięto pusty dokument $type i przywrócono stan magazynowy')),
+  );
+
+  setState(() => _saving = false);
+  return;
+}
+  
 
     try {
       // 6) Call the transaction

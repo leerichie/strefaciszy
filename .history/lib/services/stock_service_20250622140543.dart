@@ -37,14 +37,14 @@ class StockService {
 
     final stockSnapshots = <String, DocumentSnapshot>{};
 
-    for (final ln in lines.where((l) => l.isStock || l.previousQty > 0)) {
+    for (final ln in lines.where((l) => l.isStock)) {
       final doc = await db.collection('stock_items').doc(ln.itemRef).get();
       stockSnapshots[ln.itemRef] = doc;
     }
 
     try {
       await db.runTransaction((tx) async {
-        for (final ln in lines.where((l) => l.isStock || l.previousQty > 0)) {
+        for (final ln in lines.where((l) => l.isStock)) {
           final snap = stockSnapshots[ln.itemRef];
           if (snap == null || !snap.exists) {
             throw Exception('Produkt ${ln.itemRef} nie istnieje');
@@ -135,56 +135,56 @@ class StockService {
     });
   }
 
-  static Future<void> _applyLineDelta(
-    Transaction tx,
-    ProjectLine ln,
-    String userId,
-  ) async {
-    final stockRef = FirebaseFirestore.instance
-        .collection('stock_items')
-        .doc(ln.itemRef);
-    final snap = await tx.get(stockRef);
-    final data = snap.data();
+  // static Future<void> _applyLineDelta(
+  //   Transaction tx,
+  //   ProjectLine ln,
+  //   String userId,
+  // ) async {
+  //   final stockRef = FirebaseFirestore.instance
+  //       .collection('stock_items')
+  //       .doc(ln.itemRef);
+  //   final snap = await tx.get(stockRef);
+  //   final data = snap.data();
 
-    if (data == null) {
-      throw Exception('Produkt ${ln.itemRef} nie istnieje');
-    }
+  //   if (data == null) {
+  //     throw Exception('Produkt ${ln.itemRef} nie istnieje');
+  //   }
 
-    if (!data.containsKey('quantity')) {
-      throw Exception('Brakuje pola quantity w produkcie ${ln.itemRef}');
-    }
+  //   if (!data.containsKey('quantity')) {
+  //     throw Exception('Brakuje pola quantity w produkcie ${ln.itemRef}');
+  //   }
 
-    final currentQty = (data['quantity'] as int? ?? 0);
-    final delta = ln.requestedQty - ln.previousQty;
+  //   final currentQty = (data['quantity'] as int? ?? 0);
+  //   final delta = ln.requestedQty - ln.previousQty;
 
-    debugPrint('🔄 Applying delta: $delta for ${ln.itemRef}');
+  //   debugPrint('🔄 Applying delta: $delta for ${ln.itemRef}');
 
-    try {
-      if (delta > 0) {
-        if (delta > currentQty) {
-          throw Exception('Za mało ${data['name']} (brakuje $delta)');
-        }
+  //   try {
+  //     if (delta > 0) {
+  //       if (delta > currentQty) {
+  //         throw Exception('Za mało ${data['name']} (brakuje $delta)');
+  //       }
 
-        final newQty = currentQty - delta;
-        debugPrint('➡️ Before stock update: ${ln.itemRef}');
-        debugPrint('   currentQty=$currentQty');
-        debugPrint('   delta=$delta');
-        debugPrint('   newQty=$newQty');
-        debugPrint('   userId=$userId');
+  //       final newQty = currentQty - delta;
+  //       debugPrint('➡️ Before stock update: ${ln.itemRef}');
+  //       debugPrint('   currentQty=$currentQty');
+  //       debugPrint('   delta=$delta');
+  //       debugPrint('   newQty=$newQty');
+  //       debugPrint('   userId=$userId');
 
-        tx.update(stockRef, {
-          'quantity': newQty,
-          'updatedAt': FieldValue.serverTimestamp(),
-          'updatedBy': userId,
-        });
-      }
-    } catch (e) {
-      debugPrint('❌ Error in tx.update for ${ln.itemRef}: $e');
-      rethrow;
-    }
+  //       tx.update(stockRef, {
+  //         'quantity': newQty,
+  //         'updatedAt': FieldValue.serverTimestamp(),
+  //         'updatedBy': userId,
+  //       });
+  //     }
+  //   } catch (e) {
+  //     debugPrint('❌ Error in tx.update for ${ln.itemRef}: $e');
+  //     rethrow;
+  //   }
 
-    ln.previousQty = ln.requestedQty;
-  }
+  //   ln.previousQty = ln.requestedQty;
+  // }
 
   static Map<String, dynamic> buildRwDocMap(
     String id,

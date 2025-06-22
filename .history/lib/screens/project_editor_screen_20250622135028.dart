@@ -261,37 +261,29 @@ class _ProjectEditorScreenState extends State<ProjectEditorScreen> {
       );
     }
 
-    if (filteredLines.isEmpty && docSnap.exists) {
-      // restore every previously-saved line
-      for (final ln in fullLines.where((l) => l.previousQty > 0)) {
-        try {
-          await StockService.increaseQty(ln.itemRef, ln.previousQty);
-          debugPrint('🔄 Restored ${ln.previousQty} for ${ln.itemRef}');
-          ln.previousQty = 0;
-        } catch (e) {
-          debugPrint("⚠️ Couldn't restore ${ln.itemRef}: $e");
-        }
+    if (filteredLines.isEmpty) {
+      // Delete RW doc if it exists
+      if (docSnap.exists) {
+        await rwRef.delete();
+        print("🗑️ RW document deleted because no lines remained.");
       }
 
-      // delete the empty RW doc
-      await rwRef.delete();
-      debugPrint('🗑️ RW document $rwId deleted because no lines remain.');
+      // Remove empty lines from project
+      final remainingLines = fullLines
+          .where((l) => l.requestedQty > 0)
+          .toList();
+      await projectRef.update({
+        'items': remainingLines.map((l) => l.toMap()).toList(),
+      });
 
-      // clear out UI state
       setState(() {
-        _lines.clear();
-        _rwExistsToday = false;
+        _lines = remainingLines;
+        _saving = false;
       });
 
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(
-            'Usunięto pusty dokument $type i przywrócono stan magazynowy',
-          ),
-        ),
+        SnackBar(content: Text('Brak pozycji do zapisania do RW.')),
       );
-
-      setState(() => _saving = false);
       return;
     }
 
@@ -303,7 +295,7 @@ class _ProjectEditorScreenState extends State<ProjectEditorScreen> {
         rwDocId: rwId,
         rwDocData: rwData,
         isNew: !existsToday,
-        lines: fullLines,
+        lines: filteredLines,
         newStatus: type,
         userId: user.uid,
       );

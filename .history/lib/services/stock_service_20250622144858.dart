@@ -44,7 +44,7 @@ class StockService {
 
     try {
       await db.runTransaction((tx) async {
-        for (final ln in lines.where((l) => l.isStock || l.previousQty > 0)) {
+        for (final ln in lines.where((l) => l.isStock)) {
           final snap = stockSnapshots[ln.itemRef];
           if (snap == null || !snap.exists) {
             throw Exception('Produkt ${ln.itemRef} nie istnieje');
@@ -63,10 +63,15 @@ class StockService {
           debugPrint('   userId=$userId');
 
           if (delta != 0) {
-            final newQty = currentQty - delta;
+            int newQty = currentQty - delta;
 
             if (delta > 0 && delta > currentQty) {
               throw Exception('Za mało ${data['name']} (brakuje $delta)');
+            }
+
+            if (delta < 0) {
+              // Stock is being restored
+              newQty = currentQty - delta; // subtracting a negative => add
             }
 
             tx.update(db.collection('stock_items').doc(ln.itemRef), {

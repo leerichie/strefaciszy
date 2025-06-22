@@ -37,14 +37,14 @@ class StockService {
 
     final stockSnapshots = <String, DocumentSnapshot>{};
 
-    for (final ln in lines.where((l) => l.isStock || l.previousQty > 0)) {
+    for (final ln in lines.where((l) => l.isStock)) {
       final doc = await db.collection('stock_items').doc(ln.itemRef).get();
       stockSnapshots[ln.itemRef] = doc;
     }
 
     try {
       await db.runTransaction((tx) async {
-        for (final ln in lines.where((l) => l.isStock || l.previousQty > 0)) {
+        for (final ln in lines.where((l) => l.isStock)) {
           final snap = stockSnapshots[ln.itemRef];
           if (snap == null || !snap.exists) {
             throw Exception('Produkt ${ln.itemRef} nie istnieje');
