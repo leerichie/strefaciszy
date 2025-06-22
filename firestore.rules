@@ -2,59 +2,62 @@ rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
 
-    // STOCK items: any signed‐in user can read or write
+    // STOCK_ITEMS: any signed-in user can read or write
     match /stock_items/{id} {
       allow read, write: if request.auth != null;
     }
 
-    // CUSTOMERS & sub‐collections
+    // CUSTOMERS & sub-collections
     match /customers/{customerId} {
-      // any signed‐in user can read & write customers
       allow read, write: if request.auth != null;
 
-      // PROJECTS under a customer
       match /projects/{projectId} {
-        // any signed‐in user can read & write projects
         allow read, write: if request.auth != null;
 
-        // RW_DOCUMENTS under that project
         match /rw_documents/{docId} {
-          // any signed-in user can create & read
-          allow create: if request.auth != null;
-          allow read:   if request.auth != null;
-
-          // only admins can update or delete
-          allow update, delete: if request.auth.token.admin == true;
+          allow read, create: if request.auth != null;
+          allow update, delete: if request.auth != null
+            && (
+              request.auth.token.admin == true
+              || (
+                resource.data.createdBy == request.auth.uid
+                && request.time.toMillis()
+                     - resource.data.createdAt.toMillis()
+                   < 24 * 60 * 60 * 1000
+              )
+            );
         }
       }
     }
 
-    // Top‐level PROJECTS (if you have one)
+    // Top-level PROJECTS
     match /projects/{id} {
       allow read, write: if request.auth != null;
     }
 
-    // Top‐level RW_DOCUMENTS for “all RW/MM” menu
+    // Top-level RW_DOCUMENTS (all‐RW/MM menu)
     match /rw_documents/{docId} {
-      // any signed-in user can read & create
-      allow read:   if request.auth != null;
-      allow create: if request.auth != null;
-
-      // only admins may update or delete
+      allow read, create: if request.auth != null;
       allow update, delete: if request.auth.token.admin == true;
     }
 
-    // REPORTS: any signed-in user
+    // REPORTS
     match /reports/{id} {
       allow read, write: if request.auth != null;
     }
 
-    // CATEGORIES: any signed-in user
+    // CATEGORIES
     match /categories/{id} {
       allow read, write: if request.auth != null;
     }
 
-    // USERS: only admins may read or write
+    // AUDIT_LOGS
+    match /audit_logs/{logId} {
+      allow create: if request.auth != null;
+      allow read:   if request.auth != null;  // or admin only
+    }
+
+    // USERS
     match /users/{uid} {
       allow read, write: if request.auth.token.admin == true;
     }
