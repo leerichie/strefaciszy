@@ -197,23 +197,6 @@ class _ProjectEditorScreenState extends State<ProjectEditorScreen> {
     final user = FirebaseAuth.instance.currentUser;
     if (user == null) return;
 
-    // 0) Fetch human-readable client & project names
-    final custSnap = await FirebaseFirestore.instance
-        .collection('customers')
-        .doc(widget.customerId)
-        .get();
-    final customerName =
-        custSnap.data()?['name'] as String? ?? '<nieznany klient>';
-
-    final projSnap = await FirebaseFirestore.instance
-        .collection('customers')
-        .doc(widget.customerId)
-        .collection('projects')
-        .doc(widget.projectId)
-        .get();
-    final projectName =
-        projSnap.data()?['title'] as String? ?? '<nieznany projekt>';
-
     // 1) Prepare the lines
     final fullLines = List<ProjectLine>.from(_lines);
     final filteredLines = fullLines.where((l) => l.requestedQty > 0).toList();
@@ -326,6 +309,20 @@ class _ProjectEditorScreenState extends State<ProjectEditorScreen> {
             return '${stock.name}(${ln.requestedQty})';
           })
           .join(', ');
+
+      // 4) Finally log only the fields you want to see:
+      await AuditService.logAction(
+        action: existsToday
+            ? 'Zaktualizowano dokument RW'
+            : 'Utworzono dokument RW',
+        details: {
+          'Klient': customerName,
+          'Projekt': projectName,
+          'RW-ID': rwId,
+          'Pozycji': filteredLines.length.toString(),
+          'Szczegóły': itemSummaries,
+        },
+      );
 
       // 3) Actually delete the RW doc
       await rwRef.delete();

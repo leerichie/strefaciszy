@@ -197,23 +197,6 @@ class _ProjectEditorScreenState extends State<ProjectEditorScreen> {
     final user = FirebaseAuth.instance.currentUser;
     if (user == null) return;
 
-    // 0) Fetch human-readable client & project names
-    final custSnap = await FirebaseFirestore.instance
-        .collection('customers')
-        .doc(widget.customerId)
-        .get();
-    final customerName =
-        custSnap.data()?['name'] as String? ?? '<nieznany klient>';
-
-    final projSnap = await FirebaseFirestore.instance
-        .collection('customers')
-        .doc(widget.customerId)
-        .collection('projects')
-        .doc(widget.projectId)
-        .get();
-    final projectName =
-        projSnap.data()?['title'] as String? ?? '<nieznany projekt>';
-
     // 1) Prepare the lines
     final fullLines = List<ProjectLine>.from(_lines);
     final filteredLines = fullLines.where((l) => l.requestedQty > 0).toList();
@@ -304,28 +287,39 @@ class _ProjectEditorScreenState extends State<ProjectEditorScreen> {
       }
 
       // 2) Audit: log that the empty RW was removed
-      // 2) Lookup human-readable names up front:
       final custSnap = await FirebaseFirestore.instance
           .collection('customers')
           .doc(widget.customerId)
           .get();
-      final customerName = custSnap.data()?['name'] as String? ?? '–';
+      final customerName =
+          custSnap.data()?['name'] as String? ?? widget.customerId;
 
-      final projSnap = await FirebaseFirestore.instance
-          .collection('customers')
-          .doc(widget.customerId)
-          .collection('projects')
-          .doc(widget.projectId)
-          .get();
-      final projectName = projSnap.data()?['title'] as String? ?? '–';
+      final projSnap = await projectRef.get();
+      final projectName =
+          projSnap.data()?['title'] as String? ?? widget.projectId;
 
-      // 3) Build a little “item1(qty), item2(qty)” summary:
+      // Build a simple "items" summary: e.g. "Hammer(2), Nails(50)"
       final itemSummaries = filteredLines
           .map((ln) {
             final stock = _stockItems.firstWhere((s) => s.id == ln.itemRef);
             return '${stock.name}(${ln.requestedQty})';
           })
           .join(', ');
+
+      // then:
+      await AuditService.logAction(
+        action: existsToday
+            ? 'Zaktualizowano dokument RW'
+            : 'Utworzono dokument RW',
+        details: {
+          'customerName': customerName,
+          'projectName': projectName,
+          'rwId': rwId,
+          'linesCount': filteredLines.length.toString(),
+          'items': itemSummaries,
+          'userId': user.uid,
+        },
+      );
 
       // 3) Actually delete the RW doc
       await rwRef.delete();
@@ -362,29 +356,17 @@ class _ProjectEditorScreenState extends State<ProjectEditorScreen> {
         userId: user.uid,
       );
 
-      // build a “name(qty)” summary for the audit
-      final itemSummaries = filteredLines
-          .map((ln) {
-            if (ln.isStock) {
-              final stock = _stockItems.firstWhere((s) => s.id == ln.itemRef);
-              return '${stock.name}(${ln.requestedQty})';
-            } else {
-              return '${ln.customName}(${ln.requestedQty})';
-            }
-          })
-          .join(', ');
-
-      // log create/update
       await AuditService.logAction(
         action: existsToday
             ? 'Zaktualizowano dokument RW'
             : 'Utworzono dokument RW',
         details: {
-          'Klient': customerName,
-          'Projekt': projectName,
-          'RW ID': rwId,
-          'Pozycji': filteredLines.length.toString(),
-          'Szczegóły': itemSummaries,
+          'customerName': _customerName,
+          'customerId': widget.customerId,
+          'projectId': widget.projectId,
+          'rwId': rwId,
+          'lines': filteredLines.length,
+          'userId': user.uid,
         },
       );
 

@@ -100,7 +100,7 @@ class MainMenuScreen extends StatelessWidget {
 
           if (isAdmin)
             ListTile(
-              leading: Icon(Icons.history_edu),
+              leading: Icon(Icons.history),
               title: Text('Dziennik AUDIT'),
               onTap: () => Navigator.of(
                 context,

@@ -3,7 +3,6 @@
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
-import 'package:strefa_ciszy/screens/audit_log_screen.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import 'customer_list_screen.dart';
@@ -96,18 +95,7 @@ class MainMenuScreen extends StatelessWidget {
               ).push(MaterialPageRoute(builder: (_) => ScanScreen())),
             ),
 
-          Divider(),
-
-          if (isAdmin)
-            ListTile(
-              leading: Icon(Icons.history_edu),
-              title: Text('Dziennik AUDIT'),
-              onTap: () => Navigator.of(
-                context,
-              ).push(MaterialPageRoute(builder: (_) => AuditLogScreen())),
-            ),
-
-          Divider(),
+          Divider(height: 32),
 
           ListTile(
             leading: Icon(Icons.download_rounded),

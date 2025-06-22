@@ -98,14 +98,13 @@ class MainMenuScreen extends StatelessWidget {
 
           Divider(),
 
-          if (isAdmin)
-            ListTile(
-              leading: Icon(Icons.history_edu),
-              title: Text('Dziennik AUDIT'),
-              onTap: () => Navigator.of(
-                context,
-              ).push(MaterialPageRoute(builder: (_) => AuditLogScreen())),
-            ),
+          ListTile(
+            leading: Icon(Icons.history_edu),
+            title: Text('History audit'),
+            onTap: () => Navigator.of(
+              context,
+            ).push(MaterialPageRoute(builder: (_) => AuditLogScreen())),
+          ),
 
           Divider(),
 

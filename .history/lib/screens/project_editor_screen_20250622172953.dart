@@ -197,23 +197,6 @@ class _ProjectEditorScreenState extends State<ProjectEditorScreen> {
     final user = FirebaseAuth.instance.currentUser;
     if (user == null) return;
 
-    // 0) Fetch human-readable client & project names
-    final custSnap = await FirebaseFirestore.instance
-        .collection('customers')
-        .doc(widget.customerId)
-        .get();
-    final customerName =
-        custSnap.data()?['name'] as String? ?? '<nieznany klient>';
-
-    final projSnap = await FirebaseFirestore.instance
-        .collection('customers')
-        .doc(widget.customerId)
-        .collection('projects')
-        .doc(widget.projectId)
-        .get();
-    final projectName =
-        projSnap.data()?['title'] as String? ?? '<nieznany projekt>';
-
     // 1) Prepare the lines
     final fullLines = List<ProjectLine>.from(_lines);
     final filteredLines = fullLines.where((l) => l.requestedQty > 0).toList();
