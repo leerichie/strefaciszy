@@ -352,14 +352,11 @@ class _ProjectEditorScreenState extends State<ProjectEditorScreen> {
       }
 
       // 6b) write (or overwrite) the RW doc in one go
-      if (existsToday) {
-        batch.update(rwRef, rwData);
-      } else {
-        batch.set(rwRef, rwData);
-      }
+      batch.set(rwRef, rwData, SetOptions(merge: true));
 
       // commit atomically
       await batch.commit();
+      // ──────────────────────────────────────────────────────
 
       // build a “name(qty)” summary for the audit
       final itemSummaries = filteredLines

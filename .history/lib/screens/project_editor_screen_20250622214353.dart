@@ -337,6 +337,8 @@ class _ProjectEditorScreenState extends State<ProjectEditorScreen> {
     }
 
     try {
+      // ────────────── HERE’S THE ONLY CHANGE ──────────────
+      // 6) Instead of StockService.applyProjectLinesTransaction, do one Batch:
       final batch = FirebaseFirestore.instance.batch();
 
       // 6a) adjust stock quantities for each line diff
@@ -345,21 +347,18 @@ class _ProjectEditorScreenState extends State<ProjectEditorScreen> {
         final diff = ln.requestedQty - prev;
         if (diff != 0) {
           final stockRef = FirebaseFirestore.instance
-              .collection('stock_items')
+              .collection('stock')
               .doc(ln.itemRef);
           batch.update(stockRef, {'quantity': FieldValue.increment(-diff)});
         }
       }
 
       // 6b) write (or overwrite) the RW doc in one go
-      if (existsToday) {
-        batch.update(rwRef, rwData);
-      } else {
-        batch.set(rwRef, rwData);
-      }
+      batch.set(rwRef, rwData, SetOptions(merge: true));
 
       // commit atomically
       await batch.commit();
+      // ──────────────────────────────────────────────────────
 
       // build a “name(qty)” summary for the audit
       final itemSummaries = filteredLines
@@ -771,7 +770,7 @@ class _ProjectEditorScreenState extends State<ProjectEditorScreen> {
                                   await _saveRWDocument('RW');
 
                                   removedLine.previousQty = 0;
-                                  // await _cleanupEmptyRWIfNeeded();
+                                  await _cleanupEmptyRWIfNeeded();
                                 },
                               )
                             else

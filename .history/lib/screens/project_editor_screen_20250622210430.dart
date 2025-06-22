@@ -197,23 +197,6 @@ class _ProjectEditorScreenState extends State<ProjectEditorScreen> {
     final user = FirebaseAuth.instance.currentUser;
     if (user == null) return;
 
-    // 0) Fetch human-readable client & project names
-    final custSnap = await FirebaseFirestore.instance
-        .collection('customers')
-        .doc(widget.customerId)
-        .get();
-    final customerName =
-        custSnap.data()?['name'] as String? ?? '<nieznany klient>';
-
-    final projSnap = await FirebaseFirestore.instance
-        .collection('customers')
-        .doc(widget.customerId)
-        .collection('projects')
-        .doc(widget.projectId)
-        .get();
-    final projectName =
-        projSnap.data()?['title'] as String? ?? '<nieznany projekt>';
-
     // 1) Prepare the lines
     final fullLines = List<ProjectLine>.from(_lines);
     final filteredLines = fullLines.where((l) => l.requestedQty > 0).toList();
@@ -285,13 +268,14 @@ class _ProjectEditorScreenState extends State<ProjectEditorScreen> {
     // reset qty and debug
     for (var ln in filteredLines) {
       ln.previousQty ??= 0;
+
       debugPrint(
         '   • ${ln.itemRef}: requestedQty=${ln.requestedQty}, previousQty=${ln.previousQty}',
       );
     }
 
     if (filteredLines.isEmpty && docSnap.exists) {
-      // -- your existing “delete empty” logic unchanged --
+      // 1) Restore stock for each previously-saved line
       for (final ln in fullLines.where((l) => l.previousQty > 0)) {
         try {
           await StockService.increaseQty(ln.itemRef, ln.previousQty);
@@ -301,79 +285,32 @@ class _ProjectEditorScreenState extends State<ProjectEditorScreen> {
           debugPrint('⚠️ Couldn\'t restore ${ln.itemRef}: $e');
         }
       }
-      final custSnap2 = await FirebaseFirestore.instance
+
+      // 2) Audit: log that the empty RW was removed
+      // 2) Lookup human-readable names up front:
+      final custSnap = await FirebaseFirestore.instance
           .collection('customers')
           .doc(widget.customerId)
           .get();
-      final customerName2 = custSnap2.data()?['name'] as String? ?? '–';
-      final projSnap2 = await FirebaseFirestore.instance
+      final customerName = custSnap.data()?['name'] as String? ?? '–';
+
+      final projSnap = await FirebaseFirestore.instance
           .collection('customers')
           .doc(widget.customerId)
           .collection('projects')
           .doc(widget.projectId)
           .get();
-      final projectName2 = projSnap2.data()?['title'] as String? ?? '–';
+      final projectName = projSnap.data()?['title'] as String? ?? '–';
+
+      // 3) Build a little “item1(qty), item2(qty)” summary:
       final itemSummaries = filteredLines
           .map((ln) {
             final stock = _stockItems.firstWhere((s) => s.id == ln.itemRef);
             return '${stock.name}(${ln.requestedQty})';
           })
           .join(', ');
-      await rwRef.delete();
-      debugPrint('🗑️ RW document $rwId deleted (no lines left)');
-      setState(() {
-        _lines.clear();
-        _rwExistsToday = false;
-      });
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(
-            'Usunięto pusty dokument $type i przywrócono stan magazynowy',
-          ),
-        ),
-      );
-      setState(() => _saving = false);
-      return;
-    }
 
-    try {
-      final batch = FirebaseFirestore.instance.batch();
-
-      // 6a) adjust stock quantities for each line diff
-      for (var ln in filteredLines) {
-        final prev = ln.previousQty ?? 0;
-        final diff = ln.requestedQty - prev;
-        if (diff != 0) {
-          final stockRef = FirebaseFirestore.instance
-              .collection('stock_items')
-              .doc(ln.itemRef);
-          batch.update(stockRef, {'quantity': FieldValue.increment(-diff)});
-        }
-      }
-
-      // 6b) write (or overwrite) the RW doc in one go
-      if (existsToday) {
-        batch.update(rwRef, rwData);
-      } else {
-        batch.set(rwRef, rwData);
-      }
-
-      // commit atomically
-      await batch.commit();
-
-      // build a “name(qty)” summary for the audit
-      final itemSummaries = filteredLines
-          .map((ln) {
-            if (ln.isStock) {
-              final stock = _stockItems.firstWhere((s) => s.id == ln.itemRef);
-              return '${stock.name}(${ln.requestedQty})';
-            } else {
-              return '${ln.customName}(${ln.requestedQty})';
-            }
-          })
-          .join(', ');
-
-      // log create/update
+      // 4) Finally log only the fields you want to see:
       await AuditService.logAction(
         action: existsToday
             ? 'Zaktualizowano dokument RW'
@@ -381,9 +318,57 @@ class _ProjectEditorScreenState extends State<ProjectEditorScreen> {
         details: {
           'Klient': customerName,
           'Projekt': projectName,
-          'RW ID': rwId,
+          'RW-ID': rwId,
           'Pozycji': filteredLines.length.toString(),
           'Szczegóły': itemSummaries,
+        },
+      );
+
+      // 3) Actually delete the RW doc
+      await rwRef.delete();
+      debugPrint('🗑️ RW document $rwId deleted (no lines left)');
+
+      // 4) Clear UI state
+      setState(() {
+        _lines.clear();
+        _rwExistsToday = false;
+      });
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            'Usunięto pusty dokument $type i przywrócono stan magazynowy',
+          ),
+        ),
+      );
+
+      setState(() => _saving = false);
+      return;
+    }
+
+    try {
+      // 6) Call the transaction
+      await StockService.applyProjectLinesTransaction(
+        customerId: widget.customerId,
+        projectId: widget.projectId,
+        rwDocId: rwId,
+        rwDocData: rwData,
+        isNew: !existsToday,
+        lines: fullLines,
+        newStatus: type,
+        userId: user.uid,
+      );
+
+      await AuditService.logAction(
+        action: existsToday
+            ? 'Zaktualizowano dokument RW'
+            : 'Utworzono dokument RW',
+        details: {
+          'Klient ID': widget.customerId,
+          'Projekt ID': widget.projectId,
+          'RW ID': rwId,
+          'Liczba linii': filteredLines.length.toString(),
+          'Użytkownik': user.uid,
         },
       );
 
@@ -771,7 +756,7 @@ class _ProjectEditorScreenState extends State<ProjectEditorScreen> {
                                   await _saveRWDocument('RW');
 
                                   removedLine.previousQty = 0;
-                                  // await _cleanupEmptyRWIfNeeded();
+                                  await _cleanupEmptyRWIfNeeded();
                                 },
                               )
                             else
