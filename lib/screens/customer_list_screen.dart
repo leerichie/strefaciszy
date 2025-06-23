@@ -1,8 +1,12 @@
 // lib/screens/customer_list_screen.dart
+
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
+import 'package:strefa_ciszy/screens/scan_screen.dart';
+
 import 'customer_detail_screen.dart';
+import 'inventory_list_screen.dart';
 
 class CustomerListScreen extends StatefulWidget {
   final bool isAdmin;
@@ -14,7 +18,6 @@ class CustomerListScreen extends StatefulWidget {
 
 class _CustomerListScreenState extends State<CustomerListScreen> {
   final _col = FirebaseFirestore.instance.collection('customers');
-
   late final TextEditingController _searchController;
   String _search = '';
 
@@ -72,6 +75,8 @@ class _CustomerListScreenState extends State<CustomerListScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final isAdmin = widget.isAdmin;
+
     return Scaffold(
       appBar: AppBar(
         title: const Text('Klienci'),
@@ -95,9 +100,7 @@ class _CustomerListScreenState extends State<CustomerListScreen> {
                     onChanged: (v) => setState(() => _search = v.trim()),
                   ),
                 ),
-
                 const SizedBox(width: 8),
-
                 IconButton(
                   tooltip: 'Resetuj filtr',
                   icon: const Icon(Icons.refresh),
@@ -120,7 +123,6 @@ class _CustomerListScreenState extends State<CustomerListScreen> {
           }
 
           final docs = snap.data!.docs;
-
           final filtered = _search.isEmpty
               ? docs
               : docs.where((d) {
@@ -153,28 +155,128 @@ class _CustomerListScreenState extends State<CustomerListScreen> {
                   MaterialPageRoute(
                     builder: (_) => CustomerDetailScreen(
                       customerId: snap.id,
-                      isAdmin: widget.isAdmin,
+                      isAdmin: isAdmin,
                     ),
                   ),
                 ),
-                trailing: widget.isAdmin
-                    ? IconButton(
+                trailing: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    // badge
+                    FutureBuilder<QuerySnapshot>(
+                      future: _col.doc(snap.id).collection('projects').get(),
+                      builder: (ctx2, snap2) {
+                        if (snap2.connectionState == ConnectionState.waiting) {
+                          return const SizedBox(
+                            width: 24,
+                            height: 24,
+                            child: CircularProgressIndicator(strokeWidth: 2),
+                          );
+                        }
+                        final count = snap2.data?.docs.length ?? 0;
+                        return Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 8,
+                            vertical: 4,
+                          ),
+                          decoration: BoxDecoration(
+                            color: Colors.grey,
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                          child: Text(
+                            'P: $count',
+                            style: const TextStyle(
+                              fontSize: 12,
+                              color: Colors.white,
+                            ),
+                          ),
+                        );
+                      },
+                    ),
+                    if (isAdmin) ...[
+                      const SizedBox(width: 8),
+                      IconButton(
                         icon: const Icon(Icons.delete, color: Colors.red),
-                        onPressed: () => _col.doc(snap.id).delete(),
-                      )
-                    : null,
+                        tooltip: 'Usuń klienta',
+                        onPressed: () async {
+                          final shouldDelete = await showDialog<bool>(
+                            context: context,
+                            builder: (ctx) => AlertDialog(
+                              title: const Text('Usuń klienta?'),
+                              content: Text(
+                                'Na pewno usunąć klienta "${d['name']}" i powiązane projekty?',
+                              ),
+                              actions: [
+                                TextButton(
+                                  onPressed: () => Navigator.pop(ctx, false),
+                                  child: const Text('Anuluj'),
+                                ),
+                                ElevatedButton(
+                                  style: ElevatedButton.styleFrom(
+                                    backgroundColor: Colors.red,
+                                  ),
+                                  onPressed: () => Navigator.pop(ctx, true),
+                                  child: const Text('Usuń'),
+                                ),
+                              ],
+                            ),
+                          );
+                          if (shouldDelete == true) {
+                            await _col.doc(snap.id).delete();
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              SnackBar(
+                                content: Text('Klient "${d['name']}" usunięty'),
+                              ),
+                            );
+                          }
+                        },
+                      ),
+                    ],
+                  ],
+                ),
               );
             },
           );
         },
       ),
-      floatingActionButton: widget.isAdmin
-          ? FloatingActionButton(
-              tooltip: 'Dodaj Klient',
-              onPressed: _addCustomer,
-              child: const Icon(Icons.person_add),
-            )
-          : null,
+
+      floatingActionButton: FloatingActionButton(
+        tooltip: 'Dodaj Klient',
+        onPressed: _addCustomer,
+        child: const Icon(Icons.person_add),
+      ),
+
+      floatingActionButtonLocation: FloatingActionButtonLocation.centerDocked,
+      bottomNavigationBar: SafeArea(
+        child: BottomAppBar(
+          shape: const CircularNotchedRectangle(),
+          notchMargin: 6,
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 32),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                IconButton(
+                  tooltip: 'Inwentaryzacja',
+                  icon: const Icon(Icons.inventory_2),
+                  onPressed: () => Navigator.of(context).push(
+                    MaterialPageRoute(
+                      builder: (_) => InventoryListScreen(isAdmin: isAdmin),
+                    ),
+                  ),
+                ),
+                IconButton(
+                  tooltip: 'Skanuj',
+                  icon: const Icon(Icons.qr_code_scanner),
+                  onPressed: () => Navigator.of(
+                    context,
+                  ).push(MaterialPageRoute(builder: (_) => const ScanScreen())),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
     );
   }
 }

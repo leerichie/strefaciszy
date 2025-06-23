@@ -37,6 +37,7 @@ dependencies:
   syncfusion_flutter_xlsio: ^29.2.10
   open_file: ^3.5.10
   firebase_app_check: ^0.3.2+7
+  csv: ^6.0.0
 
 dev_dependencies:
   flutter_test:

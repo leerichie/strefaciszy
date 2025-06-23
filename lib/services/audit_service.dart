@@ -13,13 +13,26 @@ class AuditService {
     final user = FirebaseAuth.instance.currentUser;
     if (user == null) return;
 
-    final name = user.displayName ?? user.email ?? user.uid;
+    String displayName;
+    try {
+      final userDoc = await FirebaseFirestore.instance
+          .collection('users')
+          .doc(user.uid)
+          .get();
+      final data = userDoc.data();
+      displayName = (data != null && data['name'] != null)
+          ? data['name'] as String
+          : (user.displayName ?? user.email ?? user.uid);
+    } catch (e) {
+      displayName = user.displayName ?? user.email ?? user.uid;
+    }
+
     final col = FirebaseFirestore.instance.collection('audit_logs');
     await col.add({
       'userId': user.uid,
-      'userName': name,
+      'userName': displayName,
       'action': action,
-      'details': details,
+      'details': details ?? {},
       'timestamp': FieldValue.serverTimestamp(),
     });
   }

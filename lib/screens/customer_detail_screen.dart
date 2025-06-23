@@ -3,6 +3,9 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
+import 'package:strefa_ciszy/screens/customer_list_screen.dart';
+import 'package:strefa_ciszy/screens/inventory_list_screen.dart';
+import 'package:strefa_ciszy/screens/scan_screen.dart';
 import 'project_editor_screen.dart';
 
 class CustomerDetailScreen extends StatefulWidget {
@@ -167,130 +170,132 @@ class _CustomerDetailScreenState extends State<CustomerDetailScreen> {
     );
   }
 
-  Future<void> _editProject(String projectId, Map<String, dynamic> data) async {
-    String title = data['title'] as String? ?? '';
-    DateTime? startDate = (data['startDate'] as Timestamp?)?.toDate().toLocal();
-    DateTime? estimatedEndDate = (data['estimatedEndDate'] as Timestamp?)
-        ?.toDate()
-        .toLocal();
-    String costStr = data['estimatedCost']?.toString() ?? '';
+  // Future<void> _editProject(String projectId, Map<String, dynamic> data) async {
+  //   String title = data['title'] as String? ?? '';
+  //   DateTime? startDate = (data['startDate'] as Timestamp?)?.toDate().toLocal();
+  //   DateTime? estimatedEndDate = (data['estimatedEndDate'] as Timestamp?)
+  //       ?.toDate()
+  //       .toLocal();
+  //   String costStr = data['estimatedCost']?.toString() ?? '';
 
-    await showDialog<void>(
-      context: context,
-      builder: (ctx) => StatefulBuilder(
-        builder: (ctx, setState) => AlertDialog(
-          title: const Text('Edytuj projekt'),
-          content: SingleChildScrollView(
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                TextField(
-                  controller: TextEditingController(text: title),
-                  decoration: const InputDecoration(
-                    labelText: 'Nazwa projektu',
-                  ),
-                  onChanged: (v) => title = v.trim(),
-                ),
-                const SizedBox(height: 8),
-                Row(
-                  children: [
-                    Expanded(
-                      child: Text(
-                        startDate == null
-                            ? 'Start'
-                            : DateFormat(
-                                'dd.MM.yyyy',
-                                'pl_PL',
-                              ).format(startDate!),
-                      ),
-                    ),
-                    TextButton(
-                      child: const Text('Wybieraj'),
-                      onPressed: () async {
-                        final dt = await showDatePicker(
-                          context: ctx,
-                          initialDate: startDate ?? DateTime.now(),
-                          firstDate: DateTime(2000),
-                          lastDate: DateTime(2100),
-                          locale: const Locale('pl', 'PL'),
-                        );
-                        if (dt != null) setState(() => startDate = dt);
-                      },
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 8),
-                Row(
-                  children: [
-                    Expanded(
-                      child: Text(
-                        estimatedEndDate == null
-                            ? 'Oczek. koniec'
-                            : DateFormat(
-                                'dd.MM.yyyy',
-                                'pl_PL',
-                              ).format(estimatedEndDate!),
-                      ),
-                    ),
-                    TextButton(
-                      child: const Text('Wybieraj'),
-                      onPressed: () async {
-                        final dt = await showDatePicker(
-                          context: ctx,
-                          initialDate: estimatedEndDate ?? DateTime.now(),
-                          firstDate: DateTime(2000),
-                          lastDate: DateTime(2100),
-                          locale: const Locale('pl', 'PL'),
-                        );
-                        if (dt != null) setState(() => estimatedEndDate = dt);
-                      },
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 8),
-                TextField(
-                  controller: TextEditingController(text: costStr),
-                  decoration: const InputDecoration(labelText: 'Oszac. koszt'),
-                  keyboardType: TextInputType.number,
-                  onChanged: (v) => costStr = v.trim(),
-                ),
-              ],
-            ),
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(ctx),
-              child: const Text('Anuluj'),
-            ),
-            ElevatedButton(
-              onPressed: () {
-                if (title.isEmpty) return;
-                final doc = _projectsCol.doc(projectId);
-                final updates = <String, dynamic>{};
-                updates['title'] = title;
-                if (startDate != null) {
-                  updates['startDate'] = Timestamp.fromDate(startDate!);
-                }
-                if (estimatedEndDate != null) {
-                  updates['estimatedEndDate'] = Timestamp.fromDate(
-                    estimatedEndDate!,
-                  );
-                }
-                final cost = double.tryParse(costStr.replaceAll(',', '.'));
-                if (cost != null) updates['estimatedCost'] = cost;
-                doc.update(updates);
-                Navigator.pop(ctx);
-              },
-              child: const Text('Zapisz'),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
+  //   await showDialog<void>(
+  //     context: context,
+  //     builder: (ctx) => StatefulBuilder(
+  //       builder: (ctx, setState) => AlertDialog(
+  //         title: const Text('Edytuj projekt'),
+  //         content: SingleChildScrollView(
+  //           child: Column(
+  //             mainAxisSize: MainAxisSize.min,
+  //             children: [
+  //               TextField(
+  //                 controller: TextEditingController(text: title),
+  //                 decoration: const InputDecoration(
+  //                   labelText: 'Nazwa projektu',
+  //                 ),
+  //                 onChanged: (v) => title = v.trim(),
+  //               ),
+  //               const SizedBox(height: 8),
+  //               Row(
+  //                 children: [
+  //                   Expanded(
+  //                     child: Text(
+  //                       startDate == null
+  //                           ? 'Start'
+  //                           : DateFormat(
+  //                               'dd.MM.yyyy',
+  //                               'pl_PL',
+  //                             ).format(startDate!),
+  //                     ),
+  //                   ),
+  //                   TextButton(
+  //                     child: const Text('Wybieraj'),
+  //                     onPressed: () async {
+  //                       final dt = await showDatePicker(
+  //                         context: ctx,
+  //                         initialDate: startDate ?? DateTime.now(),
+  //                         firstDate: DateTime(2000),
+  //                         lastDate: DateTime(2100),
+  //                         locale: const Locale('pl', 'PL'),
+  //                       );
+  //                       if (dt != null) setState(() => startDate = dt);
+  //                     },
+  //                   ),
+  //                 ],
+  //               ),
+  //               const SizedBox(height: 8),
+  //               Row(
+  //                 children: [
+  //                   Expanded(
+  //                     child: Text(
+  //                       estimatedEndDate == null
+  //                           ? 'Oczek. koniec'
+  //                           : DateFormat(
+  //                               'dd.MM.yyyy',
+  //                               'pl_PL',
+  //                             ).format(estimatedEndDate!),
+  //                     ),
+  //                   ),
+  //                   TextButton(
+  //                     child: const Text('Wybieraj'),
+  //                     onPressed: () async {
+  //                       final dt = await showDatePicker(
+  //                         context: ctx,
+  //                         initialDate: estimatedEndDate ?? DateTime.now(),
+  //                         firstDate: DateTime(2000),
+  //                         lastDate: DateTime(2100),
+  //                         locale: const Locale('pl', 'PL'),
+  //                       );
+  //                       if (dt != null) setState(() => estimatedEndDate = dt);
+  //                     },
+  //                   ),
+  //                 ],
+  //               ),
+  //               const SizedBox(height: 8),
+  //               TextField(
+  //                 controller: TextEditingController(text: costStr),
+  //                 decoration: const InputDecoration(labelText: 'Oszac. koszt'),
+  //                 keyboardType: TextInputType.number,
+  //                 onChanged: (v) => costStr = v.trim(),
+  //               ),
+  //             ],
+  //           ),
+  //         ),
+  //         actions: [
+  //           TextButton(
+  //             onPressed: () => Navigator.pop(ctx),
+  //             child: const Text('Anuluj'),
+  //           ),
+  //           ElevatedButton(
+  //             onPressed: () {
+  //               if (title.isEmpty) return;
+  //               final doc = _projectsCol.doc(projectId);
+  //               final updates = <String, dynamic>{};
+  //               updates['title'] = title;
+  //               if (startDate != null) {
+  //                 updates['startDate'] = Timestamp.fromDate(startDate!);
+  //               }
+  //               if (estimatedEndDate != null) {
+  //                 updates['estimatedEndDate'] = Timestamp.fromDate(
+  //                   estimatedEndDate!,
+  //                 );
+  //               }
+  //               final cost = double.tryParse(costStr.replaceAll(',', '.'));
+  //               if (cost != null) updates['estimatedCost'] = cost;
+  //               doc.update(updates);
+  //               Navigator.pop(ctx);
+  //             },
+  //             child: const Text('Zapisz'),
+  //           ),
+  //         ],
+  //       ),
+  //     ),
+  //   );
+  // }
 
   @override
   Widget build(BuildContext context) {
+    final isAdmin = widget.isAdmin;
+
     return Scaffold(
       appBar: AppBar(
         title: FutureBuilder<DocumentSnapshot>(
@@ -335,27 +340,15 @@ class _CustomerDetailScreenState extends State<CustomerDetailScreen> {
           ),
         ),
       ),
+
       body: Column(
         children: [
-          // ListTile(
-          //   leading: const Icon(Icons.list_alt_rounded),
-          //   title: const Text('Dok. RW/MM'),
-          //   onTap: () {
-          //     Navigator.of(context).push(
-          //       MaterialPageRoute(
-          //         builder: (_) =>
-          //             RWDocumentsScreen(customerId: widget.customerId),
-          //       ),
-          //     );
-          //   },
-          // ),
           Expanded(
             child: StreamBuilder<QuerySnapshot>(
               stream: _projectsCol
                   .where('status', whereIn: ['draft', 'RW', 'MM'])
                   .orderBy('createdAt', descending: true)
                   .snapshots(),
-
               builder: (ctx, snap) {
                 if (snap.connectionState == ConnectionState.waiting) {
                   return const Center(child: CircularProgressIndicator());
@@ -381,7 +374,6 @@ class _CustomerDetailScreenState extends State<CustomerDetailScreen> {
                   itemBuilder: (ctx, i) {
                     final d = filtered[i];
                     final data = d.data()! as Map<String, dynamic>;
-
                     return ListTile(
                       title: Text(data['title'] ?? '—'),
                       subtitle: Text('Status: ${data['status']}'),
@@ -390,20 +382,60 @@ class _CustomerDetailScreenState extends State<CustomerDetailScreen> {
                           builder: (_) => ProjectEditorScreen(
                             customerId: widget.customerId,
                             projectId: d.id,
-                            isAdmin: widget.isAdmin,
+                            isAdmin: isAdmin,
                           ),
                         ),
                       ),
-
-                      trailing: widget.isAdmin
-                          ? IconButton(
-                              icon: Icon(Icons.delete, color: Colors.red),
+                      trailing: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          // badge
+                          FutureBuilder<QuerySnapshot>(
+                            future: _projectsCol
+                                .doc(d.id)
+                                .collection('rw_documents')
+                                .get(),
+                            builder: (ctx2, snap2) {
+                              if (snap2.connectionState ==
+                                  ConnectionState.waiting) {
+                                return const SizedBox(
+                                  width: 24,
+                                  height: 24,
+                                  child: CircularProgressIndicator(
+                                    strokeWidth: 2,
+                                  ),
+                                );
+                              }
+                              final count = snap2.data?.docs.length ?? 0;
+                              return Container(
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 8,
+                                  vertical: 4,
+                                ),
+                                decoration: BoxDecoration(
+                                  color: Colors.grey,
+                                  borderRadius: BorderRadius.circular(12),
+                                ),
+                                child: Text(
+                                  'RW: $count',
+                                  style: const TextStyle(
+                                    fontSize: 14,
+                                    color: Colors.white,
+                                  ),
+                                ),
+                              );
+                            },
+                          ),
+                          if (widget.isAdmin) ...[
+                            const SizedBox(width: 8),
+                            IconButton(
+                              icon: const Icon(Icons.delete, color: Colors.red),
                               tooltip: 'Usuń projekt',
                               onPressed: () async {
                                 final ok = await showDialog<bool>(
                                   context: context,
                                   builder: (ctx2) => AlertDialog(
-                                    title: Text('Usuń projekt?'),
+                                    title: const Text('Usuń projekt?'),
                                     content: Text(
                                       'Na pewno usunąć projekt "${data['title']}"?',
                                     ),
@@ -411,12 +443,12 @@ class _CustomerDetailScreenState extends State<CustomerDetailScreen> {
                                       TextButton(
                                         onPressed: () =>
                                             Navigator.pop(ctx2, false),
-                                        child: Text('Anuluj'),
+                                        child: const Text('Anuluj'),
                                       ),
                                       ElevatedButton(
                                         onPressed: () =>
                                             Navigator.pop(ctx2, true),
-                                        child: Text('Usuń'),
+                                        child: const Text('Usuń'),
                                       ),
                                     ],
                                   ),
@@ -424,12 +456,16 @@ class _CustomerDetailScreenState extends State<CustomerDetailScreen> {
                                 if (ok == true) {
                                   await _projectsCol.doc(d.id).delete();
                                   ScaffoldMessenger.of(context).showSnackBar(
-                                    SnackBar(content: Text('Projekt usunięty')),
+                                    const SnackBar(
+                                      content: Text('Projekt usunięty'),
+                                    ),
                                   );
                                 }
                               },
-                            )
-                          : null,
+                            ),
+                          ],
+                        ],
+                      ),
                     );
                   },
                 );
@@ -438,12 +474,45 @@ class _CustomerDetailScreenState extends State<CustomerDetailScreen> {
           ),
         ],
       ),
-      floatingActionButton: widget.isAdmin
-          ? FloatingActionButton(
-              onPressed: _addProject,
-              child: const Icon(Icons.playlist_add),
-            )
-          : null,
+
+      floatingActionButton: FloatingActionButton(
+        onPressed: _addProject,
+        child: const Icon(Icons.playlist_add),
+      ),
+      floatingActionButtonLocation: FloatingActionButtonLocation.centerDocked,
+
+      bottomNavigationBar: BottomAppBar(
+        elevation: 4,
+        shape: const CircularNotchedRectangle(),
+        notchMargin: 6,
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              IconButton(
+                tooltip: 'Inwentaryzacja',
+                icon: const Icon(Icons.inventory_2),
+                onPressed: () => Navigator.of(context).push(
+                  MaterialPageRoute(
+                    builder: (_) => InventoryListScreen(isAdmin: isAdmin),
+                  ),
+                ),
+              ),
+
+              SizedBox(width: 48),
+
+              IconButton(
+                tooltip: 'Skanuj',
+                icon: const Icon(Icons.qr_code_scanner),
+                onPressed: () => Navigator.of(
+                  context,
+                ).push(MaterialPageRoute(builder: (_) => const ScanScreen())),
+              ),
+            ],
+          ),
+        ),
+      ),
     );
   }
 }

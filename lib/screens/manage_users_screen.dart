@@ -1,6 +1,12 @@
+// lib/screens/manage_users_screen.dart
+
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import '../services/user_functions.dart';
+
+import 'inventory_list_screen.dart';
+import 'scan_screen.dart';
 
 class ManageUsersScreen extends StatefulWidget {
   const ManageUsersScreen({super.key});
@@ -21,55 +27,46 @@ class _ManageUsersScreenState extends State<ManageUsersScreen> {
 
   Future<List<Map<String, dynamic>>> _loadUsers() async {
     final user = FirebaseAuth.instance.currentUser!;
-
-    // reload user to pick up any claim changes
     await user.reload();
     final idToken = await user.getIdTokenResult(true);
-    final amIAdmin = idToken.claims?['admin'] == true;
-    print('🔥 refreshed claims – amIAdmin = $amIAdmin');
-    print("🔑 currentUser.uid = ${user.uid}");
-    print("🔥 Custom claims = ${idToken.claims}");
-
+    print(
+      '🔥 refreshed claims – amIAdmin = ${idToken.claims?['admin'] == true}',
+    );
     return _svc.listUsers();
   }
 
-  void _reload() {
-    setState(() {
-      _usersFuture = _loadUsers();
-    });
-  }
+  void _reload() => setState(() => _usersFuture = _loadUsers());
 
   Future<void> _showAddDialog() async {
-    String name = '';
-    String email = '';
-    String pwd = '';
-    String role = 'user';
+    String name = '', email = '', pwd = '', role = 'user';
 
     await showDialog<void>(
       context: context,
       builder: (ctx) => AlertDialog(
-        title: Text('Dodaj pracownik'),
+        title: const Text('Dodaj pracownik'),
         content: ConstrainedBox(
-          constraints: BoxConstraints(maxWidth: 400),
+          constraints: const BoxConstraints(maxWidth: 400),
           child: SingleChildScrollView(
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
                 TextField(
-                  decoration: InputDecoration(labelText: 'Imię i nazwisko'),
+                  decoration: const InputDecoration(
+                    labelText: 'Imię i nazwisko',
+                  ),
                   onChanged: (v) => name = v.trim(),
                 ),
                 TextField(
-                  decoration: InputDecoration(labelText: 'Email'),
+                  decoration: const InputDecoration(labelText: 'Email'),
                   onChanged: (v) => email = v,
                 ),
                 TextField(
-                  decoration: InputDecoration(labelText: 'Hasło'),
+                  decoration: const InputDecoration(labelText: 'Hasło'),
                   obscureText: true,
                   onChanged: (v) => pwd = v,
                 ),
                 DropdownButtonFormField<String>(
-                  decoration: InputDecoration(labelText: 'Dostęp'),
+                  decoration: const InputDecoration(labelText: 'Dostęp'),
                   value: role,
                   items: ['admin', 'user']
                       .map((r) => DropdownMenuItem(value: r, child: Text(r)))
@@ -83,14 +80,13 @@ class _ManageUsersScreenState extends State<ManageUsersScreen> {
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(ctx),
-            child: Text('Anuluj'),
+            child: const Text('Anuluj'),
           ),
           ElevatedButton(
             onPressed: () async {
               Navigator.pop(ctx);
               try {
                 await _svc.createUser(name, email.trim(), pwd, role);
-                // force-refresh your own token so new claims (if any) stick
                 await FirebaseAuth.instance.currentUser!.getIdTokenResult(true);
                 _reload();
               } catch (e) {
@@ -99,7 +95,7 @@ class _ManageUsersScreenState extends State<ManageUsersScreen> {
                 );
               }
             },
-            child: Text('Zapisz'),
+            child: const Text('Zapisz'),
           ),
         ],
       ),
@@ -107,39 +103,38 @@ class _ManageUsersScreenState extends State<ManageUsersScreen> {
   }
 
   Future<void> _showEditUserDialog(Map<String, dynamic> user) async {
-    String name = user['name'] ?? '';
-    String email = user['email'] ?? '';
-    String password = '';
-    String role = user['role'] ?? 'user';
-    bool isAdmin = role == 'admin';
-
+    String name = user['name'] ?? '',
+        email = user['email'] ?? '',
+        password = '',
+        role = user['role'] ?? 'user';
+    final isAdmin = role == 'admin';
     final nameController = TextEditingController(text: name);
     final emailController = TextEditingController(text: email);
 
     await showDialog<void>(
       context: context,
       builder: (ctx) => AlertDialog(
-        title: Text('Edytuj użytkownika'),
+        title: const Text('Edytuj użytkownika'),
         content: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
             TextField(
-              decoration: InputDecoration(labelText: 'Imię'),
+              decoration: const InputDecoration(labelText: 'Imię'),
               controller: nameController,
               onChanged: (v) => name = v.trim(),
             ),
             TextField(
-              decoration: InputDecoration(labelText: 'Email'),
+              decoration: const InputDecoration(labelText: 'Email'),
               controller: emailController,
               onChanged: (v) => email = v.trim(),
             ),
             TextField(
-              decoration: InputDecoration(labelText: 'Nowe hasło'),
+              decoration: const InputDecoration(labelText: 'Nowe hasło'),
               obscureText: true,
               onChanged: (v) => password = v,
             ),
             DropdownButtonFormField<String>(
-              decoration: InputDecoration(labelText: 'Dostęp'),
+              decoration: const InputDecoration(labelText: 'Dostęp'),
               value: role,
               items: [
                 'admin',
@@ -151,11 +146,11 @@ class _ManageUsersScreenState extends State<ManageUsersScreen> {
         ),
         actions: [
           TextButton(
-            child: Text('Anuluj'),
+            child: const Text('Anuluj'),
             onPressed: () => Navigator.pop(ctx),
           ),
           ElevatedButton(
-            child: Text('Zapisz'),
+            child: const Text('Zapisz'),
             onPressed: () async {
               Navigator.pop(ctx);
               try {
@@ -166,7 +161,6 @@ class _ManageUsersScreenState extends State<ManageUsersScreen> {
                   password: password.isNotEmpty ? password : null,
                   role: role != user['role'] ? role : null,
                 );
-                // if you changed your own role, refresh your token
                 await FirebaseAuth.instance.currentUser!.getIdTokenResult(true);
                 _reload();
               } catch (e) {
@@ -183,52 +177,50 @@ class _ManageUsersScreenState extends State<ManageUsersScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final isAdmin = true; // or derive from claims if needed
+
     return Scaffold(
-      appBar: AppBar(title: Text('Zarządzaj użytkownikami')),
-      floatingActionButton: FloatingActionButton(
-        tooltip: 'Dodaj pracownika',
-        onPressed: _showAddDialog,
-        child: Icon(Icons.add),
-      ),
+      // ── AppBar ──
+      appBar: AppBar(title: const Text('Zarządzaj użytkownikami')),
+
+      // ── Body ──
       body: FutureBuilder<List<Map<String, dynamic>>>(
         future: _usersFuture,
-        builder: (ctx, snapshot) {
-          if (snapshot.connectionState == ConnectionState.waiting) {
-            return Center(child: CircularProgressIndicator());
+        builder: (ctx, snap) {
+          if (snap.connectionState == ConnectionState.waiting) {
+            return const Center(child: CircularProgressIndicator());
           }
-          if (snapshot.hasError) {
+          if (snap.hasError) {
             return Center(
               child: Text(
-                'Error loading users:\n${snapshot.error}',
+                'Error loading users:\n${snap.error}',
                 textAlign: TextAlign.center,
-                style: TextStyle(color: Colors.red),
+                style: const TextStyle(color: Colors.red),
               ),
             );
           }
-
-          final users = snapshot.data;
-          if (users == null || users.isEmpty) {
-            return Center(child: Text('Nie znaleziono użytkowników.'));
+          final users = snap.data!;
+          if (users.isEmpty) {
+            return const Center(child: Text('Nie znaleziono użytkowników.'));
           }
-
           return ListView.separated(
             itemCount: users.length,
-            separatorBuilder: (_, __) => Divider(),
+            separatorBuilder: (_, __) => const Divider(),
             itemBuilder: (ctx, i) {
               final u = users[i];
               return ListTile(
                 title: Text(u['name'] ?? '—'),
-                subtitle: Text('${u['email']} \nDostęp: ${u['role']}'),
+                subtitle: Text('${u['email']}\nDostęp: ${u['role']}'),
                 trailing: Row(
                   mainAxisSize: MainAxisSize.min,
                   children: [
                     IconButton(
-                      icon: Icon(Icons.edit),
+                      icon: const Icon(Icons.edit),
                       tooltip: 'Edytuj użytkownika',
                       onPressed: () => _showEditUserDialog(u),
                     ),
                     IconButton(
-                      icon: Icon(Icons.delete),
+                      icon: const Icon(Icons.delete),
                       tooltip: 'Usuń użytkownika',
                       onPressed: () async {
                         final confirm = await showDialog<bool>(
@@ -237,11 +229,11 @@ class _ManageUsersScreenState extends State<ManageUsersScreen> {
                             title: Text('Usuń ${u['email']}?'),
                             actions: [
                               TextButton(
-                                child: Text('Anuluj'),
+                                child: const Text('Anuluj'),
                                 onPressed: () => Navigator.pop(ctx2, false),
                               ),
                               ElevatedButton(
-                                child: Text('Usuń'),
+                                child: const Text('Usuń'),
                                 onPressed: () => Navigator.pop(ctx2, true),
                               ),
                             ],
@@ -267,6 +259,44 @@ class _ManageUsersScreenState extends State<ManageUsersScreen> {
             },
           );
         },
+      ),
+
+      floatingActionButton: FloatingActionButton(
+        tooltip: 'Dodaj pracownika',
+        onPressed: _showAddDialog,
+        child: const Icon(Icons.person_add_alt),
+      ),
+
+      floatingActionButtonLocation: FloatingActionButtonLocation.centerDocked,
+      bottomNavigationBar: SafeArea(
+        child: BottomAppBar(
+          shape: const CircularNotchedRectangle(),
+          notchMargin: 6,
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 32),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                IconButton(
+                  tooltip: 'Inwentaryzacja',
+                  icon: const Icon(Icons.inventory_2),
+                  onPressed: () => Navigator.of(context).push(
+                    MaterialPageRoute(
+                      builder: (_) => InventoryListScreen(isAdmin: isAdmin),
+                    ),
+                  ),
+                ),
+                IconButton(
+                  tooltip: 'Skanuj',
+                  icon: const Icon(Icons.qr_code_scanner),
+                  onPressed: () => Navigator.of(
+                    context,
+                  ).push(MaterialPageRoute(builder: (_) => const ScanScreen())),
+                ),
+              ],
+            ),
+          ),
+        ),
       ),
     );
   }

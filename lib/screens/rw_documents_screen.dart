@@ -1,10 +1,20 @@
 // lib/screens/rw_documents_screen.dart
+import 'dart:convert';
+import 'dart:io';
+
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:csv/csv.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:intl/intl.dart';
 import 'package:open_file/open_file.dart';
+import 'package:path_provider/path_provider.dart';
+import 'package:share_plus/share_plus.dart';
+import 'package:strefa_ciszy/screens/customer_list_screen.dart';
+import 'package:strefa_ciszy/screens/inventory_list_screen.dart';
 import 'package:strefa_ciszy/screens/project_editor_screen.dart';
+import 'package:strefa_ciszy/screens/scan_screen.dart';
 import 'package:strefa_ciszy/services/file_saver.dart';
 import 'package:syncfusion_flutter_xlsio/xlsio.dart' as xlsio;
 
@@ -78,11 +88,31 @@ class _RWDocumentsScreenState extends State<RWDocumentsScreen> {
 
     return Scaffold(
       appBar: AppBar(
-        title: Text(isClientView ? 'RW/MM - klienta' : 'RW/MM - wszystkie'),
+        title: isClientView && widget.projectId != null
+            ? FutureBuilder<DocumentSnapshot>(
+                future: FirebaseFirestore.instance
+                    .collection('customers')
+                    .doc(widget.customerId)
+                    .collection('projects')
+                    .doc(widget.projectId)
+                    .get(),
+                builder: (ctx, snap) {
+                  if (snap.connectionState != ConnectionState.done) {
+                    return Text('RW');
+                  }
+                  if (!snap.hasData || !snap.data!.exists) {
+                    return Text('RW');
+                  }
+                  final data = snap.data!.data()! as Map<String, dynamic>;
+                  final projectName = data['title'] as String? ?? '–';
+                  return Text('RW • $projectName');
+                },
+              )
+            : Text('RW/MM - wszystkie'),
       ),
+
       body: Column(
         children: [
-          // FILTER
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
             child: Column(
@@ -154,7 +184,6 @@ class _RWDocumentsScreenState extends State<RWDocumentsScreen> {
                 final filtered = docs.where((doc) {
                   final d = doc.data() as Map<String, dynamic>;
 
-                  // parse createdAt safely
                   DateTime created;
                   final rawCreated = d['createdAt'];
                   if (rawCreated is Timestamp) {
@@ -197,7 +226,6 @@ class _RWDocumentsScreenState extends State<RWDocumentsScreen> {
                     final doc = filtered[i];
                     final d = doc.data() as Map<String, dynamic>;
 
-                    // format the createdAt for display
                     DateTime ts;
                     final rawTs = d['createdAt'];
                     if (rawTs is Timestamp) {
@@ -250,7 +278,6 @@ class _RWDocumentsScreenState extends State<RWDocumentsScreen> {
                           ? Row(
                               mainAxisSize: MainAxisSize.min,
                               children: [
-                                // Edit button
                                 IconButton(
                                   icon: Icon(Icons.edit, color: Colors.blue),
                                   tooltip: 'Edytuj dokument',
@@ -261,14 +288,12 @@ class _RWDocumentsScreenState extends State<RWDocumentsScreen> {
                                           customerId: widget.customerId!,
                                           projectId: widget.projectId!,
                                           isAdmin: true,
-                                          rwId: doc
-                                              .id, // you'll need to extend ctor to accept this
+                                          rwId: doc.id,
                                         ),
                                       ),
                                     );
                                   },
                                 ),
-                                // Delete button
                                 IconButton(
                                   icon: Icon(Icons.delete, color: Colors.red),
                                   tooltip: 'Usuń dokument',
@@ -317,7 +342,92 @@ class _RWDocumentsScreenState extends State<RWDocumentsScreen> {
           ),
         ],
       ),
+      floatingActionButton: !kIsWeb
+          ? FloatingActionButton(
+              tooltip: 'Skanuj',
+              onPressed: () => Navigator.of(
+                context,
+              ).push(MaterialPageRoute(builder: (_) => const ScanScreen())),
+              child: const Icon(Icons.qr_code_scanner, size: 32),
+            )
+          : null,
+      floatingActionButtonLocation: FloatingActionButtonLocation.centerDocked,
+
+      bottomNavigationBar: SafeArea(
+        child: BottomAppBar(
+          shape: const CircularNotchedRectangle(),
+          notchMargin: 6,
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 32),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                IconButton(
+                  tooltip: 'Inwentaryzacja',
+                  icon: const Icon(Icons.inventory_2),
+                  onPressed: () => Navigator.of(context).push(
+                    MaterialPageRoute(
+                      builder: (_) => InventoryListScreen(isAdmin: true),
+                    ),
+                  ),
+                ),
+
+                IconButton(
+                  tooltip: 'Klienci',
+                  icon: const Icon(Icons.group),
+                  onPressed: () => Navigator.of(context).push(
+                    MaterialPageRoute(
+                      builder: (_) => CustomerListScreen(isAdmin: true),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
     );
+  }
+
+  String _buildCsv(Map<String, dynamic> data, Map<String, String> userNames) {
+    final headers = ['Typ', 'Projekt', 'Utworzono', 'Użytkownik'];
+    final createdAt = data['createdAt'];
+    final when = createdAt is Timestamp
+        ? DateFormat('dd.MM.yyyy HH:mm').format(createdAt.toDate())
+        : createdAt.toString();
+    final rawUid = data['createdBy']?.toString() ?? '';
+    final displayName = userNames[rawUid] ?? rawUid;
+    final dataRow = [
+      data['type'] ?? '',
+      data['projectName'] ?? '',
+      when,
+      displayName,
+    ];
+
+    final spacer = ['', '', '', ''];
+    final materialHeader = ['Material', 'Ilość', 'Jm', ''];
+    final items = (data['items'] as List<dynamic>? ?? []).map<List<String>>((
+      it,
+    ) {
+      return [
+        it['name'] ?? '',
+        it['quantity']?.toString() ?? '',
+        it['unit'] ?? '',
+        '',
+      ];
+    });
+
+    final allRows = [headers, dataRow, spacer, materialHeader, ...items];
+
+    return allRows.map((row) => row.join('\t')).join('\r\n');
+  }
+
+  Future<void> _copyCsv(Map<String, dynamic> data) async {
+    final csv = _buildCsv(data, userNames);
+    await Clipboard.setData(ClipboardData(text: csv));
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(const SnackBar(content: Text('Skopiowany do schowka')));
   }
 
   void _showDetailsDialog(BuildContext context, Map<String, dynamic> data) {
@@ -382,10 +492,12 @@ class _RWDocumentsScreenState extends State<RWDocumentsScreen> {
           ),
         ),
         actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx),
-            child: Text('Zamknij'),
-          ),
+          // TextButton(
+          //   onPressed: () => Navigator.pop(ctx),
+          //   child: Text('Zamknij'),
+          // ),
+          TextButton(onPressed: () => _copyCsv(data), child: Text('Kopiuj')),
+
           TextButton(
             onPressed: () => _exportToExcel(context, data),
             child: Text('Exportuj do Excel'),

@@ -9,6 +9,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:strefa_ciszy/models/stock_item.dart';
 import 'package:strefa_ciszy/models/project_line.dart';
+import 'package:strefa_ciszy/screens/inventory_list_screen.dart';
 import 'package:strefa_ciszy/screens/rw_documents_screen.dart';
 import 'package:strefa_ciszy/services/stock_service.dart';
 import 'package:strefa_ciszy/widgets/project_line_dialog.dart';
@@ -197,7 +198,6 @@ class _ProjectEditorScreenState extends State<ProjectEditorScreen> {
     final user = FirebaseAuth.instance.currentUser;
     if (user == null) return;
 
-    // 0) Fetch human-readable client & project names
     final custSnap = await FirebaseFirestore.instance
         .collection('customers')
         .doc(widget.customerId)
@@ -214,7 +214,6 @@ class _ProjectEditorScreenState extends State<ProjectEditorScreen> {
     final projectName =
         projSnap.data()?['title'] as String? ?? '<nieznany projekt>';
 
-    // 1) Prepare the lines
     final fullLines = List<ProjectLine>.from(_lines);
     final filteredLines = fullLines.where((l) => l.requestedQty > 0).toList();
 
@@ -227,7 +226,6 @@ class _ProjectEditorScreenState extends State<ProjectEditorScreen> {
         .doc(widget.projectId);
     final rwCol = projectRef.collection('rw_documents');
 
-    // 2) Find or create today's RW
     final now = DateTime.now();
     final startOfDay = DateTime(now.year, now.month, now.day);
     final startOfTomorrow = startOfDay.add(Duration(days: 1));
@@ -242,7 +240,6 @@ class _ProjectEditorScreenState extends State<ProjectEditorScreen> {
     final rwId = existsToday ? todaySnap.docs.first.id : rwCol.doc().id;
     final rwRef = rwCol.doc(rwId);
 
-    // 3) Prevent editing yesterday's doc for non-admins
     final docSnap = await rwRef.get();
     if (docSnap.exists) {
       final createdAtRaw = (docSnap.data()!['createdAt'] as Timestamp).toDate();
@@ -259,7 +256,6 @@ class _ProjectEditorScreenState extends State<ProjectEditorScreen> {
       }
     }
 
-    // 4) Determine createdAt/createdBy
     DateTime createdAt = now;
     String createdBy = user.uid;
     if (docSnap.exists) {
@@ -269,7 +265,6 @@ class _ProjectEditorScreenState extends State<ProjectEditorScreen> {
       createdBy = data['createdBy'] ?? createdBy;
     }
 
-    // 5) Build the RW data map
     final rwData = StockService.buildRwDocMap(
       rwId,
       widget.projectId,
@@ -282,7 +277,6 @@ class _ProjectEditorScreenState extends State<ProjectEditorScreen> {
       widget.customerId,
     );
 
-    // reset qty and debug
     for (var ln in filteredLines) {
       ln.previousQty ??= 0;
       debugPrint(
@@ -291,7 +285,6 @@ class _ProjectEditorScreenState extends State<ProjectEditorScreen> {
     }
 
     if (filteredLines.isEmpty && docSnap.exists) {
-      // -- your existing “delete empty” logic unchanged --
       for (final ln in fullLines.where((l) => l.previousQty > 0)) {
         try {
           await StockService.increaseQty(ln.itemRef, ln.previousQty);
@@ -339,7 +332,6 @@ class _ProjectEditorScreenState extends State<ProjectEditorScreen> {
     try {
       final batch = FirebaseFirestore.instance.batch();
 
-      // 6a) adjust stock quantities for each line diff
       for (var ln in filteredLines) {
         final prev = ln.previousQty ?? 0;
         final diff = ln.requestedQty - prev;
@@ -351,17 +343,14 @@ class _ProjectEditorScreenState extends State<ProjectEditorScreen> {
         }
       }
 
-      // 6b) write (or overwrite) the RW doc in one go
       if (existsToday) {
         batch.update(rwRef, rwData);
       } else {
         batch.set(rwRef, rwData);
       }
 
-      // commit atomically
       await batch.commit();
 
-      // build a “name(qty)” summary for the audit
       final itemSummaries = filteredLines
           .map((ln) {
             if (ln.isStock) {
@@ -373,16 +362,11 @@ class _ProjectEditorScreenState extends State<ProjectEditorScreen> {
           })
           .join(', ');
 
-      // log create/update
       await AuditService.logAction(
-        action: existsToday
-            ? 'Zaktualizowano dokument RW'
-            : 'Utworzono dokument RW',
+        action: existsToday ? 'Zaktualizowano RW' : 'Utworzono RW',
         details: {
           'Klient': customerName,
           'Projekt': projectName,
-          'RW ID': rwId,
-          'Pozycji': filteredLines.length.toString(),
           'Szczegóły': itemSummaries,
         },
       );
@@ -399,14 +383,12 @@ class _ProjectEditorScreenState extends State<ProjectEditorScreen> {
         }
       });
 
-      // 8) Re-check today’s RW state
       try {
         await _checkTodayExists(type);
       } catch (e, st) {
         debugPrint('⚠️ _checkTodayExists error: $e\n$st');
       }
     } catch (e, st) {
-      // — Debug logging on failure —
       debugPrint('🔥 _saveRWDocument failed: $e');
       debugPrint('📋 Stack trace:\n$st');
 
@@ -451,35 +433,35 @@ class _ProjectEditorScreenState extends State<ProjectEditorScreen> {
     if (result != null) setState(() => _notes = result);
   }
 
-  Future<void> _cleanupEmptyRWIfNeeded() async {
-    if (_lines.isEmpty) {
-      final projectRef = FirebaseFirestore.instance
-          .collection('customers')
-          .doc(widget.customerId)
-          .collection('projects')
-          .doc(widget.projectId);
-      final rwCol = projectRef.collection('rw_documents');
+  // Future<void> _cleanupEmptyRWIfNeeded() async {
+  //   if (_lines.isEmpty) {
+  //     final projectRef = FirebaseFirestore.instance
+  //         .collection('customers')
+  //         .doc(widget.customerId)
+  //         .collection('projects')
+  //         .doc(widget.projectId);
+  //     final rwCol = projectRef.collection('rw_documents');
 
-      final now = DateTime.now();
-      final startOfDay = DateTime(now.year, now.month, now.day);
-      final startOfTomorrow = startOfDay.add(Duration(days: 1));
+  //     final now = DateTime.now();
+  //     final startOfDay = DateTime(now.year, now.month, now.day);
+  //     final startOfTomorrow = startOfDay.add(Duration(days: 1));
 
-      final snap = await rwCol
-          .where('type', isEqualTo: 'RW')
-          .where('createdAt', isGreaterThanOrEqualTo: startOfDay)
-          .where('createdAt', isLessThan: startOfTomorrow)
-          .limit(1)
-          .get();
+  //     final snap = await rwCol
+  //         .where('type', isEqualTo: 'RW')
+  //         .where('createdAt', isGreaterThanOrEqualTo: startOfDay)
+  //         .where('createdAt', isLessThan: startOfTomorrow)
+  //         .limit(1)
+  //         .get();
 
-      if (snap.docs.isNotEmpty) {
-        await snap.docs.first.reference.delete();
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text('Usunięto pusty dokument RW')));
-        setState(() => _rwExistsToday = false);
-      }
-    }
-  }
+  //     if (snap.docs.isNotEmpty) {
+  //       await snap.docs.first.reference.delete();
+  //       ScaffoldMessenger.of(
+  //         context,
+  //       ).showSnackBar(SnackBar(content: Text('Usunięto pusty dokument RW')));
+  //       setState(() => _rwExistsToday = false);
+  //     }
+  //   }
+  // }
 
   Future<void> _deleteLineFromRW(ProjectLine line) async {
     final rwCol = FirebaseFirestore.instance
@@ -514,7 +496,6 @@ class _ProjectEditorScreenState extends State<ProjectEditorScreen> {
       await rwCol.doc(rwId).update({'lines': updated});
     }
 
-    // Restore stock
     if (line.isStock) {
       final stockRef = FirebaseFirestore.instance
           .collection('stock_items')
@@ -524,7 +505,6 @@ class _ProjectEditorScreenState extends State<ProjectEditorScreen> {
       });
     }
 
-    // ❗️Remove from project items in Firestore
     final projectRef = FirebaseFirestore.instance
         .collection('customers')
         .doc(widget.customerId)
@@ -608,211 +588,231 @@ class _ProjectEditorScreenState extends State<ProjectEditorScreen> {
         ],
       ),
 
-      body: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Form(
-          key: _formKey,
-          child: Column(
-            children: [
-              if (_rwLocked)
-                Padding(
-                  padding: const EdgeInsets.only(bottom: 8),
-                  child: Text(
-                    'Dokument RW jest zablokowany do edycji.',
-                    style: TextStyle(
-                      color: Colors.red,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                ),
-
-              TextFormField(
-                initialValue: _title,
-                decoration: InputDecoration(labelText: 'Projekt'),
-                onChanged: (v) => _title = v,
-                validator: (v) => v?.trim().isEmpty == true ? 'Required' : null,
-              ),
-              SizedBox(height: 16),
-
-              if (_lines.any(
-                (l) => l.requestedQty > 0 && l.requestedQty != l.previousQty,
-              ))
-                Container(
-                  padding: EdgeInsets.all(8),
-                  margin: EdgeInsets.only(bottom: 8),
-                  decoration: BoxDecoration(
-                    color: Colors.orange.withValues(alpha: 0.15),
-                    borderRadius: BorderRadius.circular(6),
-                    border: Border.all(color: Colors.orange),
-                  ),
-                  child: Row(
-                    children: [
-                      Icon(Icons.warning_amber, color: Colors.orange),
-                      SizedBox(width: 8),
-                      Expanded(
-                        child: Text(
-                          'Preview. Kliknij "Zapisz RW", aby dodać do RW.',
-                          style: TextStyle(color: Colors.orange[900]),
+      body: Stack(
+        children: [
+          Padding(
+            padding: const EdgeInsets.all(16),
+            child: Form(
+              key: _formKey,
+              child: Column(
+                children: [
+                  if (_rwLocked)
+                    Padding(
+                      padding: const EdgeInsets.only(bottom: 8),
+                      child: Text(
+                        'Dokument RW jest zablokowany do edycji.',
+                        style: TextStyle(
+                          color: Colors.red,
+                          fontWeight: FontWeight.bold,
                         ),
                       ),
-                    ],
+                    ),
+
+                  TextFormField(
+                    initialValue: _title,
+                    decoration: InputDecoration(labelText: 'Projekt'),
+                    onChanged: (v) => _title = v,
+                    validator: (v) =>
+                        v?.trim().isEmpty == true ? 'Required' : null,
                   ),
-                ),
+                  SizedBox(height: 16),
 
-              if (_lines.isNotEmpty)
-                Expanded(
-                  child: ListView.builder(
-                    itemCount: _lines.length,
-
-                    itemBuilder: (ctx, i) {
-                      final today = DateTime.now();
-                      final ln = _lines[i];
-                      final name = ln.isStock
-                          ? _stockItems
-                                .firstWhere((s) => s.id == ln.itemRef)
-                                .name
-                          : ln.customName;
-                      final stockQty = ln.isStock
-                          ? _stockItems
-                                .firstWhere((s) => s.id == ln.itemRef)
-                                .quantity
-                          : ln.originalStock;
-                      final delta = ln.requestedQty - ln.previousQty;
-                      final previewQty = stockQty - delta;
-                      final qtyColor = previewQty <= 0
-                          ? Colors.red
-                          : Colors.green;
-
-                      final isToday =
-                          ln.updatedAt == null ||
-                          (ln.updatedAt!.year == today.year &&
-                              ln.updatedAt!.month == today.month &&
-                              ln.updatedAt!.day == today.day);
-
-                      final isSynced =
-                          ln.requestedQty == ln.previousQty &&
-                          ln.requestedQty > 0;
-                      final isLineLocked =
-                          _rwLocked ||
-                          (isSynced && !isToday && !widget.isAdmin);
-
-                      return ListTile(
-                        title: Row(
-                          children: [
-                            Expanded(child: Text(name)),
-                            if (isSynced)
-                              Container(
-                                padding: EdgeInsets.symmetric(
-                                  horizontal: 6,
-                                  vertical: 2,
-                                ),
-                                decoration: BoxDecoration(
-                                  color: Colors.green.withValues(alpha: 0.15),
-                                  borderRadius: BorderRadius.circular(4),
-                                ),
-                                child: Text(
-                                  'Zapisany do RW',
-                                  style: TextStyle(color: Colors.green[900]),
-                                ),
-                              ),
-                          ],
-                        ),
-                        subtitle: Text.rich(
-                          TextSpan(
-                            style: Theme.of(context).textTheme.bodyMedium,
-                            children: [
-                              TextSpan(text: '${ln.requestedQty} ${ln.unit} '),
-                              TextSpan(
-                                text: '(stan: $previewQty)',
-                                style: TextStyle(color: qtyColor),
-                              ),
-                            ],
-                          ),
-                        ),
-                        trailing: Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            IconButton(
-                              icon: Icon(
-                                Icons.edit,
-                                color: isLineLocked ? Colors.grey : Colors.blue,
-                              ),
-                              onPressed: isLineLocked
-                                  ? () {
-                                      ScaffoldMessenger.of(
-                                        context,
-                                      ).showSnackBar(
-                                        SnackBar(
-                                          content: Text(
-                                            'Tylko administrator może edytować starsze pozycje',
-                                          ),
-                                        ),
-                                      );
-                                    }
-                                  : () async {
-                                      final updated =
-                                          await showProjectLineDialog(
-                                            context,
-                                            _stockItems,
-                                            existing: ln,
-                                          );
-                                      if (updated != null) {
-                                        setState(() => _lines[i] = updated);
-                                      }
-                                    },
+                  if (_lines.any(
+                    (l) =>
+                        l.requestedQty > 0 && l.requestedQty != l.previousQty,
+                  ))
+                    Container(
+                      padding: EdgeInsets.all(8),
+                      margin: EdgeInsets.only(bottom: 8),
+                      decoration: BoxDecoration(
+                        color: Colors.orange.withValues(alpha: 0.15),
+                        borderRadius: BorderRadius.circular(6),
+                        border: Border.all(color: Colors.orange),
+                      ),
+                      child: Row(
+                        children: [
+                          Icon(Icons.warning_amber, color: Colors.orange),
+                          SizedBox(width: 8),
+                          Expanded(
+                            child: Text(
+                              'Preview. Kliknij "Zapisz RW", aby dodać do RW.',
+                              style: TextStyle(color: Colors.orange[900]),
                             ),
-                            if (!isLineLocked)
-                              IconButton(
-                                icon: Icon(Icons.delete, color: Colors.red),
-                                onPressed: () async {
-                                  final removedLine = _lines[i];
-                                  setState(() => _lines.removeAt(i));
-                                  await _deleteLineFromRW(ln);
-                                  await _saveRWDocument('RW');
+                          ),
+                        ],
+                      ),
+                    ),
 
-                                  removedLine.previousQty = 0;
-                                  // await _cleanupEmptyRWIfNeeded();
-                                },
-                              )
-                            else
-                              IconButton(
-                                icon: Icon(Icons.delete, color: Colors.grey),
-                                onPressed: () {
-                                  ScaffoldMessenger.of(context).showSnackBar(
-                                    SnackBar(
-                                      content: Text(
-                                        'Tylko administrator może usuwać starsze pozycje',
+                  if (_lines.isNotEmpty)
+                    Expanded(
+                      child: ListView.builder(
+                        itemCount: _lines.length,
+
+                        itemBuilder: (ctx, i) {
+                          final today = DateTime.now();
+                          final ln = _lines[i];
+                          final name = ln.isStock
+                              ? _stockItems
+                                    .firstWhere((s) => s.id == ln.itemRef)
+                                    .name
+                              : ln.customName;
+                          final stockQty = ln.isStock
+                              ? _stockItems
+                                    .firstWhere((s) => s.id == ln.itemRef)
+                                    .quantity
+                              : ln.originalStock;
+                          final delta = ln.requestedQty - ln.previousQty;
+                          final previewQty = stockQty - delta;
+                          final qtyColor = previewQty <= 0
+                              ? Colors.red
+                              : Colors.green;
+
+                          final isToday =
+                              ln.updatedAt == null ||
+                              (ln.updatedAt!.year == today.year &&
+                                  ln.updatedAt!.month == today.month &&
+                                  ln.updatedAt!.day == today.day);
+
+                          final isSynced =
+                              ln.requestedQty == ln.previousQty &&
+                              ln.requestedQty > 0;
+                          final isLineLocked =
+                              _rwLocked ||
+                              (isSynced && !isToday && !widget.isAdmin);
+
+                          return ListTile(
+                            contentPadding: const EdgeInsets.symmetric(
+                              horizontal: 0,
+                              vertical: 4,
+                            ),
+                            title: Text(name),
+                            subtitle: Text.rich(
+                              TextSpan(
+                                style: Theme.of(context).textTheme.bodyMedium,
+                                children: [
+                                  TextSpan(
+                                    text: '${ln.requestedQty} ${ln.unit} ',
+                                  ),
+                                  TextSpan(
+                                    text: '(stan: $previewQty)',
+                                    style: TextStyle(color: qtyColor),
+                                  ),
+                                ],
+                              ),
+                            ),
+                            trailing: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                if (isSynced)
+                                  Container(
+                                    padding: const EdgeInsets.symmetric(
+                                      horizontal: 8,
+                                      vertical: 4,
+                                    ),
+                                    margin: const EdgeInsets.only(right: 8),
+                                    decoration: BoxDecoration(
+                                      color: Colors.green.withOpacity(0.15),
+                                      borderRadius: BorderRadius.circular(4),
+                                    ),
+                                    child: Text(
+                                      'Zapisany do RW',
+                                      style: TextStyle(
+                                        color: Colors.green[900],
+                                        fontSize: 12,
                                       ),
                                     ),
-                                  );
-                                },
-                              ),
-                          ],
-                        ),
-                      );
-                    },
-                  ),
-                ),
-            ],
+                                  ),
+                                IconButton(
+                                  icon: Icon(
+                                    Icons.edit,
+                                    color: isLineLocked
+                                        ? Colors.grey
+                                        : Colors.blue,
+                                  ),
+                                  onPressed: isLineLocked
+                                      ? () {
+                                          ScaffoldMessenger.of(
+                                            context,
+                                          ).showSnackBar(
+                                            const SnackBar(
+                                              content: Text(
+                                                'Tylko administrator może edytować',
+                                              ),
+                                            ),
+                                          );
+                                        }
+                                      : () async {
+                                          final updated =
+                                              await showProjectLineDialog(
+                                                context,
+                                                _stockItems,
+                                                existing: ln,
+                                              );
+                                          if (updated != null) {
+                                            setState(() => _lines[i] = updated);
+                                          }
+                                        },
+                                ),
+                                IconButton(
+                                  icon: Icon(
+                                    Icons.delete,
+                                    color: isLineLocked
+                                        ? Colors.grey
+                                        : Colors.red,
+                                  ),
+                                  onPressed: isLineLocked
+                                      ? () {
+                                          ScaffoldMessenger.of(
+                                            context,
+                                          ).showSnackBar(
+                                            const SnackBar(
+                                              content: Text(
+                                                'Tylko administrator może usuwać',
+                                              ),
+                                            ),
+                                          );
+                                        }
+                                      : () async {
+                                          final removedLine = _lines[i];
+                                          setState(() => _lines.removeAt(i));
+                                          await _deleteLineFromRW(ln);
+                                          await _saveRWDocument('RW');
+                                          removedLine.previousQty = 0;
+                                        },
+                                ),
+                              ],
+                            ),
+                          );
+                        },
+                      ),
+                    ),
+                ],
+              ),
+            ),
           ),
-        ),
-      ),
 
-      bottomNavigationBar: SafeArea(
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-          child: ElevatedButton(
-            onPressed: (_rwLocked || _lines.every((l) => l.requestedQty == 0))
-                ? null
-                : () => _saveRWDocument('RW'),
-            child: Text(_rwExistsToday ? 'Update RW' : 'Zapisz RW'),
-          ),
-        ),
+          if (!_rwLocked)
+            Positioned(
+              right: 16,
+              bottom: kBottomNavigationBarHeight + 16,
+              child: ElevatedButton(
+                style: ElevatedButton.styleFrom(
+                  shape: StadiumBorder(),
+                  elevation: 4,
+                ),
+                onPressed: _lines.every((l) => l.requestedQty == 0)
+                    ? null
+                    : () => _saveRWDocument('RW'),
+                child: Text(_rwExistsToday ? 'Update RW' : 'Zapisz RW'),
+              ),
+            ),
+        ],
       ),
 
       floatingActionButton: _rwLocked
           ? null
           : FloatingActionButton(
+              tooltip: 'Dodaj pozycja',
               onPressed: () async {
                 final newLine = await showProjectLineDialog(
                   context,
@@ -820,7 +820,6 @@ class _ProjectEditorScreenState extends State<ProjectEditorScreen> {
                 );
                 if (newLine == null) return;
 
-                // preserve unit on stock items
                 final lineWithUnit = newLine.isStock
                     ? newLine.copyWith(
                         unit: _stockItems
@@ -829,7 +828,6 @@ class _ProjectEditorScreenState extends State<ProjectEditorScreen> {
                       )
                     : newLine;
 
-                // prevent duplicates
                 final isDup = newLine.isStock
                     ? _lines.any(
                         (l) => l.isStock && l.itemRef == newLine.itemRef,
@@ -843,10 +841,8 @@ class _ProjectEditorScreenState extends State<ProjectEditorScreen> {
 
                 if (isDup) {
                   ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(
-                      content: Text(
-                        'Nie można dodać, bo pozycja już istnieje!',
-                      ),
+                    const SnackBar(
+                      content: Text('Nie można dodać bo pozycja już istnieje!'),
                     ),
                   );
                   return;
@@ -854,9 +850,39 @@ class _ProjectEditorScreenState extends State<ProjectEditorScreen> {
 
                 setState(() => _lines.add(lineWithUnit));
               },
-              tooltip: 'Dodaj',
-              child: Icon(Icons.playlist_add, size: 28),
+              child: const Icon(Icons.playlist_add, size: 28),
             ),
-    ); // end of Scaffold
-  } // end of build()
-} // end of _ProjectEditorScreenState
+      floatingActionButtonLocation: FloatingActionButtonLocation.centerDocked,
+
+      bottomNavigationBar: BottomAppBar(
+        shape: const CircularNotchedRectangle(),
+        notchMargin: 6,
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 8),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              IconButton(
+                tooltip: 'Inwentaryzacja',
+                icon: const Icon(Icons.inventory_2),
+                onPressed: () => Navigator.of(context).push(
+                  MaterialPageRoute(
+                    builder: (_) =>
+                        InventoryListScreen(isAdmin: widget.isAdmin),
+                  ),
+                ),
+              ),
+              IconButton(
+                tooltip: 'Skanuj',
+                icon: const Icon(Icons.qr_code_scanner),
+                onPressed: () => Navigator.of(
+                  context,
+                ).push(MaterialPageRoute(builder: (_) => const ScanScreen())),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}

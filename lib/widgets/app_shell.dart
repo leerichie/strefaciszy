@@ -3,13 +3,13 @@
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:strefa_ciszy/screens/customer_list_screen.dart';
+import 'package:strefa_ciszy/screens/inventory_list_screen.dart';
+import 'package:strefa_ciszy/screens/manage_users_screen.dart';
+import 'package:strefa_ciszy/screens/scan_screen.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import 'package:strefa_ciszy/screens/audit_log_screen.dart';
-import 'customer_list_screen.dart';
-import 'inventory_list_screen.dart';
-import 'scan_screen.dart';
-import 'manage_users_screen.dart';
 
 class MainMenuScreen extends StatelessWidget {
   final String role;
@@ -22,9 +22,9 @@ class MainMenuScreen extends StatelessWidget {
   Future<void> _downloadApp(BuildContext context) async {
     final url = Uri.parse('https://strefa-ciszy.web.app/app-release.apk');
     if (!await launchUrl(url, mode: LaunchMode.externalApplication)) {
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(const SnackBar(content: Text('Błąd pobieranie apka')));
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Błąd przy pobieraniu aplikacji')),
+      );
     }
   }
 

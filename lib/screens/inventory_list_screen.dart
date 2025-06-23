@@ -1,11 +1,14 @@
 // lib/screens/inventory_list_screen.dart
 
 import 'dart:async';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:strefa_ciszy/models/stock_item.dart';
 import 'package:strefa_ciszy/screens/add_item_screen.dart';
 import 'package:strefa_ciszy/screens/item_detail_screen.dart';
+import 'package:strefa_ciszy/screens/scan_screen.dart';
+import 'customer_list_screen.dart';
 
 class InventoryListScreen extends StatefulWidget {
   final bool isAdmin;
@@ -77,15 +80,15 @@ class _InventoryListScreenState extends State<InventoryListScreen> {
       child: ChoiceChip(
         label: Text(label),
         selected: selected,
-        onSelected: (_) => setState(() {
-          _category = value ?? '';
-        }),
+        onSelected: (_) => setState(() => _category = value ?? ''),
       ),
     );
   }
 
   @override
   Widget build(BuildContext context) {
+    final isAdmin = widget.isAdmin;
+
     return Scaffold(
       appBar: AppBar(
         title: const Text('Inwentaryzacja'),
@@ -120,6 +123,7 @@ class _InventoryListScreenState extends State<InventoryListScreen> {
           ),
         ),
       ),
+
       body: Column(
         children: [
           const SizedBox(height: 8),
@@ -149,7 +153,6 @@ class _InventoryListScreenState extends State<InventoryListScreen> {
                 }
 
                 final allItems = snap.data!.docs.map((d) => d.data()).toList();
-
                 final queryLower = _search.toLowerCase();
                 final filtered = queryLower.isEmpty
                     ? allItems
@@ -176,12 +179,12 @@ class _InventoryListScreenState extends State<InventoryListScreen> {
                         children: [
                           Text(
                             item.producent ?? '',
-                            style: TextStyle(
+                            style: const TextStyle(
                               fontSize: 16,
                               fontWeight: FontWeight.bold,
                             ),
                           ),
-                          Text(item.name, style: TextStyle(fontSize: 14)),
+                          Text(item.name, style: const TextStyle(fontSize: 14)),
                         ],
                       ),
                       subtitle: Text(
@@ -189,15 +192,6 @@ class _InventoryListScreenState extends State<InventoryListScreen> {
                         '${item.unit != null ? ' ${item.unit}' : ''}',
                         style: TextStyle(fontSize: 12, color: Colors.grey[700]),
                       ),
-                      // trailing: widget.isAdmin
-                      //     ? IconButton(
-                      //         icon: const Icon(Icons.delete, color: Colors.red),
-                      //         onPressed: () => FirebaseFirestore.instance
-                      //             .collection('stock_items')
-                      //             .doc(item.id)
-                      //             .delete(),
-                      //       )
-                      //     : null,
                       onTap: () => Navigator.of(context).push(
                         MaterialPageRoute(
                           builder: (_) => ItemDetailScreen(itemId: item.id),
@@ -211,12 +205,46 @@ class _InventoryListScreenState extends State<InventoryListScreen> {
           ),
         ],
       ),
+
       floatingActionButton: FloatingActionButton(
         onPressed: () => Navigator.of(
           context,
-        ).push(MaterialPageRoute(builder: (_) => AddItemScreen())),
+        ).push(MaterialPageRoute(builder: (_) => const AddItemScreen())),
         tooltip: 'Dodaj pozycja',
         child: const Icon(Icons.add),
+      ),
+
+      floatingActionButtonLocation: FloatingActionButtonLocation.centerDocked,
+      bottomNavigationBar: SafeArea(
+        child: BottomAppBar(
+          shape: const CircularNotchedRectangle(),
+          notchMargin: 6,
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 32),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                IconButton(
+                  tooltip: 'Klienci',
+                  icon: const Icon(Icons.group),
+                  onPressed: () => Navigator.of(context).push(
+                    MaterialPageRoute(
+                      builder: (_) => CustomerListScreen(isAdmin: isAdmin),
+                    ),
+                  ),
+                ),
+
+                IconButton(
+                  tooltip: 'Skanuj',
+                  icon: const Icon(Icons.qr_code_scanner),
+                  onPressed: () => Navigator.of(
+                    context,
+                  ).push(MaterialPageRoute(builder: (_) => const ScanScreen())),
+                ),
+              ],
+            ),
+          ),
+        ),
       ),
     );
   }
