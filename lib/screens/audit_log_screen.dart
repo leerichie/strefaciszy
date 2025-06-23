@@ -15,7 +15,7 @@ class AuditLogScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: Text('Dziennik audytu')),
+      appBar: AppBar(title: Text('Historia - RW')),
       body: StreamBuilder<QuerySnapshot>(
         stream: FirebaseFirestore.instance
             .collection('audit_logs')

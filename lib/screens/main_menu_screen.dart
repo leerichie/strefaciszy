@@ -101,7 +101,7 @@ class MainMenuScreen extends StatelessWidget {
           if (isAdmin)
             ListTile(
               leading: Icon(Icons.history_edu),
-              title: Text('Dziennik AUDIT'),
+              title: Text('Historia RW'),
               onTap: () => Navigator.of(
                 context,
               ).push(MaterialPageRoute(builder: (_) => AuditLogScreen())),
