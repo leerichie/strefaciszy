@@ -1,0 +1,70 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // STOCK_ITEMS: any signed-in user
+    match /stock_items/{id} {
+      allow read, write: if request.auth != null;
+    }
+
+    // CUSTOMERS & sub-collections
+    match /customers/{customerId} {
+      allow read, write: if request.auth != null;
+
+      // Projects under a customer
+      match /projects/{projectId} {
+        allow read, write: if request.auth != null;
+
+        // RW_DOCUMENTS under a project
+        match /rw_documents/{docId} {
+          // Anyone logged in can read & create
+          allow read, create: if request.auth != null;
+
+          // Admins or docs < 24 h old (so “today’s” docs) can be updated
+          allow update: if request.auth != null
+            && (
+              request.auth.token.admin == true
+              || request.time < resource.data.createdAt + duration.value(1, 'd')
+            );
+
+          // Only admins can delete
+          allow delete: if request.auth != null
+            && request.auth.token.admin == true;
+        }
+      }
+    }
+
+    // Top-level PROJECTS
+    match /projects/{id} {
+      allow read, write: if request.auth != null;
+    }
+
+    // Top-level RW_DOCUMENTS (all-RW/MM menu)
+    match /rw_documents/{docId} {
+      allow read, create: if request.auth != null;
+      // Only admins may update or delete these
+      allow update, delete: if request.auth != null
+        && request.auth.token.admin == true;
+    }
+
+    // REPORTS
+    match /reports/{id} {
+      allow read, write: if request.auth != null;
+    }
+
+    // CATEGORIES
+    match /categories/{id} {
+      allow read, write: if request.auth != null;
+    }
+
+    // AUDIT_LOGS
+    match /audit_logs/{logId} {
+      allow create: if request.auth != null;
+      allow read:   if request.auth != null;  // or tighten to admin only
+    }
+
+    // USERS
+    match /users/{uid} {
+      allow read, write: if request.auth.token.admin == true;
+    }
+  }
+}
