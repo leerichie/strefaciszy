@@ -793,23 +793,27 @@ class _ProjectEditorScreenState extends State<ProjectEditorScreen> {
                     },
                   ),
                 ),
+                  ),
+                ],
+              ),
             ],
           ),
         ),
       ),
-
-      bottomNavigationBar: SafeArea(
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-          child: ElevatedButton(
-            onPressed: (_rwLocked || _lines.every((l) => l.requestedQty == 0))
-                ? null
-                : () => _saveRWDocument('RW'),
-            child: Text(_rwExistsToday ? 'Update RW' : 'Zapisz RW'),
+              SizedBox(height: 16),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                children: [
+                  ElevatedButton(
+                    onPressed: _rwLocked ? null : () => _saveRWDocument('RW'),
+                    child: Text(_rwExistsToday ? 'Update RW' : 'Zapisz RW'),
+                  ),
+                ],
+              ),
+            ],
           ),
         ),
       ),
-
       floatingActionButton: _rwLocked
           ? null
           : FloatingActionButton(
@@ -818,9 +822,9 @@ class _ProjectEditorScreenState extends State<ProjectEditorScreen> {
                   context,
                   _stockItems,
                 );
+
                 if (newLine == null) return;
 
-                // preserve unit on stock items
                 final lineWithUnit = newLine.isStock
                     ? newLine.copyWith(
                         unit: _stockItems
@@ -829,7 +833,6 @@ class _ProjectEditorScreenState extends State<ProjectEditorScreen> {
                       )
                     : newLine;
 
-                // prevent duplicates
                 final isDup = newLine.isStock
                     ? _lines.any(
                         (l) => l.isStock && l.itemRef == newLine.itemRef,
@@ -844,9 +847,7 @@ class _ProjectEditorScreenState extends State<ProjectEditorScreen> {
                 if (isDup) {
                   ScaffoldMessenger.of(context).showSnackBar(
                     SnackBar(
-                      content: Text(
-                        'Nie można dodać, bo pozycja już istnieje!',
-                      ),
+                      content: Text('Nie mozna dodac bo pozycja juz istnieje!'),
                     ),
                   );
                   return;
@@ -857,6 +858,6 @@ class _ProjectEditorScreenState extends State<ProjectEditorScreen> {
               tooltip: 'Dodaj',
               child: Icon(Icons.playlist_add, size: 28),
             ),
-    ); // end of Scaffold
-  } // end of build()
-} // end of _ProjectEditorScreenState
+    );
+  }
+}

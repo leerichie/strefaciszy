@@ -793,18 +793,17 @@ class _ProjectEditorScreenState extends State<ProjectEditorScreen> {
                     },
                   ),
                 ),
+              // end of Expanded ListView
             ],
-          ),
-        ),
-      ),
+          ), // end of Column children
+        ), // end of Form
+      ), // end of Padding
 
       bottomNavigationBar: SafeArea(
         child: Padding(
           padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
           child: ElevatedButton(
-            onPressed: (_rwLocked || _lines.every((l) => l.requestedQty == 0))
-                ? null
-                : () => _saveRWDocument('RW'),
+            onPressed: _rwLocked ? null : () => _saveRWDocument('RW'),
             child: Text(_rwExistsToday ? 'Update RW' : 'Zapisz RW'),
           ),
         ),

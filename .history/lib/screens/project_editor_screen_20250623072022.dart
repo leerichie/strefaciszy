@@ -554,6 +554,7 @@ class _ProjectEditorScreenState extends State<ProjectEditorScreen> {
     }
 
     return Scaffold(
+      resizeToAvoidBottomInset: false,
       appBar: AppBar(
         title: Text('Edytuj projekt'),
         actions: [
@@ -793,34 +794,28 @@ class _ProjectEditorScreenState extends State<ProjectEditorScreen> {
                     },
                   ),
                 ),
-            ],
-          ),
+              SizedBox(height: 16),
+              bottomNavigationBar: SafeArea(
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+        child: ElevatedButton(
+          onPressed: _rwLocked ? null : () => _saveRWDocument('RW'),
+          child: Text(_rwExistsToday ? 'Update RW' : 'Zapisz RW'),
         ),
       ),
+    ),
 
-      bottomNavigationBar: SafeArea(
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-          child: ElevatedButton(
-            onPressed: (_rwLocked || _lines.every((l) => l.requestedQty == 0))
-                ? null
-                : () => _saveRWDocument('RW'),
-            child: Text(_rwExistsToday ? 'Update RW' : 'Zapisz RW'),
-          ),
-        ),
-      ),
-
-      floatingActionButton: _rwLocked
-          ? null
-          : FloatingActionButton(
-              onPressed: () async {
+    floatingActionButton: _rwLocked
+        ? null
+        : FloatingActionButton(
+            onPressed: () async {
                 final newLine = await showProjectLineDialog(
                   context,
                   _stockItems,
                 );
+
                 if (newLine == null) return;
 
-                // preserve unit on stock items
                 final lineWithUnit = newLine.isStock
                     ? newLine.copyWith(
                         unit: _stockItems
@@ -829,7 +824,6 @@ class _ProjectEditorScreenState extends State<ProjectEditorScreen> {
                       )
                     : newLine;
 
-                // prevent duplicates
                 final isDup = newLine.isStock
                     ? _lines.any(
                         (l) => l.isStock && l.itemRef == newLine.itemRef,
@@ -844,9 +838,7 @@ class _ProjectEditorScreenState extends State<ProjectEditorScreen> {
                 if (isDup) {
                   ScaffoldMessenger.of(context).showSnackBar(
                     SnackBar(
-                      content: Text(
-                        'Nie można dodać, bo pozycja już istnieje!',
-                      ),
+                      content: Text('Nie mozna dodac bo pozycja juz istnieje!'),
                     ),
                   );
                   return;
@@ -857,6 +849,6 @@ class _ProjectEditorScreenState extends State<ProjectEditorScreen> {
               tooltip: 'Dodaj',
               child: Icon(Icons.playlist_add, size: 28),
             ),
-    ); // end of Scaffold
-  } // end of build()
-} // end of _ProjectEditorScreenState
+    );
+  }
+}
