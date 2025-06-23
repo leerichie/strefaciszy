@@ -17,6 +17,7 @@ import 'package:strefa_ciszy/screens/project_editor_screen.dart';
 import 'package:strefa_ciszy/screens/scan_screen.dart';
 import 'package:strefa_ciszy/services/file_saver.dart';
 import 'package:syncfusion_flutter_xlsio/xlsio.dart' as xlsio;
+import 'package:strefa_ciszy/widgets/project_history_list.dart';
 
 class RWDocumentsScreen extends StatefulWidget {
   final String? customerId;
@@ -98,78 +99,66 @@ class _RWDocumentsScreenState extends State<RWDocumentsScreen> {
                     .get(),
                 builder: (ctx, snap) {
                   if (snap.connectionState != ConnectionState.done) {
-                    return Text('RW');
+                    return const Text('RW');
                   }
                   if (!snap.hasData || !snap.data!.exists) {
-                    return Text('RW');
+                    return const Text('RW');
                   }
                   final data = snap.data!.data()! as Map<String, dynamic>;
                   final projectName = data['title'] as String? ?? '–';
                   return Text('RW • $projectName');
                 },
               )
-            : Text('RW/MM - wszystkie'),
+            : const Text('RW/MM - wszystkie'),
       ),
 
       body: Column(
         children: [
+          // ─── Search + Reset ──────────────────────────────────────────────────
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-            child: Column(
+            child: Row(
               children: [
-                Row(
-                  children: [
-                    Expanded(
-                      child: DropdownButton<String>(
-                        value: _selectedType,
-                        hint: const Text('Typ dokumentu'),
-                        items: ['RW', 'MM']
-                            .map(
-                              (t) => DropdownMenuItem(value: t, child: Text(t)),
-                            )
-                            .toList(),
-                        onChanged: (val) => setState(() => _selectedType = val),
-                      ),
+                Expanded(
+                  child: TextField(
+                    controller: _searchController,
+                    decoration: const InputDecoration(
+                      labelText: 'Wyszukaj...',
+                      prefixIcon: Icon(Icons.search),
+                      border: OutlineInputBorder(),
+                      isDense: true,
                     ),
-
-                    TextButton.icon(
-                      icon: const Icon(Icons.refresh),
-                      label: const Text('Resetuj'),
-                      style: TextButton.styleFrom(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 16,
-                          vertical: 12,
-                        ),
-                      ),
-                      onPressed: () {
-                        setState(() {
-                          _selectedType = null;
-                          _userFilter = '';
-                          _fromDate = null;
-                          _toDate = null;
-                          _searchController.clear();
-                        });
-                      },
-                    ),
-                  ],
-                ),
-
-                const SizedBox(height: 6),
-                TextField(
-                  controller: _searchController,
-                  decoration: const InputDecoration(
-                    labelText: 'Wyszukaj...',
-                    prefixIcon: Icon(Icons.search),
-                    border: OutlineInputBorder(),
-                    isDense: true,
+                    onChanged: (v) => setState(() => _userFilter = v.trim()),
                   ),
-                  onChanged: (v) => setState(() => _userFilter = v.trim()),
+                ),
+                const SizedBox(width: 8),
+                TextButton.icon(
+                  icon: const Icon(Icons.refresh),
+                  label: const Text('Resetuj'),
+                  style: TextButton.styleFrom(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 16,
+                      vertical: 12,
+                    ),
+                  ),
+                  onPressed: () {
+                    setState(() {
+                      _selectedType = null;
+                      _userFilter = '';
+                      _fromDate = null;
+                      _toDate = null;
+                      _searchController.clear();
+                    });
+                  },
                 ),
               ],
             ),
           ),
+
           const Divider(height: 1),
+
           Expanded(
+            flex: 1,
             child: StreamBuilder<QuerySnapshot>(
               stream: _stream,
               builder: (ctx, snap) {
@@ -184,6 +173,7 @@ class _RWDocumentsScreenState extends State<RWDocumentsScreen> {
                 final filtered = docs.where((doc) {
                   final d = doc.data() as Map<String, dynamic>;
 
+                  // parse createdAt
                   DateTime created;
                   final rawCreated = d['createdAt'];
                   if (rawCreated is Timestamp) {
@@ -224,24 +214,93 @@ class _RWDocumentsScreenState extends State<RWDocumentsScreen> {
                   itemCount: filtered.length,
                   itemBuilder: (ctx, i) {
                     final doc = filtered[i];
-                    final d = doc.data() as Map<String, dynamic>;
+                    final d = doc.data()! as Map<String, dynamic>;
 
-                    DateTime ts;
+                    // format created date
                     final rawTs = d['createdAt'];
-                    if (rawTs is Timestamp) {
-                      ts = rawTs.toDate();
-                    } else if (rawTs is String) {
-                      ts = DateTime.tryParse(rawTs) ?? DateTime.now();
-                    } else {
-                      ts = DateTime.now();
-                    }
+                    final ts = rawTs is Timestamp
+                        ? rawTs.toDate()
+                        : DateTime.tryParse(rawTs.toString()) ?? DateTime.now();
                     final date = DateFormat(
                       'dd.MM.yyyy • HH:mm',
                       'pl_PL',
                     ).format(ts);
 
-                    final uid = d['createdBy'] ?? '';
+                    // fetch and display the username
+                    final uid = d['createdBy'] as String? ?? '';
                     _fetchUserName(uid);
+                    final displayName = userNames[uid] ?? uid;
+
+                    // determine if it's today
+                    final startOfDay = DateTime(ts.year, ts.month, ts.day);
+                    final startOfTomorrow = startOfDay.add(
+                      const Duration(days: 1),
+                    );
+                    final now = DateTime.now();
+                    final isToday =
+                        now.isAfter(startOfDay) &&
+                        now.isBefore(startOfTomorrow);
+
+                    // action buttons
+                    final actions = <Widget>[];
+                    if (isToday) {
+                      actions.add(
+                        IconButton(
+                          icon: const Icon(Icons.edit, color: Colors.blue),
+                          tooltip: 'Edytuj dokument',
+                          onPressed: () {
+                            Navigator.of(context).push(
+                              MaterialPageRoute(
+                                builder: (_) => ProjectEditorScreen(
+                                  customerId: widget.customerId!,
+                                  projectId: widget.projectId!,
+                                  isAdmin: widget.isAdmin,
+                                  rwId: doc.id,
+                                  rwCreatedAt: ts,
+                                ),
+                              ),
+                            );
+                          },
+                        ),
+                      );
+                    }
+                    if (widget.isAdmin) {
+                      actions.add(
+                        IconButton(
+                          icon: const Icon(Icons.delete, color: Colors.red),
+                          tooltip: 'Usuń dokument',
+                          onPressed: () async {
+                            final confirm = await showDialog<bool>(
+                              context: context,
+                              builder: (ctx2) => AlertDialog(
+                                title: const Text('Usuń dokument?'),
+                                content: Text(
+                                  'Na pewno usunąć dokument ${d['type']}?',
+                                ),
+                                actions: [
+                                  TextButton(
+                                    onPressed: () => Navigator.pop(ctx2, false),
+                                    child: const Text('Anuluj'),
+                                  ),
+                                  ElevatedButton(
+                                    onPressed: () => Navigator.pop(ctx2, true),
+                                    child: const Text('Usuń'),
+                                  ),
+                                ],
+                              ),
+                            );
+                            if (confirm == true) {
+                              await doc.reference.delete();
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                const SnackBar(
+                                  content: Text('Dokument usunięty'),
+                                ),
+                              );
+                            }
+                          },
+                        ),
+                      );
+                    }
 
                     return ListTile(
                       title: Text('${d['type']} — ${d['projectName'] ?? ''}'),
@@ -267,81 +326,46 @@ class _RWDocumentsScreenState extends State<RWDocumentsScreen> {
                                 color: Colors.grey,
                               ),
                               const SizedBox(width: 4),
-                              Text(userNames[uid] ?? uid),
+                              Text(displayName),
                             ],
                           ),
                         ],
                       ),
                       isThreeLine: true,
                       onTap: () => _showDetailsDialog(context, d),
-                      trailing: widget.isAdmin
-                          ? Row(
+                      trailing: actions.isEmpty
+                          ? null
+                          : Row(
                               mainAxisSize: MainAxisSize.min,
-                              children: [
-                                IconButton(
-                                  icon: Icon(Icons.edit, color: Colors.blue),
-                                  tooltip: 'Edytuj dokument',
-                                  onPressed: () {
-                                    Navigator.of(context).push(
-                                      MaterialPageRoute(
-                                        builder: (_) => ProjectEditorScreen(
-                                          customerId: widget.customerId!,
-                                          projectId: widget.projectId!,
-                                          isAdmin: true,
-                                          rwId: doc.id,
-                                        ),
-                                      ),
-                                    );
-                                  },
-                                ),
-                                IconButton(
-                                  icon: Icon(Icons.delete, color: Colors.red),
-                                  tooltip: 'Usuń dokument',
-                                  onPressed: () async {
-                                    final confirm = await showDialog<bool>(
-                                      context: context,
-                                      builder: (ctx) => AlertDialog(
-                                        title: Text('Usuń dokument?'),
-                                        content: Text(
-                                          'Na pewno usunąć dokument ${d['type']}?',
-                                        ),
-                                        actions: [
-                                          TextButton(
-                                            onPressed: () =>
-                                                Navigator.pop(ctx, false),
-                                            child: Text('Anuluj'),
-                                          ),
-                                          ElevatedButton(
-                                            onPressed: () =>
-                                                Navigator.pop(ctx, true),
-                                            child: Text('Usuń'),
-                                          ),
-                                        ],
-                                      ),
-                                    );
-                                    if (confirm == true) {
-                                      await doc.reference.delete();
-                                      ScaffoldMessenger.of(
-                                        context,
-                                      ).showSnackBar(
-                                        SnackBar(
-                                          content: Text('Dokument usunięty'),
-                                        ),
-                                      );
-                                    }
-                                  },
-                                ),
-                              ],
-                            )
-                          : null,
+                              children: actions,
+                            ),
                     );
                   },
                 );
               },
             ),
           ),
+
+          if (isClientView) ...[
+            const Divider(height: 1),
+            Padding(
+              padding: const EdgeInsets.symmetric(vertical: 8),
+              child: Text(
+                'Historia',
+                style: Theme.of(context).textTheme.titleMedium,
+              ),
+            ),
+            Expanded(
+              flex: 1,
+              child: ProjectHistoryList(
+                customerId: widget.customerId!,
+                projectId: widget.projectId!,
+              ),
+            ),
+          ],
         ],
       ),
+
       floatingActionButton: !kIsWeb
           ? FloatingActionButton(
               tooltip: 'Skanuj',
@@ -371,7 +395,6 @@ class _RWDocumentsScreenState extends State<RWDocumentsScreen> {
                     ),
                   ),
                 ),
-
                 IconButton(
                   tooltip: 'Klienci',
                   icon: const Icon(Icons.group),
@@ -430,7 +453,10 @@ class _RWDocumentsScreenState extends State<RWDocumentsScreen> {
     ).showSnackBar(const SnackBar(content: Text('Skopiowany do schowka')));
   }
 
-  void _showDetailsDialog(BuildContext context, Map<String, dynamic> data) {
+  Future<void> _showDetailsDialog(
+    BuildContext context,
+    Map<String, dynamic> data,
+  ) async {
     DateTime dt;
     final raw = data['createdAt'];
     if (raw is Timestamp) {
@@ -440,36 +466,46 @@ class _RWDocumentsScreenState extends State<RWDocumentsScreen> {
     } else {
       dt = DateTime.now();
     }
-    final date = DateFormat('dd.MM.yyyy HH:mm', 'pl_PL').format(dt);
+    final dateStr = DateFormat('dd.MM.yyyy HH:mm', 'pl_PL').format(dt);
 
     final uid = data['createdBy'] as String? ?? '';
-    final name = userNames[uid] ?? '...';
+    String displayName;
+
+    if (userNames.containsKey(uid)) {
+      displayName = userNames[uid]!;
+    } else {
+      try {
+        final snap = await FirebaseFirestore.instance
+            .collection('users')
+            .doc(uid)
+            .get();
+        final u = snap.data();
+        displayName = u?['name'] ?? u?['email'] ?? uid;
+      } catch (_) {
+        displayName = uid;
+      }
+      setState(() => userNames[uid] = displayName);
+    }
 
     showDialog(
       context: context,
       builder: (ctx) => AlertDialog(
-        title: Text('Szczegóły - ${data['type']}'),
+        title: Text('Szczegóły – ${data['type']}'),
         content: SingleChildScrollView(
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Text('Projekt: ${data['projectName']}'),
-              Text('Utworzono: $date'),
-              Text('Użytkownik: $name'),
-              SizedBox(height: 16),
+              Text('Utworzono: $dateStr'),
+              Text('Użytkownik: $displayName'),
+              const SizedBox(height: 16),
               Text('Materiały:'),
-              ...((data['items'] as List<dynamic>?) ?? []).map(
-                (item) => Padding(
+              ...((data['items'] as List<dynamic>?) ?? []).map((item) {
+                return Padding(
                   padding: const EdgeInsets.symmetric(vertical: 2.0),
                   child: Row(
                     children: [
-                      Expanded(
-                        flex: 4,
-                        child: Text(
-                          item['name'] ?? '',
-                          textAlign: TextAlign.left,
-                        ),
-                      ),
+                      Expanded(flex: 4, child: Text(item['name'] ?? '')),
                       Expanded(
                         flex: 2,
                         child: Text(
@@ -486,21 +522,19 @@ class _RWDocumentsScreenState extends State<RWDocumentsScreen> {
                       ),
                     ],
                   ),
-                ),
-              ),
+                );
+              }).toList(),
             ],
           ),
         ),
         actions: [
-          // TextButton(
-          //   onPressed: () => Navigator.pop(ctx),
-          //   child: Text('Zamknij'),
-          // ),
-          TextButton(onPressed: () => _copyCsv(data), child: Text('Kopiuj')),
-
+          TextButton(
+            onPressed: () => _copyCsv(data),
+            child: const Text('Kopiuj'),
+          ),
           TextButton(
             onPressed: () => _exportToExcel(context, data),
-            child: Text('Exportuj do Excel'),
+            child: const Text('Exportuj do Excel'),
           ),
         ],
       ),

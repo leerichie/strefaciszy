@@ -3,6 +3,7 @@
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:qr_flutter/qr_flutter.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import 'package:strefa_ciszy/screens/audit_log_screen.dart';
@@ -113,6 +114,18 @@ class MainMenuScreen extends StatelessWidget {
             title: const Text('download apk (Android)'),
             subtitle: const Text('Android'),
             onTap: () => _downloadApp(context),
+            trailing: SizedBox(
+              width: 80,
+              height: 80,
+              child: FittedBox(
+                fit: BoxFit.contain,
+                child: QrImageView(
+                  data: 'https://strefa-ciszy.web.app/app-release.apk',
+                  version: QrVersions.auto,
+                  size: 150,
+                ),
+              ),
+            ),
           ),
         ],
       ),

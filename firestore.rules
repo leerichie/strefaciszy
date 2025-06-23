@@ -2,43 +2,60 @@ rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
 
-    // STOCK_ITEMS: any signed-in user can read or write
+    // STOCK_ITEMS: any signed‐in user can read or write
     match /stock_items/{id} {
       allow read, write: if request.auth != null;
     }
 
-    // CUSTOMERS & sub-collections
+    // CUSTOMERS & sub‐collections
     match /customers/{customerId} {
       allow read, write: if request.auth != null;
 
+      // Projects under a customer
       match /projects/{projectId} {
         allow read, write: if request.auth != null;
 
+        // RW_DOCUMENTS under a project
         match /rw_documents/{docId} {
+          // Any authenticated user can read & create
           allow read, create: if request.auth != null;
-          allow update, delete: if request.auth != null
+
+          // Any user can update if they're admin
+          // or if the document was created today (UTC day)
+          allow update: if request.auth != null
             && (
               request.auth.token.admin == true
               || (
-                resource.data.createdBy == request.auth.uid
-                && request.time.toMillis()
-                     - resource.data.createdAt.toMillis()
-                   < 24 * 60 * 60 * 1000
+                resource.data.createdAt.year()  == request.time.year()
+                && resource.data.createdAt.month() == request.time.month()
+                && resource.data.createdAt.day()   == request.time.day()
               )
             );
+
+          // Only admins may delete
+          allow delete: if request.auth != null
+            && request.auth.token.admin == true;
+        }
+
+        // AUDIT_LOGS under a project → everyone signed‐in can read history
+        match /audit_logs/{logId} {
+          allow create: if request.auth != null;
+          allow read:   if request.auth != null;
         }
       }
     }
 
-    // Top-level PROJECTS
+    // Top‐level PROJECTS
     match /projects/{id} {
       allow read, write: if request.auth != null;
     }
 
-    // Top-level RW_DOCUMENTS (all‐RW/MM menu)
+    // Top‐level RW_DOCUMENTS (all‐RW/MM menu)
     match /rw_documents/{docId} {
       allow read, create: if request.auth != null;
-      allow update, delete: if request.auth.token.admin == true;
+      // Only admins may update or delete top-level docs
+      allow update, delete: if request.auth != null
+        && request.auth.token.admin == true;
     }
 
     // REPORTS
@@ -51,15 +68,16 @@ service cloud.firestore {
       allow read, write: if request.auth != null;
     }
 
-    // AUDIT_LOGS
+    // (Optional) Top-level AUDIT_LOGS — you can keep this if you also write logs there
     match /audit_logs/{logId} {
       allow create: if request.auth != null;
-      allow read:   if request.auth != null;  // or admin only
+      allow read:   if request.auth != null;
     }
 
     // USERS
     match /users/{uid} {
-      allow read, write: if request.auth.token.admin == true;
+      allow read:  if request.auth != null;              
+      allow write: if request.auth.token.admin == true;  
     }
   }
 }

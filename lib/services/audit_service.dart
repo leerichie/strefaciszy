@@ -8,6 +8,8 @@ class AuditService {
 
   static Future<void> logAction({
     required String action,
+    required String customerId,
+    required String projectId,
     Map<String, dynamic>? details,
   }) async {
     final user = FirebaseAuth.instance.currentUser;
@@ -26,14 +28,26 @@ class AuditService {
     } catch (e) {
       displayName = user.displayName ?? user.email ?? user.uid;
     }
+    final timestamp = FieldValue.serverTimestamp();
 
-    final col = FirebaseFirestore.instance.collection('audit_logs');
-    await col.add({
+    final payload = {
       'userId': user.uid,
       'userName': displayName,
       'action': action,
       'details': details ?? {},
-      'timestamp': FieldValue.serverTimestamp(),
-    });
+      'timestamp': timestamp,
+      'customerId': customerId,
+      'projectId': projectId,
+    };
+
+    await FirebaseFirestore.instance.collection('audit_logs').add(payload);
+
+    await FirebaseFirestore.instance
+        .collection('customers')
+        .doc(customerId)
+        .collection('projects')
+        .doc(projectId)
+        .collection('audit_logs')
+        .add(payload);
   }
 }

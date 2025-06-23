@@ -16,6 +16,7 @@ import 'package:strefa_ciszy/widgets/project_line_dialog.dart';
 import 'package:strefa_ciszy/models/rw_document.dart';
 import 'package:strefa_ciszy/screens/scan_screen.dart';
 import 'package:strefa_ciszy/services/audit_service.dart';
+import 'package:strefa_ciszy/widgets/project_history_list.dart';
 
 class ProjectEditorScreen extends StatefulWidget {
   final bool isAdmin;
@@ -129,13 +130,56 @@ class _ProjectEditorScreenState extends State<ProjectEditorScreen> {
         .doc(widget.customerId)
         .collection('projects')
         .doc(widget.projectId);
+
+    if (widget.rwId != null) {
+      final rwSnap = await projRef
+          .collection('rw_documents')
+          .doc(widget.rwId)
+          .get();
+      if (rwSnap.exists) {
+        final data = rwSnap.data()!;
+        final rawItems = (data['items'] as List<dynamic>?) ?? [];
+
+        _lines = rawItems.map((e) {
+          final m = e as Map<String, dynamic>;
+          final itemId = m['itemId'] as String;
+          final qty = (m['quantity'] as num).toInt();
+          final unit = m['unit'] as String;
+          final name = m['name'] as String;
+          final isStock = _stockItems.any((s) => s.id == itemId);
+
+          final originalStock = isStock
+              ? _stockItems.firstWhere((s) => s.id == itemId).quantity
+              : qty;
+
+          return ProjectLine(
+            isStock: isStock,
+            itemRef: itemId,
+            customName: isStock ? '' : name,
+            requestedQty: qty,
+            originalStock: originalStock,
+            previousQty: qty,
+            unit: unit,
+          );
+        }).toList();
+
+        _title = data['projectName'] as String? ?? '';
+
+        setState(() {
+          _loading = false;
+          _initialized = true;
+        });
+        return;
+      }
+    }
+
     final snap = await projRef.get();
     final data = snap.data()!;
-
     final lastRwRaw = data['lastRwDate'];
     DateTime? lastRwDate = lastRwRaw is Timestamp ? lastRwRaw.toDate() : null;
     final now = DateTime.now();
     final startOfDay = DateTime(now.year, now.month, now.day);
+
     if (lastRwDate == null || lastRwDate.isBefore(startOfDay)) {
       await projRef.update({
         'items': <Map<String, dynamic>>[],
@@ -245,11 +289,7 @@ class _ProjectEditorScreenState extends State<ProjectEditorScreen> {
       final createdAtRaw = (docSnap.data()!['createdAt'] as Timestamp).toDate();
       if (createdAtRaw.isBefore(startOfDay) && !widget.isAdmin) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(
-              'Tylko administrator może edytować dokumenty z poprzednich dni.',
-            ),
-          ),
+          SnackBar(content: Text('Tylko administrator może edytować.')),
         );
         setState(() => _saving = false);
         return;
@@ -276,6 +316,14 @@ class _ProjectEditorScreenState extends State<ProjectEditorScreen> {
       _stockItems,
       widget.customerId,
     );
+
+    if (!existsToday) {
+      rwData['createdAt'] = FieldValue.serverTimestamp();
+      rwData['createdBy'] = user.uid;
+    } else {
+      rwData['lastUpdatedAt'] = FieldValue.serverTimestamp();
+      rwData['lastUpdatedBy'] = user.uid;
+    }
 
     for (var ln in filteredLines) {
       ln.previousQty ??= 0;
@@ -313,7 +361,7 @@ class _ProjectEditorScreenState extends State<ProjectEditorScreen> {
           })
           .join(', ');
       await rwRef.delete();
-      debugPrint('🗑️ RW document $rwId deleted (no lines left)');
+      debugPrint('🗑️ RW document $rwId deleted (no products in list)');
       setState(() {
         _lines.clear();
         _rwExistsToday = false;
@@ -351,6 +399,28 @@ class _ProjectEditorScreenState extends State<ProjectEditorScreen> {
 
       await batch.commit();
 
+      // log one audit‐entry per line, so item and change show up separately:
+      for (final ln in filteredLines) {
+        final prev = ln.previousQty ?? 0;
+        final diff = ln.requestedQty - prev;
+        final itemName = ln.isStock
+            ? _stockItems.firstWhere((s) => s.id == ln.itemRef).name
+            : ln.customName;
+        final changeText = '${diff > 0 ? '+' : ''}$diff${ln.unit}';
+
+        await AuditService.logAction(
+          action: existsToday ? 'Zaktualizowano RW' : 'Utworzono RW',
+          customerId: widget.customerId!,
+          projectId: widget.projectId!,
+          details: {
+            'Klient': customerName,
+            'Projekt': projectName,
+            'item': itemName,
+            'change': changeText,
+          },
+        );
+      }
+
       final itemSummaries = filteredLines
           .map((ln) {
             if (ln.isStock) {
@@ -361,15 +431,6 @@ class _ProjectEditorScreenState extends State<ProjectEditorScreen> {
             }
           })
           .join(', ');
-
-      await AuditService.logAction(
-        action: existsToday ? 'Zaktualizowano RW' : 'Utworzono RW',
-        details: {
-          'Klient': customerName,
-          'Projekt': projectName,
-          'Szczegóły': itemSummaries,
-        },
-      );
 
       setState(() {
         for (var ln in _lines) {
@@ -677,8 +738,7 @@ class _ProjectEditorScreenState extends State<ProjectEditorScreen> {
                               ln.requestedQty == ln.previousQty &&
                               ln.requestedQty > 0;
                           final isLineLocked =
-                              _rwLocked ||
-                              (isSynced && !isToday && !widget.isAdmin);
+                              _rwLocked || (!isToday && !widget.isAdmin);
 
                           return ListTile(
                             contentPadding: const EdgeInsets.symmetric(

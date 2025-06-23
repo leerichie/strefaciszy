@@ -27,11 +27,12 @@ class StockService {
     final rwRef = projRef.collection('rw_documents').doc(rwDocId);
 
     await db.runTransaction((tx) async {
-      // 1) For each stock‐line, atomically increment by –delta
       for (final ln in lines.where((l) => l.isStock)) {
         final stockRef = db.collection('stock_items').doc(ln.itemRef);
         final snap = await tx.get(stockRef);
-        if (!snap.exists) throw Exception('Produkt ${ln.itemRef} nie istnieje');
+        if (!snap.exists) {
+          throw Exception('Produkt ${ln.itemRef} nie istnieje');
+        }
         final current = (snap.data()!['quantity'] as int?) ?? 0;
         final delta = ln.requestedQty - ln.previousQty;
         if (delta > 0 && delta > current) {
@@ -44,13 +45,14 @@ class StockService {
             'updatedBy': userId,
           });
         }
-        // keep in‐memory in sync
         ln.previousQty = ln.requestedQty;
       }
 
-      // 2) Create or update the RW doc
       if (isNew) {
-        tx.set(rwRef, rwDocData);
+        final dataWithTimestamps = Map<String, dynamic>.from(rwDocData)
+          ..['createdAt'] = FieldValue.serverTimestamp()
+          ..['createdBy'] = userId;
+        tx.set(rwRef, dataWithTimestamps);
       } else {
         tx.update(rwRef, {
           'items': rwDocData['items'],
@@ -60,7 +62,6 @@ class StockService {
         });
       }
 
-      // 3) Write back the filtered project items
       final remaining = lines
           .where((l) => l.isStock && l.requestedQty > 0)
           .map((l) => l.toMap())
@@ -94,56 +95,55 @@ class StockService {
     });
   }
 
-  static Future<void> _applyLineDelta(
-    Transaction tx,
-    ProjectLine ln,
-    String userId,
-  ) async {
-    final stockRef = FirebaseFirestore.instance
-        .collection('stock_items')
-        .doc(ln.itemRef);
-    final snap = await tx.get(stockRef);
-    final data = snap.data();
+  // static Future<void> _applyLineDelta(
+  //   Transaction tx,
+  //   ProjectLine ln,
+  //   String userId,
+  // ) async {
+  //   final stockRef = FirebaseFirestore.instance
+  //       .collection('stock_items')
+  //       .doc(ln.itemRef);
+  //   final snap = await tx.get(stockRef);
+  //   final data = snap.data();
 
-    if (data == null) {
-      throw Exception('Produkt ${ln.itemRef} nie istnieje');
-    }
+  //   if (data == null) {
+  //     throw Exception('Produkt ${ln.itemRef} nie istnieje');
+  //   }
+  //   if (!data.containsKey('quantity')) {
+  //     throw Exception('Brakuje pola quantity w produkcie ${ln.itemRef}');
+  //   }
 
-    if (!data.containsKey('quantity')) {
-      throw Exception('Brakuje pola quantity w produkcie ${ln.itemRef}');
-    }
+  //   final currentQty = (data['quantity'] as int? ?? 0);
+  //   final delta = ln.requestedQty - ln.previousQty;
 
-    final currentQty = (data['quantity'] as int? ?? 0);
-    final delta = ln.requestedQty - ln.previousQty;
+  //   debugPrint('🔄 Applying delta: $delta for ${ln.itemRef}');
 
-    debugPrint('🔄 Applying delta: $delta for ${ln.itemRef}');
+  //   try {
+  //     if (delta > 0) {
+  //       if (delta > currentQty) {
+  //         throw Exception('Za mało ${data['name']} (brakuje $delta)');
+  //       }
 
-    try {
-      if (delta > 0) {
-        if (delta > currentQty) {
-          throw Exception('Za mało ${data['name']} (brakuje $delta)');
-        }
+  //       final newQty = currentQty - delta;
+  //       debugPrint('➡️ Before stock update: ${ln.itemRef}');
+  //       debugPrint('   currentQty=$currentQty');
+  //       debugPrint('   delta=$delta');
+  //       debugPrint('   newQty=$newQty');
+  //       debugPrint('   userId=$userId');
 
-        final newQty = currentQty - delta;
-        debugPrint('➡️ Before stock update: ${ln.itemRef}');
-        debugPrint('   currentQty=$currentQty');
-        debugPrint('   delta=$delta');
-        debugPrint('   newQty=$newQty');
-        debugPrint('   userId=$userId');
+  //       tx.update(stockRef, {
+  //         'quantity': newQty,
+  //         'updatedAt': FieldValue.serverTimestamp(),
+  //         'updatedBy': userId,
+  //       });
+  //     }
+  //   } catch (e) {
+  //     debugPrint('❌ Error in tx.update for ${ln.itemRef}: $e');
+  //     rethrow;
+  //   }
 
-        tx.update(stockRef, {
-          'quantity': newQty,
-          'updatedAt': FieldValue.serverTimestamp(),
-          'updatedBy': userId,
-        });
-      }
-    } catch (e) {
-      debugPrint('❌ Error in tx.update for ${ln.itemRef}: $e');
-      rethrow;
-    }
-
-    ln.previousQty = ln.requestedQty;
-  }
+  //   ln.previousQty = ln.requestedQty;
+  // }
 
   static Map<String, dynamic> buildRwDocMap(
     String id,
