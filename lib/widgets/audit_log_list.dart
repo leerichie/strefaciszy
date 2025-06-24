@@ -49,15 +49,23 @@ class AuditLogList extends StatelessWidget {
   }
 
   Widget _buildHistoryRow(BuildContext c, Map<String, dynamic> log) {
+    // 1) pull out userName (or fallback to userId)
+    final userName =
+        (log['userName'] as String?)
+        // if for some reason that’s missing, try userId
+        ??
+        (log['userId'] as String? ?? '…');
+
+    // 2) action + timestamp
     final action = log['action'] as String? ?? '';
     final ts = log['timestamp'] as Timestamp?;
     final when = ts != null
         ? DateFormat('dd.MM.yyyy • HH:mm').format(ts.toDate())
         : '…';
 
+    // 3) build detail widgets, dropping context labels if desired
     final details = (log['details'] as Map?)?.cast<String, dynamic>() ?? {};
     final detailWidgets = <Widget>[];
-
     void addLine(String key, String val) {
       detailWidgets.add(
         Padding(
@@ -68,11 +76,11 @@ class AuditLogList extends StatelessWidget {
     }
 
     details.forEach((k, v) {
-      // drop “Klient”/“Projekt” labels when inside a project-specific view
       if (!showContextLabels && (k == 'Klient' || k == 'Projekt')) return;
       addLine(k, v.toString());
     });
 
+    // 4) render
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 6, horizontal: 16),
       child: Column(
@@ -84,7 +92,8 @@ class AuditLogList extends StatelessWidget {
               const SizedBox(width: 8),
               Expanded(
                 child: Text(
-                  '$action • $when',
+                  // include userName here
+                  '$action • $when --- $userName',
                   style: Theme.of(
                     c,
                   ).textTheme.bodyMedium?.copyWith(fontWeight: FontWeight.w600),

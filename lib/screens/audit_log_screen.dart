@@ -21,10 +21,7 @@ class AuditLogScreen extends StatelessWidget {
 
     return Scaffold(
       appBar: AppBar(title: const Text('Globalna Historia RW/MM')),
-      body: AuditLogList(
-        stream: logsStream,
-        showContextLabels: true, // show “Klient” and “Projekt” in details
-      ),
+      body: AuditLogList(stream: logsStream, showContextLabels: true),
       floatingActionButton: !kIsWeb
           ? FloatingActionButton(
               tooltip: 'Skanuj',
