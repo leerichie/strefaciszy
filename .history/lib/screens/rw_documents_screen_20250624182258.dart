@@ -318,8 +318,8 @@ class _RWDocumentsScreenState extends State<RWDocumentsScreen> {
                               details: {
                                 'Klient': data['customerName'] ?? '',
                                 'Projekt': data['projectName'] ?? '',
-                                'Produkt': summary,
-                                'Zmiana': summary,
+                                'item': summary,
+                                'change': summary,
                               },
                             );
 
@@ -331,7 +331,9 @@ class _RWDocumentsScreenState extends State<RWDocumentsScreen> {
 
                             ScaffoldMessenger.of(context).showSnackBar(
                               SnackBar(
-                                content: Text('Usunięty, stan przywrócony'),
+                                content: Text(
+                                  'Dokument usunięty, stan przywrócony i historia zapisana',
+                                ),
                               ),
                             );
                           },

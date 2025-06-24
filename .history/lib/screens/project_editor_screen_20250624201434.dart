@@ -43,8 +43,6 @@ class ProjectEditorScreen extends StatefulWidget {
 class _ProjectEditorScreenState extends State<ProjectEditorScreen> {
   final _formKey = GlobalKey<FormState>();
   final ImagePicker _picker = ImagePicker();
-  List<String> _photoUrls = [];
-  List<Note> _notesList = [];
 
   bool _loading = true;
   bool _saving = false;
@@ -95,30 +93,6 @@ class _ProjectEditorScreenState extends State<ProjectEditorScreen> {
         .listen((snap) {
           setState(() => _stockItems = snap.docs.map((d) => d.data()).toList());
         });
-    final projRef = FirebaseFirestore.instance
-        .collection('customers')
-        .doc(widget.customerId)
-        .collection('projects')
-        .doc(widget.projectId);
-
-    projRef.snapshots().listen((snap) {
-      if (!snap.exists) return;
-      final data = snap.data()!;
-      setState(() {
-        _photoUrls = List<String>.from(data['images'] ?? []);
-        _notesList =
-            (data['notesList'] as List<dynamic>? ?? []).map((m) {
-                final mp = m as Map<String, dynamic>;
-                return Note(
-                  text: mp['text'] as String,
-                  userName: mp['userName'] as String,
-                  createdAt: (mp['createdAt'] as Timestamp).toDate(),
-                );
-              }).toList()
-              // newest first
-              ..sort((a, b) => b.createdAt.compareTo(a.createdAt));
-      });
-    });
     _loadAll();
     _checkTodayExists('RW');
     _checkTodayExists('MM');
@@ -702,75 +676,6 @@ class _ProjectEditorScreenState extends State<ProjectEditorScreen> {
                         v?.trim().isEmpty == true ? 'Required' : null,
                   ),
                   SizedBox(height: 16),
-
-                  // photos & notes
-                  PhotoGallery(
-                    imageUrls: _photoUrls,
-                    onAddImage: () async {
-                      final file = await ImagePicker().pickImage(
-                        source: ImageSource.gallery,
-                      );
-                      if (file == null) return null;
-
-                      final downloadUrl =
-                          await MyStorageService.uploadProjectImage(file);
-                      // 3) persist to Firestore:
-                      await projRef.update({
-                        'images': FieldValue.arrayUnion([downloadUrl]),
-                      });
-                      return downloadUrl;
-                    },
-                  ),
-
-                  SizedBox(height: 24),
-
-                  NotesSection(
-                    notes: _notesList,
-                    onAddNote: (ctx) async {
-                      String draft = '';
-                      final result = await showDialog<String>(
-                        context: ctx,
-                        builder: (dctx) => AlertDialog(
-                          title: Text('Nowa notatka'),
-                          content: TextField(
-                            onChanged: (v) => draft = v,
-                            maxLines: 4,
-                          ),
-                          actions: [
-                            TextButton(
-                              onPressed: () => Navigator.pop(dctx),
-                              child: Text('Anuluj'),
-                            ),
-                            ElevatedButton(
-                              onPressed: () => Navigator.pop(dctx, draft),
-                              child: Text('Zapisz'),
-                            ),
-                          ],
-                        ),
-                      );
-                      if (result == null || result.trim().isEmpty) return null;
-
-                      final user = FirebaseAuth.instance.currentUser!;
-                      final displayName = user.displayName ?? user.email ?? '…';
-                      final now = DateTime.now();
-
-                      final noteMap = {
-                        'text': result.trim(),
-                        'userName': displayName,
-                        'createdAt': FieldValue.serverTimestamp(),
-                      };
-
-                      await projRef.update({
-                        'notesList': FieldValue.arrayUnion([noteMap]),
-                      });
-                      return Note(
-                        text: result.trim(),
-                        userName: displayName,
-                        createdAt: now,
-                      );
-                    },
-                  ),
-                  SizedBox(height: 24),
 
                   if (_lines.any(
                     (l) =>

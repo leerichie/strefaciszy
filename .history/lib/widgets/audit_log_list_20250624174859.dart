@@ -93,7 +93,7 @@ class AuditLogList extends StatelessWidget {
               Expanded(
                 child: Text(
                   // include userName here
-                  '$action • $when --- $userName',
+                  '$userName • $action • $when',
                   style: Theme.of(
                     c,
                   ).textTheme.bodyMedium?.copyWith(fontWeight: FontWeight.w600),
