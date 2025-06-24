@@ -1,23 +1,20 @@
 // lib/screens/rw_documents_screen.dart
-import 'dart:convert';
-import 'dart:io';
 
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:csv/csv.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:intl/intl.dart';
 import 'package:open_file/open_file.dart';
-import 'package:path_provider/path_provider.dart';
-import 'package:share_plus/share_plus.dart';
 import 'package:strefa_ciszy/screens/customer_list_screen.dart';
 import 'package:strefa_ciszy/screens/inventory_list_screen.dart';
 import 'package:strefa_ciszy/screens/project_editor_screen.dart';
 import 'package:strefa_ciszy/screens/scan_screen.dart';
+import 'package:strefa_ciszy/services/audit_service.dart';
 import 'package:strefa_ciszy/services/file_saver.dart';
+import 'package:strefa_ciszy/services/stock_service.dart';
 import 'package:syncfusion_flutter_xlsio/xlsio.dart' as xlsio;
-import 'package:strefa_ciszy/widgets/project_history_list.dart';
+import 'package:strefa_ciszy/widgets/audit_log_list.dart';
 
 class RWDocumentsScreen extends StatefulWidget {
   final String? customerId;
@@ -114,7 +111,7 @@ class _RWDocumentsScreenState extends State<RWDocumentsScreen> {
 
       body: Column(
         children: [
-          // ─── Search + Reset ──────────────────────────────────────────────────
+          // Search + Reset
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
             child: Row(
@@ -173,7 +170,7 @@ class _RWDocumentsScreenState extends State<RWDocumentsScreen> {
                 final filtered = docs.where((doc) {
                   final d = doc.data() as Map<String, dynamic>;
 
-                  // parse createdAt
+                  // parse created
                   DateTime created;
                   final rawCreated = d['createdAt'];
                   if (rawCreated is Timestamp) {
@@ -216,7 +213,6 @@ class _RWDocumentsScreenState extends State<RWDocumentsScreen> {
                     final doc = filtered[i];
                     final d = doc.data()! as Map<String, dynamic>;
 
-                    // format created date
                     final rawTs = d['createdAt'];
                     final ts = rawTs is Timestamp
                         ? rawTs.toDate()
@@ -226,12 +222,10 @@ class _RWDocumentsScreenState extends State<RWDocumentsScreen> {
                       'pl_PL',
                     ).format(ts);
 
-                    // fetch and display the username
                     final uid = d['createdBy'] as String? ?? '';
                     _fetchUserName(uid);
                     final displayName = userNames[uid] ?? uid;
 
-                    // determine if it's today
                     final startOfDay = DateTime(ts.year, ts.month, ts.day);
                     final startOfTomorrow = startOfDay.add(
                       const Duration(days: 1),
@@ -241,7 +235,6 @@ class _RWDocumentsScreenState extends State<RWDocumentsScreen> {
                         now.isAfter(startOfDay) &&
                         now.isBefore(startOfTomorrow);
 
-                    // action buttons
                     final actions = <Widget>[];
                     if (isToday) {
                       actions.add(
@@ -267,36 +260,82 @@ class _RWDocumentsScreenState extends State<RWDocumentsScreen> {
                     if (widget.isAdmin) {
                       actions.add(
                         IconButton(
-                          icon: const Icon(Icons.delete, color: Colors.red),
+                          icon: Icon(Icons.delete, color: Colors.red),
                           tooltip: 'Usuń dokument',
                           onPressed: () async {
-                            final confirm = await showDialog<bool>(
+                            final ok = await showDialog<bool>(
                               context: context,
                               builder: (ctx2) => AlertDialog(
-                                title: const Text('Usuń dokument?'),
+                                title: Text('Usuń dokument?'),
                                 content: Text(
                                   'Na pewno usunąć dokument ${d['type']}?',
                                 ),
                                 actions: [
                                   TextButton(
                                     onPressed: () => Navigator.pop(ctx2, false),
-                                    child: const Text('Anuluj'),
+                                    child: Text('Anuluj'),
                                   ),
                                   ElevatedButton(
                                     onPressed: () => Navigator.pop(ctx2, true),
-                                    child: const Text('Usuń'),
+                                    child: Text('Usuń'),
                                   ),
                                 ],
                               ),
                             );
-                            if (confirm == true) {
-                              await doc.reference.delete();
-                              ScaffoldMessenger.of(context).showSnackBar(
-                                const SnackBar(
-                                  content: Text('Dokument usunięty'),
-                                ),
-                              );
+                            if (ok != true) return;
+
+                            final data = d;
+                            final items =
+                                (data['items'] as List<dynamic>? ?? [])
+                                    .cast<Map<String, dynamic>>();
+
+                            for (var it in items) {
+                              final id = it['itemId'] as String;
+                              final qty = (it['quantity'] as num).toInt();
+                              await StockService.increaseQty(id, qty);
                             }
+
+                            final projectRef = FirebaseFirestore.instance
+                                .collection('customers')
+                                .doc(widget.customerId!)
+                                .collection('projects')
+                                .doc(widget.projectId!);
+
+                            final summary = items
+                                .map((it) {
+                                  final name =
+                                      it['name'] as String? ?? it['itemId'];
+                                  final qty = it['quantity'] as num;
+                                  final unit = it['unit'] as String? ?? '';
+                                  return '$name (${qty.toInt()}$unit)';
+                                })
+                                .join(', ');
+
+                            await AuditService.logAction(
+                              action: 'Usunięto ${data['type']}',
+                              customerId: widget.customerId!,
+                              projectId: widget.projectId!,
+                              details: {
+                                'Klient': data['customerName'] ?? '',
+                                'Projekt': data['projectName'] ?? '',
+                                'item': summary,
+                                'change': summary,
+                              },
+                            );
+
+                            await doc.reference.delete();
+
+                            await projectRef.update({
+                              'items': <Map<String, dynamic>>[],
+                            });
+
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              SnackBar(
+                                content: Text(
+                                  'Dokument usunięty, stan przywrócony i historia zapisana',
+                                ),
+                              ),
+                            );
                           },
                         ),
                       );
@@ -356,10 +395,16 @@ class _RWDocumentsScreenState extends State<RWDocumentsScreen> {
               ),
             ),
             Expanded(
-              flex: 1,
-              child: ProjectHistoryList(
-                customerId: widget.customerId!,
-                projectId: widget.projectId!,
+              child: AuditLogList(
+                stream: FirebaseFirestore.instance
+                    .collection('customers')
+                    .doc(widget.customerId!)
+                    .collection('projects')
+                    .doc(widget.projectId!)
+                    .collection('audit_logs')
+                    .orderBy('timestamp', descending: true)
+                    .snapshots(),
+                showContextLabels: false,
               ),
             ),
           ],
