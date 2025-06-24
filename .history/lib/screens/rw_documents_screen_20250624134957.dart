@@ -312,7 +312,7 @@ class _RWDocumentsScreenState extends State<RWDocumentsScreen> {
                                 .join(', ');
 
                             await AuditService.logAction(
-                              action: 'Usunięto ${data['type']}',
+                              action: 'Usunięto dokument ${data['type']}',
                               customerId: widget.customerId!,
                               projectId: widget.projectId!,
                               details: {

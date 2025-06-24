@@ -368,10 +368,10 @@ class _ProjectEditorScreenState extends State<ProjectEditorScreen> {
           customerId: widget.customerId,
           projectId: widget.projectId,
           details: {
-            '•': customerName2,
-            '•': projectName2,
-            '•': name,
-            '•': changeText,
+            'Klient': customerName2,
+            'Projekt': projectName2,
+            'item': name,
+            'change': changeText,
           },
         );
       }
@@ -435,10 +435,10 @@ class _ProjectEditorScreenState extends State<ProjectEditorScreen> {
           customerId: widget.customerId!,
           projectId: widget.projectId!,
           details: {
-            '•': customerName,
-            '•': projectName,
-            '•': name,
-            '•': changeText,
+            'Klient': customerName,
+            'Projekt': projectName,
+            'item': name,
+            'change': changeText,
           },
         );
       }
@@ -546,17 +546,20 @@ class _ProjectEditorScreenState extends State<ProjectEditorScreen> {
         ? _stockItems.firstWhere((s) => s.id == line.itemRef).name
         : line.customName;
     await AuditService.logAction(
-      action: 'Usunięto produkt',
+      action: 'Usunięto pozycję z RW',
       customerId: widget.customerId,
       projectId: widget.projectId,
-      details: {'•': stockName, '•': '-${line.requestedQty}${line.unit}'},
+      details: {
+        'Pozycja': stockName,
+        'Ilość': '-${line.requestedQty}${line.unit}',
+      },
     );
 
     if (updated.isEmpty) {
       await rwCol.doc(rwId).delete();
 
       await AuditService.logAction(
-        action: 'Usunięto RW',
+        action: 'Usunięto dokument RW',
         customerId: widget.customerId,
         projectId: widget.projectId,
         details: {'RWId': rwId},
@@ -621,7 +624,7 @@ class _ProjectEditorScreenState extends State<ProjectEditorScreen> {
                   context: context,
                   builder: (dialogCtx) => AlertDialog(
                     title: Text('Usuń projekt?'),
-                    content: Text('Potwierdź usunięcie projekt.'),
+                    content: Text('Potwierdź usunięcie projektu.'),
                     actions: [
                       TextButton(
                         onPressed: () => Navigator.pop(dialogCtx, false),

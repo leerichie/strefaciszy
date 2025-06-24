@@ -16,7 +16,7 @@ import 'package:strefa_ciszy/widgets/project_line_dialog.dart';
 import 'package:strefa_ciszy/models/rw_document.dart';
 import 'package:strefa_ciszy/screens/scan_screen.dart';
 import 'package:strefa_ciszy/services/audit_service.dart';
-import 'package:strefa_ciszy/widgets/audit_log_list.dart';
+import 'package:strefa_ciszy/widgets/project_history_list.dart';
 
 class ProjectEditorScreen extends StatefulWidget {
   final bool isAdmin;
@@ -238,10 +238,12 @@ class _ProjectEditorScreenState extends State<ProjectEditorScreen> {
   }
 
   Future<void> _saveRWDocument(String type) async {
+    // 1) Basic form validation & user lookup
     if (!_formKey.currentState!.validate()) return;
     final user = FirebaseAuth.instance.currentUser;
     if (user == null) return;
 
+    // 2) Fetch customer/project names
     final custSnap = await FirebaseFirestore.instance
         .collection('customers')
         .doc(widget.customerId)
@@ -258,11 +260,13 @@ class _ProjectEditorScreenState extends State<ProjectEditorScreen> {
     final projectName =
         projSnap.data()?['title'] as String? ?? '<nieznany projekt>';
 
+    // 3) Prepare line lists
     final fullLines = List<ProjectLine>.from(_lines);
     final filteredLines = fullLines.where((l) => l.requestedQty > 0).toList();
 
     setState(() => _saving = true);
 
+    // 4) Locate (or create) today's RW doc
     final projectRef = FirebaseFirestore.instance
         .collection('customers')
         .doc(widget.customerId)
@@ -280,10 +284,12 @@ class _ProjectEditorScreenState extends State<ProjectEditorScreen> {
         .orderBy('createdAt', descending: true)
         .limit(1)
         .get();
+
     final existsToday = todaySnap.docs.isNotEmpty;
     final rwId = existsToday ? todaySnap.docs.first.id : rwCol.doc().id;
     final rwRef = rwCol.doc(rwId);
 
+    // 5) Check lock: only admins or same-day edits allowed
     final docSnap = await rwRef.get();
     if (docSnap.exists) {
       final createdAtRaw = (docSnap.data()!['createdAt'] as Timestamp).toDate();
@@ -296,6 +302,7 @@ class _ProjectEditorScreenState extends State<ProjectEditorScreen> {
       }
     }
 
+    // 6) Preserve original createdAt/createdBy on updates
     DateTime createdAt = now;
     String createdBy = user.uid;
     if (docSnap.exists) {
@@ -305,6 +312,7 @@ class _ProjectEditorScreenState extends State<ProjectEditorScreen> {
       createdBy = data['createdBy'] ?? createdBy;
     }
 
+    // 7) Build the RW document payload
     final rwData = StockService.buildRwDocMap(
       rwId,
       widget.projectId,
@@ -325,63 +333,42 @@ class _ProjectEditorScreenState extends State<ProjectEditorScreen> {
       rwData['lastUpdatedBy'] = user.uid;
     }
 
-    // Debug log of diffs
-    for (var ln in filteredLines) {
-      ln.previousQty ??= 0;
-      debugPrint(
-        '   • ${ln.itemRef}: requestedQty=${ln.requestedQty}, previousQty=${ln.previousQty}',
-      );
-    }
-
-    // === DELETE-ALL
+    // 8) If no lines left ⇒ delete the doc, restore stock, log “Usunięto RW”
     if (filteredLines.isEmpty && docSnap.exists) {
+      // restore every previously-moved qty
       for (final ln in fullLines.where((l) => l.previousQty! > 0)) {
         try {
           await StockService.increaseQty(ln.itemRef, ln.previousQty!);
-          debugPrint('🔄 Restored ${ln.previousQty} for ${ln.itemRef}');
-        } catch (e) {
-          debugPrint('⚠️ Couldn\'t restore ${ln.itemRef}: $e');
-        }
+        } catch (_) {}
+        ln.previousQty = 0;
       }
 
-      final custSnap2 = await FirebaseFirestore.instance
-          .collection('customers')
-          .doc(widget.customerId)
-          .get();
-      final customerName2 = custSnap2.data()?['name'] as String? ?? '–';
+      // log deletion
+      final deletedSummaries = fullLines
+          .where((ln) => ln.previousQty! > 0)
+          .map((ln) {
+            final stock = _stockItems.firstWhere((s) => s.id == ln.itemRef);
+            return '${stock.name}(${ln.previousQty})';
+          })
+          .join(', ');
 
-      final projSnap2 = await FirebaseFirestore.instance
-          .collection('customers')
-          .doc(widget.customerId)
-          .collection('projects')
-          .doc(widget.projectId)
-          .get();
-      final projectName2 = projSnap2.data()?['title'] as String? ?? '–';
+      await AuditService.logAction(
+        action: 'Usunięto RW',
+        customerId: widget.customerId!,
+        projectId: widget.projectId!,
+        details: {
+          'Klient': customerName,
+          'Projekt': projectName,
+          'Szczegóły': deletedSummaries,
+        },
+      );
 
-      for (final ln in fullLines.where((l) => l.previousQty! > 0)) {
-        final stock = _stockItems.firstWhere((s) => s.id == ln.itemRef);
-        final name = stock.name;
-        final changeText = '-${ln.previousQty}${ln.unit}';
-
-        await AuditService.logAction(
-          action: 'Usunięto RW',
-          customerId: widget.customerId,
-          projectId: widget.projectId,
-          details: {
-            '•': customerName2,
-            '•': projectName2,
-            '•': name,
-            '•': changeText,
-          },
-        );
-      }
-
+      // delete the RW document
       await rwRef.delete();
-      debugPrint('🗑️ RW document $rwId deleted (no products)');
-
       setState(() {
         _lines.clear();
         _rwExistsToday = false;
+        _saving = false;
       });
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
@@ -390,15 +377,15 @@ class _ProjectEditorScreenState extends State<ProjectEditorScreen> {
           ),
         ),
       );
-      setState(() => _saving = false);
       return;
     }
 
-    // === CREATE/UPDATE branch ===
+    // 9) Normal-save: batch stock updates + RW write
     try {
       final batch = FirebaseFirestore.instance.batch();
 
-      for (var ln in filteredLines) {
+      // a) adjust stock
+      for (final ln in filteredLines) {
         final prev = ln.previousQty ?? 0;
         final diff = ln.requestedQty - prev;
         if (diff != 0) {
@@ -409,6 +396,7 @@ class _ProjectEditorScreenState extends State<ProjectEditorScreen> {
         }
       }
 
+      // b) write or update RW doc
       if (existsToday) {
         batch.update(rwRef, rwData);
       } else {
@@ -417,14 +405,13 @@ class _ProjectEditorScreenState extends State<ProjectEditorScreen> {
 
       await batch.commit();
 
-      final movedLines = filteredLines.where((ln) {
-        final prev = ln.previousQty ?? 0;
-        return ln.requestedQty - prev != 0;
-      });
+      // 10) Per-line audit log: only log the non-zero diffs
+      for (final ln in filteredLines) {
+        final oldQty = ln.previousQty ?? 0;
+        final newQty = ln.requestedQty;
+        final diff = newQty - oldQty;
+        if (diff == 0) continue; // skip unchanged
 
-      for (final ln in movedLines) {
-        final prev = ln.previousQty ?? 0;
-        final diff = ln.requestedQty - prev;
         final name = ln.isStock
             ? _stockItems.firstWhere((s) => s.id == ln.itemRef).name
             : ln.customName;
@@ -435,32 +422,24 @@ class _ProjectEditorScreenState extends State<ProjectEditorScreen> {
           customerId: widget.customerId!,
           projectId: widget.projectId!,
           details: {
-            '•': customerName,
-            '•': projectName,
-            '•': name,
-            '•': changeText,
+            'Klient': customerName,
+            'Projekt': projectName,
+            'item': name,
+            'change': changeText,
           },
         );
+
+        // now advance previousQty so next diff is correct
+        ln.previousQty = newQty;
       }
 
-      setState(() {
-        for (var ln in _lines) {
-          final matching = filteredLines.firstWhere(
-            (f) => f.itemRef == ln.itemRef,
-            orElse: () => ln,
-          );
-          if (ln.itemRef == matching.itemRef) {
-            ln.previousQty = matching.requestedQty;
-          }
-        }
-      });
-
+      // 11) Refresh “exists today” flag
       await _checkTodayExists(type);
     } catch (e, st) {
       debugPrint('🔥 _saveRWDocument failed: $e\n$st');
       ScaffoldMessenger.of(
         context,
-      ).showSnackBar(SnackBar(content: Text('Błąd zapisu: ${e.toString()}')));
+      ).showSnackBar(SnackBar(content: Text('Błąd zapisu: $e')));
     } finally {
       setState(() => _saving = false);
     }
@@ -500,39 +479,38 @@ class _ProjectEditorScreenState extends State<ProjectEditorScreen> {
   }
 
   Future<void> _deleteLineFromRW(ProjectLine line) async {
-    final projectRef = FirebaseFirestore.instance
+    final rwCol = FirebaseFirestore.instance
         .collection('customers')
         .doc(widget.customerId)
         .collection('projects')
-        .doc(widget.projectId);
-    final rwCol = projectRef.collection('rw_documents');
+        .doc(widget.projectId)
+        .collection('rw_documents');
 
-    final now = DateTime.now();
-    final startOfDay = DateTime(now.year, now.month, now.day);
-    final tomorrow = startOfDay.add(Duration(days: 1));
+    final today = DateTime.now();
+    final startOfDay = DateTime(today.year, today.month, today.day);
+    final startOfTomorrow = startOfDay.add(Duration(days: 1));
 
-    final todaySnap = await rwCol
+    final rwSnap = await rwCol
         .where('type', isEqualTo: 'RW')
         .where('createdAt', isGreaterThanOrEqualTo: startOfDay)
-        .where('createdAt', isLessThan: tomorrow)
+        .where('createdAt', isLessThan: startOfTomorrow)
         .limit(1)
         .get();
 
-    if (todaySnap.docs.isEmpty) {
-      return;
+    if (rwSnap.docs.isNotEmpty) {
+      final rwDoc = rwSnap.docs.first;
+      final rwId = rwDoc.id;
+      final rwData = rwDoc.data();
+
+      final List<dynamic> materials = List.from(rwData['lines'] ?? []);
+      final updated = materials.where((m) {
+        if (line.isStock) return m['itemRef'] != line.itemRef;
+        return m['customName'] != line.customName;
+      }).toList();
+
+      await rwCol.doc(rwId).update({'lines': updated});
     }
 
-    final rwDoc = todaySnap.docs.first;
-    final rwId = rwDoc.id;
-    final data = rwDoc.data();
-    final materials = List<Map<String, dynamic>>.from(data['items'] ?? []);
-
-    final updated = materials.where((m) {
-      if (line.isStock) return m['itemId'] != line.itemRef;
-      return m['name'] != line.customName;
-    }).toList();
-
-    // 3) restore stock
     if (line.isStock) {
       final stockRef = FirebaseFirestore.instance
           .collection('stock_items')
@@ -542,41 +520,22 @@ class _ProjectEditorScreenState extends State<ProjectEditorScreen> {
       });
     }
 
-    final stockName = line.isStock
-        ? _stockItems.firstWhere((s) => s.id == line.itemRef).name
-        : line.customName;
-    await AuditService.logAction(
-      action: 'Usunięto produkt',
-      customerId: widget.customerId,
-      projectId: widget.projectId,
-      details: {'•': stockName, '•': '-${line.requestedQty}${line.unit}'},
-    );
-
-    if (updated.isEmpty) {
-      await rwCol.doc(rwId).delete();
-
-      await AuditService.logAction(
-        action: 'Usunięto RW',
-        customerId: widget.customerId,
-        projectId: widget.projectId,
-        details: {'RWId': rwId},
-      );
-
-      setState(() => _rwExistsToday = false);
-    } else {
-      await rwCol.doc(rwId).update({'items': updated});
-    }
+    final projectRef = FirebaseFirestore.instance
+        .collection('customers')
+        .doc(widget.customerId)
+        .collection('projects')
+        .doc(widget.projectId);
 
     final projSnap = await projectRef.get();
     if (projSnap.exists) {
-      final projItems = List<Map<String, dynamic>>.from(
+      final items = List<Map<String, dynamic>>.from(
         projSnap.data()?['items'] ?? [],
       );
-      final newProjItems = projItems.where((m) {
-        if (line.isStock) return m['itemId'] != line.itemRef;
-        return m['name'] != line.customName;
+      final newItems = items.where((m) {
+        if (line.isStock) return m['itemRef'] != line.itemRef;
+        return m['customName'] != line.customName;
       }).toList();
-      await projectRef.update({'items': newProjItems});
+      await projectRef.update({'items': newItems});
     }
   }
 
@@ -596,8 +555,8 @@ class _ProjectEditorScreenState extends State<ProjectEditorScreen> {
           IconButton(
             icon: Icon(Icons.list_alt_rounded),
             tooltip: 'Dokumenty RW/MM',
-            onPressed: () async {
-              await Navigator.of(context).push(
+            onPressed: () {
+              Navigator.of(context).push(
                 MaterialPageRoute(
                   builder: (_) => RWDocumentsScreen(
                     customerId: widget.customerId,
@@ -606,10 +565,6 @@ class _ProjectEditorScreenState extends State<ProjectEditorScreen> {
                   ),
                 ),
               );
-              if (!mounted) return;
-              await _loadAll();
-              await _checkTodayExists('RW');
-              setState(() {});
             },
           ),
           if (widget.isAdmin)
@@ -621,7 +576,7 @@ class _ProjectEditorScreenState extends State<ProjectEditorScreen> {
                   context: context,
                   builder: (dialogCtx) => AlertDialog(
                     title: Text('Usuń projekt?'),
-                    content: Text('Potwierdź usunięcie projekt.'),
+                    content: Text('Potwierdź usunięcie projektu.'),
                     actions: [
                       TextButton(
                         onPressed: () => Navigator.pop(dialogCtx, false),
@@ -832,12 +787,11 @@ class _ProjectEditorScreenState extends State<ProjectEditorScreen> {
                                           );
                                         }
                                       : () async {
-                                          final removedLine = _lines.removeAt(
-                                            i,
-                                          );
-                                          setState(() {});
-
-                                          await _deleteLineFromRW(removedLine);
+                                          final removedLine = _lines[i];
+                                          setState(() => _lines.removeAt(i));
+                                          await _deleteLineFromRW(ln);
+                                          await _saveRWDocument('RW');
+                                          removedLine.previousQty = 0;
                                         },
                                 ),
                               ],

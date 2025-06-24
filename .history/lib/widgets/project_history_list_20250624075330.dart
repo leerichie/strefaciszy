@@ -68,11 +68,3 @@ class ProjectHistoryList extends StatelessWidget {
     );
   }
 }
-
-//   IconData _iconForAction(String action) {
-//     if (action.startsWith('Utworzono')) return Icons.add_box_outlined;
-//     if (action.startsWith('Zaktualizowano')) return Icons.edit;
-//     if (action.startsWith('Usunięto')) return Icons.delete_outline;
-//     return Icons.history_edu;
-//   }
-// }

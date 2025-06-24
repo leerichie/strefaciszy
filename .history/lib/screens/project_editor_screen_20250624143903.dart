@@ -435,10 +435,10 @@ class _ProjectEditorScreenState extends State<ProjectEditorScreen> {
           customerId: widget.customerId!,
           projectId: widget.projectId!,
           details: {
-            '•': customerName,
-            '•': projectName,
-            '•': name,
-            '•': changeText,
+            'Klient': customerName,
+            'Projekt': projectName,
+            'item': name,
+            'change': changeText,
           },
         );
       }

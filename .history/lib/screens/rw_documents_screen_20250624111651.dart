@@ -14,7 +14,7 @@ import 'package:strefa_ciszy/services/audit_service.dart';
 import 'package:strefa_ciszy/services/file_saver.dart';
 import 'package:strefa_ciszy/services/stock_service.dart';
 import 'package:syncfusion_flutter_xlsio/xlsio.dart' as xlsio;
-import 'package:strefa_ciszy/widgets/audit_log_list.dart';
+import 'package:strefa_ciszy/widgets/project_history_list.dart';
 
 class RWDocumentsScreen extends StatefulWidget {
   final String? customerId;
@@ -263,7 +263,7 @@ class _RWDocumentsScreenState extends State<RWDocumentsScreen> {
                           icon: Icon(Icons.delete, color: Colors.red),
                           tooltip: 'Usuń dokument',
                           onPressed: () async {
-                            final ok = await showDialog<bool>(
+                            final confirm = await showDialog<bool>(
                               context: context,
                               builder: (ctx2) => AlertDialog(
                                 title: Text('Usuń dokument?'),
@@ -282,57 +282,55 @@ class _RWDocumentsScreenState extends State<RWDocumentsScreen> {
                                 ],
                               ),
                             );
-                            if (ok != true) return;
+                            if (confirm != true) return;
 
+                            // 1) load the items from the doc
                             final data = d;
                             final items =
                                 (data['items'] as List<dynamic>? ?? [])
                                     .cast<Map<String, dynamic>>();
 
+                            // 2) restore each stock item
                             for (var it in items) {
-                              final id = it['itemId'] as String;
+                              final itemId = it['itemId'] as String;
                               final qty = (it['quantity'] as num).toInt();
-                              await StockService.increaseQty(id, qty);
+                              try {
+                                await StockService.increaseQty(itemId, qty);
+                              } catch (e) {
+                                // you can log or ignore
+                              }
                             }
 
-                            final projectRef = FirebaseFirestore.instance
-                                .collection('customers')
-                                .doc(widget.customerId!)
-                                .collection('projects')
-                                .doc(widget.projectId!);
-
+                            // 3) audit‐log the deletion (optional, but keeps history)
+                            final customerName = data['customerName'] ?? '';
+                            final projectName = data['projectName'] ?? '';
                             final summary = items
                                 .map((it) {
                                   final name =
                                       it['name'] as String? ?? it['itemId'];
-                                  final qty = it['quantity'] as num;
-                                  final unit = it['unit'] as String? ?? '';
-                                  return '$name (${qty.toInt()}$unit)';
+                                  final q = it['quantity'] as num;
+                                  final u = it['unit'] as String? ?? '';
+                                  return '$name(${q.toInt()}$u)';
                                 })
                                 .join(', ');
-
                             await AuditService.logAction(
-                              action: 'Usunięto ${data['type']}',
+                              action: 'Usunięto dokument ${d['type']}',
                               customerId: widget.customerId!,
                               projectId: widget.projectId!,
                               details: {
-                                'Klient': data['customerName'] ?? '',
-                                'Projekt': data['projectName'] ?? '',
-                                'item': summary,
-                                'change': summary,
+                                'Klient': customerName,
+                                'Projekt': projectName,
+                                'Szczegóły': summary,
                               },
                             );
 
+                            // 4) now delete the RW doc
                             await doc.reference.delete();
-
-                            await projectRef.update({
-                              'items': <Map<String, dynamic>>[],
-                            });
 
                             ScaffoldMessenger.of(context).showSnackBar(
                               SnackBar(
                                 content: Text(
-                                  'Dokument usunięty, stan przywrócony i historia zapisana',
+                                  'Dokument usunięty i stan przywrócony',
                                 ),
                               ),
                             );
@@ -395,16 +393,10 @@ class _RWDocumentsScreenState extends State<RWDocumentsScreen> {
               ),
             ),
             Expanded(
-              child: AuditLogList(
-                stream: FirebaseFirestore.instance
-                    .collection('customers')
-                    .doc(widget.customerId!)
-                    .collection('projects')
-                    .doc(widget.projectId!)
-                    .collection('audit_logs')
-                    .orderBy('timestamp', descending: true)
-                    .snapshots(),
-                showContextLabels: false,
+              flex: 1,
+              child: ProjectHistoryList(
+                customerId: widget.customerId!,
+                projectId: widget.projectId!,
               ),
             ),
           ],

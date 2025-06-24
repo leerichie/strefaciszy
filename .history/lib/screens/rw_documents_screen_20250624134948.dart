@@ -312,7 +312,7 @@ class _RWDocumentsScreenState extends State<RWDocumentsScreen> {
                                 .join(', ');
 
                             await AuditService.logAction(
-                              action: 'Usunięto ${data['type']}',
+                              action: 'Usunięto dokument ${data['type']}',
                               customerId: widget.customerId!,
                               projectId: widget.projectId!,
                               details: {
@@ -404,7 +404,8 @@ class _RWDocumentsScreenState extends State<RWDocumentsScreen> {
                     .collection('audit_logs')
                     .orderBy('timestamp', descending: true)
                     .snapshots(),
-                showContextLabels: false,
+                showContextLabels:
+                    false, // hides “Klient”/“Projekt” since we’re already scoped
               ),
             ),
           ],

@@ -10,11 +10,10 @@ import 'package:strefa_ciszy/screens/customer_list_screen.dart';
 import 'package:strefa_ciszy/screens/inventory_list_screen.dart';
 import 'package:strefa_ciszy/screens/project_editor_screen.dart';
 import 'package:strefa_ciszy/screens/scan_screen.dart';
-import 'package:strefa_ciszy/services/audit_service.dart';
 import 'package:strefa_ciszy/services/file_saver.dart';
 import 'package:strefa_ciszy/services/stock_service.dart';
 import 'package:syncfusion_flutter_xlsio/xlsio.dart' as xlsio;
-import 'package:strefa_ciszy/widgets/audit_log_list.dart';
+import 'package:strefa_ciszy/widgets/project_history_list.dart';
 
 class RWDocumentsScreen extends StatefulWidget {
   final String? customerId;
@@ -284,17 +283,22 @@ class _RWDocumentsScreenState extends State<RWDocumentsScreen> {
                             );
                             if (ok != true) return;
 
-                            final data = d;
+                            // 1) Grab the list of materials from the RW doc:
+                            final data =
+                                d; // d is doc.data() as Map<String, dynamic>
                             final items =
                                 (data['items'] as List<dynamic>? ?? [])
                                     .cast<Map<String, dynamic>>();
 
+                            // 2) Restore each stock item’s quantity:
                             for (var it in items) {
                               final id = it['itemId'] as String;
                               final qty = (it['quantity'] as num).toInt();
                               await StockService.increaseQty(id, qty);
                             }
 
+                            // 3) Write an audit‐log entry under the project
+                            //    with keys “item” and “change” so ProjectHistoryList shows it:
                             final projectRef = FirebaseFirestore.instance
                                 .collection('customers')
                                 .doc(widget.customerId!)
@@ -312,21 +316,27 @@ class _RWDocumentsScreenState extends State<RWDocumentsScreen> {
                                 .join(', ');
 
                             await AuditService.logAction(
-                              action: 'Usunięto ${data['type']}',
+                              action: 'Usunięto dokument ${data['type']}',
                               customerId: widget.customerId!,
                               projectId: widget.projectId!,
                               details: {
                                 'Klient': data['customerName'] ?? '',
                                 'Projekt': data['projectName'] ?? '',
-                                'item': summary,
-                                'change': summary,
+                                'item':
+                                    summary, // your ProjectHistoryList reads this
+                                'change': summary, // …and this
                               },
                             );
 
+                            // 4) Delete the RW itself:
                             await doc.reference.delete();
 
+                            // 5) Clear out the project’s own "items" array
+                            //    so the project‐editor screen won’t show stale lines:
                             await projectRef.update({
                               'items': <Map<String, dynamic>>[],
+                              // optionally reset lastRwDate/status if you use them:
+                              // 'lastRwDate': FieldValue.serverTimestamp(),
                             });
 
                             ScaffoldMessenger.of(context).showSnackBar(
@@ -395,16 +405,10 @@ class _RWDocumentsScreenState extends State<RWDocumentsScreen> {
               ),
             ),
             Expanded(
-              child: AuditLogList(
-                stream: FirebaseFirestore.instance
-                    .collection('customers')
-                    .doc(widget.customerId!)
-                    .collection('projects')
-                    .doc(widget.projectId!)
-                    .collection('audit_logs')
-                    .orderBy('timestamp', descending: true)
-                    .snapshots(),
-                showContextLabels: false,
+              flex: 1,
+              child: ProjectHistoryList(
+                customerId: widget.customerId!,
+                projectId: widget.projectId!,
               ),
             ),
           ],

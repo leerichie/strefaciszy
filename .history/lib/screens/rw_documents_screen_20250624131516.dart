@@ -14,7 +14,7 @@ import 'package:strefa_ciszy/services/audit_service.dart';
 import 'package:strefa_ciszy/services/file_saver.dart';
 import 'package:strefa_ciszy/services/stock_service.dart';
 import 'package:syncfusion_flutter_xlsio/xlsio.dart' as xlsio;
-import 'package:strefa_ciszy/widgets/audit_log_list.dart';
+import 'package:strefa_ciszy/widgets/project_history_list.dart';
 
 class RWDocumentsScreen extends StatefulWidget {
   final String? customerId;
@@ -312,7 +312,7 @@ class _RWDocumentsScreenState extends State<RWDocumentsScreen> {
                                 .join(', ');
 
                             await AuditService.logAction(
-                              action: 'Usunięto ${data['type']}',
+                              action: 'Usunięto dokument ${data['type']}',
                               customerId: widget.customerId!,
                               projectId: widget.projectId!,
                               details: {
@@ -395,16 +395,10 @@ class _RWDocumentsScreenState extends State<RWDocumentsScreen> {
               ),
             ),
             Expanded(
-              child: AuditLogList(
-                stream: FirebaseFirestore.instance
-                    .collection('customers')
-                    .doc(widget.customerId!)
-                    .collection('projects')
-                    .doc(widget.projectId!)
-                    .collection('audit_logs')
-                    .orderBy('timestamp', descending: true)
-                    .snapshots(),
-                showContextLabels: false,
+              flex: 1,
+              child: ProjectHistoryList(
+                customerId: widget.customerId!,
+                projectId: widget.projectId!,
               ),
             ),
           ],

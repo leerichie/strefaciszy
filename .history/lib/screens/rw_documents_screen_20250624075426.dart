@@ -1,20 +1,23 @@
 // lib/screens/rw_documents_screen.dart
+import 'dart:convert';
+import 'dart:io';
 
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:csv/csv.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:intl/intl.dart';
 import 'package:open_file/open_file.dart';
+import 'package:path_provider/path_provider.dart';
+import 'package:share_plus/share_plus.dart';
 import 'package:strefa_ciszy/screens/customer_list_screen.dart';
 import 'package:strefa_ciszy/screens/inventory_list_screen.dart';
 import 'package:strefa_ciszy/screens/project_editor_screen.dart';
 import 'package:strefa_ciszy/screens/scan_screen.dart';
-import 'package:strefa_ciszy/services/audit_service.dart';
 import 'package:strefa_ciszy/services/file_saver.dart';
-import 'package:strefa_ciszy/services/stock_service.dart';
 import 'package:syncfusion_flutter_xlsio/xlsio.dart' as xlsio;
-import 'package:strefa_ciszy/widgets/audit_log_list.dart';
+import 'package:strefa_ciszy/widgets/project_history_list.dart';
 
 class RWDocumentsScreen extends StatefulWidget {
   final String? customerId;
@@ -260,82 +263,36 @@ class _RWDocumentsScreenState extends State<RWDocumentsScreen> {
                     if (widget.isAdmin) {
                       actions.add(
                         IconButton(
-                          icon: Icon(Icons.delete, color: Colors.red),
+                          icon: const Icon(Icons.delete, color: Colors.red),
                           tooltip: 'Usuń dokument',
                           onPressed: () async {
-                            final ok = await showDialog<bool>(
+                            final confirm = await showDialog<bool>(
                               context: context,
                               builder: (ctx2) => AlertDialog(
-                                title: Text('Usuń dokument?'),
+                                title: const Text('Usuń dokument?'),
                                 content: Text(
                                   'Na pewno usunąć dokument ${d['type']}?',
                                 ),
                                 actions: [
                                   TextButton(
                                     onPressed: () => Navigator.pop(ctx2, false),
-                                    child: Text('Anuluj'),
+                                    child: const Text('Anuluj'),
                                   ),
                                   ElevatedButton(
                                     onPressed: () => Navigator.pop(ctx2, true),
-                                    child: Text('Usuń'),
+                                    child: const Text('Usuń'),
                                   ),
                                 ],
                               ),
                             );
-                            if (ok != true) return;
-
-                            final data = d;
-                            final items =
-                                (data['items'] as List<dynamic>? ?? [])
-                                    .cast<Map<String, dynamic>>();
-
-                            for (var it in items) {
-                              final id = it['itemId'] as String;
-                              final qty = (it['quantity'] as num).toInt();
-                              await StockService.increaseQty(id, qty);
-                            }
-
-                            final projectRef = FirebaseFirestore.instance
-                                .collection('customers')
-                                .doc(widget.customerId!)
-                                .collection('projects')
-                                .doc(widget.projectId!);
-
-                            final summary = items
-                                .map((it) {
-                                  final name =
-                                      it['name'] as String? ?? it['itemId'];
-                                  final qty = it['quantity'] as num;
-                                  final unit = it['unit'] as String? ?? '';
-                                  return '$name (${qty.toInt()}$unit)';
-                                })
-                                .join(', ');
-
-                            await AuditService.logAction(
-                              action: 'Usunięto ${data['type']}',
-                              customerId: widget.customerId!,
-                              projectId: widget.projectId!,
-                              details: {
-                                'Klient': data['customerName'] ?? '',
-                                'Projekt': data['projectName'] ?? '',
-                                'item': summary,
-                                'change': summary,
-                              },
-                            );
-
-                            await doc.reference.delete();
-
-                            await projectRef.update({
-                              'items': <Map<String, dynamic>>[],
-                            });
-
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              SnackBar(
-                                content: Text(
-                                  'Dokument usunięty, stan przywrócony i historia zapisana',
+                            if (confirm == true) {
+                              await doc.reference.delete();
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                const SnackBar(
+                                  content: Text('Dokument usunięty'),
                                 ),
-                              ),
-                            );
+                              );
+                            }
                           },
                         ),
                       );
@@ -395,16 +352,10 @@ class _RWDocumentsScreenState extends State<RWDocumentsScreen> {
               ),
             ),
             Expanded(
-              child: AuditLogList(
-                stream: FirebaseFirestore.instance
-                    .collection('customers')
-                    .doc(widget.customerId!)
-                    .collection('projects')
-                    .doc(widget.projectId!)
-                    .collection('audit_logs')
-                    .orderBy('timestamp', descending: true)
-                    .snapshots(),
-                showContextLabels: false,
+              flex: 1,
+              child: ProjectHistoryList(
+                customerId: widget.customerId!,
+                projectId: widget.projectId!,
               ),
             ),
           ],
