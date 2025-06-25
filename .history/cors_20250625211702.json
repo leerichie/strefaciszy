@@ -4,8 +4,9 @@
       "method": ["GET", "HEAD"],
       "responseHeader": ["Content-Type"],
       "maxAgeSeconds": 3600
-    },
-  
+    }
+  ],
+  [
     {
       "origin": ["https://strefa-ciszy.web.app"],
       "method": ["GET","HEAD","PUT","POST","DELETE","OPTIONS"],
@@ -13,5 +14,4 @@
       "maxAgeSeconds": 3600
     }
   ]
-
   

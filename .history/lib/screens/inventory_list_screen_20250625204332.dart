@@ -220,6 +220,7 @@ class _InventoryListScreenState extends State<InventoryListScreen> {
                                     );
                                   },
                                   errorBuilder: (_, __, ___) {
+                                    // fallback UI on 403 or any load error
                                     return Container(
                                       color: Colors.grey[200],
                                       child: const Icon(

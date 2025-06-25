@@ -167,6 +167,7 @@ class _AddItemScreenState extends State<AddItemScreen> {
         final url = await _storageService.uploadStockFile(
           docRef.id,
           _pickedImage!,
+          overwrite: false,
         );
         await docRef.update({'imageUrl': url});
       }

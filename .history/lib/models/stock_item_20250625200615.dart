@@ -27,7 +27,6 @@ class StockItem {
       unit: map['unit'],
       description: map['description'],
       producent: map['producent'],
-      imageUrl: map['imageUrl'],
     );
   }
 
@@ -38,7 +37,6 @@ class StockItem {
       if (unit != null) 'unit': unit,
       if (description != null) 'description': description,
       if (producent != null) 'producent': producent,
-      if (imageUrl != null) 'imageUrl': imageUrl,
     };
   }
 }

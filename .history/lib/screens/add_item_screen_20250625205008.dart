@@ -2,7 +2,6 @@
 
 import 'dart:async';
 import 'dart:io';
-import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
@@ -17,7 +16,7 @@ class AddItemScreen extends StatefulWidget {
   @override
   _AddItemScreenState createState() => _AddItemScreenState();
 }
-
+x
 class _AddItemScreenState extends State<AddItemScreen> {
   final _formKey = GlobalKey<FormState>();
   final _producerCtrl = TextEditingController();
@@ -31,7 +30,7 @@ class _AddItemScreenState extends State<AddItemScreen> {
   String? _selectedCategory;
   List<String> _categories = [];
 
-  dynamic _pickedImage;
+  File? _pickedImage;
   bool _saving = false;
   String? _error;
 
@@ -89,20 +88,16 @@ class _AddItemScreenState extends State<AddItemScreen> {
       ),
     );
 
-    if (source == null) return;
-
-    final xfile = await _picker.pickImage(
-      source: source,
-      imageQuality: 70,
-      maxWidth: 1024,
-      maxHeight: 1024,
-    );
-    if (xfile == null) return;
-
-    if (kIsWeb) {
-      setState(() => _pickedImage = xfile);
-    } else {
-      setState(() => _pickedImage = File(xfile.path));
+    if (source != null) {
+      final picked = await _picker.pickImage(
+        source: source,
+        imageQuality: 70,
+        maxWidth: 1024,
+        maxHeight: 1024,
+      );
+      if (picked != null) {
+        setState(() => _pickedImage = File(picked.path));
+      }
     }
   }
 
@@ -167,6 +162,7 @@ class _AddItemScreenState extends State<AddItemScreen> {
         final url = await _storageService.uploadStockFile(
           docRef.id,
           _pickedImage!,
+          overwrite: false, 
         );
         await docRef.update({'imageUrl': url});
       }

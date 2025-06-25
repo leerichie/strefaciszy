@@ -76,12 +76,14 @@ class ItemDetailScreen extends StatelessWidget {
                         child: Image.network(
                           imageUrl,
                           fit: BoxFit.cover,
+                          // spinner while loading
                           loadingBuilder: (ctx, child, progress) {
                             if (progress == null) return child;
                             return const Center(
                               child: CircularProgressIndicator(),
                             );
                           },
+                          // placeholder on error (403/404/etc)
                           errorBuilder: (ctx, error, stack) {
                             return Container(
                               color: Colors.grey[200],

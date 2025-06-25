@@ -2,7 +2,6 @@
 
 import 'dart:async';
 import 'dart:io';
-import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
@@ -10,6 +9,7 @@ import 'package:image_picker/image_picker.dart';
 import '../services/storage_service.dart';
 
 class AddItemScreen extends StatefulWidget {
+  /// Optional initial barcode (e.g. from scanner)
   final String? initialBarcode;
 
   const AddItemScreen({super.key, this.initialBarcode});
@@ -19,6 +19,7 @@ class AddItemScreen extends StatefulWidget {
 }
 
 class _AddItemScreenState extends State<AddItemScreen> {
+  // Form controllers
   final _formKey = GlobalKey<FormState>();
   final _producerCtrl = TextEditingController();
   final _nameCtrl = TextEditingController();
@@ -27,23 +28,28 @@ class _AddItemScreenState extends State<AddItemScreen> {
   final _quantityCtrl = TextEditingController(text: '0');
   final _locationCtrl = TextEditingController();
 
+  // Other form state
   String _unit = 'szt';
   String? _selectedCategory;
   List<String> _categories = [];
 
-  dynamic _pickedImage;
+  // Image picking & upload state
+  File? _pickedImage;
   bool _saving = false;
   String? _error;
 
+  // Firebase & picker
   final _picker = ImagePicker();
   final _storageService = StorageService();
 
+  // Category stream subscription
   late final StreamSubscription<QuerySnapshot> _catSub;
 
   @override
   void initState() {
     super.initState();
     _barcodeCtrl = TextEditingController(text: widget.initialBarcode ?? '');
+    // Subscribe to categories collection
     _catSub = FirebaseFirestore.instance
         .collection('categories')
         .orderBy('name')
@@ -67,6 +73,7 @@ class _AddItemScreenState extends State<AddItemScreen> {
     super.dispose();
   }
 
+  /// Let user pick from camera or gallery, with compression
   Future<void> _pickImage() async {
     final source = await showModalBottomSheet<ImageSource>(
       context: context,
@@ -89,23 +96,20 @@ class _AddItemScreenState extends State<AddItemScreen> {
       ),
     );
 
-    if (source == null) return;
-
-    final xfile = await _picker.pickImage(
-      source: source,
-      imageQuality: 70,
-      maxWidth: 1024,
-      maxHeight: 1024,
-    );
-    if (xfile == null) return;
-
-    if (kIsWeb) {
-      setState(() => _pickedImage = xfile);
-    } else {
-      setState(() => _pickedImage = File(xfile.path));
+    if (source != null) {
+      final picked = await _picker.pickImage(
+        source: source,
+        imageQuality: 70,
+        maxWidth: 1024,
+        maxHeight: 1024,
+      );
+      if (picked != null) {
+        setState(() => _pickedImage = File(picked.path));
+      }
     }
   }
 
+  /// Add a new category on the fly
   Future<void> _addCategory() async {
     String? newName;
     await showDialog<void>(
@@ -138,6 +142,7 @@ class _AddItemScreenState extends State<AddItemScreen> {
     );
   }
 
+  /// Save the new item + optional image
   Future<void> _save() async {
     if (!_formKey.currentState!.validate()) return;
     setState(() {
@@ -163,10 +168,12 @@ class _AddItemScreenState extends State<AddItemScreen> {
         'updatedBy': uid,
       });
 
+      // If user picked an image, upload it (compressed) and update the doc
       if (_pickedImage != null) {
         final url = await _storageService.uploadStockFile(
           docRef.id,
           _pickedImage!,
+          overwrite: false, // first upload – no need to overwrite
         );
         await docRef.update({'imageUrl': url});
       }
@@ -218,7 +225,7 @@ class _AddItemScreenState extends State<AddItemScreen> {
                     ),
                     const SizedBox(height: 12),
 
-                    // Category + Add
+                    // Category + Add button
                     Row(
                       children: [
                         Expanded(
@@ -289,10 +296,12 @@ class _AddItemScreenState extends State<AddItemScreen> {
                     ),
                     const SizedBox(height: 12),
 
+                    // Preview of picked image
                     if (_pickedImage != null)
                       Image.file(_pickedImage!, height: 150),
                     const SizedBox(height: 12),
 
+                    // Pick (camera/gallery) button
                     ElevatedButton.icon(
                       icon: const Icon(Icons.camera_alt),
                       label: const Text('Dodaj Fotka'),
@@ -300,6 +309,7 @@ class _AddItemScreenState extends State<AddItemScreen> {
                     ),
                     const SizedBox(height: 24),
 
+                    // Save button
                     ElevatedButton(
                       onPressed: _save,
                       child: const Text('Zapisz produkt'),

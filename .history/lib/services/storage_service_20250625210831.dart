@@ -11,6 +11,8 @@ class StorageService {
   final ImagePicker _picker = ImagePicker();
   final FirebaseStorage _storage = FirebaseStorage.instance;
 
+  /// Let the user pick an image (camera or gallery) with compression.
+  /// Returns an XFile (web/mobile) or null if cancelled.
   Future<XFile?> pickImage({required ImageSource source}) async {
     return await _picker.pickImage(
       source: source,
@@ -20,6 +22,7 @@ class StorageService {
     );
   }
 
+  /// Pick + upload in one step for stock images (overwrites if specified).
   Future<String?> pickAndUploadStockImage(
     String docId,
     ImageSource source, {
@@ -30,6 +33,7 @@ class StorageService {
     return uploadStockFile(docId, xfile, overwrite: overwrite);
   }
 
+  /// Pick + upload in one step for project images.
   Future<String?> pickAndUploadProjectImage(
     String projectId,
     ImageSource source,
@@ -39,6 +43,7 @@ class StorageService {
     return uploadProjectFile(projectId, xfile);
   }
 
+  /// Upload a project image (always timestamped).
   Future<String> uploadProjectFile(String projectId, dynamic file) {
     return _uploadFile(
       folder: 'project_images/$projectId',
@@ -47,6 +52,8 @@ class StorageService {
     );
   }
 
+  /// Upload a stock image.
+  /// If [overwrite] is true, uses just the docId so it replaces the previous file.
   Future<String> uploadStockFile(
     String docId,
     dynamic file, {
@@ -62,27 +69,33 @@ class StorageService {
     );
   }
 
+  /// Internal helper: picks the right upload method for web vs mobile
   Future<String> _uploadFile({
     required String folder,
     String? idSegment,
-    required dynamic file,
+    required dynamic file, // XFile on web, File on mobile
   }) async {
+    // Determine extension from name (web) or path (mobile)
     final ext = kIsWeb
         ? p.extension((file as XFile).name)
         : p.extension((file as File).path);
 
+    // Build filename
     final name = idSegment != null
         ? '$idSegment$ext'
         : '${DateTime.now().millisecondsSinceEpoch}$ext';
     final ref = _storage.ref().child(folder).child(name);
 
     if (kIsWeb) {
+      // On web: read bytes and upload with putData
       final bytes = await (file as XFile).readAsBytes();
       await ref.putData(bytes, SettableMetadata(contentType: 'image/jpeg'));
     } else {
+      // On mobile: upload the File directly
       await ref.putFile(file as File);
     }
 
+    // Return the download URL
     return ref.getDownloadURL();
   }
 }
