@@ -191,6 +191,48 @@ class _InventoryListScreenState extends State<InventoryListScreen> {
                         '${item.unit != null ? ' ${item.unit}' : ''}',
                         style: TextStyle(fontSize: 12, color: Colors.grey[700]),
                       ),
+                      trailing: item.imageUrl != null
+                          ? SizedBox(
+                              width: 48,
+                              height: 48,
+                              child: ClipRRect(
+                                borderRadius: BorderRadius.circular(4),
+                                child: Image.network(
+                                  item.imageUrl!,
+                                  fit: BoxFit.cover,
+                                  loadingBuilder: (ctx, child, progress) {
+                                    if (progress == null) return child;
+                                    return Center(
+                                      child: SizedBox(
+                                        width: 24,
+                                        height: 24,
+                                        child: CircularProgressIndicator(
+                                          value:
+                                              progress.expectedTotalBytes !=
+                                                  null
+                                              ? progress.cumulativeBytesLoaded /
+                                                    (progress
+                                                        .expectedTotalBytes!)
+                                              : null,
+                                          strokeWidth: 2,
+                                        ),
+                                      ),
+                                    );
+                                  },
+                                  errorBuilder: (_, __, ___) {
+                                    return Container(
+                                      color: Colors.grey[200],
+                                      child: const Icon(
+                                        Icons.broken_image,
+                                        size: 24,
+                                        color: Colors.grey,
+                                      ),
+                                    );
+                                  },
+                                ),
+                              ),
+                            )
+                          : null,
                       onTap: () => Navigator.of(context).push(
                         MaterialPageRoute(
                           builder: (_) => ItemDetailScreen(itemId: item.id),

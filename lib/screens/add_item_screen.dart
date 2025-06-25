@@ -2,6 +2,7 @@
 
 import 'dart:async';
 import 'dart:io';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
@@ -10,6 +11,7 @@ import '../services/storage_service.dart';
 
 class AddItemScreen extends StatefulWidget {
   final String? initialBarcode;
+
   const AddItemScreen({super.key, this.initialBarcode});
 
   @override
@@ -18,28 +20,30 @@ class AddItemScreen extends StatefulWidget {
 
 class _AddItemScreenState extends State<AddItemScreen> {
   final _formKey = GlobalKey<FormState>();
+  final _producerCtrl = TextEditingController();
   final _nameCtrl = TextEditingController();
   final _skuCtrl = TextEditingController();
   late final TextEditingController _barcodeCtrl;
   final _quantityCtrl = TextEditingController(text: '0');
   final _locationCtrl = TextEditingController();
-  late final TextEditingController _producerCtrl;
+
   String _unit = 'szt';
   String? _selectedCategory;
-  File? _pickedImage;
+  List<String> _categories = [];
+
+  dynamic _pickedImage;
   bool _saving = false;
   String? _error;
 
   final _picker = ImagePicker();
-  final StorageService _storageService = StorageService();
+  final _storageService = StorageService();
+
   late final StreamSubscription<QuerySnapshot> _catSub;
-  List<String> _categories = [];
 
   @override
   void initState() {
     super.initState();
     _barcodeCtrl = TextEditingController(text: widget.initialBarcode ?? '');
-    _producerCtrl = TextEditingController();
     _catSub = FirebaseFirestore.instance
         .collection('categories')
         .orderBy('name')
@@ -54,23 +58,52 @@ class _AddItemScreenState extends State<AddItemScreen> {
   @override
   void dispose() {
     _catSub.cancel();
+    _producerCtrl.dispose();
     _nameCtrl.dispose();
     _skuCtrl.dispose();
     _barcodeCtrl.dispose();
-    _producerCtrl.dispose();
     _quantityCtrl.dispose();
     _locationCtrl.dispose();
     super.dispose();
   }
 
   Future<void> _pickImage() async {
-    final x = await _picker.pickImage(
-      source: ImageSource.camera,
+    final source = await showModalBottomSheet<ImageSource>(
+      context: context,
+      builder: (ctx) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            ListTile(
+              leading: const Icon(Icons.camera_alt),
+              title: const Text('Zrób fota'),
+              onTap: () => Navigator.pop(ctx, ImageSource.camera),
+            ),
+            ListTile(
+              leading: const Icon(Icons.photo),
+              title: const Text('Wybierz z galerii'),
+              onTap: () => Navigator.pop(ctx, ImageSource.gallery),
+            ),
+          ],
+        ),
+      ),
+    );
+
+    if (source == null) return;
+
+    final xfile = await _picker.pickImage(
+      source: source,
       imageQuality: 70,
       maxWidth: 1024,
       maxHeight: 1024,
     );
-    if (x != null) setState(() => _pickedImage = File(x.path));
+    if (xfile == null) return;
+
+    if (kIsWeb) {
+      setState(() => _pickedImage = xfile);
+    } else {
+      setState(() => _pickedImage = File(xfile.path));
+    }
   }
 
   Future<void> _addCategory() async {
@@ -161,24 +194,31 @@ class _AddItemScreenState extends State<AddItemScreen> {
                   children: [
                     if (_error != null)
                       Text(_error!, style: const TextStyle(color: Colors.red)),
+
+                    // Producer
                     TextFormField(
                       controller: _producerCtrl,
                       decoration: const InputDecoration(labelText: 'Producent'),
                     ),
                     const SizedBox(height: 12),
+
+                    // Name
                     TextFormField(
                       controller: _nameCtrl,
                       decoration: const InputDecoration(labelText: 'Nazwa'),
-                      validator: (v) => v!.isEmpty ? 'Required' : null,
+                      validator: (v) => v!.isEmpty ? 'Wymagane' : null,
                     ),
-
                     const SizedBox(height: 12),
+
+                    // SKU
                     TextFormField(
                       controller: _skuCtrl,
                       decoration: const InputDecoration(labelText: 'SKU'),
-                      validator: (v) => v!.isEmpty ? 'Required' : null,
+                      validator: (v) => v!.isEmpty ? 'Wymagane' : null,
                     ),
                     const SizedBox(height: 12),
+
+                    // Category + Add
                     Row(
                       children: [
                         Expanded(
@@ -187,19 +227,18 @@ class _AddItemScreenState extends State<AddItemScreen> {
                               labelText: 'Kategoria',
                             ),
                             value: _selectedCategory,
-                            items: _categories
-                                .map(
-                                  (cat) => DropdownMenuItem(
-                                    value: cat,
-                                    child: Text(
-                                      cat[0].toUpperCase() + cat.substring(1),
-                                    ),
-                                  ),
-                                )
-                                .toList(),
-                            onChanged: (cat) =>
-                                setState(() => _selectedCategory = cat),
-                            validator: (cat) => cat == null ? 'Wybierz' : null,
+                            items: _categories.map((cat) {
+                              return DropdownMenuItem(
+                                value: cat,
+                                child: Text(
+                                  cat[0].toUpperCase() + cat.substring(1),
+                                ),
+                              );
+                            }).toList(),
+                            onChanged: (v) =>
+                                setState(() => _selectedCategory = v),
+                            validator: (v) =>
+                                v == null ? 'Wybierz kategorię' : null,
                           ),
                         ),
                         IconButton(
@@ -210,22 +249,27 @@ class _AddItemScreenState extends State<AddItemScreen> {
                       ],
                     ),
                     const SizedBox(height: 12),
+
+                    // Barcode
                     TextFormField(
                       controller: _barcodeCtrl,
                       decoration: const InputDecoration(
-                        labelText: 'Kod Kreskowy',
+                        labelText: 'Kod kreskowy',
                       ),
                     ),
                     const SizedBox(height: 12),
 
+                    // Quantity
                     TextFormField(
                       controller: _quantityCtrl,
                       decoration: const InputDecoration(labelText: 'Ilość'),
                       keyboardType: TextInputType.number,
                       validator: (v) =>
-                          int.tryParse(v!) == null ? 'Wpisz liczba' : null,
+                          int.tryParse(v ?? '') == null ? 'Wpisz liczbę' : null,
                     ),
                     const SizedBox(height: 12),
+
+                    // Unit
                     DropdownButtonFormField<String>(
                       value: _unit,
                       decoration: const InputDecoration(labelText: 'Jm.'),
@@ -237,19 +281,25 @@ class _AddItemScreenState extends State<AddItemScreen> {
                       onChanged: (v) => setState(() => _unit = v!),
                     ),
                     const SizedBox(height: 12),
+
+                    // Location
                     TextFormField(
                       controller: _locationCtrl,
                       decoration: const InputDecoration(labelText: 'Magazyn'),
                     ),
                     const SizedBox(height: 12),
+
                     if (_pickedImage != null)
                       Image.file(_pickedImage!, height: 150),
+                    const SizedBox(height: 12),
+
                     ElevatedButton.icon(
                       icon: const Icon(Icons.camera_alt),
                       label: const Text('Dodaj Fotka'),
                       onPressed: _pickImage,
                     ),
                     const SizedBox(height: 24),
+
                     ElevatedButton(
                       onPressed: _save,
                       child: const Text('Zapisz produkt'),

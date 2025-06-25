@@ -67,9 +67,38 @@ class ItemDetailScreen extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 if (imageUrl != null) ...[
-                  Center(child: Image.network(imageUrl, height: 150)),
+                  Center(
+                    child: SizedBox(
+                      width: double.infinity,
+                      height: 150,
+                      child: ClipRRect(
+                        borderRadius: BorderRadius.circular(8),
+                        child: Image.network(
+                          imageUrl,
+                          fit: BoxFit.cover,
+                          loadingBuilder: (ctx, child, progress) {
+                            if (progress == null) return child;
+                            return const Center(
+                              child: CircularProgressIndicator(),
+                            );
+                          },
+                          errorBuilder: (ctx, error, stack) {
+                            return Container(
+                              color: Colors.grey[200],
+                              child: const Icon(
+                                Icons.broken_image,
+                                size: 64,
+                                color: Colors.grey,
+                              ),
+                            );
+                          },
+                        ),
+                      ),
+                    ),
+                  ),
                   const SizedBox(height: 16),
                 ],
+
                 Text(
                   data['name'] ?? '—',
                   style: const TextStyle(

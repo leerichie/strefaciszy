@@ -7,6 +7,7 @@ class StockItem {
   final String? unit;
   final String? description;
   final String? producent;
+  final String? imageUrl;
 
   StockItem({
     required this.id,
@@ -15,6 +16,7 @@ class StockItem {
     this.unit,
     this.description,
     this.producent,
+    this.imageUrl,
   });
 
   factory StockItem.fromMap(Map<String, dynamic> map, String docId) {
@@ -25,6 +27,7 @@ class StockItem {
       unit: map['unit'],
       description: map['description'],
       producent: map['producent'],
+      imageUrl: map['imageUrl'],
     );
   }
 
@@ -35,6 +38,7 @@ class StockItem {
       if (unit != null) 'unit': unit,
       if (description != null) 'description': description,
       if (producent != null) 'producent': producent,
+      if (imageUrl != null) 'imageUrl': imageUrl,
     };
   }
 }

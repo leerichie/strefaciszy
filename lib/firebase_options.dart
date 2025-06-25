@@ -46,7 +46,7 @@ class DefaultFirebaseOptions {
     messagingSenderId: '734098285346',
     projectId: 'strefa-ciszy',
     authDomain: 'strefa-ciszy.firebaseapp.com',
-    storageBucket: 'strefa-ciszy.appspot.com',
+    storageBucket: 'strefa-ciszy.firebasestorage.app',
     measurementId: 'G-VM6X22GFD0',
   );
 
@@ -82,7 +82,7 @@ class DefaultFirebaseOptions {
     messagingSenderId: '734098285346',
     projectId: 'strefa-ciszy',
     authDomain: 'strefa-ciszy.firebaseapp.com',
-    storageBucket: 'strefa-ciszy.appspot.com',
+    storageBucket: 'strefa-ciszy.firebasestorage.app',
     measurementId: 'G-1363641X0R',
   );
 }
