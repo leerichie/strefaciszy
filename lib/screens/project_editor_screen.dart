@@ -19,6 +19,7 @@ import 'package:strefa_ciszy/services/audit_service.dart';
 import 'package:strefa_ciszy/widgets/audit_log_list.dart';
 import 'package:strefa_ciszy/widgets/photo_gallery.dart';
 import 'package:strefa_ciszy/widgets/notes_section.dart';
+import 'package:strefa_ciszy/services/storage_service.dart';
 
 class ProjectEditorScreen extends StatefulWidget {
   final bool isAdmin;
@@ -43,8 +44,10 @@ class ProjectEditorScreen extends StatefulWidget {
 class _ProjectEditorScreenState extends State<ProjectEditorScreen> {
   final _formKey = GlobalKey<FormState>();
   final ImagePicker _picker = ImagePicker();
-  List<String> _photoUrls = [];
-  List<Note> _notesList = [];
+  final _storage = StorageService();
+  List<String> _imageUrls = [];
+  final List<String> _localPreviews = [];
+  List<Note> _notes = [];
 
   bool _loading = true;
   bool _saving = false;
@@ -54,7 +57,6 @@ class _ProjectEditorScreenState extends State<ProjectEditorScreen> {
 
   String _title = '';
   String _status = 'draft';
-  String _notes = '';
   List<XFile> _images = [];
   String _customerName = '';
 
@@ -105,8 +107,8 @@ class _ProjectEditorScreenState extends State<ProjectEditorScreen> {
       if (!snap.exists) return;
       final data = snap.data()!;
       setState(() {
-        _photoUrls = List<String>.from(data['images'] ?? []);
-        _notesList =
+        _imageUrls = List<String>.from(data['images'] ?? []);
+        _notes =
             (data['notesList'] as List<dynamic>? ?? []).map((m) {
                 final mp = m as Map<String, dynamic>;
                 return Note(
@@ -117,6 +119,23 @@ class _ProjectEditorScreenState extends State<ProjectEditorScreen> {
               }).toList()
               // newest first
               ..sort((a, b) => b.createdAt.compareTo(a.createdAt));
+
+        final rawList = data['notesList'] as List<dynamic>? ?? [];
+        print('📝 raw notesList from Firestore: $rawList');
+        final mapped = rawList.map((m) {
+          final mp = m as Map<String, dynamic>;
+          print('   • keys=${mp.keys}, userName="${mp['userName']}"');
+          return Note(
+            text: mp['text'] as String,
+            userName: mp['userName'] as String,
+            createdAt: (mp['createdAt'] as Timestamp).toDate(),
+          );
+        }).toList();
+        setState(
+          () =>
+              _notes = mapped
+                ..sort((a, b) => b.createdAt.compareTo(a.createdAt)),
+        );
       });
     });
     _loadAll();
@@ -222,7 +241,6 @@ class _ProjectEditorScreenState extends State<ProjectEditorScreen> {
 
     _title = data['title'] as String? ?? '';
     _status = data['status'] as String? ?? 'draft';
-    _notes = data['notes'] as String? ?? '';
     _images = (data['images'] as List<dynamic>? ?? [])
         .cast<String>()
         .map((u) => XFile(u))
@@ -363,9 +381,9 @@ class _ProjectEditorScreenState extends State<ProjectEditorScreen> {
 
     // === DELETE-ALL
     if (filteredLines.isEmpty && docSnap.exists) {
-      for (final ln in fullLines.where((l) => l.previousQty! > 0)) {
+      for (final ln in fullLines.where((l) => l.previousQty > 0)) {
         try {
-          await StockService.increaseQty(ln.itemRef, ln.previousQty!);
+          await StockService.increaseQty(ln.itemRef, ln.previousQty);
           debugPrint('🔄 Restored ${ln.previousQty} for ${ln.itemRef}');
         } catch (e) {
           debugPrint('⚠️ Couldn\'t restore ${ln.itemRef}: $e');
@@ -386,7 +404,7 @@ class _ProjectEditorScreenState extends State<ProjectEditorScreen> {
           .get();
       final projectName2 = projSnap2.data()?['title'] as String? ?? '–';
 
-      for (final ln in fullLines.where((l) => l.previousQty! > 0)) {
+      for (final ln in fullLines.where((l) => l.previousQty > 0)) {
         final stock = _stockItems.firstWhere((s) => s.id == ln.itemRef);
         final name = stock.name;
         final changeText = '-${ln.previousQty}${ln.unit}';
@@ -460,8 +478,8 @@ class _ProjectEditorScreenState extends State<ProjectEditorScreen> {
 
         await AuditService.logAction(
           action: existsToday ? 'Zaktualizowano RW' : 'Utworzono RW',
-          customerId: widget.customerId!,
-          projectId: widget.projectId!,
+          customerId: widget.customerId,
+          projectId: widget.projectId,
           details: {'Produkt': name, 'Zmiana': changeText},
         );
       }
@@ -489,38 +507,38 @@ class _ProjectEditorScreenState extends State<ProjectEditorScreen> {
     }
   }
 
-  Future<void> _openGallery() async {
-    final picked = await _picker.pickMultiImage();
-    if (picked.isNotEmpty) setState(() => _images.addAll(picked));
-  }
+  // Future<void> _openGallery() async {
+  //   final picked = await _picker.pickMultiImage();
+  //   if (picked.isNotEmpty) setState(() => _images.addAll(picked));
+  // }
 
-  Future<void> _openNotes() async {
-    final result = await showDialog<String>(
-      context: context,
-      builder: (ctx) {
-        var draft = _notes;
-        return AlertDialog(
-          title: Text('Edytuj Notatki'),
-          content: TextFormField(
-            initialValue: draft,
-            maxLines: 5,
-            onChanged: (v) => draft = v,
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(ctx),
-              child: Text('Anuluj'),
-            ),
-            ElevatedButton(
-              onPressed: () => Navigator.pop(ctx, draft),
-              child: Text('Zapisz'),
-            ),
-          ],
-        );
-      },
-    );
-    if (result != null) setState(() => _notes = result);
-  }
+  // Future<void> _openNotes() async {
+  //   final result = await showDialog<String>(
+  //     context: context,
+  //     builder: (ctx) {
+  //       var draft = _notes;
+  //       return AlertDialog(
+  //         title: Text('Edytuj Notatki'),
+  //         content: TextFormField(
+  //           initialValue: draft,
+  //           maxLines: 5,
+  //           onChanged: (v) => draft = v,
+  //         ),
+  //         actions: [
+  //           TextButton(
+  //             onPressed: () => Navigator.pop(ctx),
+  //             child: Text('Anuluj'),
+  //           ),
+  //           ElevatedButton(
+  //             onPressed: () => Navigator.pop(ctx, draft),
+  //             child: Text('Zapisz'),
+  //           ),
+  //         ],
+  //       );
+  //     },
+  //   );
+  //   if (result != null) setState(() => _notes = result);
+  // }
 
   Future<void> _deleteLineFromRW(ProjectLine line) async {
     final projectRef = FirebaseFirestore.instance
@@ -615,6 +633,12 @@ class _ProjectEditorScreenState extends State<ProjectEditorScreen> {
       );
     }
 
+    final projRef = FirebaseFirestore.instance
+        .collection('customers')
+        .doc(widget.customerId)
+        .collection('projects')
+        .doc(widget.projectId);
+
     return Scaffold(
       appBar: AppBar(
         title: Text('Edytuj projekt'),
@@ -703,74 +727,173 @@ class _ProjectEditorScreenState extends State<ProjectEditorScreen> {
                   ),
                   SizedBox(height: 16),
 
-                  // photos & notes
+                  //  Photo
                   PhotoGallery(
-                    imageUrls: _photoUrls,
-                    onAddImage: () async {
-                      final file = await ImagePicker().pickImage(
-                        source: ImageSource.gallery,
+                    imageUrls: [..._localPreviews, ..._imageUrls],
+                    onAddImage: (source) async {
+                      final picked = await _picker.pickImage(
+                        source: source,
+                        imageQuality: 70,
+                        maxWidth: 1024,
+                        maxHeight: 1024,
                       );
-                      if (file == null) return null;
+                      if (picked == null) return null;
 
-                      final downloadUrl =
-                          await MyStorageService.uploadProjectImage(file);
-                      // 3) persist to Firestore:
+                      setState(() => _localPreviews.add(picked.path));
+
+                      final file = File(picked.path);
+                      final url = await _storage.uploadProjectFile(
+                        widget.projectId,
+                        file,
+                      );
+
+                      if (url != null) {
+                        final projRef = FirebaseFirestore.instance
+                            .collection('customers')
+                            .doc(widget.customerId)
+                            .collection('projects')
+                            .doc(widget.projectId);
+
+                        await projRef.update({
+                          'images': FieldValue.arrayUnion([url]),
+                        });
+
+                        setState(() {
+                          _localPreviews.remove(picked.path);
+                          if (!_imageUrls.contains(url)) {
+                            _imageUrls.add(url);
+                          }
+                        });
+                      }
+
+                      return url;
+                    },
+                    onDelete: (i) async {
+                      if (i < _localPreviews.length) {
+                        setState(() => _localPreviews.removeAt(i));
+                        return;
+                      }
+
+                      final idx = i - _localPreviews.length;
+                      final url = _imageUrls[idx];
+                      final projRef = FirebaseFirestore.instance
+                          .collection('customers')
+                          .doc(widget.customerId)
+                          .collection('projects')
+                          .doc(widget.projectId);
+
                       await projRef.update({
-                        'images': FieldValue.arrayUnion([downloadUrl]),
+                        'images': FieldValue.arrayRemove([url]),
                       });
-                      return downloadUrl;
+
+                      setState(() => _imageUrls.removeAt(idx));
                     },
                   ),
+                  const SizedBox(height: 24),
 
-                  SizedBox(height: 24),
-
+                  //  Notes
                   NotesSection(
-                    notes: _notesList,
+                    notes: _notes,
                     onAddNote: (ctx) async {
                       String draft = '';
                       final result = await showDialog<String>(
                         context: ctx,
-                        builder: (dctx) => AlertDialog(
-                          title: Text('Nowa notatka'),
+                        builder: (dCtx) => AlertDialog(
+                          title: Text('Wpisz'),
                           content: TextField(
-                            onChanged: (v) => draft = v,
+                            autofocus: true,
                             maxLines: 4,
+                            onChanged: (v) => draft = v,
+                            decoration: InputDecoration(hintText: 'Treść'),
                           ),
                           actions: [
                             TextButton(
-                              onPressed: () => Navigator.pop(dctx),
+                              onPressed: () => Navigator.pop(dCtx),
                               child: Text('Anuluj'),
                             ),
                             ElevatedButton(
-                              onPressed: () => Navigator.pop(dctx, draft),
+                              onPressed: () => Navigator.pop(dCtx, draft),
                               child: Text('Zapisz'),
                             ),
                           ],
                         ),
                       );
+
                       if (result == null || result.trim().isEmpty) return null;
 
                       final user = FirebaseAuth.instance.currentUser!;
-                      final displayName = user.displayName ?? user.email ?? '…';
-                      final now = DateTime.now();
-
+                      final userName = user.displayName ?? user.email ?? '…';
                       final noteMap = {
                         'text': result.trim(),
-                        'userName': displayName,
-                        'createdAt': FieldValue.serverTimestamp(),
+                        'userName': userName,
+                        'createdAt': Timestamp.now(),
                       };
-
                       await projRef.update({
                         'notesList': FieldValue.arrayUnion([noteMap]),
                       });
-                      return Note(
+
+                      final newNote = Note(
                         text: result.trim(),
-                        userName: displayName,
-                        createdAt: now,
+                        userName: userName,
+                        createdAt: DateTime.now(),
                       );
+                      setState(() => _notes.insert(0, newNote));
+
+                      return null;
+                    },
+
+                    onEdit: (i, newText) async {
+                      final currentUser = FirebaseAuth.instance.currentUser!;
+                      final editorName =
+                          currentUser.displayName ?? currentUser.email ?? '…';
+
+                      final note = _notes[i];
+                      final projRef = FirebaseFirestore.instance
+                          .collection('customers')
+                          .doc(widget.customerId)
+                          .collection('projects')
+                          .doc(widget.projectId);
+
+                      await projRef.update({
+                        'notesList': FieldValue.arrayRemove([
+                          {
+                            'text': note.text,
+                            'userName': note.userName,
+                            'createdAt': Timestamp.fromDate(note.createdAt),
+                          },
+                        ]),
+                      });
+
+                      final newMap = {
+                        'text': newText,
+                        'userName': editorName,
+                        'createdAt': FieldValue.serverTimestamp(),
+                      };
+                      await projRef.update({
+                        'notesList': FieldValue.arrayUnion([newMap]),
+                      });
+
+                      setState(() {
+                        _notes[i] = Note(
+                          text: newText,
+                          userName: editorName,
+                          createdAt: DateTime.now(),
+                        );
+                      });
+                    },
+                    onDelete: (i) async {
+                      final note = _notes[i];
+                      final map = {
+                        'text': note.text,
+                        'userName': note.userName,
+                        'createdAt': Timestamp.fromDate(note.createdAt),
+                      };
+                      await projRef.update({
+                        'notesList': FieldValue.arrayRemove([map]),
+                      });
                     },
                   ),
-                  SizedBox(height: 24),
+                  const SizedBox(height: 24),
 
                   if (_lines.any(
                     (l) =>

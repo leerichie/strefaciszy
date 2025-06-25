@@ -9,10 +9,10 @@ class AuditLogList extends StatelessWidget {
   final bool showContextLabels;
 
   const AuditLogList({
-    Key? key,
+    super.key,
     required this.stream,
     this.showContextLabels = true,
-  }) : super(key: key);
+  });
 
   IconData _iconForAction(String action) {
     if (action.startsWith('Utworzono')) return Icons.add_box_outlined;

@@ -566,7 +566,7 @@ class _RWDocumentsScreenState extends State<RWDocumentsScreen> {
                     ],
                   ),
                 );
-              }).toList(),
+              }),
             ],
           ),
         ),

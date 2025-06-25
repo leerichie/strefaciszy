@@ -9,7 +9,7 @@ import 'package:strefa_ciszy/screens/scan_screen.dart';
 import 'package:strefa_ciszy/widgets/audit_log_list.dart';
 
 class AuditLogScreen extends StatelessWidget {
-  const AuditLogScreen({Key? key}) : super(key: key);
+  const AuditLogScreen({super.key});
 
   @override
   Widget build(BuildContext context) {

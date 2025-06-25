@@ -7,6 +7,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_storage/firebase_storage.dart';
 import 'package:image_picker/image_picker.dart';
+import '../services/storage_service.dart';
 
 class AddItemScreen extends StatefulWidget {
   final String? initialBarcode;
@@ -31,6 +32,7 @@ class _AddItemScreenState extends State<AddItemScreen> {
   String? _error;
 
   final _picker = ImagePicker();
+  final StorageService _storageService = StorageService();
   late final StreamSubscription<QuerySnapshot> _catSub;
   List<String> _categories = [];
 
@@ -63,7 +65,12 @@ class _AddItemScreenState extends State<AddItemScreen> {
   }
 
   Future<void> _pickImage() async {
-    final x = await _picker.pickImage(source: ImageSource.camera);
+    final x = await _picker.pickImage(
+      source: ImageSource.camera,
+      imageQuality: 70,
+      maxWidth: 1024,
+      maxHeight: 1024,
+    );
     if (x != null) setState(() => _pickedImage = File(x.path));
   }
 
@@ -125,10 +132,10 @@ class _AddItemScreenState extends State<AddItemScreen> {
       });
 
       if (_pickedImage != null) {
-        final path = 'stock_images/${docRef.id}.jpg';
-        final ref = FirebaseStorage.instance.ref(path);
-        await ref.putFile(_pickedImage!);
-        final url = await ref.getDownloadURL();
+        final url = await _storageService.uploadStockFile(
+          docRef.id,
+          _pickedImage!,
+        );
         await docRef.update({'imageUrl': url});
       }
 

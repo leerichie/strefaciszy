@@ -1,7 +1,6 @@
 // lib/screens/inventory_list_screen.dart
 
 import 'dart:async';
-import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:strefa_ciszy/models/stock_item.dart';

@@ -14,13 +14,13 @@ class BaseScaffold extends StatelessWidget {
   final ValueChanged<int>? onIndexChanged;
 
   const BaseScaffold({
-    Key? key,
+    super.key,
     this.appBar,
     required this.body,
     this.floatingActionButton,
     required this.currentIndex,
     this.onIndexChanged,
-  }) : super(key: key);
+  });
 
   @override
   Widget build(BuildContext c) {
