@@ -150,7 +150,6 @@ class _ImageViewer extends StatefulWidget {
   final OnImageDeleted onDelete;
 
   const _ImageViewer({
-    super.key,
     required this.imageUrls,
     required this.initialIndex,
     required this.onDelete,

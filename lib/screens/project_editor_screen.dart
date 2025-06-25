@@ -747,24 +747,22 @@ class _ProjectEditorScreenState extends State<ProjectEditorScreen> {
                         file,
                       );
 
-                      if (url != null) {
-                        final projRef = FirebaseFirestore.instance
-                            .collection('customers')
-                            .doc(widget.customerId)
-                            .collection('projects')
-                            .doc(widget.projectId);
+                      final projRef = FirebaseFirestore.instance
+                          .collection('customers')
+                          .doc(widget.customerId)
+                          .collection('projects')
+                          .doc(widget.projectId);
 
-                        await projRef.update({
-                          'images': FieldValue.arrayUnion([url]),
-                        });
+                      await projRef.update({
+                        'images': FieldValue.arrayUnion([url]),
+                      });
 
-                        setState(() {
-                          _localPreviews.remove(picked.path);
-                          if (!_imageUrls.contains(url)) {
-                            _imageUrls.add(url);
-                          }
-                        });
-                      }
+                      setState(() {
+                        _localPreviews.remove(picked.path);
+                        if (!_imageUrls.contains(url)) {
+                          _imageUrls.add(url);
+                        }
+                      });
 
                       return url;
                     },
