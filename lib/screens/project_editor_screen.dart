@@ -108,17 +108,14 @@ class _ProjectEditorScreenState extends State<ProjectEditorScreen> {
       final data = snap.data()!;
       setState(() {
         _imageUrls = List<String>.from(data['images'] ?? []);
-        _notes =
-            (data['notesList'] as List<dynamic>? ?? []).map((m) {
-                final mp = m as Map<String, dynamic>;
-                return Note(
-                  text: mp['text'] as String,
-                  userName: mp['userName'] as String,
-                  createdAt: (mp['createdAt'] as Timestamp).toDate(),
-                );
-              }).toList()
-              // newest first
-              ..sort((a, b) => b.createdAt.compareTo(a.createdAt));
+        _notes = (data['notesList'] as List<dynamic>? ?? []).map((m) {
+          final mp = m as Map<String, dynamic>;
+          return Note(
+            text: mp['text'] as String,
+            userName: mp['userName'] as String,
+            createdAt: (mp['createdAt'] as Timestamp).toDate(),
+          );
+        }).toList()..sort((a, b) => b.createdAt.compareTo(a.createdAt));
 
         final rawList = data['notesList'] as List<dynamic>? ?? [];
         print('📝 raw notesList from Firestore: $rawList');
@@ -178,54 +175,70 @@ class _ProjectEditorScreenState extends State<ProjectEditorScreen> {
         .collection('projects')
         .doc(widget.projectId);
 
-    if (widget.rwId != null) {
-      final rwSnap = await projRef
-          .collection('rw_documents')
-          .doc(widget.rwId)
-          .get();
-      if (rwSnap.exists) {
-        final data = rwSnap.data()!;
-        final rawItems = (data['items'] as List<dynamic>?) ?? [];
+    // if (widget.rwId != null) {
+    //   final rwSnap = await projRef
+    //       .collection('rw_documents')
+    //       .doc(widget.rwId)
+    //       .get();
+    //   if (rwSnap.exists) {
+    //     final data = rwSnap.data()!;
+    //     final rawItems = (data['items'] as List<dynamic>?) ?? [];
 
-        _lines = rawItems.map((e) {
-          final m = e as Map<String, dynamic>;
-          final itemId = m['itemId'] as String;
-          final qty = (m['quantity'] as num).toInt();
-          final unit = m['unit'] as String;
-          final name = m['name'] as String;
-          final isStock = _stockItems.any((s) => s.id == itemId);
+    final now = DateTime.now();
+    final startOfDay = DateTime(now.year, now.month, now.day);
+    final startOfTomorrow = startOfDay.add(Duration(days: 1));
 
-          final originalStock = isStock
-              ? _stockItems.firstWhere((s) => s.id == itemId).quantity
-              : qty;
+    final todaySnap = await projRef
+        .collection('rw_documents')
+        .where('type', isEqualTo: 'RW')
+        .where('createdAt', isGreaterThanOrEqualTo: startOfDay)
+        .where('createdAt', isLessThan: startOfTomorrow)
+        .orderBy('createdAt', descending: true)
+        .limit(1)
+        .get();
 
-          return ProjectLine(
-            isStock: isStock,
-            itemRef: itemId,
-            customName: isStock ? '' : name,
-            requestedQty: qty,
-            originalStock: originalStock,
-            previousQty: qty,
-            unit: unit,
-          );
-        }).toList();
+    if (todaySnap.docs.isNotEmpty) {
+      final data = todaySnap.docs.first.data();
+      final rawItems = (data['items'] as List<dynamic>?) ?? [];
 
-        _title = data['projectName'] as String? ?? '';
+      _lines = rawItems.map((e) {
+        final m = e as Map<String, dynamic>;
+        final itemId = m['itemId'] as String;
+        final qty = (m['quantity'] as num).toInt();
+        final unit = m['unit'] as String;
+        final name = m['name'] as String;
+        final isStock = _stockItems.any((s) => s.id == itemId);
 
-        setState(() {
-          _loading = false;
-          _initialized = true;
-        });
-        return;
-      }
+        final originalStock = isStock
+            ? _stockItems.firstWhere((s) => s.id == itemId).quantity
+            : qty;
+
+        return ProjectLine(
+          isStock: isStock,
+          itemRef: itemId,
+          customName: isStock ? '' : name,
+          requestedQty: qty,
+          originalStock: originalStock,
+          previousQty: qty,
+          unit: unit,
+        );
+      }).toList();
+
+      _title = data['projectName'] as String? ?? '';
+
+      setState(() {
+        _loading = false;
+        _initialized = true;
+      });
+      return;
     }
 
     final snap = await projRef.get();
     final data = snap.data()!;
     final lastRwRaw = data['lastRwDate'];
     DateTime? lastRwDate = lastRwRaw is Timestamp ? lastRwRaw.toDate() : null;
-    final now = DateTime.now();
-    final startOfDay = DateTime(now.year, now.month, now.day);
+    // final now = DateTime.now();
+    // final startOfDay = DateTime(now.year, now.month, now.day);
 
     if (lastRwDate == null || lastRwDate.isBefore(startOfDay)) {
       await projRef.update({
@@ -371,7 +384,7 @@ class _ProjectEditorScreenState extends State<ProjectEditorScreen> {
       rwData['lastUpdatedBy'] = user.uid;
     }
 
-    // Debug log of diffs
+    // Debug diffs
     for (var ln in filteredLines) {
       ln.previousQty ??= 0;
       debugPrint(
@@ -423,7 +436,13 @@ class _ProjectEditorScreenState extends State<ProjectEditorScreen> {
       }
 
       await rwRef.delete();
-      debugPrint('🗑️ RW document $rwId deleted (no products)');
+      debugPrint('🗑️ RW $rwId usunięto (empty list)');
+
+      await projectRef.update({
+        'items': <Map<String, dynamic>>[],
+        'status': 'draft',
+        'lastRwDate': FieldValue.serverTimestamp(),
+      });
 
       setState(() {
         _lines.clear();
@@ -431,9 +450,7 @@ class _ProjectEditorScreenState extends State<ProjectEditorScreen> {
       });
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text(
-            'Usunięto pusty dokument $type i przywrócono stan magazynowy',
-          ),
+          content: Text('Usunięto pusty $type i przywrócono stan magazynowy'),
         ),
       );
       setState(() => _saving = false);
@@ -462,6 +479,20 @@ class _ProjectEditorScreenState extends State<ProjectEditorScreen> {
       }
 
       await batch.commit();
+
+      await projectRef.update({
+        'items': filteredLines
+            .map(
+              (ln) => {
+                'itemId': ln.itemRef,
+                'quantity': ln.requestedQty,
+                'unit': ln.unit,
+                'name': ln.isStock ? '' : ln.customName,
+              },
+            )
+            .toList(),
+        'lastRwDate': FieldValue.serverTimestamp(),
+      });
 
       final movedLines = filteredLines.where((ln) {
         final prev = ln.previousQty ?? 0;
@@ -501,44 +532,11 @@ class _ProjectEditorScreenState extends State<ProjectEditorScreen> {
       debugPrint('🔥 _saveRWDocument failed: $e\n$st');
       ScaffoldMessenger.of(
         context,
-      ).showSnackBar(SnackBar(content: Text('Błąd zapisu: ${e.toString()}')));
+      ).showSnackBar(SnackBar(content: Text('Błąd: ${e.toString()}')));
     } finally {
       setState(() => _saving = false);
     }
   }
-
-  // Future<void> _openGallery() async {
-  //   final picked = await _picker.pickMultiImage();
-  //   if (picked.isNotEmpty) setState(() => _images.addAll(picked));
-  // }
-
-  // Future<void> _openNotes() async {
-  //   final result = await showDialog<String>(
-  //     context: context,
-  //     builder: (ctx) {
-  //       var draft = _notes;
-  //       return AlertDialog(
-  //         title: Text('Edytuj Notatki'),
-  //         content: TextFormField(
-  //           initialValue: draft,
-  //           maxLines: 5,
-  //           onChanged: (v) => draft = v,
-  //         ),
-  //         actions: [
-  //           TextButton(
-  //             onPressed: () => Navigator.pop(ctx),
-  //             child: Text('Anuluj'),
-  //           ),
-  //           ElevatedButton(
-  //             onPressed: () => Navigator.pop(ctx, draft),
-  //             child: Text('Zapisz'),
-  //           ),
-  //         ],
-  //       );
-  //     },
-  //   );
-  //   if (result != null) setState(() => _notes = result);
-  // }
 
   Future<void> _deleteLineFromRW(ProjectLine line) async {
     final projectRef = FirebaseFirestore.instance
@@ -720,7 +718,7 @@ class _ProjectEditorScreenState extends State<ProjectEditorScreen> {
 
                   TextFormField(
                     initialValue: _title,
-                    decoration: InputDecoration(labelText: 'Projekt'),
+                    decoration: InputDecoration(labelText: 'Nazwa Projektu:'),
                     onChanged: (v) => _title = v,
                     validator: (v) =>
                         v?.trim().isEmpty == true ? 'Required' : null,
@@ -787,7 +785,7 @@ class _ProjectEditorScreenState extends State<ProjectEditorScreen> {
                       setState(() => _imageUrls.removeAt(idx));
                     },
                   ),
-                  const SizedBox(height: 24),
+                  Divider(),
 
                   //  Notes
                   NotesSection(
@@ -891,7 +889,7 @@ class _ProjectEditorScreenState extends State<ProjectEditorScreen> {
                       });
                     },
                   ),
-                  const SizedBox(height: 24),
+                  Divider(),
 
                   if (_lines.any(
                     (l) =>
@@ -986,7 +984,9 @@ class _ProjectEditorScreenState extends State<ProjectEditorScreen> {
                                     ),
                                     margin: const EdgeInsets.only(right: 8),
                                     decoration: BoxDecoration(
-                                      color: Colors.green.withOpacity(0.15),
+                                      color: Colors.green.withValues(
+                                        alpha: 0.15,
+                                      ),
                                       borderRadius: BorderRadius.circular(4),
                                     ),
                                     child: Text(
@@ -1025,6 +1025,20 @@ class _ProjectEditorScreenState extends State<ProjectEditorScreen> {
                                               );
                                           if (updated != null) {
                                             setState(() => _lines[i] = updated);
+
+                                            try {
+                                              await _saveRWDocument('RW');
+                                            } catch (e) {
+                                              ScaffoldMessenger.of(
+                                                context,
+                                              ).showSnackBar(
+                                                SnackBar(
+                                                  content: Text(
+                                                    'Update RW - nie udało się: $e',
+                                                  ),
+                                                ),
+                                              );
+                                            }
                                           }
                                         },
                                 ),
@@ -1048,12 +1062,52 @@ class _ProjectEditorScreenState extends State<ProjectEditorScreen> {
                                           );
                                         }
                                       : () async {
+                                          final shouldDelete = await showDialog<bool>(
+                                            context: context,
+                                            builder: (ctx) => AlertDialog(
+                                              title: Text('Usuń produkt?'),
+                                              content: Text(
+                                                'Na pewno usunąć produkt z RW?',
+                                              ),
+                                              actions: [
+                                                TextButton(
+                                                  onPressed: () =>
+                                                      Navigator.pop(ctx, false),
+                                                  child: Text('Anuluj'),
+                                                ),
+                                                ElevatedButton(
+                                                  style:
+                                                      ElevatedButton.styleFrom(),
+                                                  onPressed: () =>
+                                                      Navigator.pop(ctx, true),
+                                                  child: Text('Usuń'),
+                                                ),
+                                              ],
+                                            ),
+                                          );
+
+                                          if (shouldDelete != true) return;
+
                                           final removedLine = _lines.removeAt(
                                             i,
                                           );
                                           setState(() {});
 
-                                          await _deleteLineFromRW(removedLine);
+                                          try {
+                                            await _deleteLineFromRW(
+                                              removedLine,
+                                            );
+                                          } catch (e) {
+                                            ScaffoldMessenger.of(
+                                              context,
+                                            ).showSnackBar(
+                                              SnackBar(
+                                                content: Text(
+                                                  'Błąd usuwania: $e',
+                                                ),
+                                              ),
+                                            );
+                                          }
                                         },
                                 ),
                               ],
@@ -1067,29 +1121,31 @@ class _ProjectEditorScreenState extends State<ProjectEditorScreen> {
             ),
           ),
 
-          if (!_rwLocked)
-            Positioned(
-              right: 16,
-              bottom: kBottomNavigationBarHeight + 16,
-              child: ElevatedButton(
-                style: ElevatedButton.styleFrom(
-                  shape: StadiumBorder(),
-                  elevation: 4,
-                ),
-                onPressed:
-                    (_rwExistsToday || _lines.any((l) => l.requestedQty > 0))
-                    ? () => _saveRWDocument('RW')
-                    : null,
-                child: Text(_rwExistsToday ? 'Update RW' : 'Zapisz RW'),
-              ),
-            ),
+          // OLD - save rw button
+
+          // if (!_rwLocked)
+          //   Positioned(
+          //     right: 16,
+          //     bottom: kBottomNavigationBarHeight + 16,
+          //     child: ElevatedButton(
+          //       style: ElevatedButton.styleFrom(
+          //         shape: StadiumBorder(),
+          //         elevation: 4,
+          //       ),
+          //       onPressed:
+          //           (_rwExistsToday || _lines.any((l) => l.requestedQty > 0))
+          //           ? () => _saveRWDocument('RW')
+          //           : null,
+          //       child: Text(_rwExistsToday ? 'Update RW' : 'Zapisz RW'),
+          //     ),
+          //   ),
         ],
       ),
 
       floatingActionButton: _rwLocked
           ? null
           : FloatingActionButton(
-              tooltip: 'Dodaj pozycja',
+              tooltip: 'Dodaj produkt',
               onPressed: () async {
                 final newLine = await showProjectLineDialog(
                   context,
@@ -1105,30 +1161,43 @@ class _ProjectEditorScreenState extends State<ProjectEditorScreen> {
                       )
                     : newLine;
 
-                final isDup = newLine.isStock
-                    ? _lines.any(
-                        (l) => l.isStock && l.itemRef == newLine.itemRef,
+                final existingIndex = lineWithUnit.isStock
+                    ? _lines.indexWhere(
+                        (l) => l.isStock && l.itemRef == lineWithUnit.itemRef,
                       )
-                    : _lines.any(
+                    : _lines.indexWhere(
                         (l) =>
                             !l.isStock &&
                             l.customName.toLowerCase() ==
-                                newLine.customName.toLowerCase(),
+                                lineWithUnit.customName.toLowerCase(),
                       );
 
-                if (isDup) {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(
-                      content: Text('Nie można dodać bo pozycja już istnieje!'),
-                    ),
+                if (existingIndex != -1) {
+                  final updated = await showProjectLineDialog(
+                    context,
+                    _stockItems,
+                    existing: _lines[existingIndex],
                   );
-                  return;
+                  if (updated != null) {
+                    setState(() => _lines[existingIndex] = updated);
+                  } else {
+                    return;
+                  }
+                } else {
+                  setState(() => _lines.add(lineWithUnit));
                 }
 
-                setState(() => _lines.add(lineWithUnit));
+                try {
+                  await _saveRWDocument('RW');
+                } catch (e) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(content: Text('Auto Sync RW - nie udało się: $e')),
+                  );
+                }
               },
               child: const Icon(Icons.playlist_add, size: 28),
             ),
+
       floatingActionButtonLocation: FloatingActionButtonLocation.centerDocked,
 
       bottomNavigationBar: BottomAppBar(

@@ -13,7 +13,7 @@ class _LoginScreenState extends State<LoginScreen> {
   final _emailCtrl = TextEditingController();
   final _passCtrl = TextEditingController();
   String? _error;
-  final bool _isLoading = false;
+  bool _isLoading = false;
 
   @override
   void dispose() {
@@ -56,12 +56,20 @@ class _LoginScreenState extends State<LoginScreen> {
                 controller: _emailCtrl,
                 decoration: InputDecoration(labelText: 'Email'),
                 keyboardType: TextInputType.emailAddress,
+                textInputAction: TextInputAction.next,
+                onSubmitted: (_) {
+                  FocusScope.of(context).nextFocus();
+                },
               ),
               SizedBox(height: 16),
               TextField(
                 controller: _passCtrl,
                 decoration: InputDecoration(labelText: 'Hasło'),
                 obscureText: true,
+                textInputAction: TextInputAction.done,
+                onSubmitted: (_) {
+                  if (!_isLoading) _signIn();
+                },
               ),
               SizedBox(height: 32),
               ElevatedButton(

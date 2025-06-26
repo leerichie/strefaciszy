@@ -24,7 +24,10 @@ Future<ProjectLine?> showProjectLineDialog(
   final customController = TextEditingController(
     text: existing?.customName ?? '',
   );
-  int qty = existing?.requestedQty ?? 0;
+  // int qty = existing?.requestedQty ?? 0;
+  final qtyController = TextEditingController(
+    text: existing?.requestedQty.toString() ?? '0',
+  );
   String unit = existing?.unit ?? 'szt';
   final formKey = GlobalKey<FormState>();
 
@@ -178,9 +181,42 @@ Future<ProjectLine?> showProjectLineDialog(
                       ),
 
                     SizedBox(height: 12),
+
+                    // TextFormField(
+                    //   initialValue: qty.toString(),
+                    //   decoration: InputDecoration(labelText: 'Ilość'),
+                    //   keyboardType: TextInputType.number,
+                    //   validator: (v) {
+                    //     final n = int.tryParse(v ?? '');
+                    //     if (n == null || n < 0) return 'Nieprawidłowa ilość';
+
+                    //     if (isStock) {
+                    //       final stockItem = stockItems.firstWhere(
+                    //         (s) => s.id == itemRef,
+                    //         orElse: () =>
+                    //             StockItem(id: '', name: '', quantity: 0),
+                    //       );
+
+                    //       final available = stockItem.quantity;
+                    //       final takenBefore = existing?.previousQty ?? 0;
+                    //       final delta = n - takenBefore;
+
+                    //       if (delta > available) {
+                    //         final maxTotal = available + takenBefore;
+                    //         return 'Za mało w magazynie (max: $maxTotal)';
+                    //       }
+                    //     }
+
+                    //     return null;
+                    //   },
                     TextFormField(
-                      initialValue: qty.toString(),
-                      decoration: InputDecoration(labelText: 'Ilość'),
+                      controller: qtyController,
+                      decoration: InputDecoration(
+                        labelText: 'Ilość',
+                        suffixText: existing != null
+                            ? '(wcześniej dodano: ${existing.requestedQty})'
+                            : null,
+                      ),
                       keyboardType: TextInputType.number,
                       validator: (v) {
                         final n = int.tryParse(v ?? '');
@@ -192,21 +228,18 @@ Future<ProjectLine?> showProjectLineDialog(
                             orElse: () =>
                                 StockItem(id: '', name: '', quantity: 0),
                           );
-
                           final available = stockItem.quantity;
                           final takenBefore = existing?.previousQty ?? 0;
-                          final delta = n - takenBefore;
-
+                          final delta = (n - takenBefore);
                           if (delta > available) {
                             final maxTotal = available + takenBefore;
                             return 'Za mało w magazynie (max: $maxTotal)';
                           }
                         }
-
                         return null;
                       },
 
-                      onChanged: (v) => qty = int.tryParse(v) ?? qty,
+                      // onChanged: (v) => qty = int.tryParse(v) ?? qty,
                     ),
 
                     SizedBox(height: 12),
@@ -246,13 +279,27 @@ Future<ProjectLine?> showProjectLineDialog(
                                     name: customController.text.trim(),
                                     quantity: 0,
                                   );
+                            // final line = ProjectLine(
+                            //   isStock: isStock,
+                            //   itemRef: itemRef,
+                            //   customName: isStock
+                            //       ? ''
+                            //       : customController.text.trim(),
+                            //   requestedQty: qty,
+                            //   unit: unit,
+                            //   originalStock: chosen.quantity,
+                            //   previousQty: existing?.previousQty ?? 0,
+                            //   updatedAt: DateTime.now(),
+                            // );
+                            final n =
+                                int.tryParse(qtyController.text.trim()) ?? 0;
                             final line = ProjectLine(
                               isStock: isStock,
                               itemRef: itemRef,
                               customName: isStock
                                   ? ''
                                   : customController.text.trim(),
-                              requestedQty: qty,
+                              requestedQty: n,
                               unit: unit,
                               originalStock: chosen.quantity,
                               previousQty: existing?.previousQty ?? 0,

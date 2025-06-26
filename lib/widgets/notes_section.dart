@@ -29,11 +29,10 @@ class NotesSection extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    // Sort newest first
     final sorted = List<Note>.from(notes)
       ..sort((a, b) => b.createdAt.compareTo(a.createdAt));
 
-    // Dedupe by text only
+    // Dedupe
     final seenTexts = <String>{};
     final unique = <Note>[];
     for (var note in sorted) {
@@ -41,17 +40,17 @@ class NotesSection extends StatelessWidget {
     }
 
     return SizedBox(
-      height: 70,
+      height: 54,
       child: Row(
         children: [
-          // Add-note icon
+          // Add
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 4),
             child: InkWell(
               onTap: () async => await onAddNote(context),
               child: Container(
-                width: 64,
-                height: 64,
+                width: 54,
+                height: 54,
                 decoration: BoxDecoration(
                   border: Border.all(color: Colors.grey),
                   borderRadius: BorderRadius.circular(6),
@@ -119,7 +118,7 @@ class NotesSection extends StatelessWidget {
                                       controller: controller,
                                       maxLines: null,
                                       decoration: const InputDecoration(
-                                        hintText: 'Edytuj notatkę',
+                                        hintText: 'Edytuj',
                                         border: OutlineInputBorder(),
                                       ),
                                     ),
@@ -141,8 +140,8 @@ class NotesSection extends StatelessWidget {
                                 );
                               },
                               child: Container(
-                                width: 64,
-                                height: 64,
+                                width: 54,
+                                height: 54,
                                 padding: const EdgeInsets.all(8),
                                 decoration: BoxDecoration(
                                   color: Colors.grey.shade200,

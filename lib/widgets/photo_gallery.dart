@@ -64,18 +64,17 @@ class PhotoGallery extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return SizedBox(
-      height: 88,
+      height: 54,
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // Add‐photo box
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 4),
             child: InkWell(
               onTap: () => _showPickOptions(context),
               child: Container(
-                width: 64,
-                height: 64,
+                width: 54,
+                height: 54,
                 decoration: BoxDecoration(
                   border: Border.all(color: Colors.grey),
                   borderRadius: BorderRadius.circular(6),
@@ -87,56 +86,63 @@ class PhotoGallery extends StatelessWidget {
 
           // Thumbnails
           Expanded(
-            child: ListView.builder(
-              scrollDirection: Axis.horizontal,
-              itemCount: imageUrls.length,
-              itemBuilder: (_, i) {
-                final url = imageUrls[i];
-                return Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 4),
-                  child: Stack(
-                    children: [
-                      InkWell(
-                        onTap: () => _openViewer(context, i),
-                        child: ClipRRect(
-                          borderRadius: BorderRadius.circular(6),
-                          child: Image.network(
-                            url,
-                            width: 64,
-                            height: 64,
-                            fit: BoxFit.cover,
-                            errorBuilder: (_, __, ___) => Container(
-                              color: Colors.grey,
-                              width: 64,
-                              height: 64,
+            child: imageUrls.isEmpty
+                ? const Center(
+                    child: Text(
+                      'Brak fotek',
+                      style: TextStyle(color: Colors.grey),
+                    ),
+                  )
+                : ListView.builder(
+                    scrollDirection: Axis.horizontal,
+                    itemCount: imageUrls.length,
+                    itemBuilder: (_, i) {
+                      final url = imageUrls[i];
+                      return Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 4),
+                        child: Stack(
+                          children: [
+                            InkWell(
+                              onTap: () => _openViewer(context, i),
+                              child: ClipRRect(
+                                borderRadius: BorderRadius.circular(6),
+                                child: Image.network(
+                                  url,
+                                  width: 54,
+                                  height: 54,
+                                  fit: BoxFit.cover,
+                                  errorBuilder: (_, __, ___) => Container(
+                                    color: Colors.grey,
+                                    width: 54,
+                                    height: 54,
+                                  ),
+                                ),
+                              ),
                             ),
-                          ),
+                            Positioned(
+                              top: 0,
+                              right: 0,
+                              child: InkWell(
+                                onTap: () => onDelete(i),
+                                child: Container(
+                                  padding: const EdgeInsets.all(2),
+                                  decoration: BoxDecoration(
+                                    color: Colors.black45,
+                                    shape: BoxShape.circle,
+                                  ),
+                                  child: const Icon(
+                                    Icons.close,
+                                    size: 14,
+                                    color: Colors.white,
+                                  ),
+                                ),
+                              ),
+                            ),
+                          ],
                         ),
-                      ),
-                      Positioned(
-                        top: 0,
-                        right: 0,
-                        child: InkWell(
-                          onTap: () => onDelete(i),
-                          child: Container(
-                            padding: const EdgeInsets.all(2),
-                            decoration: BoxDecoration(
-                              color: Colors.black45,
-                              shape: BoxShape.circle,
-                            ),
-                            child: const Icon(
-                              Icons.close,
-                              size: 14,
-                              color: Colors.white,
-                            ),
-                          ),
-                        ),
-                      ),
-                    ],
+                      );
+                    },
                   ),
-                );
-              },
-            ),
           ),
         ],
       ),
@@ -191,7 +197,7 @@ class __ImageViewerState extends State<_ImageViewer> {
                       fit: BoxFit.contain,
                       errorBuilder: (_, __, ___) => const Icon(
                         Icons.broken_image,
-                        size: 64,
+                        size: 54,
                         color: Colors.white,
                       ),
                     ),
@@ -199,7 +205,7 @@ class __ImageViewerState extends State<_ImageViewer> {
                 },
               ),
 
-              // delete button on full-screen
+              // delete full-screen
               Positioned(
                 top: 16,
                 right: 16,
