@@ -1,8 +1,12 @@
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
+     // Allow collectionGroup('projects')
+    match /{anyPath=**}/projects/{projectId} {
+      allow read, write: if request.auth != null;
+    }
 
-    // STOCK_ITEMS: any signed‐in user can read or write
+    // STOCK_ITEMS: any signed‐in user
     match /stock_items/{id} {
       allow read, write: if request.auth != null;
     }
@@ -37,7 +41,7 @@ service cloud.firestore {
             && request.auth.token.admin == true;
         }
 
-        // AUDIT_LOGS under a project → everyone signed‐in can read history
+        // AUDIT_LOGS under a project
         match /audit_logs/{logId} {
           allow create: if request.auth != null;
           allow read:   if request.auth != null;
@@ -68,7 +72,7 @@ service cloud.firestore {
       allow read, write: if request.auth != null;
     }
 
-    // (Optional) Top-level AUDIT_LOGS — you can keep this if you also write logs there
+    // Top-level AUDIT_LOGS
     match /audit_logs/{logId} {
       allow create: if request.auth != null;
       allow read:   if request.auth != null;
@@ -78,6 +82,17 @@ service cloud.firestore {
     match /users/{uid} {
       allow read:  if request.auth != null;              
       allow write: if request.auth.token.admin == true;  
+    }
+
+    match /metadata/{docId} {
+      allow read:  if request.auth != null;
+      allow write: if request.auth != null;
+                   
+    }
+
+    // CONTACTS
+    match /contacts/{contactId} {
+      allow read, write: if request.auth != null;
     }
   }
 }

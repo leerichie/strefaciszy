@@ -1,5 +1,7 @@
 /* eslint-disable quotes, no-multi-spaces, require-jsdoc, max-len */
 
+const {onDocumentWritten} = require("firebase-functions/v2/firestore");
+
 const functions = require('firebase-functions');
 const admin     = require('firebase-admin');
 admin.initializeApp();
@@ -33,7 +35,7 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'Authorization, Content-Type',
 };
 
-// 1) List users (up to 1000)
+// 1) List users
 exports.listUsersHttp = functions.https.onRequest(async (req, res) => {
   if (req.method === 'OPTIONS') {
     return res.status(204).set(corsHeaders).send('');
@@ -177,3 +179,28 @@ exports.updateUserDetailsHttp = functions.https.onRequest(async (req, res) => {
     return res.status(500).json({error: 'Internal error'});
   }
 });
+
+exports.backfillProjects = onDocumentWritten(
+    "contacts/{contactId}",
+    async (event) => {
+      const before = event.data.before.data() || {};
+      const after  = event.data.after.data()  || {};
+
+      if (!before.linkedCustomerId && after.linkedCustomerId) {
+        const custId = after.linkedCustomerId;
+        const db     = admin.firestore();
+        const projsSnap = await db
+            .collection("customers")
+            .doc(custId)
+            .collection("projects")
+            .where("customerId", "==", custId)
+            .get();
+
+        const batch = db.batch();
+        projsSnap.docs.forEach((doc) => {
+          batch.update(doc.ref, {contactId: event.params.contactId});
+        });
+        await batch.commit();
+      }
+    },
+);

@@ -10,6 +10,8 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:strefa_ciszy/models/stock_item.dart';
 import 'package:strefa_ciszy/models/project_line.dart';
 import 'package:strefa_ciszy/screens/inventory_list_screen.dart';
+import 'package:strefa_ciszy/screens/main_menu_screen.dart';
+import 'package:strefa_ciszy/screens/project_description_screen.dart';
 import 'package:strefa_ciszy/screens/rw_documents_screen.dart';
 import 'package:strefa_ciszy/services/stock_service.dart';
 import 'package:strefa_ciszy/widgets/project_line_dialog.dart';
@@ -68,6 +70,7 @@ class _ProjectEditorScreenState extends State<ProjectEditorScreen> {
   @override
   void initState() {
     super.initState();
+
     FirebaseFirestore.instance
         .collection('customers')
         .doc(widget.customerId)
@@ -79,6 +82,7 @@ class _ProjectEditorScreenState extends State<ProjectEditorScreen> {
             });
           }
         });
+
     final today = DateTime.now();
     final created = widget.rwCreatedAt;
     _rwLocked =
@@ -87,6 +91,7 @@ class _ProjectEditorScreenState extends State<ProjectEditorScreen> {
         (created.year != today.year ||
             created.month != today.month ||
             created.day != today.day);
+
     _stockSub = FirebaseFirestore.instance
         .collection('stock_items')
         .withConverter<StockItem>(
@@ -97,6 +102,7 @@ class _ProjectEditorScreenState extends State<ProjectEditorScreen> {
         .listen((snap) {
           setState(() => _stockItems = snap.docs.map((d) => d.data()).toList());
         });
+
     final projRef = FirebaseFirestore.instance
         .collection('customers')
         .doc(widget.customerId)
@@ -105,36 +111,19 @@ class _ProjectEditorScreenState extends State<ProjectEditorScreen> {
 
     projRef.snapshots().listen((snap) {
       if (!snap.exists) return;
-      final data = snap.data()!;
-      setState(() {
-        _imageUrls = List<String>.from(data['images'] ?? []);
-        _notes = (data['notesList'] as List<dynamic>? ?? []).map((m) {
-          final mp = m as Map<String, dynamic>;
-          return Note(
-            text: mp['text'] as String,
-            userName: mp['userName'] as String,
-            createdAt: (mp['createdAt'] as Timestamp).toDate(),
-          );
-        }).toList()..sort((a, b) => b.createdAt.compareTo(a.createdAt));
-
-        final rawList = data['notesList'] as List<dynamic>? ?? [];
-        print('📝 raw notesList from Firestore: $rawList');
-        final mapped = rawList.map((m) {
-          final mp = m as Map<String, dynamic>;
-          print('   • keys=${mp.keys}, userName="${mp['userName']}"');
-          return Note(
-            text: mp['text'] as String,
-            userName: mp['userName'] as String,
-            createdAt: (mp['createdAt'] as Timestamp).toDate(),
-          );
-        }).toList();
-        setState(
-          () =>
-              _notes = mapped
-                ..sort((a, b) => b.createdAt.compareTo(a.createdAt)),
+      final raw = snap.data()!['notesList'] as List<dynamic>? ?? [];
+      final notes = raw.map((m) {
+        final mp = m as Map<String, dynamic>;
+        return Note(
+          text: mp['text'] as String,
+          userName: mp['userName'] as String,
+          createdAt: (mp['createdAt'] as Timestamp).toDate(),
         );
-      });
+      }).toList()..sort((a, b) => b.createdAt.compareTo(a.createdAt));
+
+      setState(() => _notes = notes);
     });
+
     _loadAll();
     _checkTodayExists('RW');
     _checkTodayExists('MM');
@@ -166,6 +155,27 @@ class _ProjectEditorScreenState extends State<ProjectEditorScreen> {
 
       _scheduleMidnightRollover();
     });
+  }
+
+  /// Returns the DocumentReference for today’s RW (if one exists), or null.
+  Future<DocumentReference<Map<String, dynamic>>?> _todayRwRef() async {
+    final projRef = FirebaseFirestore.instance
+        .collection('customers')
+        .doc(widget.customerId)
+        .collection('projects')
+        .doc(widget.projectId);
+
+    final start = DateTime.now().toLocal();
+    final startOfDay = DateTime(start.year, start.month, start.day);
+    final endOfDay = startOfDay.add(Duration(days: 1));
+    final snap = await projRef
+        .collection('rw_documents')
+        .where('type', isEqualTo: 'RW')
+        .where('createdAt', isGreaterThanOrEqualTo: startOfDay)
+        .where('createdAt', isLessThan: endOfDay)
+        .limit(1)
+        .get();
+    return snap.docs.first.reference;
   }
 
   Future<void> _loadAll() async {
@@ -200,6 +210,16 @@ class _ProjectEditorScreenState extends State<ProjectEditorScreen> {
     if (todaySnap.docs.isNotEmpty) {
       final data = todaySnap.docs.first.data();
       final rawItems = (data['items'] as List<dynamic>?) ?? [];
+      final rawNotes = (data['notesList'] as List<dynamic>?) ?? [];
+
+      _notes = rawNotes.map((n) {
+        final m = n as Map<String, dynamic>;
+        return Note(
+          text: m['text'] as String,
+          userName: m['userName'] as String,
+          createdAt: (m['createdAt'] as Timestamp).toDate(),
+        );
+      }).toList();
 
       _lines = rawItems.map((e) {
         final m = e as Map<String, dynamic>;
@@ -376,6 +396,18 @@ class _ProjectEditorScreenState extends State<ProjectEditorScreen> {
       widget.customerId,
     );
 
+    rwData['customerName'] = _customerName;
+
+    rwData['notesList'] = _notes
+        .map(
+          (note) => {
+            'text': note.text,
+            'userName': note.userName,
+            'createdAt': Timestamp.fromDate(note.createdAt),
+          },
+        )
+        .toList();
+
     if (!existsToday) {
       rwData['createdAt'] = FieldValue.serverTimestamp();
       rwData['createdBy'] = user.uid;
@@ -463,7 +495,7 @@ class _ProjectEditorScreenState extends State<ProjectEditorScreen> {
 
       for (var ln in filteredLines) {
         final prev = ln.previousQty ?? 0;
-        final diff = ln.requestedQty - prev;
+        final diff = ln.requestedQty + prev;
         if (diff != 0) {
           final stockRef = FirebaseFirestore.instance
               .collection('stock_items')
@@ -639,60 +671,119 @@ class _ProjectEditorScreenState extends State<ProjectEditorScreen> {
 
     return Scaffold(
       appBar: AppBar(
-        title: Text('Edytuj projekt'),
-        actions: [
-          IconButton(
-            icon: Icon(Icons.list_alt_rounded),
-            tooltip: 'Dokumenty RW/MM',
-            onPressed: () async {
-              await Navigator.of(context).push(
-                MaterialPageRoute(
-                  builder: (_) => RWDocumentsScreen(
-                    customerId: widget.customerId,
-                    projectId: widget.projectId,
-                    isAdmin: widget.isAdmin,
-                  ),
+        // automaticallyImplyLeading: false,
+        centerTitle: true,
+        title: RichText(
+          text: TextSpan(
+            children: [
+              TextSpan(
+                text: '$_customerName: ',
+                style: TextStyle(
+                  color: Colors.blueGrey,
+                  fontSize: 18,
+                  fontWeight: FontWeight.bold,
                 ),
-              );
-              if (!mounted) return;
-              await _loadAll();
-              await _checkTodayExists('RW');
-              setState(() {});
-            },
+              ),
+              TextSpan(
+                text: _title,
+                style: TextStyle(
+                  color: Colors.red.shade400,
+                  fontSize: 18,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+            ],
           ),
-          if (widget.isAdmin)
-            IconButton(
-              icon: Icon(Icons.delete, color: Colors.red),
-              tooltip: 'Usuń projekt',
-              onPressed: () async {
-                final confirm = await showDialog<bool>(
-                  context: context,
-                  builder: (dialogCtx) => AlertDialog(
-                    title: Text('Usuń projekt?'),
-                    content: Text('Potwierdź usunięcie projekt.'),
-                    actions: [
-                      TextButton(
-                        onPressed: () => Navigator.pop(dialogCtx, false),
-                        child: Text('Anuluj'),
-                      ),
-                      ElevatedButton(
-                        onPressed: () => Navigator.pop(dialogCtx, true),
-                        child: Text('Usuń'),
-                      ),
-                    ],
-                  ),
-                );
-                if (confirm == true) {
-                  await FirebaseFirestore.instance
-                      .collection('customers')
-                      .doc(widget.customerId)
-                      .collection('projects')
-                      .doc(widget.projectId)
-                      .delete();
-                  Navigator.pop(context);
-                }
-              },
+        ),
+
+        actions: [
+          // IconButton(
+          //   icon: const Icon(Icons.description_outlined),
+          //   tooltip: 'Opis projektu',
+          //   onPressed: () {
+          //     Navigator.of(context).push(
+          //       MaterialPageRoute(
+          //         builder: (_) => ProjectDescriptionScreen(
+          //           customerId: widget.customerId,
+          //           projectId: widget.projectId,
+          //           isAdmin: widget.isAdmin,
+          //         ),
+          //       ),
+          //     );
+          //   },
+          // ),
+          // IconButton(
+          //   icon: const Icon(Icons.list_alt_rounded),
+          //   tooltip: 'Dokumenty RW',
+          //   onPressed: () async {
+          //     await Navigator.of(context).push(
+          //       MaterialPageRoute(
+          //         builder: (_) => RWDocumentsScreen(
+          //           customerId: widget.customerId,
+          //           projectId: widget.projectId,
+          //           isAdmin: widget.isAdmin,
+          //         ),
+          //       ),
+          //     );
+          //     if (!mounted) return;
+          //     await _loadAll();
+          //     await _checkTodayExists('RW');
+          //     setState(() {});
+          //   },
+          // ),
+
+          // if (widget.isAdmin)
+          //   IconButton(
+          //     icon: const Icon(Icons.delete, color: Colors.red),
+          //     tooltip: 'Usuń projekt',
+          //     onPressed: () async {
+          //       final confirm = await showDialog<bool>(
+          //         context: context,
+          //         builder: (ctx) => AlertDialog(
+          //           title: const Text('Usuń projekt?'),
+          //           content: const Text('Potwierdź usunięcie projektu.'),
+          //           actions: [
+          //             TextButton(
+          //               onPressed: () => Navigator.pop(ctx, false),
+          //               child: const Text('Anuluj'),
+          //             ),
+          //             ElevatedButton(
+          //               onPressed: () => Navigator.pop(ctx, true),
+          //               child: const Text('Usuń'),
+          //             ),
+          //           ],
+          //         ),
+          //       );
+          //       if (confirm == true) {
+          //         await FirebaseFirestore.instance
+          //             .collection('customers')
+          //             .doc(widget.customerId)
+          //             .collection('projects')
+          //             .doc(widget.projectId)
+          //             .delete();
+          //         Navigator.pop(context);
+          //       }
+          //     },
+          //   ),
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 8.0),
+            child: CircleAvatar(
+              backgroundColor: Colors.black,
+              child: IconButton(
+                icon: const Icon(Icons.home),
+                color: Colors.white,
+                tooltip: 'Home',
+                onPressed: () {
+                  Navigator.of(context).pushAndRemoveUntil(
+                    MaterialPageRoute(
+                      builder: (_) => const MainMenuScreen(role: 'admin'),
+                    ),
+                    (route) => false,
+                  );
+                },
+              ),
             ),
+          ),
         ],
       ),
 
@@ -723,102 +814,64 @@ class _ProjectEditorScreenState extends State<ProjectEditorScreen> {
                     validator: (v) =>
                         v?.trim().isEmpty == true ? 'Required' : null,
                   ),
-                  SizedBox(height: 16),
+                  SizedBox(height: 8),
 
-                  //  Photo
-                  PhotoGallery(
-                    imageUrls: [..._localPreviews, ..._imageUrls],
-                    onAddImage: (source) async {
-                      final picked = await _picker.pickImage(
-                        source: source,
-                        imageQuality: 70,
-                        maxWidth: 1024,
-                        maxHeight: 1024,
-                      );
-                      if (picked == null) return null;
-
-                      setState(() => _localPreviews.add(picked.path));
-
-                      final file = File(picked.path);
-                      final url = await _storage.uploadProjectFile(
-                        widget.projectId,
-                        file,
-                      );
-
-                      final projRef = FirebaseFirestore.instance
-                          .collection('customers')
-                          .doc(widget.customerId)
-                          .collection('projects')
-                          .doc(widget.projectId);
-
-                      await projRef.update({
-                        'images': FieldValue.arrayUnion([url]),
-                      });
-
-                      setState(() {
-                        _localPreviews.remove(picked.path);
-                        if (!_imageUrls.contains(url)) {
-                          _imageUrls.add(url);
-                        }
-                      });
-
-                      return url;
-                    },
-                    onDelete: (i) async {
-                      if (i < _localPreviews.length) {
-                        setState(() => _localPreviews.removeAt(i));
-                        return;
-                      }
-
-                      final idx = i - _localPreviews.length;
-                      final url = _imageUrls[idx];
-                      final projRef = FirebaseFirestore.instance
-                          .collection('customers')
-                          .doc(widget.customerId)
-                          .collection('projects')
-                          .doc(widget.projectId);
-
-                      await projRef.update({
-                        'images': FieldValue.arrayRemove([url]),
-                      });
-
-                      setState(() => _imageUrls.removeAt(idx));
-                    },
-                  ),
-                  Divider(),
-
-                  //  Notes
+                  // --- NOTES
                   NotesSection(
                     notes: _notes,
+
                     onAddNote: (ctx) async {
                       String draft = '';
                       final result = await showDialog<String>(
                         context: ctx,
-                        builder: (dCtx) => AlertDialog(
-                          title: Text('Wpisz'),
-                          content: TextField(
-                            autofocus: true,
-                            maxLines: 4,
-                            onChanged: (v) => draft = v,
-                            decoration: InputDecoration(hintText: 'Treść'),
+                        builder: (dCtx) => Center(
+                          child: ConstrainedBox(
+                            constraints: BoxConstraints(
+                              maxWidth: MediaQuery.of(context).size.width * 0.9,
+                              maxHeight:
+                                  MediaQuery.of(context).size.height * 0.8,
+                            ),
+                            child: AlertDialog(
+                              scrollable: true,
+                              title: const Text('Wpisz'),
+                              content: TextField(
+                                autofocus: true,
+                                maxLines: 10,
+                                keyboardType: TextInputType.multiline,
+                                onChanged: (v) => draft = v,
+                                decoration: const InputDecoration(
+                                  hintText: 'Treść',
+                                  border: OutlineInputBorder(),
+                                ),
+                              ),
+                              actions: [
+                                TextButton(
+                                  onPressed: () => Navigator.pop(dCtx),
+                                  child: const Text('Anuluj'),
+                                ),
+                                ElevatedButton(
+                                  onPressed: () => Navigator.pop(dCtx, draft),
+                                  child: const Text('Zapisz'),
+                                ),
+                              ],
+                            ),
                           ),
-                          actions: [
-                            TextButton(
-                              onPressed: () => Navigator.pop(dCtx),
-                              child: Text('Anuluj'),
-                            ),
-                            ElevatedButton(
-                              onPressed: () => Navigator.pop(dCtx, draft),
-                              child: Text('Zapisz'),
-                            ),
-                          ],
                         ),
                       );
-
                       if (result == null || result.trim().isEmpty) return null;
 
-                      final user = FirebaseAuth.instance.currentUser!;
-                      final userName = user.displayName ?? user.email ?? '…';
+                      // … your existing save‐note logic …
+                      final authUser = FirebaseAuth.instance.currentUser!;
+                      String userName = authUser.displayName ?? '';
+                      if (userName.isEmpty) {
+                        final userDoc = await FirebaseFirestore.instance
+                            .collection('users')
+                            .doc(authUser.uid)
+                            .get();
+                        userName =
+                            userDoc.data()?['name'] as String? ??
+                            authUser.email!;
+                      }
                       final noteMap = {
                         'text': result.trim(),
                         'userName': userName,
@@ -827,56 +880,50 @@ class _ProjectEditorScreenState extends State<ProjectEditorScreen> {
                       await projRef.update({
                         'notesList': FieldValue.arrayUnion([noteMap]),
                       });
-
-                      final newNote = Note(
-                        text: result.trim(),
-                        userName: userName,
-                        createdAt: DateTime.now(),
-                      );
-                      setState(() => _notes.insert(0, newNote));
-
+                      final rwRef = await _todayRwRef();
+                      if (rwRef != null) {
+                        await rwRef.update({
+                          'notesList': FieldValue.arrayUnion([noteMap]),
+                        });
+                      }
                       return null;
                     },
 
                     onEdit: (i, newText) async {
-                      final currentUser = FirebaseAuth.instance.currentUser!;
-                      final editorName =
-                          currentUser.displayName ?? currentUser.email ?? '…';
-
-                      final note = _notes[i];
-                      final projRef = FirebaseFirestore.instance
-                          .collection('customers')
-                          .doc(widget.customerId)
-                          .collection('projects')
-                          .doc(widget.projectId);
-
-                      await projRef.update({
-                        'notesList': FieldValue.arrayRemove([
-                          {
-                            'text': note.text,
-                            'userName': note.userName,
-                            'createdAt': Timestamp.fromDate(note.createdAt),
-                          },
-                        ]),
-                      });
-
+                      final old = _notes[i];
+                      final oldMap = {
+                        'text': old.text,
+                        'userName': old.userName,
+                        'createdAt': Timestamp.fromDate(old.createdAt),
+                      };
+                      final user = FirebaseAuth.instance.currentUser!;
+                      final editName =
+                          user.displayName ?? user.email ?? user.uid;
                       final newMap = {
                         'text': newText,
-                        'userName': editorName,
-                        'createdAt': FieldValue.serverTimestamp(),
+                        'userName': editName,
+                        'createdAt': Timestamp.now(),
                       };
+
+                      await projRef.update({
+                        'notesList': FieldValue.arrayRemove([oldMap]),
+                      });
                       await projRef.update({
                         'notesList': FieldValue.arrayUnion([newMap]),
                       });
 
-                      setState(() {
-                        _notes[i] = Note(
-                          text: newText,
-                          userName: editorName,
-                          createdAt: DateTime.now(),
-                        );
-                      });
+                      // — today’s RW
+                      final rwRef2 = await _todayRwRef();
+                      if (rwRef2 != null) {
+                        await rwRef2.update({
+                          'notesList': FieldValue.arrayRemove([oldMap]),
+                        });
+                        await rwRef2.update({
+                          'notesList': FieldValue.arrayUnion([newMap]),
+                        });
+                      }
                     },
+
                     onDelete: (i) async {
                       final note = _notes[i];
                       final map = {
@@ -884,9 +931,16 @@ class _ProjectEditorScreenState extends State<ProjectEditorScreen> {
                         'userName': note.userName,
                         'createdAt': Timestamp.fromDate(note.createdAt),
                       };
+
                       await projRef.update({
                         'notesList': FieldValue.arrayRemove([map]),
                       });
+                      final rwRef3 = await _todayRwRef();
+                      if (rwRef3 != null) {
+                        await rwRef3.update({
+                          'notesList': FieldValue.arrayRemove([map]),
+                        });
+                      }
                     },
                   ),
                   Divider(),
@@ -953,15 +1007,202 @@ class _ProjectEditorScreenState extends State<ProjectEditorScreen> {
                           final isLineLocked =
                               _rwLocked || (!isToday && !widget.isAdmin);
 
+                          if (i.isEven) {
+                            return Container(
+                              margin: const EdgeInsets.symmetric(vertical: 0),
+                              decoration: BoxDecoration(
+                                boxShadow: [
+                                  BoxShadow(
+                                    color: Colors.black.withValues(alpha: 0.05),
+                                    blurRadius: 2,
+                                    offset: Offset(0, 1),
+                                  ),
+                                ],
+                                borderRadius: BorderRadius.circular(4),
+                              ),
+                              child: ClipRRect(
+                                borderRadius: BorderRadius.circular(4),
+                                child: ListTile(
+                                  dense: true,
+                                  tileColor: Colors.transparent,
+                                  selectedTileColor: Colors.transparent,
+                                  contentPadding: const EdgeInsets.symmetric(
+                                    horizontal: 0,
+                                    vertical: 0,
+                                  ),
+                                  title: Text(name),
+                                  subtitle: Text.rich(
+                                    TextSpan(
+                                      style: Theme.of(
+                                        context,
+                                      ).textTheme.bodySmall,
+                                      children: [
+                                        TextSpan(
+                                          text:
+                                              '${ln.requestedQty} ${ln.unit} ',
+                                        ),
+                                        TextSpan(
+                                          text: '(stan: $previewQty)',
+                                          style: TextStyle(color: qtyColor),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                  trailing: Row(
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: [
+                                      if (isSynced)
+                                        Container(
+                                          padding: const EdgeInsets.symmetric(
+                                            horizontal: 0,
+                                            vertical: 0,
+                                          ),
+                                          margin: const EdgeInsets.only(
+                                            right: 8,
+                                          ),
+                                          child: Icon(
+                                            Icons.check_box,
+                                            color: Colors.green,
+                                          ),
+                                        ),
+                                      IconButton(
+                                        icon: Icon(
+                                          Icons.edit,
+                                          color: isLineLocked
+                                              ? Colors.grey
+                                              : Colors.blue,
+                                        ),
+                                        onPressed: isLineLocked
+                                            ? () {
+                                                ScaffoldMessenger.of(
+                                                  context,
+                                                ).showSnackBar(
+                                                  const SnackBar(
+                                                    content: Text(
+                                                      'Tylko administrator może edytować',
+                                                    ),
+                                                  ),
+                                                );
+                                              }
+                                            : () async {
+                                                final updated =
+                                                    await showProjectLineDialog(
+                                                      context,
+                                                      _stockItems,
+                                                      existing: ln,
+                                                    );
+                                                if (updated != null) {
+                                                  setState(
+                                                    () => _lines[i] = updated,
+                                                  );
+                                                  try {
+                                                    await _saveRWDocument('RW');
+                                                  } catch (e) {
+                                                    ScaffoldMessenger.of(
+                                                      context,
+                                                    ).showSnackBar(
+                                                      SnackBar(
+                                                        content: Text(
+                                                          'Update RW - nie udało się: $e',
+                                                        ),
+                                                      ),
+                                                    );
+                                                  }
+                                                }
+                                              },
+                                      ),
+                                      IconButton(
+                                        icon: Icon(
+                                          Icons.delete,
+                                          color: isLineLocked
+                                              ? Colors.grey
+                                              : Colors.red,
+                                        ),
+                                        onPressed: isLineLocked
+                                            ? () {
+                                                ScaffoldMessenger.of(
+                                                  context,
+                                                ).showSnackBar(
+                                                  const SnackBar(
+                                                    content: Text(
+                                                      'Tylko administrator może usuwać',
+                                                    ),
+                                                  ),
+                                                );
+                                              }
+                                            : () async {
+                                                final shouldDelete =
+                                                    await showDialog<bool>(
+                                                      context: context,
+                                                      builder: (ctx) => AlertDialog(
+                                                        title: Text(
+                                                          'Usuń produkt?',
+                                                        ),
+                                                        content: Text(
+                                                          'Na pewno usunąc produkt z RW?',
+                                                        ),
+                                                        actions: [
+                                                          TextButton(
+                                                            onPressed: () =>
+                                                                Navigator.pop(
+                                                                  ctx,
+                                                                  false,
+                                                                ),
+                                                            child: Text(
+                                                              'Anuluj',
+                                                            ),
+                                                          ),
+                                                          ElevatedButton(
+                                                            onPressed: () =>
+                                                                Navigator.pop(
+                                                                  ctx,
+                                                                  true,
+                                                                ),
+                                                            child: Text('Usuń'),
+                                                          ),
+                                                        ],
+                                                      ),
+                                                    );
+                                                if (shouldDelete != true) {
+                                                  return;
+                                                }
+                                                final removedLine = _lines
+                                                    .removeAt(i);
+                                                setState(() {});
+                                                try {
+                                                  await _deleteLineFromRW(
+                                                    removedLine,
+                                                  );
+                                                } catch (e) {
+                                                  ScaffoldMessenger.of(
+                                                    context,
+                                                  ).showSnackBar(
+                                                    SnackBar(
+                                                      content: Text(
+                                                        'Błąd usuwania: $e',
+                                                      ),
+                                                    ),
+                                                  );
+                                                }
+                                              },
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              ),
+                            );
+                          }
+
                           return ListTile(
+                            dense: true,
                             contentPadding: const EdgeInsets.symmetric(
                               horizontal: 0,
-                              vertical: 4,
+                              vertical: 2,
                             ),
                             title: Text(name),
                             subtitle: Text.rich(
                               TextSpan(
-                                style: Theme.of(context).textTheme.bodyMedium,
+                                style: Theme.of(context).textTheme.bodySmall,
                                 children: [
                                   TextSpan(
                                     text: '${ln.requestedQty} ${ln.unit} ',
@@ -983,18 +1224,9 @@ class _ProjectEditorScreenState extends State<ProjectEditorScreen> {
                                       vertical: 4,
                                     ),
                                     margin: const EdgeInsets.only(right: 8),
-                                    decoration: BoxDecoration(
-                                      color: Colors.green.withValues(
-                                        alpha: 0.15,
-                                      ),
-                                      borderRadius: BorderRadius.circular(4),
-                                    ),
-                                    child: Text(
-                                      'Zapisany do RW',
-                                      style: TextStyle(
-                                        color: Colors.green[900],
-                                        fontSize: 12,
-                                      ),
+                                    child: Icon(
+                                      Icons.check_box,
+                                      color: Colors.green,
                                     ),
                                   ),
                                 IconButton(
@@ -1025,7 +1257,6 @@ class _ProjectEditorScreenState extends State<ProjectEditorScreen> {
                                               );
                                           if (updated != null) {
                                             setState(() => _lines[i] = updated);
-
                                             try {
                                               await _saveRWDocument('RW');
                                             } catch (e) {
@@ -1062,37 +1293,39 @@ class _ProjectEditorScreenState extends State<ProjectEditorScreen> {
                                           );
                                         }
                                       : () async {
-                                          final shouldDelete = await showDialog<bool>(
-                                            context: context,
-                                            builder: (ctx) => AlertDialog(
-                                              title: Text('Usuń produkt?'),
-                                              content: Text(
-                                                'Na pewno usunąć produkt z RW?',
-                                              ),
-                                              actions: [
-                                                TextButton(
-                                                  onPressed: () =>
-                                                      Navigator.pop(ctx, false),
-                                                  child: Text('Anuluj'),
+                                          final shouldDelete =
+                                              await showDialog<bool>(
+                                                context: context,
+                                                builder: (ctx) => AlertDialog(
+                                                  title: Text('Usuń produkt?'),
+                                                  content: Text(
+                                                    'Na pewno usunąć produkt z RW?',
+                                                  ),
+                                                  actions: [
+                                                    TextButton(
+                                                      onPressed: () =>
+                                                          Navigator.pop(
+                                                            ctx,
+                                                            false,
+                                                          ),
+                                                      child: Text('Anuluj'),
+                                                    ),
+                                                    ElevatedButton(
+                                                      onPressed: () =>
+                                                          Navigator.pop(
+                                                            ctx,
+                                                            true,
+                                                          ),
+                                                      child: Text('Usuń'),
+                                                    ),
+                                                  ],
                                                 ),
-                                                ElevatedButton(
-                                                  style:
-                                                      ElevatedButton.styleFrom(),
-                                                  onPressed: () =>
-                                                      Navigator.pop(ctx, true),
-                                                  child: Text('Usuń'),
-                                                ),
-                                              ],
-                                            ),
-                                          );
-
+                                              );
                                           if (shouldDelete != true) return;
-
                                           final removedLine = _lines.removeAt(
                                             i,
                                           );
                                           setState(() {});
-
                                           try {
                                             await _deleteLineFromRW(
                                               removedLine,
@@ -1209,21 +1442,38 @@ class _ProjectEditorScreenState extends State<ProjectEditorScreen> {
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
               IconButton(
-                tooltip: 'Inwentaryzacja',
-                icon: const Icon(Icons.inventory_2),
-                onPressed: () => Navigator.of(context).push(
-                  MaterialPageRoute(
-                    builder: (_) =>
-                        InventoryListScreen(isAdmin: widget.isAdmin),
-                  ),
-                ),
+                icon: const Icon(Icons.density_small_sharp),
+                tooltip: 'Opis projektu',
+                onPressed: () {
+                  Navigator.of(context).push(
+                    MaterialPageRoute(
+                      builder: (_) => ProjectDescriptionScreen(
+                        customerId: widget.customerId,
+                        projectId: widget.projectId,
+                        isAdmin: widget.isAdmin,
+                      ),
+                    ),
+                  );
+                },
               ),
               IconButton(
-                tooltip: 'Skanuj',
-                icon: const Icon(Icons.qr_code_scanner),
-                onPressed: () => Navigator.of(
-                  context,
-                ).push(MaterialPageRoute(builder: (_) => const ScanScreen())),
+                icon: const Icon(Icons.inventory_outlined),
+                tooltip: 'Dokumenty RW',
+                onPressed: () async {
+                  await Navigator.of(context).push(
+                    MaterialPageRoute(
+                      builder: (_) => RWDocumentsScreen(
+                        customerId: widget.customerId,
+                        projectId: widget.projectId,
+                        isAdmin: widget.isAdmin,
+                      ),
+                    ),
+                  );
+                  if (!mounted) return;
+                  await _loadAll();
+                  await _checkTodayExists('RW');
+                  setState(() {});
+                },
               ),
             ],
           ),

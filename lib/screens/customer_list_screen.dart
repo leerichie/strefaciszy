@@ -3,8 +3,9 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
+import 'package:strefa_ciszy/screens/contacts_list_screen.dart';
+import 'package:strefa_ciszy/screens/main_menu_screen.dart';
 import 'package:strefa_ciszy/screens/scan_screen.dart';
-
 import 'customer_detail_screen.dart';
 import 'inventory_list_screen.dart';
 
@@ -17,14 +18,34 @@ class CustomerListScreen extends StatefulWidget {
 }
 
 class _CustomerListScreenState extends State<CustomerListScreen> {
-  final _col = FirebaseFirestore.instance.collection('customers');
+  final CollectionReference _col = FirebaseFirestore.instance.collection(
+    'customers',
+  );
   late final TextEditingController _searchController;
   String _search = '';
+
+  // preload contacts
+  List<String> _contactNames = [];
+  List<QueryDocumentSnapshot<Map<String, dynamic>>> _contactDocs = [];
 
   @override
   void initState() {
     super.initState();
     _searchController = TextEditingController();
+    _loadContactNames();
+  }
+
+  Future<void> _loadContactNames() async {
+    final snap = await FirebaseFirestore.instance
+        .collection('contacts')
+        .orderBy('name')
+        .get();
+    setState(() {
+      _contactDocs = snap.docs;
+      _contactNames = snap.docs
+          .map((d) => (d.data()! as Map<String, dynamic>)['name'] as String)
+          .toList();
+    });
   }
 
   @override
@@ -46,10 +67,34 @@ class _CustomerListScreenState extends State<CustomerListScreen> {
     await showDialog<void>(
       context: context,
       builder: (ctx) => AlertDialog(
-        title: const Text('Dodaj klient'),
-        content: TextField(
-          decoration: const InputDecoration(labelText: 'Nazwa Klienta'),
-          onChanged: (v) => name = v.trim(),
+        title: const Text('Dodaj klienta'),
+        content: Autocomplete<String>(
+          optionsBuilder: (TextEditingValue textEditingValue) {
+            if (textEditingValue.text.isEmpty)
+              return const Iterable<String>.empty();
+            return _contactNames.where(
+              (option) => option.toLowerCase().contains(
+                textEditingValue.text.toLowerCase(),
+              ),
+            );
+          },
+          fieldViewBuilder: (context, controller, focusNode, onFieldSubmitted) {
+            controller.text = name;
+            controller.selection = TextSelection.fromPosition(
+              TextPosition(offset: controller.text.length),
+            );
+            controller.addListener(() {
+              name = controller.text.trim();
+            });
+            return TextField(
+              controller: controller,
+              focusNode: focusNode,
+              decoration: const InputDecoration(labelText: 'Nazwa Klienta'),
+            );
+          },
+          onSelected: (selection) {
+            name = selection;
+          },
         ),
         actions: [
           TextButton(
@@ -59,10 +104,21 @@ class _CustomerListScreenState extends State<CustomerListScreen> {
           ElevatedButton(
             onPressed: () {
               if (name.isNotEmpty) {
-                _col.add({
+                QueryDocumentSnapshot<Map<String, dynamic>>? contactDoc;
+                for (var d in _contactDocs) {
+                  if ((d.data()!['name'] as String) == name) {
+                    contactDoc = d;
+                    break;
+                  }
+                }
+                final data = <String, dynamic>{
                   'name': name,
                   'createdAt': FieldValue.serverTimestamp(),
-                });
+                };
+                if (contactDoc != null) {
+                  data['contactId'] = contactDoc.id;
+                }
+                _col.add(data);
               }
               Navigator.pop(ctx);
             },
@@ -79,6 +135,7 @@ class _CustomerListScreenState extends State<CustomerListScreen> {
 
     return Scaffold(
       appBar: AppBar(
+        centerTitle: true,
         title: const Text('Klienci'),
         bottom: PreferredSize(
           preferredSize: const Size.fromHeight(56),
@@ -110,8 +167,28 @@ class _CustomerListScreenState extends State<CustomerListScreen> {
             ),
           ),
         ),
+        actions: [
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 8.0),
+            child: CircleAvatar(
+              backgroundColor: Colors.black,
+              child: IconButton(
+                icon: const Icon(Icons.home),
+                color: Colors.white,
+                tooltip: 'Home',
+                onPressed: () {
+                  Navigator.of(context).pushAndRemoveUntil(
+                    MaterialPageRoute(
+                      builder: (_) => const MainMenuScreen(role: 'admin'),
+                    ),
+                    (route) => false,
+                  );
+                },
+              ),
+            ),
+          ),
+        ],
       ),
-
       body: StreamBuilder<QuerySnapshot>(
         stream: _col.orderBy('createdAt', descending: true).snapshots(),
         builder: (ctx, snap) {
@@ -138,9 +215,9 @@ class _CustomerListScreenState extends State<CustomerListScreen> {
             itemCount: filtered.length,
             separatorBuilder: (_, __) => const Divider(height: 1),
             itemBuilder: (ctx, i) {
-              final snap = filtered[i];
-              final d = snap.data()! as Map<String, dynamic>;
-              final ts = d['createdAt'] as Timestamp?;
+              final doc = filtered[i];
+              final data = doc.data()! as Map<String, dynamic>;
+              final ts = data['createdAt'] as Timestamp?;
               final dateStr = ts != null
                   ? DateFormat(
                       'dd.MM.yyyy • HH:mm',
@@ -149,12 +226,12 @@ class _CustomerListScreenState extends State<CustomerListScreen> {
                   : '';
 
               return ListTile(
-                title: Text(d['name'] ?? '—'),
+                title: Text(data['name'] ?? '—'),
                 subtitle: ts != null ? Text(dateStr) : null,
                 onTap: () => Navigator.of(context).push(
                   MaterialPageRoute(
                     builder: (_) => CustomerDetailScreen(
-                      customerId: snap.id,
+                      customerId: doc.id,
                       isAdmin: isAdmin,
                     ),
                   ),
@@ -162,9 +239,8 @@ class _CustomerListScreenState extends State<CustomerListScreen> {
                 trailing: Row(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    // badge
                     FutureBuilder<QuerySnapshot>(
-                      future: _col.doc(snap.id).collection('projects').get(),
+                      future: _col.doc(doc.id).collection('projects').get(),
                       builder: (ctx2, snap2) {
                         if (snap2.connectionState == ConnectionState.waiting) {
                           return const SizedBox(
@@ -199,12 +275,12 @@ class _CustomerListScreenState extends State<CustomerListScreen> {
                         icon: const Icon(Icons.delete, color: Colors.red),
                         tooltip: 'Usuń klienta',
                         onPressed: () async {
-                          final shouldDelete = await showDialog<bool>(
+                          final ok = await showDialog<bool>(
                             context: context,
                             builder: (ctx) => AlertDialog(
                               title: const Text('Usuń klienta?'),
                               content: Text(
-                                'Na pewno usunąć klienta "${d['name']}" i powiązane projekty?',
+                                'Na pewno usunąć klienta "${data['name']}" i wszystkie projekty?',
                               ),
                               actions: [
                                 TextButton(
@@ -221,11 +297,13 @@ class _CustomerListScreenState extends State<CustomerListScreen> {
                               ],
                             ),
                           );
-                          if (shouldDelete == true) {
-                            await _col.doc(snap.id).delete();
+                          if (ok == true) {
+                            await _col.doc(doc.id).delete();
                             ScaffoldMessenger.of(context).showSnackBar(
                               SnackBar(
-                                content: Text('Klient "${d['name']}" usunięty'),
+                                content: Text(
+                                  'Klient "${data['name']}" usunięty',
+                                ),
                               ),
                             );
                           }
@@ -239,13 +317,11 @@ class _CustomerListScreenState extends State<CustomerListScreen> {
           );
         },
       ),
-
       floatingActionButton: FloatingActionButton(
-        tooltip: 'Dodaj Klient',
+        tooltip: 'Dodaj Klienta',
         onPressed: _addCustomer,
         child: const Icon(Icons.person_add),
       ),
-
       floatingActionButtonLocation: FloatingActionButtonLocation.centerDocked,
       bottomNavigationBar: SafeArea(
         child: BottomAppBar(
@@ -257,12 +333,10 @@ class _CustomerListScreenState extends State<CustomerListScreen> {
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
                 IconButton(
-                  tooltip: 'Inwentaryzacja',
-                  icon: const Icon(Icons.inventory_2),
+                  tooltip: 'Kontakty',
+                  icon: const Icon(Icons.contact_mail_outlined),
                   onPressed: () => Navigator.of(context).push(
-                    MaterialPageRoute(
-                      builder: (_) => InventoryListScreen(isAdmin: isAdmin),
-                    ),
+                    MaterialPageRoute(builder: (_) => ContactsListScreen()),
                   ),
                 ),
                 IconButton(

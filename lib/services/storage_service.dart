@@ -1,11 +1,12 @@
 // lib/services/storage_service.dart
 
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:image_picker/image_picker.dart';
 import 'package:firebase_storage/firebase_storage.dart';
 import 'package:path/path.dart' as p;
 import 'dart:typed_data';
-import 'dart:io' show File;
+import 'dart:io' as io;
 
 class StorageService {
   final ImagePicker _picker = ImagePicker();
@@ -27,7 +28,17 @@ class StorageService {
   }) async {
     final xfile = await pickImage(source: source);
     if (xfile == null) return null;
-    return uploadStockFile(docId, xfile, overwrite: overwrite);
+
+    final url = await uploadStockFile(docId, xfile, overwrite: overwrite);
+
+    if (url != null) {
+      await FirebaseFirestore.instance
+          .collection('stock_items')
+          .doc(docId)
+          .update({'imageUrl': url});
+    }
+
+    return url;
   }
 
   Future<String?> pickAndUploadProjectImage(
@@ -65,24 +76,32 @@ class StorageService {
   Future<String> _uploadFile({
     required String folder,
     String? idSegment,
-    required dynamic file,
+    required XFile file,
   }) async {
-    final ext = kIsWeb
-        ? p.extension((file as XFile).name)
-        : p.extension((file as File).path);
+    final ext = p.extension(file.name);
 
     final name = idSegment != null
         ? '$idSegment$ext'
         : '${DateTime.now().millisecondsSinceEpoch}$ext';
+
     final ref = _storage.ref().child(folder).child(name);
 
     if (kIsWeb) {
-      final bytes = await (file as XFile).readAsBytes();
+      final bytes = await file.readAsBytes();
       await ref.putData(bytes, SettableMetadata(contentType: 'image/jpeg'));
     } else {
-      await ref.putFile(file as File);
+      final io.File ioFile = io.File(file.path);
+      await ref.putFile(ioFile);
     }
 
     return ref.getDownloadURL();
+  }
+
+  Future<String> uploadProjectImage(String projectId, XFile file) {
+    return _uploadFile(
+      folder: 'project_images/$projectId',
+      idSegment: null,
+      file: file,
+    );
   }
 }

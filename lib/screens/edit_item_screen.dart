@@ -8,11 +8,19 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_storage/firebase_storage.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:flutter/foundation.dart' show kIsWeb;
+import 'package:strefa_ciszy/screens/main_menu_screen.dart';
 
 class EditItemScreen extends StatefulWidget {
   final String docId;
   final Map<String, dynamic> data;
-  const EditItemScreen(this.docId, {super.key, required this.data});
+  final bool isAdmin;
+
+  const EditItemScreen(
+    this.docId, {
+    Key? key,
+    required this.data,
+    this.isAdmin = false,
+  }) : super(key: key);
 
   @override
   _EditItemScreenState createState() => _EditItemScreenState();
@@ -46,7 +54,7 @@ class _EditItemScreenState extends State<EditItemScreen> {
     final d = widget.data;
 
     _producerCtrl = TextEditingController(
-      text: widget.data['producent'] as String? ?? '',
+      text: d['producent'] as String? ?? '',
     );
     _nameCtrl = TextEditingController(text: d['name'] as String? ?? '');
     _skuCtrl = TextEditingController(text: d['sku'] as String? ?? '');
@@ -80,7 +88,6 @@ class _EditItemScreenState extends State<EditItemScreen> {
     _barcodeCtrl.dispose();
     _quantityCtrl.dispose();
     _locationCtrl.dispose();
-
     super.dispose();
   }
 
@@ -89,15 +96,15 @@ class _EditItemScreenState extends State<EditItemScreen> {
     await showDialog<void>(
       context: context,
       builder: (ctx) => AlertDialog(
-        title: Text('Nowa kategoria'),
+        title: const Text('Nowa kategoria'),
         content: TextField(
-          decoration: InputDecoration(labelText: 'Nazwa'),
+          decoration: const InputDecoration(labelText: 'Nazwa'),
           onChanged: (v) => newName = v.trim(),
         ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(ctx),
-            child: Text('Anuluj'),
+            child: const Text('Anuluj'),
           ),
           ElevatedButton(
             onPressed: () {
@@ -109,7 +116,7 @@ class _EditItemScreenState extends State<EditItemScreen> {
               }
               Navigator.pop(ctx);
             },
-            child: Text('Dodaj'),
+            child: const Text('Dodaj'),
           ),
         ],
       ),
@@ -119,23 +126,18 @@ class _EditItemScreenState extends State<EditItemScreen> {
   Future<void> _changePhoto() async {
     final x = await _picker.pickImage(source: ImageSource.camera);
     if (x == null) return;
-
     setState(() {
       _uploading = true;
       _error = null;
     });
-
     try {
       final ref = _storage.child('stock_images/${widget.docId}.jpg');
-
       if (kIsWeb) {
         final bytes = await x.readAsBytes();
         await ref.putData(bytes);
       } else {
-        final file = File(x.path);
-        await ref.putFile(file);
+        await ref.putFile(File(x.path));
       }
-
       final url = await ref.getDownloadURL();
       await FirebaseFirestore.instance
           .collection('stock_items')
@@ -145,7 +147,6 @@ class _EditItemScreenState extends State<EditItemScreen> {
             'updatedAt': FieldValue.serverTimestamp(),
             'updatedBy': FirebaseAuth.instance.currentUser!.uid,
           });
-
       setState(() {
         _imageUrl = url;
         _uploading = false;
@@ -193,111 +194,157 @@ class _EditItemScreenState extends State<EditItemScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final canEdit = widget.isAdmin; // ← non-admins cannot edit
+
     return Scaffold(
-      appBar: AppBar(title: Text('Edytuj produkt')),
+      appBar: AppBar(
+        centerTitle: true,
+        title: const Text('Edytuj produkt'),
+        actions: [
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 8),
+            child: CircleAvatar(
+              backgroundColor: Colors.black,
+              child: IconButton(
+                icon: const Icon(Icons.home),
+                color: Colors.white,
+                tooltip: 'Home',
+                onPressed: () {
+                  Navigator.of(context).pushAndRemoveUntil(
+                    MaterialPageRoute(
+                      builder: (_) => const MainMenuScreen(role: 'admin'),
+                    ),
+                    (_) => false,
+                  );
+                },
+              ),
+            ),
+          ),
+        ],
+      ),
       body: Padding(
-        padding: EdgeInsets.all(16),
+        padding: const EdgeInsets.all(16),
         child: _saving
-            ? Center(child: CircularProgressIndicator())
+            ? const Center(child: CircularProgressIndicator())
             : Form(
                 key: _formKey,
                 child: ListView(
                   children: [
                     if (_error != null)
-                      Text(_error!, style: TextStyle(color: Colors.red)),
+                      Text(_error!, style: const TextStyle(color: Colors.red)),
+
                     TextFormField(
                       controller: _producerCtrl,
                       decoration: const InputDecoration(labelText: 'Producent'),
+                      enabled: canEdit,
                     ),
                     TextFormField(
                       controller: _nameCtrl,
-                      decoration: InputDecoration(labelText: 'Nazwa'),
-                      validator: (v) => v!.isEmpty ? 'Required' : null,
+                      decoration: const InputDecoration(labelText: 'Nazwa'),
+                      enabled: canEdit,
+                      validator: (v) => v!.trim().isEmpty ? 'Required' : null,
                     ),
-                    SizedBox(height: 12),
+                    const SizedBox(height: 12),
 
                     TextFormField(
                       controller: _skuCtrl,
-                      decoration: InputDecoration(labelText: 'SKU'),
-                      validator: (v) => v!.isEmpty ? 'Required' : null,
+                      decoration: const InputDecoration(labelText: 'SKU'),
+                      enabled: canEdit,
+                      validator: (v) => v!.trim().isEmpty ? 'Required' : null,
                     ),
-                    SizedBox(height: 12),
+                    const SizedBox(height: 12),
 
                     Row(
                       children: [
                         Expanded(
                           child: DropdownButtonFormField<String>(
-                            decoration: InputDecoration(labelText: 'Kategoria'),
                             value: _categoryCtrl.text.isNotEmpty
                                 ? _categoryCtrl.text
                                 : null,
-                            items: _categories.map((cat) {
-                              return DropdownMenuItem(
-                                value: cat,
-                                child: Text(
-                                  cat[0].toUpperCase() + cat.substring(1),
-                                ),
-                              );
-                            }).toList(),
-                            onChanged: (cat) =>
-                                setState(() => _categoryCtrl.text = cat!),
-                            validator: (cat) =>
-                                cat == null ? 'Wybierz kategoria' : null,
+                            decoration: const InputDecoration(
+                              labelText: 'Kategoria',
+                            ),
+                            items: _categories
+                                .map(
+                                  (cat) => DropdownMenuItem(
+                                    value: cat,
+                                    child: Text(
+                                      cat[0].toUpperCase() + cat.substring(1),
+                                    ),
+                                  ),
+                                )
+                                .toList(),
+                            onChanged: canEdit
+                                ? (v) => setState(() => _categoryCtrl.text = v!)
+                                : null,
+                            validator: (v) =>
+                                v == null ? 'Wybierz kategoria' : null,
                           ),
                         ),
                         IconButton(
-                          icon: Icon(Icons.add_circle_outline),
-                          tooltip: 'Nowa kategori',
-                          onPressed: _addCategory,
+                          icon: const Icon(Icons.add_circle_outline),
+                          tooltip: 'Nowa kategoria',
+                          onPressed: canEdit ? _addCategory : null,
                         ),
                       ],
                     ),
-                    SizedBox(height: 12),
+                    const SizedBox(height: 12),
 
                     TextFormField(
                       controller: _barcodeCtrl,
-                      decoration: InputDecoration(labelText: 'Kod kreskowy'),
+                      decoration: const InputDecoration(
+                        labelText: 'Kod kreskowy',
+                      ),
+                      enabled: canEdit,
                     ),
-                    SizedBox(height: 12),
+                    const SizedBox(height: 12),
+
                     TextFormField(
                       controller: _quantityCtrl,
-                      decoration: InputDecoration(labelText: 'Ilość'),
+                      decoration: const InputDecoration(labelText: 'Ilość'),
+                      enabled: canEdit,
                       keyboardType: TextInputType.number,
                       validator: (v) =>
                           int.tryParse(v!) == null ? 'Wpisz ilość' : null,
                     ),
-                    SizedBox(height: 12),
+                    const SizedBox(height: 12),
 
                     DropdownButtonFormField<String>(
                       value: _unit,
-                      decoration: InputDecoration(labelText: 'Jm.'),
+                      decoration: const InputDecoration(labelText: 'Jm.'),
                       items: ['szt', 'm', 'kg', 'kpl']
                           .map(
                             (u) => DropdownMenuItem(value: u, child: Text(u)),
                           )
                           .toList(),
-                      onChanged: (v) => setState(() => _unit = v!),
+                      onChanged: canEdit
+                          ? (v) => setState(() => _unit = v!)
+                          : null,
                     ),
-                    SizedBox(height: 12),
+                    const SizedBox(height: 12),
 
                     TextFormField(
                       controller: _locationCtrl,
-                      decoration: InputDecoration(labelText: 'Magazyn'),
+                      decoration: const InputDecoration(labelText: 'Magazyn'),
+                      enabled: canEdit,
                     ),
-                    SizedBox(height: 12),
+                    const SizedBox(height: 12),
 
-                    if (_uploading) Center(child: CircularProgressIndicator()),
+                    if (_uploading)
+                      const Center(child: CircularProgressIndicator()),
                     if (_imageUrl != null)
                       Image.network(_imageUrl!, height: 150),
+
                     ElevatedButton.icon(
-                      icon: Icon(Icons.camera_alt),
-                      label: Text('Zapisz fotka'),
-                      onPressed: _changePhoto,
+                      icon: const Icon(Icons.camera_alt),
+                      label: const Text('Zapisz fotka'),
+                      onPressed: canEdit ? _changePhoto : null,
                     ),
-                    SizedBox(height: 24),
+                    const SizedBox(height: 24),
+
                     ElevatedButton(
-                      onPressed: _saveChanges,
-                      child: Text('Zapisz'),
+                      onPressed: canEdit ? _saveChanges : null,
+                      child: const Text('Zapisz'),
                     ),
                   ],
                 ),

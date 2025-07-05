@@ -7,11 +7,13 @@ import 'package:strefa_ciszy/models/stock_item.dart';
 import 'package:strefa_ciszy/screens/add_item_screen.dart';
 import 'package:strefa_ciszy/screens/item_detail_screen.dart';
 import 'package:strefa_ciszy/screens/scan_screen.dart';
-import 'customer_list_screen.dart';
+import 'package:strefa_ciszy/screens/customer_list_screen.dart';
+import 'package:strefa_ciszy/screens/main_menu_screen.dart';
 
 class InventoryListScreen extends StatefulWidget {
   final bool isAdmin;
-  const InventoryListScreen({super.key, required this.isAdmin});
+  const InventoryListScreen({Key? key, required this.isAdmin})
+    : super(key: key);
 
   @override
   _InventoryListScreenState createState() => _InventoryListScreenState();
@@ -90,6 +92,7 @@ class _InventoryListScreenState extends State<InventoryListScreen> {
 
     return Scaffold(
       appBar: AppBar(
+        centerTitle: true,
         title: const Text('Inwentaryzacja'),
         bottom: PreferredSize(
           preferredSize: const Size.fromHeight(56),
@@ -121,8 +124,31 @@ class _InventoryListScreenState extends State<InventoryListScreen> {
             ),
           ),
         ),
+        actions: [
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 8.0),
+            child: DecoratedBox(
+              decoration: BoxDecoration(
+                color: Colors.black,
+                shape: BoxShape.circle,
+              ),
+              child: IconButton(
+                icon: const Icon(Icons.home),
+                tooltip: 'Home',
+                onPressed: () {
+                  Navigator.of(context).pushAndRemoveUntil(
+                    MaterialPageRoute(
+                      builder: (_) => const MainMenuScreen(role: 'admin'),
+                    ),
+                    (route) => false,
+                  );
+                },
+                color: Colors.white,
+              ),
+            ),
+          ),
+        ],
       ),
-
       body: Column(
         children: [
           const SizedBox(height: 8),
@@ -187,8 +213,7 @@ class _InventoryListScreenState extends State<InventoryListScreen> {
                         ],
                       ),
                       subtitle: Text(
-                        '• ${item.quantity}'
-                        '${item.unit != null ? ' ${item.unit}' : ''}',
+                        '• ${item.quantity}${item.unit != null ? ' ${item.unit}' : ''}',
                         style: TextStyle(fontSize: 12, color: Colors.grey[700]),
                       ),
                       trailing: item.imageUrl != null
@@ -211,8 +236,7 @@ class _InventoryListScreenState extends State<InventoryListScreen> {
                                               progress.expectedTotalBytes !=
                                                   null
                                               ? progress.cumulativeBytesLoaded /
-                                                    (progress
-                                                        .expectedTotalBytes!)
+                                                    progress.expectedTotalBytes!
                                               : null,
                                           strokeWidth: 2,
                                         ),
@@ -235,7 +259,10 @@ class _InventoryListScreenState extends State<InventoryListScreen> {
                           : null,
                       onTap: () => Navigator.of(context).push(
                         MaterialPageRoute(
-                          builder: (_) => ItemDetailScreen(itemId: item.id),
+                          builder: (_) => ItemDetailScreen(
+                            itemId: item.id,
+                            isAdmin: isAdmin,
+                          ),
                         ),
                       ),
                     );
@@ -246,15 +273,15 @@ class _InventoryListScreenState extends State<InventoryListScreen> {
           ),
         ],
       ),
-
-      floatingActionButton: FloatingActionButton(
-        onPressed: () => Navigator.of(
-          context,
-        ).push(MaterialPageRoute(builder: (_) => const AddItemScreen())),
-        tooltip: 'Dodaj pozycja',
-        child: const Icon(Icons.add),
-      ),
-
+      floatingActionButton: isAdmin
+          ? FloatingActionButton(
+              onPressed: () => Navigator.of(
+                context,
+              ).push(MaterialPageRoute(builder: (_) => const AddItemScreen())),
+              tooltip: 'Dodaj stock',
+              child: const Icon(Icons.add),
+            )
+          : null,
       floatingActionButtonLocation: FloatingActionButtonLocation.centerDocked,
       bottomNavigationBar: SafeArea(
         child: BottomAppBar(
@@ -274,7 +301,6 @@ class _InventoryListScreenState extends State<InventoryListScreen> {
                     ),
                   ),
                 ),
-
                 IconButton(
                   tooltip: 'Skanuj',
                   icon: const Icon(Icons.qr_code_scanner),

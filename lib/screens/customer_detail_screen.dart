@@ -3,8 +3,9 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
+import 'package:strefa_ciszy/screens/contacts_list_screen.dart';
 import 'package:strefa_ciszy/screens/inventory_list_screen.dart';
-import 'package:strefa_ciszy/screens/scan_screen.dart';
+import 'package:strefa_ciszy/screens/main_menu_screen.dart';
 import 'project_editor_screen.dart';
 
 class CustomerDetailScreen extends StatefulWidget {
@@ -56,6 +57,10 @@ class _CustomerDetailScreenState extends State<CustomerDetailScreen> {
     DateTime? startDate;
     DateTime? estimatedEndDate;
     String costStr = '';
+
+    final custSnap = await _customerRef.get();
+    final realContactId =
+        (custSnap.data()! as Map<String, dynamic>)['contactId'] as String?;
 
     await showDialog<void>(
       context: context,
@@ -148,6 +153,8 @@ class _CustomerDetailScreenState extends State<CustomerDetailScreen> {
                 final data = <String, dynamic>{
                   'title': title,
                   'status': 'draft',
+                  'contactId': realContactId,
+                  'customerId': widget.customerId,
                   'createdAt': FieldValue.serverTimestamp(),
                   'createdBy': DateTime.now().millisecondsSinceEpoch.toString(),
                   'items': <Map<String, dynamic>>[],
@@ -175,6 +182,8 @@ class _CustomerDetailScreenState extends State<CustomerDetailScreen> {
 
     return Scaffold(
       appBar: AppBar(
+        // automaticallyImplyLeading: false,
+        centerTitle: true,
         title: FutureBuilder<DocumentSnapshot>(
           future: _customerRef.get(),
           builder: (ctx, snap) {
@@ -183,7 +192,7 @@ class _CustomerDetailScreenState extends State<CustomerDetailScreen> {
             }
             final data = snap.data?.data() as Map<String, dynamic>?;
             final name = data?['name'] as String? ?? '';
-            return Text('$name – projekty');
+            return Text('Projekty: $name');
           },
         ),
         bottom: PreferredSize(
@@ -216,6 +225,27 @@ class _CustomerDetailScreenState extends State<CustomerDetailScreen> {
             ),
           ),
         ),
+        actions: [
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 8.0),
+            child: CircleAvatar(
+              backgroundColor: Colors.black,
+              child: IconButton(
+                icon: const Icon(Icons.home),
+                color: Colors.white,
+                tooltip: 'Home',
+                onPressed: () {
+                  Navigator.of(context).pushAndRemoveUntil(
+                    MaterialPageRoute(
+                      builder: (_) => const MainMenuScreen(role: 'admin'),
+                    ),
+                    (route) => false,
+                  );
+                },
+              ),
+            ),
+          ),
+        ],
       ),
 
       body: Column(
@@ -380,11 +410,11 @@ class _CustomerDetailScreenState extends State<CustomerDetailScreen> {
               SizedBox(width: 48),
 
               IconButton(
-                tooltip: 'Skanuj',
-                icon: const Icon(Icons.qr_code_scanner),
-                onPressed: () => Navigator.of(
-                  context,
-                ).push(MaterialPageRoute(builder: (_) => const ScanScreen())),
+                tooltip: 'Contacts',
+                icon: const Icon(Icons.people),
+                onPressed: () => Navigator.of(context).push(
+                  MaterialPageRoute(builder: (_) => const ContactsListScreen()),
+                ),
               ),
             ],
           ),

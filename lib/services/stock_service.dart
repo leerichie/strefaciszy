@@ -165,6 +165,7 @@ class StockService {
       'projectId': projectId,
       'projectName': projectName,
       'customerId': customerId,
+      'customerName': '',
       'createdBy': createdBy,
       'createdAt': createdAt,
       'createdDay': Timestamp.fromDate(createdDay),

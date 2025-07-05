@@ -8,6 +8,7 @@ import 'package:intl/intl.dart';
 import 'package:open_file/open_file.dart';
 import 'package:strefa_ciszy/screens/customer_list_screen.dart';
 import 'package:strefa_ciszy/screens/inventory_list_screen.dart';
+import 'package:strefa_ciszy/screens/main_menu_screen.dart';
 import 'package:strefa_ciszy/screens/project_editor_screen.dart';
 import 'package:strefa_ciszy/screens/scan_screen.dart';
 import 'package:strefa_ciszy/services/audit_service.dart';
@@ -86,27 +87,107 @@ class _RWDocumentsScreenState extends State<RWDocumentsScreen> {
 
     return Scaffold(
       appBar: AppBar(
-        title: isClientView && widget.projectId != null
-            ? FutureBuilder<DocumentSnapshot>(
-                future: FirebaseFirestore.instance
-                    .collection('customers')
-                    .doc(widget.customerId)
-                    .collection('projects')
-                    .doc(widget.projectId)
-                    .get(),
+        // automaticallyImplyLeading: false,
+        centerTitle: true,
+        title: (widget.customerId != null && widget.projectId != null)
+            ? FutureBuilder<List<DocumentSnapshot<Map<String, dynamic>>>>(
+                future: Future.wait<DocumentSnapshot<Map<String, dynamic>>>([
+                  FirebaseFirestore.instance
+                      .collection('customers')
+                      .doc(widget.customerId)
+                      .get(),
+                  FirebaseFirestore.instance
+                      .collection('customers')
+                      .doc(widget.customerId)
+                      .collection('projects')
+                      .doc(widget.projectId)
+                      .get(),
+                ]),
                 builder: (ctx, snap) {
-                  if (snap.connectionState != ConnectionState.done) {
-                    return const Text('RW');
-                  }
-                  if (!snap.hasData || !snap.data!.exists) {
-                    return const Text('RW');
-                  }
-                  final data = snap.data!.data()! as Map<String, dynamic>;
-                  final projectName = data['title'] as String? ?? '–';
-                  return Text('RW • $projectName');
+                  if (snap.connectionState != ConnectionState.done ||
+                      !snap.hasData)
+                    return const Text("RW");
+                  final List<DocumentSnapshot<Map<String, dynamic>>> docs =
+                      snap.data!;
+
+                  final custData = docs[0].data()!;
+                  final projData = docs[1].data()!;
+                  final custName = custData['name'] ?? '–';
+                  final projName = projData['title'] ?? '–';
+
+                  return RichText(
+                    text: TextSpan(
+                      // style:
+                      //     Theme.of(context).appBarTheme.titleTextStyle ??
+                      //     DefaultTextStyle.of(context).style,
+                      children: [
+                        //   TextSpan(
+                        //     text: 'RW: ',
+                        //     style: TextStyle(
+                        //       color: Colors.black,
+                        //       fontSize: 18,
+                        //       fontWeight: FontWeight.bold,
+                        //     ),
+                        //   ),
+                        TextSpan(
+                          text: '$custName: ',
+                          style: TextStyle(
+                            color: Colors.blueGrey,
+                            fontSize: 18,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                        TextSpan(
+                          text: projName,
+                          style: TextStyle(
+                            color: Colors.red.shade400,
+                            fontSize: 18,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                      ],
+                    ),
+                  );
                 },
               )
-            : const Text('RW/MM - wszystkie'),
+            : RichText(
+                text: TextSpan(
+                  style:
+                      Theme.of(context).appBarTheme.titleTextStyle ??
+                      DefaultTextStyle.of(context).style,
+                  children: [
+                    TextSpan(
+                      text: 'RW – wszystkie',
+                      style: TextStyle(
+                        color: Colors.blueGrey,
+                        fontSize: 18,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+        actions: [
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 8.0),
+            child: CircleAvatar(
+              backgroundColor: Colors.black,
+              child: IconButton(
+                icon: const Icon(Icons.home),
+                color: Colors.white,
+                tooltip: 'Home',
+                onPressed: () {
+                  Navigator.of(context).pushAndRemoveUntil(
+                    MaterialPageRoute(
+                      builder: (_) => const MainMenuScreen(role: 'admin'),
+                    ),
+                    (route) => false,
+                  );
+                },
+              ),
+            ),
+          ),
+        ],
       ),
 
       body: Column(
@@ -340,7 +421,9 @@ class _RWDocumentsScreenState extends State<RWDocumentsScreen> {
                     }
 
                     return ListTile(
-                      title: Text('${d['type']} — ${d['projectName'] ?? ''}'),
+                      title: Text(
+                        '${d['type']} — ${d['customerName'] ?? ''} - ${d['projectName'] ?? ''}',
+                      ),
                       subtitle: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
@@ -456,34 +539,74 @@ class _RWDocumentsScreenState extends State<RWDocumentsScreen> {
   }
 
   String _buildCsv(Map<String, dynamic> data, Map<String, String> userNames) {
-    final headers = ['Typ', 'Projekt', 'Utworzono', 'Użytkownik'];
-    final createdAt = data['createdAt'];
-    final when = createdAt is Timestamp
-        ? DateFormat('dd.MM.yyyy HH:mm').format(createdAt.toDate())
-        : createdAt.toString();
-    final rawUid = data['createdBy']?.toString() ?? '';
-    final displayName = userNames[rawUid] ?? rawUid;
-    final dataRow = [
-      data['type'] ?? '',
-      data['projectName'] ?? '',
+    final List<String> headers = [
+      'Typ',
+      'Klient',
+      'Projekt',
+      'Utworzono',
+      'Użytkownik',
+    ];
+
+    final String when = data['createdAt'] is Timestamp
+        ? DateFormat(
+            'dd.MM.yyyy HH:mm',
+          ).format((data['createdAt'] as Timestamp).toDate())
+        : data['createdAt']?.toString() ?? '';
+    final String rawUid = data['createdBy']?.toString() ?? '';
+    final String displayName = userNames[rawUid] ?? rawUid;
+
+    final List<String> dataRow = [
+      data['type']?.toString() ?? '',
+      data['customerName']?.toString() ?? '',
+      data['projectName']?.toString() ?? '',
       when,
       displayName,
     ];
 
-    final spacer = ['', '', '', ''];
-    final materialHeader = ['Material', 'Ilość', 'Jm', ''];
-    final items = (data['items'] as List<dynamic>? ?? []).map<List<String>>((
-      it,
-    ) {
-      return [
-        it['name'] ?? '',
-        it['quantity']?.toString() ?? '',
-        it['unit'] ?? '',
-        '',
-      ];
-    });
+    final List<String> spacer = List<String>.filled(headers.length, '');
 
-    final allRows = [headers, dataRow, spacer, materialHeader, ...items];
+    final List<String> materialHeader =
+        <String>['Materiał', 'Ilość', 'Jm'] +
+        List<String>.filled(headers.length - 3, '');
+
+    final Iterable<List<String>> items = (data['items'] as List<dynamic>? ?? [])
+        .map<List<String>>((it) {
+          return <String>[
+            (it['name'] ?? '').toString(),
+            (it['quantity'] ?? '').toString(),
+            (it['unit'] ?? '').toString(),
+            ...List<String>.filled(headers.length - 3, ''),
+          ];
+        });
+
+    final List<String> noteHeader =
+        <String>['Notatki:'] + List<String>.filled(headers.length - 1, '');
+
+    final Iterable<List<String>> notes =
+        (data['notesList'] as List<dynamic>? ?? []).map<List<String>>((raw) {
+          final m = raw as Map<String, dynamic>;
+          final ts = m['createdAt'];
+          final date = ts is Timestamp
+              ? DateFormat('dd.MM.yyyy HH:mm').format(ts.toDate())
+              : '';
+          final user = (m['userName'] ?? '').toString();
+          final text = (m['text'] ?? '').toString();
+          return <String>[
+            '[$date] $user: $text',
+            ...List<String>.filled(headers.length - 1, ''),
+          ];
+        });
+
+    final allRows = <List<String>>[
+      headers,
+      dataRow,
+      spacer,
+      materialHeader,
+      ...items,
+      spacer,
+      noteHeader,
+      ...notes,
+    ];
 
     return allRows.map((row) => row.join('\t')).join('\r\n');
   }
@@ -533,16 +656,64 @@ class _RWDocumentsScreenState extends State<RWDocumentsScreen> {
     showDialog(
       context: context,
       builder: (ctx) => AlertDialog(
-        title: Text('Szczegóły – ${data['type']}'),
+        title: Text(
+          '${data['type']}: ${data['customerName']} - ${data['projectName']}',
+        ),
         content: SingleChildScrollView(
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text('Projekt: ${data['projectName']}'),
-              Text('Utworzono: $dateStr'),
-              Text('Użytkownik: $displayName'),
+              Row(
+                children: [
+                  Text(
+                    'Projekt:',
+                    style: TextStyle(fontWeight: FontWeight.bold),
+                  ),
+                  const SizedBox(width: 8),
+                  Expanded(child: Text(data['projectName'] ?? '—')),
+                ],
+              ),
+              const SizedBox(height: 4),
+
+              Row(
+                children: [
+                  Text(
+                    'Klient:',
+                    style: TextStyle(fontWeight: FontWeight.bold),
+                  ),
+                  const SizedBox(width: 8),
+                  Expanded(child: Text(data['customerName'] ?? '—')),
+                ],
+              ),
+              const SizedBox(height: 4),
+
+              Row(
+                children: [
+                  Text(
+                    'Utworzono:',
+                    style: TextStyle(fontWeight: FontWeight.bold),
+                  ),
+                  const SizedBox(width: 8),
+                  Expanded(child: Text(dateStr)),
+                ],
+              ),
+              const SizedBox(height: 4),
+
+              Row(
+                children: [
+                  Text(
+                    'Użytkownik:',
+                    style: TextStyle(fontWeight: FontWeight.bold),
+                  ),
+                  const SizedBox(width: 8),
+                  Expanded(child: Text(displayName)),
+                ],
+              ),
               const SizedBox(height: 16),
-              Text('Materiały:'),
+
+              Text('Materiały:', style: TextStyle(fontWeight: FontWeight.bold)),
+              const SizedBox(height: 4),
+
               ...((data['items'] as List<dynamic>?) ?? []).map((item) {
                 return Padding(
                   padding: const EdgeInsets.symmetric(vertical: 2.0),
@@ -567,6 +738,25 @@ class _RWDocumentsScreenState extends State<RWDocumentsScreen> {
                   ),
                 );
               }),
+              Text('Notatki:', style: TextStyle(fontWeight: FontWeight.bold)),
+              const SizedBox(height: 4),
+
+              ...((data['notesList'] as List<dynamic>? ?? []).map((raw) {
+                final m = raw as Map<String, dynamic>;
+                final ts = m['createdAt'];
+                final date = ts is Timestamp
+                    ? DateFormat(
+                        'dd.MM.yyyy HH:mm',
+                        'pl_PL',
+                      ).format(ts.toDate())
+                    : '';
+                final user = m['userName'] as String? ?? '';
+                final text = m['text'] as String? ?? '';
+                return Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 2),
+                  child: Text('• [$date] $user: $text'),
+                );
+              })),
             ],
           ),
         ),
@@ -592,8 +782,9 @@ class _RWDocumentsScreenState extends State<RWDocumentsScreen> {
           .doc(uid)
           .get();
       final data = snap.data();
+      final lookup = data?['username'] ?? data?['name'] ?? uid;
       setState(() {
-        userNames[uid] = data?['name'] ?? data?['email'] ?? uid;
+        userNames[uid] = lookup;
       });
     } catch (_) {
       setState(() {
@@ -616,10 +807,17 @@ class _RWDocumentsScreenState extends State<RWDocumentsScreen> {
     sheet.getRangeByName('D1').columnWidth = 20;
 
     sheet.getRangeByName('A1').setText('Typ:');
-    sheet.getRangeByName('B1').setText('Projekt:');
-    sheet.getRangeByName('C1').setText('Utworzono:');
-    sheet.getRangeByName('D1').setText('Użytkownik:');
-    sheet.getRangeByName('A1:D1').cellStyle.bold = true;
+    sheet.getRangeByName('B1').setText('Klient:');
+    sheet.getRangeByName('C1').setText('Projekt:');
+    sheet.getRangeByName('D1').setText('Utworzono:');
+    sheet.getRangeByName('E1').setText('Użytkownik:');
+    sheet.getRangeByName('A1:E1').cellStyle.bold = true;
+
+    sheet.getRangeByName('A1').columnWidth = 20;
+    sheet.getRangeByName('B1').columnWidth = 30;
+    sheet.getRangeByName('C1').columnWidth = 30;
+    sheet.getRangeByName('D1').columnWidth = 20;
+    sheet.getRangeByName('E1').columnWidth = 20;
 
     final rawTs = data['createdAt'];
     DateTime dt;
@@ -636,9 +834,10 @@ class _RWDocumentsScreenState extends State<RWDocumentsScreen> {
     final createdByName = userNames[uid] ?? uid;
 
     sheet.getRangeByName('A2').setText(data['type'] ?? '');
-    sheet.getRangeByName('B2').setText(data['projectName'] ?? '');
-    sheet.getRangeByName('C2').setText(dateStr);
-    sheet.getRangeByName('D2').setText(createdByName);
+    sheet.getRangeByName('B2').setText(data['customerName'] ?? '');
+    sheet.getRangeByName('C2').setText(data['projectName'] ?? '');
+    sheet.getRangeByName('D2').setText(dateStr);
+    sheet.getRangeByName('E2').setText(createdByName);
 
     final startRow = 4;
     sheet.getRangeByName('A$startRow').setText('Materiał');
@@ -669,6 +868,23 @@ class _RWDocumentsScreenState extends State<RWDocumentsScreen> {
       unitCell.cellStyle.hAlign = xlsio.HAlignType.center;
 
       row++;
+
+      // notes
+      sheet.getRangeByName('A$row').setText('Notatki:');
+      sheet.getRangeByName('A$row').cellStyle.bold = true;
+      row++;
+
+      for (final raw in (data['notesList'] as List<dynamic>? ?? [])) {
+        final m = raw as Map<String, dynamic>;
+        final text = m['text'] as String? ?? '';
+        final user = m['userName'] as String? ?? '';
+        final ts = m['createdAt'];
+        final date = ts is Timestamp
+            ? DateFormat('dd.MM.yyyy HH:mm', 'pl_PL').format(ts.toDate())
+            : '';
+        sheet.getRangeByName('A$row').setText('[$date] $user: $text');
+        row++;
+      }
     }
 
     final bytes = Uint8List.fromList(workbook.saveAsStream());

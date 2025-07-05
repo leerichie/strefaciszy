@@ -1,30 +1,69 @@
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:strefa_ciszy/screens/main_menu_screen.dart';
 import 'add_item_screen.dart';
 import 'edit_item_screen.dart';
 
 class ItemDetailScreen extends StatelessWidget {
   final String itemId;
-  const ItemDetailScreen({super.key, required this.itemId});
+  final bool isAdmin;
+  const ItemDetailScreen({
+    super.key,
+    this.isAdmin = false,
+    required this.itemId,
+  });
 
-  Future<void> _changeQuantity(String docId, int delta, int currentQty) async {
-    final newQty = currentQty + delta;
-    if (newQty < 0) return;
-    await FirebaseFirestore.instance
-        .collection('stock_items')
-        .doc(docId)
-        .update({
-          'quantity': newQty,
-          'updatedAt': FieldValue.serverTimestamp(),
-          'updatedBy': FirebaseAuth.instance.currentUser!.uid,
-        });
-  }
+  // Future<void> _changeQuantity(String docId, int delta, int currentQty) async {
+  //   final newQty = currentQty + delta;
+  //   if (newQty < 0) return;
+  //   await FirebaseFirestore.instance
+  //       .collection('stock_items')
+  //       .doc(docId)
+  //       .update({
+  //         'quantity': newQty,
+  //         'updatedAt': FieldValue.serverTimestamp(),
+  //         'updatedBy': FirebaseAuth.instance.currentUser!.uid,
+  //       });
+  // }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('Szczegóły')),
+      appBar: AppBar(
+        centerTitle: true,
+        title: const Text('Szczegóły'),
+        bottom: PreferredSize(
+          preferredSize: const Size.fromHeight(56),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+            child: Row(children: [
+              ],
+            ),
+          ),
+        ),
+        actions: [
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 8.0),
+            child: CircleAvatar(
+              backgroundColor: Colors.black,
+              child: IconButton(
+                icon: const Icon(Icons.home),
+                color: Colors.white,
+                tooltip: 'Home',
+                onPressed: () {
+                  Navigator.of(context).pushAndRemoveUntil(
+                    MaterialPageRoute(
+                      builder: (_) => const MainMenuScreen(role: 'admin'),
+                    ),
+                    (route) => false,
+                  );
+                },
+              ),
+            ),
+          ),
+        ],
+      ),
       body: StreamBuilder<DocumentSnapshot>(
         stream: FirebaseFirestore.instance
             .collection('stock_items')
@@ -116,35 +155,45 @@ class ItemDetailScreen extends StatelessWidget {
                     _row('Kategoria', data['category']),
                     _row('Magazyn', data['location']),
                     _row('Kod Kreskowy', data['barcode']),
+                    _row('Ilość', data['quantity']),
                   ],
                 ),
-                Row(
-                  children: [
-                    Text(
-                      'Ilość ($unit):',
-                      style: const TextStyle(fontSize: 18),
-                    ),
-                    const Spacer(),
-                    IconButton(
-                      icon: const Icon(Icons.remove),
-                      onPressed: () => _changeQuantity(doc.id, -1, qty),
-                    ),
-                    Text('$qty', style: const TextStyle(fontSize: 18)),
-                    IconButton(
-                      icon: const Icon(Icons.add),
-                      onPressed: () => _changeQuantity(doc.id, 1, qty),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 24),
+                // Row(
+                //   children: [
+                //     Text(
+                //       'Ilość ($unit):',
+                //       style: const TextStyle(fontSize: 18),
+                //     ),
+                //     const Spacer(),
+                //     IconButton(
+                //       icon: const Icon(Icons.remove),
+                //       onPressed: () => _changeQuantity(doc.id, -1, qty),
+                //     ),
+                //     Text('$qty', style: const TextStyle(fontSize: 18)),
+                //     IconButton(
+                //       icon: const Icon(Icons.add),
+                //       onPressed: () => _changeQuantity(doc.id, 1, qty),
+                //     ),
+                //   ],
+                // ),
+                // const SizedBox(height: 24),
                 Center(
                   child: ElevatedButton(
-                    onPressed: () => Navigator.of(context).push(
-                      MaterialPageRoute(
-                        builder: (_) => EditItemScreen(doc.id, data: data),
-                      ),
-                    ),
-                    child: const Text('Edytuj szczegoly'),
+                    onPressed: isAdmin
+                        ? () {
+                            final data = doc.data()! as Map<String, dynamic>;
+                            Navigator.of(context).push(
+                              MaterialPageRoute(
+                                builder: (_) => EditItemScreen(
+                                  doc.id,
+                                  data: data,
+                                  isAdmin: isAdmin,
+                                ),
+                              ),
+                            );
+                          }
+                        : null,
+                    child: const Text('Edytuj szczegóły'),
                   ),
                 ),
               ],

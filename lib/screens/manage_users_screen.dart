@@ -1,7 +1,10 @@
 // lib/screens/manage_users_screen.dart
 
+import 'dart:isolate';
+
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:strefa_ciszy/screens/main_menu_screen.dart';
 import '../services/user_functions.dart';
 
 import 'inventory_list_screen.dart';
@@ -176,13 +179,38 @@ class _ManageUsersScreenState extends State<ManageUsersScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final isAdmin = true; // or derive from claims if needed
+    final isAdmin = true;
 
     return Scaffold(
-      // ── AppBar ──
-      appBar: AppBar(title: const Text('Zarządzaj użytkownikami')),
+      appBar: AppBar(
+        centerTitle: true,
+        title: const Text('Zarządzaj użytkownikami'),
+        actions: [
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 8.0),
+            child: DecoratedBox(
+              decoration: BoxDecoration(
+                color: Colors.black,
+                shape: BoxShape.circle,
+              ),
+              child: IconButton(
+                icon: const Icon(Icons.home),
+                tooltip: 'Home',
+                onPressed: () {
+                  Navigator.of(context).pushAndRemoveUntil(
+                    MaterialPageRoute(
+                      builder: (_) => const MainMenuScreen(role: 'admin'),
+                    ),
+                    (route) => false,
+                  );
+                },
+                color: Colors.white,
+              ),
+            ),
+          ),
+        ],
+      ),
 
-      // ── Body ──
       body: FutureBuilder<List<Map<String, dynamic>>>(
         future: _usersFuture,
         builder: (ctx, snap) {

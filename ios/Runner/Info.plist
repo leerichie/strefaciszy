@@ -55,5 +55,17 @@
 	<key>NSLocationWhenInUseUsageDescription</key>
 	<string>Location access is needed to tag scanned items or for inventory location info.</string>
 
+	 <!-- Allow Flutter’s Dart VM Service to be discovered on the local network -->
+    <key>NSLocalNetworkUsageDescription</key>
+    <string>Allow local network access for Flutter debugging</string>
+
+    <!-- Declare the Bonjour services your debug VM uses -->
+    <key>NSBonjourServices</key>
+    <array>
+        <string>_dartobservatory._tcp</string>
+        <string>_dartobservatory_secure._tcp</string>
+    </array>
+
+
 </dict>
 </plist>

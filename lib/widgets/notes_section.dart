@@ -29,18 +29,12 @@ class NotesSection extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    // Dedupe
     final sorted = List<Note>.from(notes)
       ..sort((a, b) => b.createdAt.compareTo(a.createdAt));
 
-    // Dedupe
-    final seenTexts = <String>{};
-    final unique = <Note>[];
-    for (var note in sorted) {
-      if (seenTexts.add(note.text)) unique.add(note);
-    }
-
     return SizedBox(
-      height: 54,
+      height: 44,
       child: Row(
         children: [
           // Add
@@ -49,8 +43,8 @@ class NotesSection extends StatelessWidget {
             child: InkWell(
               onTap: () async => await onAddNote(context),
               child: Container(
-                width: 54,
-                height: 54,
+                width: 44,
+                height: 44,
                 decoration: BoxDecoration(
                   border: Border.all(color: Colors.grey),
                   borderRadius: BorderRadius.circular(6),
@@ -62,7 +56,7 @@ class NotesSection extends StatelessWidget {
 
           // Note thumbnails
           Expanded(
-            child: unique.isEmpty
+            child: sorted.isEmpty
                 ? const Center(
                     child: Text(
                       'Brak notatek',
@@ -71,9 +65,9 @@ class NotesSection extends StatelessWidget {
                   )
                 : ListView.builder(
                     scrollDirection: Axis.horizontal,
-                    itemCount: unique.length,
+                    itemCount: sorted.length,
                     itemBuilder: (ctx, i) {
-                      final note = unique[i];
+                      final note = sorted[i];
                       final snippet = note.text.length > 30
                           ? '${note.text.substring(0, 30)}…'
                           : note.text;
@@ -140,8 +134,8 @@ class NotesSection extends StatelessWidget {
                                 );
                               },
                               child: Container(
-                                width: 54,
-                                height: 54,
+                                width: 64,
+                                height: 44,
                                 padding: const EdgeInsets.all(8),
                                 decoration: BoxDecoration(
                                   color: Colors.grey.shade200,
