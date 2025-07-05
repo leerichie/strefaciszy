@@ -45,6 +45,7 @@ functions/npm-debug.log
 # ==== Logs ====
 *.log
 
+.history/
 
 .history/service-account.json
 service-account.json
