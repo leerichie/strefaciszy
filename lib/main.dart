@@ -3,7 +3,7 @@ import 'package:firebase_core/firebase_core.dart';
 // import 'package:firebase_app_check/firebase_app_check.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
-
+import 'widgets/web_scroll_behaviour.dart';
 import 'firebase_options.dart';
 import 'screens/login_screen.dart';
 import 'screens/main_menu_screen.dart';
@@ -34,6 +34,7 @@ class StrefaCiszyApp extends StatelessWidget {
     return MaterialApp(
       title: 'Strefa Ciszy',
       theme: ThemeData(primarySwatch: Colors.blue),
+      scrollBehavior: WebScrollBehavior(),
       locale: const Locale('pl', 'PL'),
       supportedLocales: const [Locale('pl', 'PL')],
       localizationsDelegates: const [

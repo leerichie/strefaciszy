@@ -133,6 +133,45 @@ class _ProjectDescriptionScreenState extends State<ProjectDescriptionScreen> {
     Navigator.pop(context);
   }
 
+  void _openGallery(int initialIndex) {
+    Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (_) => _ImageGalleryScreen(
+          images: List.from(_photoUrls),
+          initialIndex: initialIndex,
+          onDelete: (url) async {
+            final docRef = FirebaseFirestore.instance
+                .collection('customers')
+                .doc(widget.customerId)
+                .collection('projects')
+                .doc(widget.projectId);
+            await docRef.update({
+              'photos': FieldValue.arrayRemove([url]),
+            });
+            setState(() => _photoUrls.remove(url));
+          },
+        ),
+        fullscreenDialog: true,
+      ),
+    );
+  }
+
+  Future<void> _deletePhoto(String url) async {
+    setState(() => _uploading = true);
+    final docRef = FirebaseFirestore.instance
+        .collection('customers')
+        .doc(widget.customerId)
+        .collection('projects')
+        .doc(widget.projectId);
+    await docRef.update({
+      'photos': FieldValue.arrayRemove([url]),
+    });
+    setState(() {
+      _photoUrls.remove(url);
+      _uploading = false;
+    });
+  }
+
   Future<void> _pickLocation() async {
     final LatLng? result = await Navigator.of(context).push<LatLng>(
       MaterialPageRoute(
@@ -448,6 +487,7 @@ class _ProjectDescriptionScreenState extends State<ProjectDescriptionScreen> {
                               separatorBuilder: (_, __) =>
                                   const SizedBox(width: 8),
                               itemBuilder: (ctx, i) {
+                                // Add-photo button at end
                                 if (i == _photoUrls.length && widget.isAdmin) {
                                   return GestureDetector(
                                     onTap: _pickAndUploadPhotos,
@@ -467,14 +507,44 @@ class _ProjectDescriptionScreenState extends State<ProjectDescriptionScreen> {
                                 }
 
                                 final url = _photoUrls[i];
-                                return ClipRRect(
-                                  borderRadius: BorderRadius.circular(8),
-                                  child: Image.network(
-                                    url,
-                                    width: 100,
-                                    height: 100,
-                                    fit: BoxFit.cover,
-                                  ),
+                                return Stack(
+                                  children: [
+                                    // Thumbnail tappable to open gallery
+                                    GestureDetector(
+                                      onTap: () => _openGallery(i),
+                                      child: ClipRRect(
+                                        borderRadius: BorderRadius.circular(8),
+                                        child: Image.network(
+                                          url,
+                                          width: 100,
+                                          height: 100,
+                                          fit: BoxFit.cover,
+                                        ),
+                                      ),
+                                    ),
+
+                                    // Delete “×” for admins on thumbnail
+                                    if (widget.isAdmin)
+                                      Positioned(
+                                        top: 4,
+                                        right: 4,
+                                        child: GestureDetector(
+                                          onTap: () => _deletePhoto(url),
+                                          child: Container(
+                                            decoration: BoxDecoration(
+                                              color: Colors.black54,
+                                              shape: BoxShape.circle,
+                                            ),
+                                            padding: const EdgeInsets.all(4),
+                                            child: const Icon(
+                                              Icons.close,
+                                              size: 16,
+                                              color: Colors.white,
+                                            ),
+                                          ),
+                                        ),
+                                      ),
+                                  ],
                                 );
                               },
                             ),
@@ -519,6 +589,73 @@ class _ProjectDescriptionScreenState extends State<ProjectDescriptionScreen> {
               ],
             ),
           ),
+        ),
+      ),
+    );
+  }
+}
+
+class _ImageGalleryScreen extends StatefulWidget {
+  final List<String> images;
+  final int initialIndex;
+  final Future<void> Function(String url) onDelete;
+
+  const _ImageGalleryScreen({
+    required this.images,
+    required this.initialIndex,
+    required this.onDelete,
+  });
+
+  @override
+  __ImageGalleryScreenState createState() => __ImageGalleryScreenState();
+}
+
+class __ImageGalleryScreenState extends State<_ImageGalleryScreen> {
+  late final PageController _pageController;
+  late int _currentIndex;
+
+  @override
+  void initState() {
+    super.initState();
+    _currentIndex = widget.initialIndex;
+    _pageController = PageController(initialPage: _currentIndex);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: Colors.black,
+      appBar: AppBar(
+        backgroundColor: Colors.transparent,
+        elevation: 0,
+        leading: CloseButton(color: Colors.white),
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.delete_outline),
+            onPressed: () async {
+              final url = widget.images[_currentIndex];
+              await widget.onDelete(url);
+              widget.images.removeAt(_currentIndex);
+              if (widget.images.isEmpty) {
+                Navigator.of(context).pop();
+                return;
+              }
+              setState(() {
+                if (_currentIndex >= widget.images.length) {
+                  _currentIndex = widget.images.length - 1;
+                  _pageController.jumpToPage(_currentIndex);
+                }
+              });
+            },
+          ),
+        ],
+      ),
+      body: PageView.builder(
+        controller: _pageController,
+        itemCount: widget.images.length,
+        onPageChanged: (i) => setState(() => _currentIndex = i),
+        itemBuilder: (_, i) => InteractiveViewer(
+          child: Center(child: Image.network(widget.images[i])),
         ),
       ),
     );
