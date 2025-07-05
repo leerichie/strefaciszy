@@ -48,3 +48,7 @@ functions/npm-debug.log
 
 .history/service-account.json
 service-account.json
+.history/serviceAccountKey.json
+serviceAccountKey.json
+Acc-Key
+Acc-Key/serviceAccountKey.json
