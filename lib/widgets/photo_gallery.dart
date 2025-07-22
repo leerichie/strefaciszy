@@ -127,13 +127,13 @@ class PhotoGallery extends StatelessWidget {
                                 child: Container(
                                   padding: const EdgeInsets.all(2),
                                   decoration: BoxDecoration(
-                                    color: Colors.black45,
+                                    color: Colors.white,
                                     shape: BoxShape.circle,
                                   ),
                                   child: const Icon(
                                     Icons.close,
                                     size: 14,
-                                    color: Colors.white,
+                                    color: Colors.red,
                                   ),
                                 ),
                               ),

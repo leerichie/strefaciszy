@@ -7,53 +7,35 @@ import 'package:strefa_ciszy/screens/customer_list_screen.dart';
 import 'package:strefa_ciszy/screens/inventory_list_screen.dart';
 import 'package:strefa_ciszy/screens/main_menu_screen.dart';
 import 'package:strefa_ciszy/screens/scan_screen.dart';
+import 'package:strefa_ciszy/widgets/app_scaffold.dart';
 import 'package:strefa_ciszy/widgets/audit_log_list.dart';
+import 'package:strefa_ciszy/widgets/app_drawer.dart';
 
 class AuditLogScreen extends StatelessWidget {
   const AuditLogScreen({super.key});
 
   @override
   Widget build(BuildContext context) {
+    final title = 'GLobalna Historia: RW';
     final logsStream = FirebaseFirestore.instance
         .collection('audit_logs')
         .orderBy('timestamp', descending: true)
         .snapshots();
 
-    return Scaffold(
-      appBar: AppBar(
-        centerTitle: true,
-        title: const Text('GLobalna Historia: RW'),
-        bottom: PreferredSize(
-          preferredSize: const Size.fromHeight(56),
-          child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-            child: Row(children: [
+    return AppScaffold(
+      centreTitle: true,
+      title: title,
+      bottom: PreferredSize(
+        preferredSize: const Size.fromHeight(56),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+          child: Row(children: [
               ],
             ),
-          ),
         ),
-        actions: [
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 8.0),
-            child: CircleAvatar(
-              backgroundColor: Colors.black,
-              child: IconButton(
-                icon: const Icon(Icons.home),
-                color: Colors.white,
-                tooltip: 'Home',
-                onPressed: () {
-                  Navigator.of(context).pushAndRemoveUntil(
-                    MaterialPageRoute(
-                      builder: (_) => const MainMenuScreen(role: 'admin'),
-                    ),
-                    (route) => false,
-                  );
-                },
-              ),
-            ),
-          ),
-        ],
       ),
+      actions: [Padding(padding: const EdgeInsets.symmetric(horizontal: 8.0))],
+
       body: AuditLogList(stream: logsStream, showContextLabels: true),
       floatingActionButton: !kIsWeb
           ? FloatingActionButton(

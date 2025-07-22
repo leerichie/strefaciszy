@@ -5,6 +5,8 @@ import 'package:excel/excel.dart';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:strefa_ciszy/services/file_saver.dart';
+import 'package:strefa_ciszy/widgets/app_drawer.dart';
+import 'package:strefa_ciszy/widgets/app_scaffold.dart';
 
 class FilteredReportScreen extends StatelessWidget {
   final String reportType;
@@ -41,9 +43,12 @@ class FilteredReportScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final range = getDateRangeFromType();
+    final title = 'Wyniki raportu';
 
-    return Scaffold(
-      appBar: AppBar(title: Text('Wyniki raportu')),
+    return AppScaffold(
+      title: title,
+      centreTitle: true,
+
       body: StreamBuilder<QuerySnapshot>(
         stream: FirebaseFirestore.instance
             .collection('rw_documents')

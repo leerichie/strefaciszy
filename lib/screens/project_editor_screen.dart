@@ -3,6 +3,8 @@
 import 'dart:async';
 import 'dart:io';
 import 'dart:core';
+import 'package:auto_size_text/auto_size_text.dart';
+import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
@@ -14,6 +16,8 @@ import 'package:strefa_ciszy/screens/main_menu_screen.dart';
 import 'package:strefa_ciszy/screens/project_description_screen.dart';
 import 'package:strefa_ciszy/screens/rw_documents_screen.dart';
 import 'package:strefa_ciszy/services/stock_service.dart';
+import 'package:strefa_ciszy/widgets/app_scaffold.dart';
+import 'package:strefa_ciszy/widgets/note_dialogue.dart';
 import 'package:strefa_ciszy/widgets/project_line_dialog.dart';
 import 'package:strefa_ciszy/models/rw_document.dart';
 import 'package:strefa_ciszy/screens/scan_screen.dart';
@@ -22,6 +26,15 @@ import 'package:strefa_ciszy/widgets/audit_log_list.dart';
 import 'package:strefa_ciszy/widgets/photo_gallery.dart';
 import 'package:strefa_ciszy/widgets/notes_section.dart';
 import 'package:strefa_ciszy/services/storage_service.dart';
+import 'package:strefa_ciszy/widgets/app_drawer.dart';
+
+class NoSwipeCupertinoRoute<T> extends CupertinoPageRoute<T> {
+  NoSwipeCupertinoRoute({required WidgetBuilder builder})
+    : super(builder: builder);
+
+  @override
+  bool get popGestureEnabled => false;
+}
 
 class ProjectEditorScreen extends StatefulWidget {
   final bool isAdmin;
@@ -47,7 +60,7 @@ class _ProjectEditorScreenState extends State<ProjectEditorScreen> {
   final _formKey = GlobalKey<FormState>();
   final ImagePicker _picker = ImagePicker();
   final _storage = StorageService();
-  List<String> _imageUrls = [];
+  final List<String> _imageUrls = [];
   final List<String> _localPreviews = [];
   List<Note> _notes = [];
 
@@ -66,6 +79,10 @@ class _ProjectEditorScreenState extends State<ProjectEditorScreen> {
   List<StockItem> _stockItems = [];
   List<ProjectLine> _lines = [];
   late final bool _rwLocked;
+
+  late final StreamSubscription<DocumentSnapshot<Map<String, dynamic>>>
+  _notesSub;
+  Timer? _midnightRolloverTimer;
 
   @override
   void initState() {
@@ -109,19 +126,31 @@ class _ProjectEditorScreenState extends State<ProjectEditorScreen> {
         .collection('projects')
         .doc(widget.projectId);
 
-    projRef.snapshots().listen((snap) {
+    _notesSub = projRef.snapshots().listen((snap) {
+      if (!mounted) return;
       if (!snap.exists) return;
       final raw = snap.data()!['notesList'] as List<dynamic>? ?? [];
-      final notes = raw.map((m) {
-        final mp = m as Map<String, dynamic>;
+      final now = DateTime.now();
+      final startOfDay = DateTime(now.year, now.month, now.day);
+      final endOfDay = startOfDay.add(Duration(days: 1));
+
+      final todaysRaw = raw
+          .where((m) {
+            final ts = (m['createdAt'] as Timestamp).toDate();
+            return !ts.isBefore(startOfDay) && ts.isBefore(endOfDay);
+          })
+          .cast<Map<String, dynamic>>()
+          .toList();
+
+      final todayNotes = todaysRaw.map((m) {
         return Note(
-          text: mp['text'] as String,
-          userName: mp['userName'] as String,
-          createdAt: (mp['createdAt'] as Timestamp).toDate(),
+          text: m['text'] as String,
+          userName: m['userName'] as String,
+          createdAt: (m['createdAt'] as Timestamp).toDate(),
         );
       }).toList()..sort((a, b) => b.createdAt.compareTo(a.createdAt));
 
-      setState(() => _notes = notes);
+      setState(() => _notes = todayNotes);
     });
 
     _loadAll();
@@ -133,6 +162,8 @@ class _ProjectEditorScreenState extends State<ProjectEditorScreen> {
   @override
   void dispose() {
     _stockSub.cancel();
+    _notesSub.cancel();
+    _midnightRolloverTimer?.cancel();
     super.dispose();
   }
 
@@ -145,8 +176,25 @@ class _ProjectEditorScreenState extends State<ProjectEditorScreen> {
     ).add(Duration(days: 1));
     final untilMidnight = tomorrow.difference(now);
 
-    Timer(untilMidnight, () async {
+    _midnightRolloverTimer = Timer(untilMidnight, () async {
       if (!mounted) return;
+
+      await _saveRWDocument('RW');
+      final rwRef = await _todayRwRef();
+      if (rwRef != null) {
+        await rwRef.update({
+          'notesList': _notes
+              .map(
+                (n) => {
+                  'text': n.text,
+                  'userName': n.userName,
+                  'createdAt': Timestamp.fromDate(n.createdAt),
+                },
+              )
+              .toList(),
+        });
+      }
+      await Future.delayed(Duration(seconds: 1));
 
       await _loadAll();
 
@@ -157,7 +205,44 @@ class _ProjectEditorScreenState extends State<ProjectEditorScreen> {
     });
   }
 
-  /// Returns the DocumentReference for today’s RW (if one exists), or null.
+  Future<void> _editProjectName() async {
+    var newTitle = _title;
+    final projRef = FirebaseFirestore.instance
+        .collection('customers')
+        .doc(widget.customerId)
+        .collection('projects')
+        .doc(widget.projectId);
+
+    await showDialog<void>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Zmień nazwa projektu'),
+        content: TextField(
+          autofocus: true,
+          controller: TextEditingController(text: newTitle),
+          decoration: const InputDecoration(hintText: 'Nowa nazwa'),
+          onChanged: (v) => newTitle = v.trim(),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('Anuluj'),
+          ),
+          ElevatedButton(
+            onPressed: () {
+              if (newTitle.isNotEmpty && newTitle != _title) {
+                projRef.update({'title': newTitle});
+                setState(() => _title = newTitle);
+              }
+              Navigator.pop(ctx);
+            },
+            child: const Text('Zapisz'),
+          ),
+        ],
+      ),
+    );
+  }
+
   Future<DocumentReference<Map<String, dynamic>>?> _todayRwRef() async {
     final projRef = FirebaseFirestore.instance
         .collection('customers')
@@ -185,15 +270,6 @@ class _ProjectEditorScreenState extends State<ProjectEditorScreen> {
         .collection('projects')
         .doc(widget.projectId);
 
-    // if (widget.rwId != null) {
-    //   final rwSnap = await projRef
-    //       .collection('rw_documents')
-    //       .doc(widget.rwId)
-    //       .get();
-    //   if (rwSnap.exists) {
-    //     final data = rwSnap.data()!;
-    //     final rawItems = (data['items'] as List<dynamic>?) ?? [];
-
     final now = DateTime.now();
     final startOfDay = DateTime(now.year, now.month, now.day);
     final startOfTomorrow = startOfDay.add(Duration(days: 1));
@@ -210,16 +286,16 @@ class _ProjectEditorScreenState extends State<ProjectEditorScreen> {
     if (todaySnap.docs.isNotEmpty) {
       final data = todaySnap.docs.first.data();
       final rawItems = (data['items'] as List<dynamic>?) ?? [];
-      final rawNotes = (data['notesList'] as List<dynamic>?) ?? [];
+      // final rawNotes = (data['notesList'] as List<dynamic>?) ?? [];
 
-      _notes = rawNotes.map((n) {
-        final m = n as Map<String, dynamic>;
-        return Note(
-          text: m['text'] as String,
-          userName: m['userName'] as String,
-          createdAt: (m['createdAt'] as Timestamp).toDate(),
-        );
-      }).toList();
+      // _notes = rawNotes.map((n) {
+      //   final m = n as Map<String, dynamic>;
+      //   return Note(
+      //     text: m['text'] as String,
+      //     userName: m['userName'] as String,
+      //     createdAt: (m['createdAt'] as Timestamp).toDate(),
+      //   );
+      // }).toList();
 
       _lines = rawItems.map((e) {
         final m = e as Map<String, dynamic>;
@@ -253,12 +329,14 @@ class _ProjectEditorScreenState extends State<ProjectEditorScreen> {
       return;
     }
 
+    // setState(() {
+    //   _notes = [];
+    // });
+
     final snap = await projRef.get();
     final data = snap.data()!;
     final lastRwRaw = data['lastRwDate'];
     DateTime? lastRwDate = lastRwRaw is Timestamp ? lastRwRaw.toDate() : null;
-    // final now = DateTime.now();
-    // final startOfDay = DateTime(now.year, now.month, now.day);
 
     if (lastRwDate == null || lastRwDate.isBefore(startOfDay)) {
       await projRef.update({
@@ -424,7 +502,7 @@ class _ProjectEditorScreenState extends State<ProjectEditorScreen> {
       );
     }
 
-    // === DELETE-ALL
+    // DELETE-ALL
     if (filteredLines.isEmpty && docSnap.exists) {
       for (final ln in fullLines.where((l) => l.previousQty > 0)) {
         try {
@@ -489,13 +567,13 @@ class _ProjectEditorScreenState extends State<ProjectEditorScreen> {
       return;
     }
 
-    // === CREATE/UPDATE branch ===
+    //  CREATE/UPDATE
     try {
       final batch = FirebaseFirestore.instance.batch();
 
       for (var ln in filteredLines) {
         final prev = ln.previousQty ?? 0;
-        final diff = ln.requestedQty + prev;
+        final diff = ln.requestedQty - prev;
         if (diff != 0) {
           final stockRef = FirebaseFirestore.instance
               .collection('stock_items')
@@ -669,123 +747,53 @@ class _ProjectEditorScreenState extends State<ProjectEditorScreen> {
         .collection('projects')
         .doc(widget.projectId);
 
-    return Scaffold(
-      appBar: AppBar(
-        // automaticallyImplyLeading: false,
-        centerTitle: true,
-        title: RichText(
-          text: TextSpan(
-            children: [
-              TextSpan(
-                text: '$_customerName: ',
-                style: TextStyle(
-                  color: Colors.blueGrey,
-                  fontSize: 18,
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
-              TextSpan(
-                text: _title,
-                style: TextStyle(
-                  color: Colors.red.shade400,
-                  fontSize: 18,
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
-            ],
+    final titleGest = GestureDetector(
+      onTap: widget.isAdmin ? _editProjectName : null,
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          AutoSizeText(
+            _customerName,
+            style: TextStyle(color: Colors.black),
+            maxLines: 1,
+            minFontSize: 8,
           ),
-        ),
-
-        actions: [
-          // IconButton(
-          //   icon: const Icon(Icons.description_outlined),
-          //   tooltip: 'Opis projektu',
-          //   onPressed: () {
-          //     Navigator.of(context).push(
-          //       MaterialPageRoute(
-          //         builder: (_) => ProjectDescriptionScreen(
-          //           customerId: widget.customerId,
-          //           projectId: widget.projectId,
-          //           isAdmin: widget.isAdmin,
-          //         ),
-          //       ),
-          //     );
-          //   },
-          // ),
-          // IconButton(
-          //   icon: const Icon(Icons.list_alt_rounded),
-          //   tooltip: 'Dokumenty RW',
-          //   onPressed: () async {
-          //     await Navigator.of(context).push(
-          //       MaterialPageRoute(
-          //         builder: (_) => RWDocumentsScreen(
-          //           customerId: widget.customerId,
-          //           projectId: widget.projectId,
-          //           isAdmin: widget.isAdmin,
-          //         ),
-          //       ),
-          //     );
-          //     if (!mounted) return;
-          //     await _loadAll();
-          //     await _checkTodayExists('RW');
-          //     setState(() {});
-          //   },
-          // ),
-
-          // if (widget.isAdmin)
-          //   IconButton(
-          //     icon: const Icon(Icons.delete, color: Colors.red),
-          //     tooltip: 'Usuń projekt',
-          //     onPressed: () async {
-          //       final confirm = await showDialog<bool>(
-          //         context: context,
-          //         builder: (ctx) => AlertDialog(
-          //           title: const Text('Usuń projekt?'),
-          //           content: const Text('Potwierdź usunięcie projektu.'),
-          //           actions: [
-          //             TextButton(
-          //               onPressed: () => Navigator.pop(ctx, false),
-          //               child: const Text('Anuluj'),
-          //             ),
-          //             ElevatedButton(
-          //               onPressed: () => Navigator.pop(ctx, true),
-          //               child: const Text('Usuń'),
-          //             ),
-          //           ],
-          //         ),
-          //       );
-          //       if (confirm == true) {
-          //         await FirebaseFirestore.instance
-          //             .collection('customers')
-          //             .doc(widget.customerId)
-          //             .collection('projects')
-          //             .doc(widget.projectId)
-          //             .delete();
-          //         Navigator.pop(context);
-          //       }
-          //     },
-          //   ),
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 8.0),
-            child: CircleAvatar(
-              backgroundColor: Colors.black,
-              child: IconButton(
-                icon: const Icon(Icons.home),
-                color: Colors.white,
-                tooltip: 'Home',
-                onPressed: () {
-                  Navigator.of(context).pushAndRemoveUntil(
-                    MaterialPageRoute(
-                      builder: (_) => const MainMenuScreen(role: 'admin'),
-                    ),
-                    (route) => false,
-                  );
-                },
-              ),
-            ),
+          AutoSizeText(
+            _title,
+            style: TextStyle(color: Colors.red.shade900),
+            maxLines: 1,
+            minFontSize: 8,
           ),
         ],
       ),
+    );
+
+    return AppScaffold(
+      centreTitle: true,
+      title: '',
+      titleWidget: titleGest,
+
+      actions: [
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 8.0),
+          // child: CircleAvatar(
+          //   backgroundColor: Colors.black,
+          //   child: IconButton(
+          //     icon: const Icon(Icons.home),
+          //     color: Colors.white,
+          //     tooltip: 'Home',
+          //     onPressed: () {
+          //       Navigator.of(context).pushAndRemoveUntil(
+          //         MaterialPageRoute(
+          //           builder: (_) => const MainMenuScreen(role: 'admin'),
+          //         ),
+          //         (route) => false,
+          //       );
+          //     },
+          //   ),
+          // ),
+        ),
+      ],
 
       body: Stack(
         children: [
@@ -807,60 +815,13 @@ class _ProjectEditorScreenState extends State<ProjectEditorScreen> {
                       ),
                     ),
 
-                  TextFormField(
-                    initialValue: _title,
-                    decoration: InputDecoration(labelText: 'Nazwa Projektu:'),
-                    onChanged: (v) => _title = v,
-                    validator: (v) =>
-                        v?.trim().isEmpty == true ? 'Required' : null,
-                  ),
-                  SizedBox(height: 8),
+                  Divider(),
 
                   // --- NOTES
                   NotesSection(
                     notes: _notes,
 
                     onAddNote: (ctx) async {
-                      String draft = '';
-                      final result = await showDialog<String>(
-                        context: ctx,
-                        builder: (dCtx) => Center(
-                          child: ConstrainedBox(
-                            constraints: BoxConstraints(
-                              maxWidth: MediaQuery.of(context).size.width * 0.9,
-                              maxHeight:
-                                  MediaQuery.of(context).size.height * 0.8,
-                            ),
-                            child: AlertDialog(
-                              scrollable: true,
-                              title: const Text('Wpisz'),
-                              content: TextField(
-                                autofocus: true,
-                                maxLines: 10,
-                                keyboardType: TextInputType.multiline,
-                                onChanged: (v) => draft = v,
-                                decoration: const InputDecoration(
-                                  hintText: 'Treść',
-                                  border: OutlineInputBorder(),
-                                ),
-                              ),
-                              actions: [
-                                TextButton(
-                                  onPressed: () => Navigator.pop(dCtx),
-                                  child: const Text('Anuluj'),
-                                ),
-                                ElevatedButton(
-                                  onPressed: () => Navigator.pop(dCtx, draft),
-                                  child: const Text('Zapisz'),
-                                ),
-                              ],
-                            ),
-                          ),
-                        ),
-                      );
-                      if (result == null || result.trim().isEmpty) return null;
-
-                      // … your existing save‐note logic …
                       final authUser = FirebaseAuth.instance.currentUser!;
                       String userName = authUser.displayName ?? '';
                       if (userName.isEmpty) {
@@ -872,11 +833,18 @@ class _ProjectEditorScreenState extends State<ProjectEditorScreen> {
                             userDoc.data()?['name'] as String? ??
                             authUser.email!;
                       }
+                      final result = await showNoteDialog(
+                        ctx,
+                        userName: userName,
+                      );
+                      if (result == null) return null;
+
                       final noteMap = {
                         'text': result.trim(),
                         'userName': userName,
                         'createdAt': Timestamp.now(),
                       };
+
                       await projRef.update({
                         'notesList': FieldValue.arrayUnion([noteMap]),
                       });
@@ -889,19 +857,38 @@ class _ProjectEditorScreenState extends State<ProjectEditorScreen> {
                       return null;
                     },
 
-                    onEdit: (i, newText) async {
+                    onEdit: (i, _) async {
                       final old = _notes[i];
+                      final existingText = old.text;
+                      final updated = await showNoteDialog(
+                        context,
+                        userName: old.userName,
+                        createdAt: old.createdAt,
+                        initial: existingText,
+                      );
+                      if (updated == null || updated.trim() == existingText)
+                        return null;
+
                       final oldMap = {
                         'text': old.text,
                         'userName': old.userName,
                         'createdAt': Timestamp.fromDate(old.createdAt),
                       };
-                      final user = FirebaseAuth.instance.currentUser!;
-                      final editName =
-                          user.displayName ?? user.email ?? user.uid;
+
+                      final authUser = FirebaseAuth.instance.currentUser!;
+                      String userName = authUser.displayName ?? '';
+                      if (userName.isEmpty) {
+                        final userDoc = await FirebaseFirestore.instance
+                            .collection('users')
+                            .doc(authUser.uid)
+                            .get();
+                        userName =
+                            userDoc.data()?['name'] as String? ??
+                            authUser.email!;
+                      }
                       final newMap = {
-                        'text': newText,
-                        'userName': editName,
+                        'text': updated.trim(),
+                        'userName': userName,
                         'createdAt': Timestamp.now(),
                       };
 
@@ -912,7 +899,6 @@ class _ProjectEditorScreenState extends State<ProjectEditorScreen> {
                         'notesList': FieldValue.arrayUnion([newMap]),
                       });
 
-                      // — today’s RW
                       final rwRef2 = await _todayRwRef();
                       if (rwRef2 != null) {
                         await rwRef2.update({
@@ -922,6 +908,7 @@ class _ProjectEditorScreenState extends State<ProjectEditorScreen> {
                           'notesList': FieldValue.arrayUnion([newMap]),
                         });
                       }
+                      return null;
                     },
 
                     onDelete: (i) async {
@@ -941,6 +928,7 @@ class _ProjectEditorScreenState extends State<ProjectEditorScreen> {
                           'notesList': FieldValue.arrayRemove([map]),
                         });
                       }
+                      return null;
                     },
                   ),
                   Divider(),
@@ -979,11 +967,22 @@ class _ProjectEditorScreenState extends State<ProjectEditorScreen> {
                         itemBuilder: (ctx, i) {
                           final today = DateTime.now();
                           final ln = _lines[i];
+                          final stock = ln.isStock
+                              ? _stockItems.firstWhere(
+                                  (s) => s.id == ln.itemRef,
+                                )
+                              : null;
+
+                          final producent = ln.isStock
+                              ? (stock?.producent ?? '')
+                              : '';
                           final name = ln.isStock
-                              ? _stockItems
-                                    .firstWhere((s) => s.id == ln.itemRef)
-                                    .name
+                              ? stock?.name ?? ''
                               : ln.customName;
+                          final description = ln.isStock
+                              ? (stock?.description ?? '')
+                              : '';
+
                           final stockQty = ln.isStock
                               ? _stockItems
                                     .firstWhere((s) => s.id == ln.itemRef)
@@ -1030,7 +1029,33 @@ class _ProjectEditorScreenState extends State<ProjectEditorScreen> {
                                     horizontal: 0,
                                     vertical: 0,
                                   ),
-                                  title: Text(name),
+                                  title: Column(
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
+                                    children: [
+                                      if (producent.isNotEmpty)
+                                        Text(
+                                          producent,
+                                          style: TextStyle(
+                                            fontWeight: FontWeight.bold,
+                                            fontSize: 14,
+                                          ),
+                                        ),
+                                      Text(
+                                        name,
+                                        style: TextStyle(fontSize: 14),
+                                      ),
+                                      if (description.isNotEmpty)
+                                        Text(
+                                          description,
+                                          style: TextStyle(
+                                            fontSize: 13,
+                                            color: Colors.grey[700],
+                                            fontStyle: FontStyle.italic,
+                                          ),
+                                        ),
+                                    ],
+                                  ),
                                   subtitle: Text.rich(
                                     TextSpan(
                                       style: Theme.of(
@@ -1139,7 +1164,7 @@ class _ProjectEditorScreenState extends State<ProjectEditorScreen> {
                                                           'Usuń produkt?',
                                                         ),
                                                         content: Text(
-                                                          'Na pewno usunąc produkt z RW?',
+                                                          '${ln.requestedQty}x $name',
                                                         ),
                                                         actions: [
                                                           TextButton(
@@ -1299,7 +1324,7 @@ class _ProjectEditorScreenState extends State<ProjectEditorScreen> {
                                                 builder: (ctx) => AlertDialog(
                                                   title: Text('Usuń produkt?'),
                                                   content: Text(
-                                                    'Na pewno usunąć produkt z RW?',
+                                                    '${ln.requestedQty}x $name',
                                                   ),
                                                   actions: [
                                                     TextButton(
@@ -1353,25 +1378,6 @@ class _ProjectEditorScreenState extends State<ProjectEditorScreen> {
               ),
             ),
           ),
-
-          // OLD - save rw button
-
-          // if (!_rwLocked)
-          //   Positioned(
-          //     right: 16,
-          //     bottom: kBottomNavigationBarHeight + 16,
-          //     child: ElevatedButton(
-          //       style: ElevatedButton.styleFrom(
-          //         shape: StadiumBorder(),
-          //         elevation: 4,
-          //       ),
-          //       onPressed:
-          //           (_rwExistsToday || _lines.any((l) => l.requestedQty > 0))
-          //           ? () => _saveRWDocument('RW')
-          //           : null,
-          //       child: Text(_rwExistsToday ? 'Update RW' : 'Zapisz RW'),
-          //     ),
-          //   ),
         ],
       ),
 
@@ -1380,9 +1386,14 @@ class _ProjectEditorScreenState extends State<ProjectEditorScreen> {
           : FloatingActionButton(
               tooltip: 'Dodaj produkt',
               onPressed: () async {
+                final existingLines = {
+                  for (var ln in _lines)
+                    if (ln.isStock) ln.itemRef: ln.requestedQty,
+                };
                 final newLine = await showProjectLineDialog(
                   context,
                   _stockItems,
+                  existingLines: existingLines,
                 );
                 if (newLine == null) return;
 
@@ -1406,16 +1417,18 @@ class _ProjectEditorScreenState extends State<ProjectEditorScreen> {
                       );
 
                 if (existingIndex != -1) {
-                  final updated = await showProjectLineDialog(
-                    context,
-                    _stockItems,
-                    existing: _lines[existingIndex],
-                  );
-                  if (updated != null) {
-                    setState(() => _lines[existingIndex] = updated);
-                  } else {
-                    return;
-                  }
+                  //   final old = _lines[existingIndex];
+                  //   final added = lineWithUnit.requestedQty;
+                  //   final merged = old.copyWith(
+                  //     requestedQty: old.requestedQty + added,
+                  //   );
+
+                  //   setState(() => _lines[existingIndex] = merged);
+                  // } else {
+                  //   setState(() => _lines.add(lineWithUnit));
+                  // }
+
+                  setState(() => _lines[existingIndex] = lineWithUnit);
                 } else {
                   setState(() => _lines.add(lineWithUnit));
                 }
@@ -1446,7 +1459,7 @@ class _ProjectEditorScreenState extends State<ProjectEditorScreen> {
                 tooltip: 'Opis projektu',
                 onPressed: () {
                   Navigator.of(context).push(
-                    MaterialPageRoute(
+                    NoSwipeCupertinoRoute(
                       builder: (_) => ProjectDescriptionScreen(
                         customerId: widget.customerId,
                         projectId: widget.projectId,

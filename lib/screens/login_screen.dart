@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:strefa_ciszy/widgets/app_shell.dart';
 
 class LoginScreen extends StatefulWidget {
   static const String routeName = '/login';
@@ -13,7 +14,7 @@ class _LoginScreenState extends State<LoginScreen> {
   final _emailCtrl = TextEditingController();
   final _passCtrl = TextEditingController();
   String? _error;
-  bool _isLoading = false;
+  final bool _isLoading = false;
 
   @override
   void dispose() {
@@ -25,9 +26,15 @@ class _LoginScreenState extends State<LoginScreen> {
   Future<void> _signIn() async {
     setState(() => _error = null);
     try {
-      await FirebaseAuth.instance.signInWithEmailAndPassword(
+      final cred = await FirebaseAuth.instance.signInWithEmailAndPassword(
         email: _emailCtrl.text.trim(),
         password: _passCtrl.text.trim(),
+      );
+
+      await cred.user!.getIdToken(true);
+
+      Navigator.of(context).pushReplacement(
+        MaterialPageRoute(builder: (_) => MainMenuScreen(role: 'admin')),
       );
     } on FirebaseAuthException catch (e) {
       setState(() => _error = e.message);

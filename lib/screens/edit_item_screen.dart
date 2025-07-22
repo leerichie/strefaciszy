@@ -9,6 +9,8 @@ import 'package:firebase_storage/firebase_storage.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:strefa_ciszy/screens/main_menu_screen.dart';
+import 'package:strefa_ciszy/widgets/app_drawer.dart';
+import 'package:strefa_ciszy/widgets/app_scaffold.dart';
 
 class EditItemScreen extends StatefulWidget {
   final String docId;
@@ -17,10 +19,10 @@ class EditItemScreen extends StatefulWidget {
 
   const EditItemScreen(
     this.docId, {
-    Key? key,
+    super.key,
     required this.data,
     this.isAdmin = false,
-  }) : super(key: key);
+  });
 
   @override
   _EditItemScreenState createState() => _EditItemScreenState();
@@ -194,34 +196,14 @@ class _EditItemScreenState extends State<EditItemScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final canEdit = widget.isAdmin; // ← non-admins cannot edit
+    final canEdit = widget.isAdmin;
+    final title = 'Edytuj produkt';
 
-    return Scaffold(
-      appBar: AppBar(
-        centerTitle: true,
-        title: const Text('Edytuj produkt'),
-        actions: [
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 8),
-            child: CircleAvatar(
-              backgroundColor: Colors.black,
-              child: IconButton(
-                icon: const Icon(Icons.home),
-                color: Colors.white,
-                tooltip: 'Home',
-                onPressed: () {
-                  Navigator.of(context).pushAndRemoveUntil(
-                    MaterialPageRoute(
-                      builder: (_) => const MainMenuScreen(role: 'admin'),
-                    ),
-                    (_) => false,
-                  );
-                },
-              ),
-            ),
-          ),
-        ],
-      ),
+    return AppScaffold(
+      centreTitle: true,
+      title: title,
+      actions: [Padding(padding: const EdgeInsets.symmetric(horizontal: 8))],
+
       body: Padding(
         padding: const EdgeInsets.all(16),
         child: _saving
@@ -240,7 +222,7 @@ class _EditItemScreenState extends State<EditItemScreen> {
                     ),
                     TextFormField(
                       controller: _nameCtrl,
-                      decoration: const InputDecoration(labelText: 'Nazwa'),
+                      decoration: const InputDecoration(labelText: 'Model'),
                       enabled: canEdit,
                       validator: (v) => v!.trim().isEmpty ? 'Required' : null,
                     ),

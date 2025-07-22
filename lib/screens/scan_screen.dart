@@ -3,7 +3,8 @@
 import 'package:flutter/material.dart';
 import 'package:mobile_scanner/mobile_scanner.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
-
+import 'package:strefa_ciszy/widgets/app_drawer.dart';
+import 'package:strefa_ciszy/widgets/app_scaffold.dart';
 import 'add_item_screen.dart';
 import 'item_detail_screen.dart';
 
@@ -91,8 +92,11 @@ class _ScanScreenState extends State<ScanScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(title: const Text('Szukaj towar')),
+    final title = 'Szukaj towar';
+
+    return AppScaffold(
+      title: title,
+
       body: SafeArea(
         child: Column(
           children: [

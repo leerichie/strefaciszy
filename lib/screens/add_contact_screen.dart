@@ -6,12 +6,19 @@ import 'package:firebase_storage/firebase_storage.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:strefa_ciszy/screens/customer_list_screen.dart';
 import 'package:strefa_ciszy/screens/scan_screen.dart';
+import 'package:strefa_ciszy/widgets/app_drawer.dart';
+import 'package:strefa_ciszy/widgets/app_scaffold.dart';
 
 class AddContactScreen extends StatefulWidget {
   final bool isAdmin;
   final String? contactId;
-  const AddContactScreen({Key? key, this.isAdmin = false, this.contactId})
-    : super(key: key);
+  final String? linkedCustomerId;
+  const AddContactScreen({
+    super.key,
+    this.isAdmin = false,
+    this.contactId,
+    this.linkedCustomerId,
+  });
 
   @override
   State<AddContactScreen> createState() => _AddContactScreenState();
@@ -42,8 +49,14 @@ class _AddContactScreenState extends State<AddContactScreen> {
   void initState() {
     super.initState();
     _loadCategories();
+
+    _selectedCustomerId = widget.linkedCustomerId;
+
     if (widget.contactId != null) {
       _loadContact();
+    }
+    if (widget.linkedCustomerId != null) {
+      _selectedCustomerId = widget.linkedCustomerId;
     }
     _loadCustomerSuggestions();
   }
@@ -76,7 +89,7 @@ class _AddContactScreenState extends State<AddContactScreen> {
     setState(() {
       _customerDocs = filtered;
       _customerNames = filtered
-          .map((d) => (d.data()! as Map<String, dynamic>)['name'] as String)
+          .map((d) => (d.data())['name'] as String)
           .toList();
     });
   }
@@ -207,8 +220,14 @@ class _AddContactScreenState extends State<AddContactScreen> {
       'note': _noteCtrl.text.trim(),
       'contactType': _category,
       'updatedAt': FieldValue.serverTimestamp(),
-      if (_selectedCustomerId != null) 'linkedCustomerId': _selectedCustomerId,
+      // if (_selectedCustomerId != null) 'linkedCustomerId': _selectedCustomerId,
+      // if (widget.linkedCustomerId != null)
+      //   'linkedCustomerId': widget.linkedCustomerId,
     };
+    final cid = widget.linkedCustomerId ?? _selectedCustomerId;
+    if (cid != null) {
+      data['linkedCustomerId'] = cid;
+    }
     try {
       if (widget.contactId == null) {
         data['createdAt'] = FieldValue.serverTimestamp();
@@ -218,8 +237,9 @@ class _AddContactScreenState extends State<AddContactScreen> {
       } else {
         await col.doc(widget.contactId!).update(data);
         final url = await _uploadPhoto(widget.contactId!);
-        if (url != null)
+        if (url != null) {
           await col.doc(widget.contactId!).update({'photoUrl': url});
+        }
       }
       Navigator.pop(context);
     } catch (e) {
@@ -243,28 +263,26 @@ class _AddContactScreenState extends State<AddContactScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(
-        leading: const BackButton(),
-        title: Text(
-          widget.contactId == null ? 'Dodaj Kontakt' : 'Edytuj Kontakt',
+    final title = widget.contactId == null ? 'Dodaj Kontakt' : 'Edytuj Kontakt';
+
+    return AppScaffold(
+      title: title,
+      centreTitle: true,
+      actions: [
+        IconButton(
+          icon: const Icon(Icons.home),
+          tooltip: 'Home',
+          onPressed: () {
+            Navigator.of(context).pushAndRemoveUntil(
+              MaterialPageRoute(
+                builder: (_) => const CustomerListScreen(isAdmin: true),
+              ),
+              (route) => false,
+            );
+          },
         ),
-        centerTitle: true,
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.home),
-            tooltip: 'Home',
-            onPressed: () {
-              Navigator.of(context).pushAndRemoveUntil(
-                MaterialPageRoute(
-                  builder: (_) => const CustomerListScreen(isAdmin: true),
-                ),
-                (route) => false,
-              );
-            },
-          ),
-        ],
-      ),
+      ],
+
       body: _loading
           ? const Center(child: CircularProgressIndicator())
           : SingleChildScrollView(

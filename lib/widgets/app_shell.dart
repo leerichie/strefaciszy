@@ -7,6 +7,7 @@ import 'package:strefa_ciszy/screens/customer_list_screen.dart';
 import 'package:strefa_ciszy/screens/inventory_list_screen.dart';
 import 'package:strefa_ciszy/screens/manage_users_screen.dart';
 import 'package:strefa_ciszy/screens/scan_screen.dart';
+import 'package:strefa_ciszy/widgets/app_drawer.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import 'package:strefa_ciszy/screens/audit_log_screen.dart';
@@ -33,6 +34,7 @@ class MainMenuScreen extends StatelessWidget {
     final isAdmin = role == 'admin';
 
     return Scaffold(
+      drawer: const AppDrawer(),
       appBar: AppBar(
         title: const Text('Panel'),
         automaticallyImplyLeading: false,

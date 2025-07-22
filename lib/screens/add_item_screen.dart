@@ -7,7 +7,9 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:strefa_ciszy/screens/main_menu_screen.dart';
+import 'package:strefa_ciszy/widgets/app_scaffold.dart';
 import '../services/storage_service.dart';
+import 'package:strefa_ciszy/widgets/app_drawer.dart';
 
 class AddItemScreen extends StatefulWidget {
   final String? initialBarcode;
@@ -150,41 +152,21 @@ class _AddItemScreenState extends State<AddItemScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(
-        centerTitle: true,
-        title: const Text('Dodaj'),
-        bottom: PreferredSize(
-          preferredSize: const Size.fromHeight(56),
-          child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-            child: Row(children: [
+    final title = 'Dodaj';
+    return AppScaffold(
+      centreTitle: true,
+      title: title,
+      bottom: PreferredSize(
+        preferredSize: const Size.fromHeight(56),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+          child: Row(children: [
               ],
             ),
-          ),
         ),
-        actions: [
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 8.0),
-            child: CircleAvatar(
-              backgroundColor: Colors.black,
-              child: IconButton(
-                icon: const Icon(Icons.home),
-                color: Colors.white,
-                tooltip: 'Home',
-                onPressed: () {
-                  Navigator.of(context).pushAndRemoveUntil(
-                    MaterialPageRoute(
-                      builder: (_) => const MainMenuScreen(role: 'admin'),
-                    ),
-                    (route) => false,
-                  );
-                },
-              ),
-            ),
-          ),
-        ],
       ),
+      actions: [Padding(padding: const EdgeInsets.symmetric(horizontal: 8.0))],
+
       body: Padding(
         padding: const EdgeInsets.all(16),
         child: _saving
@@ -205,7 +187,7 @@ class _AddItemScreenState extends State<AddItemScreen> {
                     const SizedBox(height: 12),
                     TextFormField(
                       controller: _nameCtrl,
-                      decoration: const InputDecoration(labelText: 'Nazwa'),
+                      decoration: const InputDecoration(labelText: 'Model'),
                       validator: (v) => v!.isEmpty ? 'Required' : null,
                       textInputAction: TextInputAction.next,
                       onFieldSubmitted: (_) =>

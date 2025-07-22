@@ -31,12 +31,10 @@ class StorageService {
 
     final url = await uploadStockFile(docId, xfile, overwrite: overwrite);
 
-    if (url != null) {
-      await FirebaseFirestore.instance
-          .collection('stock_items')
-          .doc(docId)
-          .update({'imageUrl': url});
-    }
+    await FirebaseFirestore.instance
+        .collection('stock_items')
+        .doc(docId)
+        .update({'imageUrl': url});
 
     return url;
   }

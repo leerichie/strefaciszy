@@ -7,10 +7,13 @@ import 'package:strefa_ciszy/screens/contact_detail_screen.dart';
 import 'package:strefa_ciszy/screens/customer_list_screen.dart';
 import 'package:strefa_ciszy/screens/main_menu_screen.dart';
 import 'package:strefa_ciszy/screens/scan_screen.dart';
+import 'package:strefa_ciszy/widgets/app_drawer.dart';
+import 'package:strefa_ciszy/widgets/app_scaffold.dart';
 
 class ContactsListScreen extends StatefulWidget {
   final bool isAdmin;
-  const ContactsListScreen({Key? key, this.isAdmin = false}) : super(key: key);
+  final String? customerId;
+  const ContactsListScreen({super.key, this.isAdmin = false, this.customerId});
 
   @override
   State<ContactsListScreen> createState() => _ContactsListScreenState();
@@ -64,7 +67,10 @@ class _ContactsListScreenState extends State<ContactsListScreen> {
   void _addContact() {
     Navigator.of(context).push(
       MaterialPageRoute(
-        builder: (_) => AddContactScreen(isAdmin: widget.isAdmin),
+        builder: (_) => AddContactScreen(
+          isAdmin: widget.isAdmin,
+          linkedCustomerId: widget.customerId,
+        ),
       ),
     );
   }
@@ -86,66 +92,119 @@ class _ContactsListScreenState extends State<ContactsListScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(
-        leading: BackButton(),
-        title: const Text('Kontakty'),
-        centerTitle: true,
-        actions: [
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 8.0),
-            child: DecoratedBox(
-              decoration: BoxDecoration(
-                color: Colors.black,
-                shape: BoxShape.circle,
-              ),
-              child: IconButton(
-                icon: const Icon(Icons.home),
-                tooltip: 'Home',
-                onPressed: () {
-                  Navigator.of(context).pushAndRemoveUntil(
-                    MaterialPageRoute(
-                      builder: (_) => const MainMenuScreen(role: 'admin'),
-                    ),
-                    (route) => false,
-                  );
-                },
-                color: Colors.white,
-              ),
+    final Widget dynamicTitleWidget = widget.customerId == null
+        ? const Text('Kontakty', style: TextStyle(fontSize: 16))
+        : FutureBuilder<DocumentSnapshot<Map<String, dynamic>>>(
+            future: FirebaseFirestore.instance
+                .collection('customers')
+                .doc(widget.customerId!)
+                .get(),
+            builder: (ctx, snap) {
+              if (snap.connectionState != ConnectionState.done ||
+                  !snap.hasData ||
+                  snap.data!.data() == null) {
+                return const Text('Kontakty');
+              }
+              final clientName = snap.data!.data()!['name'] as String? ?? '';
+              return Text(
+                'Kontakty: $clientName',
+                style: TextStyle(fontSize: 16),
+              );
+            },
+          );
+
+    return AppScaffold(
+      title: 'Kontakty',
+      titleWidget: dynamicTitleWidget,
+      centreTitle: true,
+
+      actions: [
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 8.0),
+          child: DecoratedBox(
+            decoration: BoxDecoration(
+              color: Colors.black,
+              shape: BoxShape.circle,
+            ),
+            child: IconButton(
+              icon: const Icon(Icons.home),
+              tooltip: 'Home',
+              onPressed: () {
+                Navigator.of(context).pushAndRemoveUntil(
+                  MaterialPageRoute(
+                    builder: (_) => const MainMenuScreen(role: 'admin'),
+                  ),
+                  (route) => false,
+                );
+              },
+              color: Colors.white,
             ),
           ),
-        ],
-        bottom: PreferredSize(
-          preferredSize: const Size.fromHeight(56),
-          child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-            child: TextField(
-              controller: _searchController,
+        ),
+      ],
+      bottom: PreferredSize(
+        preferredSize: const Size.fromHeight(56),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+          child: TextField(
+            controller: _searchController,
+            decoration: InputDecoration(
+              hintText: 'Szukaj…',
+              prefixIcon: const Icon(Icons.search),
+              border: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(8),
+              ),
+              isDense: true,
+            ),
+            onChanged: (v) => setState(() => _search = v.trim()),
+          ),
+        ),
+      ),
+
+      body: Column(
+        children: [
+          const SizedBox(height: 8),
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16),
+            child: DropdownButtonFormField<String>(
               decoration: InputDecoration(
-                hintText: 'Szukaj…',
-                prefixIcon: const Icon(Icons.search),
+                labelText: 'Typ kontaktu',
                 border: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(8),
                 ),
                 isDense: true,
               ),
-              onChanged: (v) => setState(() => _search = v.trim()),
+              value: _category == 'Wszyscy' ? null : _category,
+              items: _categories.map((cat) {
+                return DropdownMenuItem(
+                  value: cat == 'Wszyscy' ? '' : cat,
+                  child: Text(cat),
+                );
+              }).toList(),
+              onChanged: (v) => setState(() {
+                _category = (v == null || v.isEmpty) ? 'Wszyscy' : v;
+                _updateStream();
+              }),
             ),
           ),
-        ),
-      ),
-      body: Column(
-        children: [
           const SizedBox(height: 8),
-          SingleChildScrollView(
-            scrollDirection: Axis.horizontal,
-            padding: const EdgeInsets.symmetric(horizontal: 16),
-            child: Row(children: _categories.map(_buildCategoryChip).toList()),
-          ),
-          const SizedBox(height: 8),
+
           Expanded(
             child: StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
-              stream: _stream,
+              stream: (() {
+                Query<Map<String, dynamic>> ref = FirebaseFirestore.instance
+                    .collection('contacts');
+                if (_category != 'Wszyscy') {
+                  ref = ref.where('contactType', isEqualTo: _category);
+                }
+                if (widget.customerId != null) {
+                  ref = ref.where(
+                    'linkedCustomerId',
+                    isEqualTo: widget.customerId,
+                  );
+                }
+                return ref.orderBy('name').snapshots();
+              })(),
               builder: (context, snapshot) {
                 if (snapshot.connectionState == ConnectionState.waiting) {
                   return const Center(child: CircularProgressIndicator());

@@ -9,11 +9,13 @@ import 'package:strefa_ciszy/screens/item_detail_screen.dart';
 import 'package:strefa_ciszy/screens/scan_screen.dart';
 import 'package:strefa_ciszy/screens/customer_list_screen.dart';
 import 'package:strefa_ciszy/screens/main_menu_screen.dart';
+import 'package:strefa_ciszy/utils/search_utils.dart';
+import 'package:strefa_ciszy/widgets/app_drawer.dart';
+import 'package:strefa_ciszy/widgets/app_scaffold.dart';
 
 class InventoryListScreen extends StatefulWidget {
   final bool isAdmin;
-  const InventoryListScreen({Key? key, required this.isAdmin})
-    : super(key: key);
+  const InventoryListScreen({super.key, required this.isAdmin});
 
   @override
   _InventoryListScreenState createState() => _InventoryListScreenState();
@@ -89,83 +91,93 @@ class _InventoryListScreenState extends State<InventoryListScreen> {
   @override
   Widget build(BuildContext context) {
     final isAdmin = widget.isAdmin;
-
-    return Scaffold(
-      appBar: AppBar(
-        centerTitle: true,
-        title: const Text('Inwentaryzacja'),
-        bottom: PreferredSize(
-          preferredSize: const Size.fromHeight(56),
-          child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-            child: Row(
-              children: [
-                Expanded(
-                  child: TextField(
-                    controller: _searchController,
-                    decoration: InputDecoration(
-                      hintText: 'Wyszukaj…',
-                      prefixIcon: const Icon(Icons.search),
-                      border: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(8),
-                      ),
-                      isDense: true,
+    final title = 'Inwentaryzacja';
+    return AppScaffold(
+      centreTitle: true,
+      title: title,
+      bottom: PreferredSize(
+        preferredSize: const Size.fromHeight(56),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+          child: Row(
+            children: [
+              Expanded(
+                child: TextField(
+                  controller: _searchController,
+                  decoration: InputDecoration(
+                    hintText: 'Wyszukaj…',
+                    prefixIcon: const Icon(Icons.search),
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(8),
                     ),
-                    onChanged: (v) => setState(() => _search = v.trim()),
+                    isDense: true,
                   ),
+                  onChanged: (v) => setState(() => _search = v.trim()),
                 ),
-                const SizedBox(width: 8),
-                IconButton(
-                  tooltip: 'Resetuj filtr',
-                  icon: const Icon(Icons.refresh),
-                  onPressed: _resetFilters,
-                ),
-              ],
-            ),
+              ),
+              const SizedBox(width: 8),
+              IconButton(
+                tooltip: 'Resetuj filtr',
+                icon: const Icon(Icons.refresh),
+                onPressed: _resetFilters,
+              ),
+            ],
           ),
         ),
-        actions: [
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 8.0),
-            child: DecoratedBox(
-              decoration: BoxDecoration(
-                color: Colors.black,
-                shape: BoxShape.circle,
-              ),
-              child: IconButton(
-                icon: const Icon(Icons.home),
-                tooltip: 'Home',
-                onPressed: () {
-                  Navigator.of(context).pushAndRemoveUntil(
-                    MaterialPageRoute(
-                      builder: (_) => const MainMenuScreen(role: 'admin'),
-                    ),
-                    (route) => false,
-                  );
-                },
-                color: Colors.white,
-              ),
-            ),
-          ),
-        ],
       ),
+      actions: [
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 8.0),
+          // child: DecoratedBox(
+          //   decoration: BoxDecoration(
+          //     color: Colors.black,
+          //     shape: BoxShape.circle,
+          //   ),
+          //   child: IconButton(
+          //     icon: const Icon(Icons.home),
+          //     tooltip: 'Home',
+          //     onPressed: () {
+          //       Navigator.of(context).pushAndRemoveUntil(
+          //         MaterialPageRoute(
+          //           builder: (_) => const MainMenuScreen(role: 'admin'),
+          //         ),
+          //         (route) => false,
+          //       );
+          //     },
+          //     color: Colors.white,
+          //   ),
+          // ),
+        ),
+      ],
+
       body: Column(
         children: [
           const SizedBox(height: 8),
-          SingleChildScrollView(
-            scrollDirection: Axis.horizontal,
-            padding: const EdgeInsets.symmetric(horizontal: 16),
-            child: Row(
-              children: [
-                _buildCategoryChip(null, 'Wszystko'),
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 12),
+            child: DropdownButtonFormField<String>(
+              decoration: InputDecoration(
+                labelText: 'Kategoria',
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                isDense: true,
+              ),
+              value: _category.isEmpty ? null : _category,
+              items: [
+                const DropdownMenuItem(value: '', child: Text('Wszystko')),
                 ..._categories.map((cat) {
                   final label = cat[0].toUpperCase() + cat.substring(1);
-                  return _buildCategoryChip(cat, label);
+                  return DropdownMenuItem(value: cat, child: Text(label));
                 }),
               ],
+              onChanged: (v) => setState(() {
+                _category = v ?? '';
+              }),
             ),
           ),
           const SizedBox(height: 8),
+
           Expanded(
             child: StreamBuilder<QuerySnapshot<StockItem>>(
               stream: _stockQuery.snapshots(),
@@ -178,14 +190,14 @@ class _InventoryListScreenState extends State<InventoryListScreen> {
                 }
 
                 final allItems = snap.data!.docs.map((d) => d.data()).toList();
-                final queryLower = _search.toLowerCase();
-                final filtered = queryLower.isEmpty
+                final filtered = _search.isEmpty
                     ? allItems
                     : allItems.where((item) {
-                        final prod = item.producent?.toLowerCase() ?? '';
-                        final name = item.name.toLowerCase();
-                        return prod.contains(queryLower) ||
-                            name.contains(queryLower);
+                        return matchesSearch(_search, [
+                          item.name,
+                          item.producent,
+                          item.description,
+                        ]);
                       }).toList();
 
                 if (filtered.isEmpty) {
@@ -205,16 +217,33 @@ class _InventoryListScreenState extends State<InventoryListScreen> {
                           Text(
                             item.producent ?? '',
                             style: const TextStyle(
-                              fontSize: 16,
+                              fontSize: 14,
                               fontWeight: FontWeight.bold,
                             ),
                           ),
                           Text(item.name, style: const TextStyle(fontSize: 14)),
+                          Text(
+                            item.description,
+                            style: TextStyle(
+                              fontSize: 13,
+                              color: Colors.grey[700],
+                              fontStyle: FontStyle.italic,
+                            ),
+                          ),
                         ],
                       ),
+
                       subtitle: Text(
                         '• ${item.quantity}${item.unit != null ? ' ${item.unit}' : ''}',
-                        style: TextStyle(fontSize: 12, color: Colors.grey[700]),
+                        style: TextStyle(
+                          fontSize: 14,
+                          fontWeight: FontWeight.bold,
+                          color: item.quantity <= 0
+                              ? Colors.red
+                              : item.quantity <= 3
+                              ? Colors.orange
+                              : Colors.green,
+                        ),
                       ),
                       trailing: item.imageUrl != null
                           ? SizedBox(

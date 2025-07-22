@@ -3,6 +3,7 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
+import 'package:strefa_ciszy/utils/colour_utils.dart';
 
 class AuditLogList extends StatelessWidget {
   final Stream<QuerySnapshot> stream;
@@ -15,9 +16,9 @@ class AuditLogList extends StatelessWidget {
   });
 
   IconData _iconForAction(String action) {
-    if (action.startsWith('Utworzono')) return Icons.add_box_outlined;
-    if (action.startsWith('Zaktualizowano')) return Icons.edit;
-    if (action.startsWith('Usunięto')) return Icons.delete_outline;
+    if (action.startsWith('Utworzono')) return Icons.add;
+    if (action.startsWith('Zaktualizowano')) return Icons.update;
+    if (action.startsWith('Usunięto')) return Icons.delete_forever_outlined;
     return Icons.history_edu;
   }
 
@@ -49,21 +50,15 @@ class AuditLogList extends StatelessWidget {
   }
 
   Widget _buildHistoryRow(BuildContext c, Map<String, dynamic> log) {
-    // 1) pull out userName (or fallback to userId)
     final userName =
-        (log['userName'] as String?)
-        // if for some reason that’s missing, try userId
-        ??
-        (log['userId'] as String? ?? '…');
+        (log['userName'] as String?) ?? (log['userId'] as String? ?? '…');
 
-    // 2) action + timestamp
     final action = log['action'] as String? ?? '';
     final ts = log['timestamp'] as Timestamp?;
     final when = ts != null
         ? DateFormat('dd.MM.yyyy • HH:mm').format(ts.toDate())
         : '…';
 
-    // 3) build detail widgets, dropping context labels if desired
     final details = (log['details'] as Map?)?.cast<String, dynamic>() ?? {};
     final detailWidgets = <Widget>[];
     void addLine(String key, String val) {
@@ -87,16 +82,50 @@ class AuditLogList extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Row(
+            // children: [
+            //   Icon(_iconForAction(action), size: 14),
+            //   const SizedBox(width: 8),
+
+            //   Text(
+            //     '$action • $when  ',
+            //     style: Theme.of(
+            //       c,
+            //     ).textTheme.bodyMedium?.copyWith(fontWeight: FontWeight.w400),
+            //   ),
+            //   Icon(Icons.person, size: 14, color: Colors.blueGrey),
+            //   Text(
+            //     ' $userName',
+            //     style: TextStyle(
+            //       color: colourFromString(userName),
+            //       fontWeight: FontWeight.w400,
+            //     ),
+            //   ),
+            // ],
             children: [
-              Icon(_iconForAction(action), size: 16),
+              Tooltip(
+                message: action,
+                child: Icon(_iconForAction(action), size: 16),
+              ),
               const SizedBox(width: 8),
+
+              Text(
+                when,
+                style: Theme.of(
+                  c,
+                ).textTheme.bodyMedium?.copyWith(fontWeight: FontWeight.w400),
+              ),
+              const SizedBox(width: 16),
+
+              Icon(Icons.person, size: 16, color: Colors.blueGrey),
+              const SizedBox(width: 4),
               Expanded(
                 child: Text(
-                  // include userName here
-                  '$action • $when --- $userName',
-                  style: Theme.of(
-                    c,
-                  ).textTheme.bodyMedium?.copyWith(fontWeight: FontWeight.w600),
+                  userName,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    color: colourFromString(userName),
+                    fontWeight: FontWeight.w400,
+                  ),
                 ),
               ),
             ],

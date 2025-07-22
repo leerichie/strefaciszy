@@ -171,15 +171,25 @@ class StockService {
       'createdDay': Timestamp.fromDate(createdDay),
       'type': type,
       'items': lines.map((l) {
-        final name = l.isStock
-            ? allStockItems.firstWhere((s) => s.id == l.itemRef).name
-            : l.customName;
-        return {
-          'itemId': l.itemRef,
-          'name': name,
-          'quantity': l.requestedQty,
-          'unit': l.unit,
-        };
+        if (l.isStock) {
+          final stock = allStockItems.firstWhere((s) => s.id == l.itemRef);
+          return {
+            'itemId': l.itemRef,
+            'name': stock.name,
+            'description': stock.description,
+            'quantity': l.requestedQty,
+            'unit': l.unit,
+            'producent': stock.producent,
+          };
+        } else {
+          return {
+            'itemId': l.itemRef,
+            'name': l.customName,
+            'description': '',
+            'quantity': l.requestedQty,
+            'unit': l.unit,
+          };
+        }
       }).toList(),
     };
   }

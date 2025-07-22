@@ -1,12 +1,18 @@
 // lib/screens/customer_detail_screen.dart
 
+import 'dart:async';
+
+import 'package:auto_size_text/auto_size_text.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:strefa_ciszy/screens/contacts_list_screen.dart';
-import 'package:strefa_ciszy/screens/inventory_list_screen.dart';
 import 'package:strefa_ciszy/screens/main_menu_screen.dart';
+import 'package:strefa_ciszy/screens/scan_screen.dart';
+import 'package:strefa_ciszy/widgets/app_scaffold.dart';
 import 'project_editor_screen.dart';
+import 'package:strefa_ciszy/widgets/app_drawer.dart';
 
 class CustomerDetailScreen extends StatefulWidget {
   final String customerId;
@@ -27,6 +33,96 @@ class _CustomerDetailScreenState extends State<CustomerDetailScreen> {
   late final CollectionReference _projectsCol;
   late final TextEditingController _searchController;
   String _search = '';
+  Set<String> _favProjectIds = {};
+  late final StreamSubscription<QuerySnapshot> _favsSub;
+
+  void _editCustomerName() async {
+    String newName = '';
+    await showDialog<void>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Zmień nazwa klienta'),
+        content: TextField(
+          autofocus: true,
+          decoration: InputDecoration(hintText: 'Nowa nazwa'),
+          onChanged: (v) => newName = v.trim(),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('Anuluj'),
+          ),
+          ElevatedButton(
+            onPressed: () {
+              if (newName.isNotEmpty) {
+                _customerRef.update({'name': newName});
+                Navigator.pop(ctx);
+              }
+            },
+            child: const Text('Zapisz'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _editProjects() async {
+    final snap = await _projectsCol.orderBy('createdAt').get();
+    final docs = snap.docs;
+
+    final edits = {
+      for (var d in docs)
+        d.id: (d.data() as Map<String, dynamic>)['title'] as String,
+    };
+
+    await showDialog<void>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Edytuj projekty'),
+        content: SizedBox(
+          width: double.maxFinite,
+          height: MediaQuery.of(ctx).size.height * 0.4,
+          child: StatefulBuilder(
+            builder: (ctx2, setState) {
+              return ListView.separated(
+                itemCount: docs.length,
+                separatorBuilder: (_, __) => const Divider(),
+                itemBuilder: (_, i) {
+                  final doc = docs[i];
+                  return TextFormField(
+                    initialValue: edits[doc.id],
+                    decoration: InputDecoration(labelText: 'Projekt:'),
+                    onChanged: (v) => setState(() => edits[doc.id] = v.trim()),
+                  );
+                },
+              );
+            },
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('Anuluj'),
+          ),
+          ElevatedButton(
+            onPressed: () async {
+              for (var doc in docs) {
+                final data = doc.data() as Map<String, dynamic>;
+                final oldTitle = data['title'] as String;
+                final newTitle = edits[doc.id]!;
+                if (newTitle.isNotEmpty && newTitle != oldTitle) {
+                  await _projectsCol.doc(doc.id).update({'title': newTitle});
+                }
+              }
+              Navigator.pop(ctx);
+              setState(() {});
+            },
+            child: const Text('Zapisz'),
+          ),
+        ],
+      ),
+    );
+  }
 
   @override
   void initState() {
@@ -35,11 +131,23 @@ class _CustomerDetailScreenState extends State<CustomerDetailScreen> {
         .collection('customers')
         .doc(widget.customerId);
     _projectsCol = _customerRef.collection('projects');
+    final uid = FirebaseAuth.instance.currentUser!.uid;
+    _favsSub = FirebaseFirestore.instance
+        .collection('users')
+        .doc(uid)
+        .collection('favourites')
+        .snapshots()
+        .listen((snap) {
+          setState(() {
+            _favProjectIds = snap.docs.map((d) => d.id).toSet();
+          });
+        });
     _searchController = TextEditingController();
   }
 
   @override
   void dispose() {
+    _favsSub.cancel();
     _searchController.dispose();
     super.dispose();
   }
@@ -50,6 +158,53 @@ class _CustomerDetailScreenState extends State<CustomerDetailScreen> {
       _searchController.clear();
       _search = '';
     });
+  }
+
+  Future<void> _toggleFavourite(String projectId, String title) async {
+    final uid = FirebaseAuth.instance.currentUser!.uid;
+    final favDoc = FirebaseFirestore.instance
+        .collection('users')
+        .doc(uid)
+        .collection('favourites')
+        .doc(projectId);
+
+    if (_favProjectIds.contains(projectId)) {
+      await favDoc.delete();
+    } else {
+      await favDoc.set({'customerId': widget.customerId, 'title': title});
+    }
+  }
+
+  Future<void> _renameProject(String id, String currentTitle) async {
+    String newTitle = currentTitle;
+    await showDialog<void>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Zmień nazwę projektu'),
+        content: TextField(
+          autofocus: true,
+          controller: TextEditingController(text: currentTitle),
+          decoration: const InputDecoration(hintText: 'Nowa nazwa'),
+          onChanged: (v) => newTitle = v.trim(),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('Anuluj'),
+          ),
+          ElevatedButton(
+            onPressed: () {
+              if (newTitle.isNotEmpty && newTitle != currentTitle) {
+                _projectsCol.doc(id).update({'title': newTitle});
+              }
+              Navigator.pop(ctx);
+            },
+            child: const Text('Zapisz'),
+          ),
+        ],
+      ),
+    );
+    setState(() {});
   }
 
   Future<void> _addProject() async {
@@ -179,74 +334,58 @@ class _CustomerDetailScreenState extends State<CustomerDetailScreen> {
   @override
   Widget build(BuildContext context) {
     final isAdmin = widget.isAdmin;
+    final titleStreamWidget = FutureBuilder<DocumentSnapshot>(
+      future: _customerRef.get(),
+      builder: (ctx, snap) {
+        if (snap.connectionState != ConnectionState.done) {
+          return const Text('…');
+        }
+        final data = snap.data?.data() as Map<String, dynamic>?;
+        final name = data?['name'] as String? ?? '';
+        return GestureDetector(
+          onTap: widget.isAdmin ? _editCustomerName : null,
+          onLongPress: widget.isAdmin ? _editCustomerName : null,
+          child: AutoSizeText(name, maxLines: 1, minFontSize: 8),
+        );
+      },
+    );
 
-    return Scaffold(
-      appBar: AppBar(
-        // automaticallyImplyLeading: false,
-        centerTitle: true,
-        title: FutureBuilder<DocumentSnapshot>(
-          future: _customerRef.get(),
-          builder: (ctx, snap) {
-            if (snap.connectionState != ConnectionState.done) {
-              return const Text('…');
-            }
-            final data = snap.data?.data() as Map<String, dynamic>?;
-            final name = data?['name'] as String? ?? '';
-            return Text('Projekty: $name');
-          },
-        ),
-        bottom: PreferredSize(
-          preferredSize: const Size.fromHeight(56),
-          child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-            child: Row(
-              children: [
-                Expanded(
-                  child: TextField(
-                    controller: _searchController,
-                    decoration: InputDecoration(
-                      hintText: 'Szukaj projektu…',
-                      prefixIcon: const Icon(Icons.search),
-                      border: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(8),
-                      ),
-                      isDense: true,
+    return AppScaffold(
+      title: '',
+      titleWidget: titleStreamWidget,
+      centreTitle: true,
+
+      bottom: PreferredSize(
+        preferredSize: const Size.fromHeight(56),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+          child: Row(
+            children: [
+              Expanded(
+                child: TextField(
+                  controller: _searchController,
+                  decoration: InputDecoration(
+                    hintText: 'Szukaj projektu…',
+                    prefixIcon: const Icon(Icons.search),
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(8),
                     ),
-                    onChanged: (v) => setState(() => _search = v.trim()),
+                    isDense: true,
                   ),
+                  onChanged: (v) => setState(() => _search = v.trim()),
                 ),
-                const SizedBox(width: 8),
-                IconButton(
-                  tooltip: 'Resetuj filtr',
-                  icon: const Icon(Icons.refresh),
-                  onPressed: _resetFilters,
-                ),
-              ],
-            ),
+              ),
+              const SizedBox(width: 8),
+              IconButton(
+                tooltip: 'Resetuj filtr',
+                icon: const Icon(Icons.refresh),
+                onPressed: _resetFilters,
+              ),
+            ],
           ),
         ),
-        actions: [
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 8.0),
-            child: CircleAvatar(
-              backgroundColor: Colors.black,
-              child: IconButton(
-                icon: const Icon(Icons.home),
-                color: Colors.white,
-                tooltip: 'Home',
-                onPressed: () {
-                  Navigator.of(context).pushAndRemoveUntil(
-                    MaterialPageRoute(
-                      builder: (_) => const MainMenuScreen(role: 'admin'),
-                    ),
-                    (route) => false,
-                  );
-                },
-              ),
-            ),
-          ),
-        ],
       ),
+      actions: [Padding(padding: const EdgeInsets.symmetric(horizontal: 8.0))],
 
       body: Column(
         children: [
@@ -282,8 +421,27 @@ class _CustomerDetailScreenState extends State<CustomerDetailScreen> {
                     final d = filtered[i];
                     final data = d.data()! as Map<String, dynamic>;
                     return ListTile(
-                      title: Text(data['title'] ?? '—'),
-                      subtitle: Text('Status: ${data['status']}'),
+                      title: InkWell(
+                        onTap: () => Navigator.of(context).push(
+                          MaterialPageRoute(
+                            builder: (_) => ProjectEditorScreen(
+                              customerId: widget.customerId,
+                              projectId: d.id,
+                              isAdmin: widget.isAdmin,
+                            ),
+                          ),
+                        ),
+                        // long tap rename project
+                        onLongPress: widget.isAdmin
+                            ? () => _renameProject(
+                                d.id,
+                                data['title'] as String? ?? '',
+                              )
+                            : null,
+                        child: Text(data['title'] ?? '—'),
+                      ),
+
+                      // subtitle: Text('Status: ${data['status']}'),
                       onTap: () => Navigator.of(context).push(
                         MaterialPageRoute(
                           builder: (_) => ProjectEditorScreen(
@@ -296,6 +454,22 @@ class _CustomerDetailScreenState extends State<CustomerDetailScreen> {
                       trailing: Row(
                         mainAxisSize: MainAxisSize.min,
                         children: [
+                          // faves
+                          IconButton(
+                            icon: Icon(
+                              _favProjectIds.contains(d.id)
+                                  ? Icons.star
+                                  : Icons.star_border,
+                              color: Colors.amber,
+                            ),
+                            tooltip: _favProjectIds.contains(d.id)
+                                ? 'Usuń z ulubionych'
+                                : 'Dodaj do ulubionych',
+                            onPressed: () => _toggleFavourite(
+                              d.id,
+                              data['title'] as String? ?? '',
+                            ),
+                          ),
                           // badge
                           FutureBuilder<QuerySnapshot>(
                             future: _projectsCol
@@ -333,6 +507,7 @@ class _CustomerDetailScreenState extends State<CustomerDetailScreen> {
                               );
                             },
                           ),
+
                           if (widget.isAdmin) ...[
                             const SizedBox(width: 8),
                             IconButton(
@@ -398,23 +573,31 @@ class _CustomerDetailScreenState extends State<CustomerDetailScreen> {
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
               IconButton(
-                tooltip: 'Inwentaryzacja',
-                icon: const Icon(Icons.inventory_2),
+                tooltip: 'Contacts',
+                icon: const Icon(Icons.people),
                 onPressed: () => Navigator.of(context).push(
                   MaterialPageRoute(
-                    builder: (_) => InventoryListScreen(isAdmin: isAdmin),
+                    builder: (_) => ContactsListScreen(
+                      isAdmin: widget.isAdmin,
+                      customerId: widget.customerId,
+                    ),
                   ),
                 ),
               ),
 
               SizedBox(width: 48),
 
+              // IconButton(
+              //   tooltip: 'Edytuj projekty',
+              //   icon: const Icon(Icons.edit),
+              //   onPressed: _editProjects,
+              // ),
               IconButton(
-                tooltip: 'Contacts',
-                icon: const Icon(Icons.people),
-                onPressed: () => Navigator.of(context).push(
-                  MaterialPageRoute(builder: (_) => const ContactsListScreen()),
-                ),
+                tooltip: 'Skanuj',
+                icon: const Icon(Icons.qr_code_scanner),
+                onPressed: () => Navigator.of(
+                  context,
+                ).push(MaterialPageRoute(builder: (_) => const ScanScreen())),
               ),
             ],
           ),

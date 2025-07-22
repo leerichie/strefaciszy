@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:strefa_ciszy/screens/filtered_report_screen.dart';
+import 'package:strefa_ciszy/widgets/app_drawer.dart';
+import 'package:strefa_ciszy/widgets/app_scaffold.dart';
 
 class ReportsScreen extends StatefulWidget {
   const ReportsScreen({super.key});
@@ -23,11 +25,14 @@ class _ReportsScreenState extends State<ReportsScreen> {
     'Zakres własny',
   ];
   final List<String> usageOptions = ['Wszystkie', 'Zużyte', 'Zwrócone'];
+  final title = 'Raporty';
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(title: Text('Raporty')),
+    return AppScaffold(
+      title: title,
+      centreTitle: true,
+
       body: Padding(
         padding: const EdgeInsets.all(16),
         child: Column(

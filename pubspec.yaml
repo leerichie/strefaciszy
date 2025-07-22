@@ -4,8 +4,9 @@ description: "Stock control app for small company."
 # pub.dev using `flutter pub publish`. This is preferred for private packages.
 publish_to: 'none' # Remove this line if you wish to publish to pub.dev
 
-
-version: 1.0.0+5
+# change build '+' 
+# and in xcode
+version: 1.0.0+11
 
 environment:
   sdk: ^3.8.1
@@ -42,6 +43,9 @@ dependencies:
   flutter_image_compress: ^2.4.0
   google_maps_flutter: ^2.12.3
   google_maps_flutter_web: ^0.5.12+2
+  path: ^1.9.1
+  auto_size_text: ^3.0.0
+  file_picker: ^10.2.0
 
 dev_dependencies:
   flutter_test:
@@ -67,6 +71,7 @@ flutter:
 
   assets:
     - assets/images/strefa_ciszy_logo.png
+    - assets/favicon/Icon-512.png
 
   # To add assets to your application, add an assets section, like this:
   # assets:

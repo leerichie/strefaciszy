@@ -1,17 +1,26 @@
 // lib/screens/customer_list_screen.dart
 
+import 'dart:async';
+
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:strefa_ciszy/screens/contacts_list_screen.dart';
 import 'package:strefa_ciszy/screens/main_menu_screen.dart';
 import 'package:strefa_ciszy/screens/scan_screen.dart';
+import 'package:strefa_ciszy/widgets/app_scaffold.dart';
 import 'customer_detail_screen.dart';
 import 'inventory_list_screen.dart';
+import 'package:strefa_ciszy/widgets/app_drawer.dart';
 
 class CustomerListScreen extends StatefulWidget {
   final bool isAdmin;
-  const CustomerListScreen({super.key, required this.isAdmin});
+  final bool showAddOnOpen;
+  const CustomerListScreen({
+    super.key,
+    required this.isAdmin,
+    this.showAddOnOpen = false,
+  });
 
   @override
   _CustomerListScreenState createState() => _CustomerListScreenState();
@@ -24,15 +33,32 @@ class _CustomerListScreenState extends State<CustomerListScreen> {
   late final TextEditingController _searchController;
   String _search = '';
 
-  // preload contacts
   List<String> _contactNames = [];
   List<QueryDocumentSnapshot<Map<String, dynamic>>> _contactDocs = [];
+  late final StreamSubscription<QuerySnapshot<Map<String, dynamic>>>
+  _contactsSub;
 
   @override
   void initState() {
     super.initState();
     _searchController = TextEditingController();
-    _loadContactNames();
+    _contactsSub = FirebaseFirestore.instance
+        .collection('contacts')
+        .orderBy('name')
+        .snapshots()
+        .listen((snap) {
+          setState(() {
+            _contactDocs = snap.docs;
+            _contactNames = snap.docs
+                .map((d) => (d.data())['name'] as String)
+                .toList();
+          });
+        });
+    if (widget.showAddOnOpen) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        _addCustomer();
+      });
+    }
   }
 
   Future<void> _loadContactNames() async {
@@ -43,14 +69,88 @@ class _CustomerListScreenState extends State<CustomerListScreen> {
     setState(() {
       _contactDocs = snap.docs;
       _contactNames = snap.docs
-          .map((d) => (d.data()! as Map<String, dynamic>)['name'] as String)
+          .map((d) => (d.data())['name'] as String)
           .toList();
     });
+  }
+
+  Future<void> _editCustomers() async {
+    final snap = await _col.orderBy('createdAt').get();
+    final docs = snap.docs;
+
+    final edits = {
+      for (var d in docs)
+        d.id: ((d.data() as Map<String, dynamic>)['name'] as String),
+    };
+
+    await showDialog<void>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Edytuj klient'),
+        content: SizedBox(
+          width: double.maxFinite,
+          height: MediaQuery.of(ctx).size.height * 0.6,
+          child: StatefulBuilder(
+            builder: (ctx2, setState) {
+              return ListView.separated(
+                itemCount: docs.length,
+                separatorBuilder: (_, __) => const Divider(),
+                itemBuilder: (_, i) {
+                  final doc = docs[i];
+                  final id = doc.id;
+                  return TextFormField(
+                    initialValue: edits[id],
+                    decoration: InputDecoration(labelText: 'Klient:'),
+                    onChanged: (v) => setState(() => edits[id] = v.trim()),
+                  );
+                },
+              );
+            },
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('Anuluj'),
+          ),
+          ElevatedButton(
+            onPressed: () async {
+              for (var doc in docs) {
+                final data = doc.data() as Map<String, dynamic>;
+                final oldName = data['name'] as String;
+                final newName = edits[doc.id]!;
+                if (newName.isNotEmpty && newName != oldName) {
+                  await _col.doc(doc.id).update({'name': newName});
+                  final contactId = data['contactId'] as String?;
+                  if (contactId != null) {
+                    try {
+                      debugPrint('updating contact $contactId → $newName');
+                      await FirebaseFirestore.instance
+                          .collection('contacts')
+                          .doc(contactId)
+                          .update({'name': newName});
+                    } catch (e) {
+                      debugPrint('failed to update contact $contactId: $e');
+                    }
+                  }
+                }
+              }
+              await _loadContactNames();
+
+              Navigator.pop(ctx);
+              setState(() {});
+            },
+            child: const Text('Zapisz'),
+          ),
+        ],
+      ),
+    );
   }
 
   @override
   void dispose() {
     _searchController.dispose();
+    _contactsSub.cancel();
     super.dispose();
   }
 
@@ -70,8 +170,9 @@ class _CustomerListScreenState extends State<CustomerListScreen> {
         title: const Text('Dodaj klienta'),
         content: Autocomplete<String>(
           optionsBuilder: (TextEditingValue textEditingValue) {
-            if (textEditingValue.text.isEmpty)
+            if (textEditingValue.text.isEmpty) {
               return const Iterable<String>.empty();
+            }
             return _contactNames.where(
               (option) => option.toLowerCase().contains(
                 textEditingValue.text.toLowerCase(),
@@ -106,7 +207,7 @@ class _CustomerListScreenState extends State<CustomerListScreen> {
               if (name.isNotEmpty) {
                 QueryDocumentSnapshot<Map<String, dynamic>>? contactDoc;
                 for (var d in _contactDocs) {
-                  if ((d.data()!['name'] as String) == name) {
+                  if ((d.data()['name'] as String) == name) {
                     contactDoc = d;
                     break;
                   }
@@ -132,63 +233,62 @@ class _CustomerListScreenState extends State<CustomerListScreen> {
   @override
   Widget build(BuildContext context) {
     final isAdmin = widget.isAdmin;
-
-    return Scaffold(
-      appBar: AppBar(
-        centerTitle: true,
-        title: const Text('Klienci'),
-        bottom: PreferredSize(
-          preferredSize: const Size.fromHeight(56),
-          child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-            child: Row(
-              children: [
-                Expanded(
-                  child: TextField(
-                    controller: _searchController,
-                    decoration: InputDecoration(
-                      hintText: 'Szukaj...',
-                      prefixIcon: const Icon(Icons.search),
-                      border: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(8),
-                      ),
-                      isDense: true,
+    final title = 'Klienci';
+    return AppScaffold(
+      centreTitle: true,
+      title: title,
+      bottom: PreferredSize(
+        preferredSize: const Size.fromHeight(56),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+          child: Row(
+            children: [
+              Expanded(
+                child: TextField(
+                  controller: _searchController,
+                  decoration: InputDecoration(
+                    hintText: 'Szukaj...',
+                    prefixIcon: const Icon(Icons.search),
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(8),
                     ),
-                    onChanged: (v) => setState(() => _search = v.trim()),
+                    isDense: true,
                   ),
+                  onChanged: (v) => setState(() => _search = v.trim()),
                 ),
-                const SizedBox(width: 8),
-                IconButton(
-                  tooltip: 'Resetuj filtr',
-                  icon: const Icon(Icons.refresh),
-                  onPressed: _resetSearch,
-                ),
-              ],
-            ),
+              ),
+              const SizedBox(width: 8),
+              IconButton(
+                tooltip: 'Resetuj filtr',
+                icon: const Icon(Icons.refresh),
+                onPressed: _resetSearch,
+              ),
+            ],
           ),
         ),
-        actions: [
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 8.0),
-            child: CircleAvatar(
-              backgroundColor: Colors.black,
-              child: IconButton(
-                icon: const Icon(Icons.home),
-                color: Colors.white,
-                tooltip: 'Home',
-                onPressed: () {
-                  Navigator.of(context).pushAndRemoveUntil(
-                    MaterialPageRoute(
-                      builder: (_) => const MainMenuScreen(role: 'admin'),
-                    ),
-                    (route) => false,
-                  );
-                },
-              ),
-            ),
-          ),
-        ],
       ),
+      actions: [
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 8.0),
+          // child: CircleAvatar(
+          //   backgroundColor: Colors.black,
+          //   child: IconButton(
+          //     icon: const Icon(Icons.home),
+          //     color: Colors.white,
+          //     tooltip: 'Home',
+          //     onPressed: () {
+          //       Navigator.of(context).pushAndRemoveUntil(
+          //         MaterialPageRoute(
+          //           builder: (_) => const MainMenuScreen(role: 'admin'),
+          //         ),
+          //         (route) => false,
+          //       );
+          //     },
+          //   ),
+          // ),
+        ),
+      ],
+
       body: StreamBuilder<QuerySnapshot>(
         stream: _col.orderBy('createdAt', descending: true).snapshots(),
         builder: (ctx, snap) {
@@ -339,6 +439,12 @@ class _CustomerListScreenState extends State<CustomerListScreen> {
                     MaterialPageRoute(builder: (_) => ContactsListScreen()),
                   ),
                 ),
+
+                // IconButton(
+                //   tooltip: 'Edytuj klientów',
+                //   icon: const Icon(Icons.edit),
+                //   onPressed: _editCustomers,
+                // ),
                 IconButton(
                   tooltip: 'Skanuj',
                   icon: const Icon(Icons.qr_code_scanner),

@@ -1,6 +1,7 @@
 // lib/widgets/base_scaffold.dart
 
 import 'package:flutter/material.dart';
+import 'package:strefa_ciszy/widgets/app_drawer.dart';
 
 class BaseScaffold extends StatelessWidget {
   final PreferredSizeWidget? appBar;
@@ -25,6 +26,7 @@ class BaseScaffold extends StatelessWidget {
   @override
   Widget build(BuildContext c) {
     return Scaffold(
+      drawer: const AppDrawer(),
       appBar: appBar,
       body: Padding(
         padding: const EdgeInsets.only(bottom: kBottomNavigationBarHeight),

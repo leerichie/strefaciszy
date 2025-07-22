@@ -1,11 +1,11 @@
 // lib/screens/manage_users_screen.dart
 
-import 'dart:isolate';
-
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:strefa_ciszy/screens/main_menu_screen.dart';
+import 'package:strefa_ciszy/widgets/app_scaffold.dart';
 import '../services/user_functions.dart';
+import 'package:strefa_ciszy/widgets/app_drawer.dart';
 
 import 'inventory_list_screen.dart';
 import 'scan_screen.dart';
@@ -180,36 +180,34 @@ class _ManageUsersScreenState extends State<ManageUsersScreen> {
   @override
   Widget build(BuildContext context) {
     final isAdmin = true;
-
-    return Scaffold(
-      appBar: AppBar(
-        centerTitle: true,
-        title: const Text('Zarządzaj użytkownikami'),
-        actions: [
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 8.0),
-            child: DecoratedBox(
-              decoration: BoxDecoration(
-                color: Colors.black,
-                shape: BoxShape.circle,
-              ),
-              child: IconButton(
-                icon: const Icon(Icons.home),
-                tooltip: 'Home',
-                onPressed: () {
-                  Navigator.of(context).pushAndRemoveUntil(
-                    MaterialPageRoute(
-                      builder: (_) => const MainMenuScreen(role: 'admin'),
-                    ),
-                    (route) => false,
-                  );
-                },
-                color: Colors.white,
-              ),
-            ),
-          ),
-        ],
-      ),
+    final title = 'Users';
+    return AppScaffold(
+      centreTitle: true,
+      title: title,
+      actions: [
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 8.0),
+          // child: DecoratedBox(
+          //   decoration: BoxDecoration(
+          //     color: Colors.black,
+          //     shape: BoxShape.circle,
+          //   ),
+          //   child: IconButton(
+          //     icon: const Icon(Icons.home),
+          //     tooltip: 'Home',
+          //     onPressed: () {
+          //       Navigator.of(context).pushAndRemoveUntil(
+          //         MaterialPageRoute(
+          //           builder: (_) => const MainMenuScreen(role: 'admin'),
+          //         ),
+          //         (route) => false,
+          //       );
+          //     },
+          //     color: Colors.white,
+          //   ),
+          // ),
+        ),
+      ],
 
       body: FutureBuilder<List<Map<String, dynamic>>>(
         future: _usersFuture,
@@ -242,13 +240,14 @@ class _ManageUsersScreenState extends State<ManageUsersScreen> {
                   mainAxisSize: MainAxisSize.min,
                   children: [
                     IconButton(
-                      icon: const Icon(Icons.edit),
+                      icon: const Icon(Icons.edit, color: Colors.green),
                       tooltip: 'Edytuj użytkownika',
                       onPressed: () => _showEditUserDialog(u),
                     ),
                     IconButton(
-                      icon: const Icon(Icons.delete),
+                      icon: const Icon(Icons.delete, color: Colors.red),
                       tooltip: 'Usuń użytkownika',
+
                       onPressed: () async {
                         final confirm = await showDialog<bool>(
                           context: context,

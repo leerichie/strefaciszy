@@ -1,5 +1,7 @@
+import 'package:auto_size_text/auto_size_text.dart';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
+import 'package:strefa_ciszy/widgets/note_dialogue.dart';
 
 typedef OnNoteAdded = Future<Note?> Function(BuildContext context);
 typedef OnNoteEdited = Future<void> Function(int index, String newText);
@@ -29,7 +31,7 @@ class NotesSection extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    // Dedupe
+    // sort newest first
     final sorted = List<Note>.from(notes)
       ..sort((a, b) => b.createdAt.compareTo(a.createdAt));
 
@@ -37,7 +39,7 @@ class NotesSection extends StatelessWidget {
       height: 44,
       child: Row(
         children: [
-          // Add
+          // Add button
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 4),
             child: InkWell(
@@ -58,80 +60,31 @@ class NotesSection extends StatelessWidget {
           Expanded(
             child: sorted.isEmpty
                 ? const Center(
-                    child: Text(
-                      'Brak notatek',
-                      style: TextStyle(color: Colors.grey),
-                    ),
+                    child: Text('Brak', style: TextStyle(color: Colors.grey)),
                   )
                 : ListView.builder(
                     scrollDirection: Axis.horizontal,
                     itemCount: sorted.length,
                     itemBuilder: (ctx, i) {
                       final note = sorted[i];
-                      final snippet = note.text.length > 30
-                          ? '${note.text.substring(0, 30)}…'
-                          : note.text;
+                      final header = note.userName;
+
                       return Padding(
                         padding: const EdgeInsets.symmetric(horizontal: 4),
                         child: Stack(
                           children: [
                             InkWell(
                               onTap: () async {
-                                final controller = TextEditingController(
-                                  text: note.text,
+                                final updated = await showNoteDialog(
+                                  context,
+                                  userName: note.userName,
+                                  createdAt: note.createdAt,
+                                  initial: note.text,
                                 );
-                                await showDialog(
-                                  context: context,
-                                  builder: (_) => AlertDialog(
-                                    title: Column(
-                                      crossAxisAlignment:
-                                          CrossAxisAlignment.start,
-                                      children: [
-                                        Text(
-                                          note.userName.isNotEmpty
-                                              ? note.userName
-                                              : 'Unknown',
-                                          style: TextStyle(
-                                            fontSize: 12,
-                                            color: Colors.grey[600],
-                                          ),
-                                        ),
-                                        const SizedBox(height: 4),
-                                        Text(
-                                          DateFormat(
-                                            'dd.MM.yyyy',
-                                          ).format(note.createdAt),
-                                          style: TextStyle(
-                                            fontSize: 12,
-                                            color: Colors.grey[600],
-                                          ),
-                                        ),
-                                      ],
-                                    ),
-                                    content: TextField(
-                                      controller: controller,
-                                      maxLines: null,
-                                      decoration: const InputDecoration(
-                                        hintText: 'Edytuj',
-                                        border: OutlineInputBorder(),
-                                      ),
-                                    ),
-                                    actions: [
-                                      TextButton(
-                                        onPressed: () =>
-                                            Navigator.of(context).pop(),
-                                        child: const Text('Anuluj'),
-                                      ),
-                                      ElevatedButton(
-                                        onPressed: () {
-                                          onEdit(i, controller.text.trim());
-                                          Navigator.of(context).pop();
-                                        },
-                                        child: const Text('Zapisz'),
-                                      ),
-                                    ],
-                                  ),
-                                );
+                                if (updated != null &&
+                                    updated.trim() != note.text) {
+                                  await onEdit(i, updated.trim());
+                                }
                               },
                               child: Container(
                                 width: 64,
@@ -141,14 +94,17 @@ class NotesSection extends StatelessWidget {
                                   color: Colors.grey.shade200,
                                   borderRadius: BorderRadius.circular(6),
                                 ),
-                                child: Text(
-                                  snippet,
-                                  maxLines: 3,
-                                  overflow: TextOverflow.ellipsis,
-                                  style: const TextStyle(fontSize: 12),
+                                child: AutoSizeText(
+                                  header,
+                                  maxLines: 2,
+                                  minFontSize: 8,
+                                  style: const TextStyle(
+                                    fontWeight: FontWeight.bold,
+                                  ),
                                 ),
                               ),
                             ),
+
                             Positioned(
                               top: 0,
                               right: 0,
