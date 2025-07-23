@@ -5,7 +5,6 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:strefa_ciszy/models/project_line.dart';
 import 'package:strefa_ciszy/models/stock_item.dart';
 import 'package:strefa_ciszy/screens/scan_screen.dart';
-import 'package:flutter/services.dart';
 import 'package:strefa_ciszy/utils/search_utils.dart';
 
 Future<ProjectLine?> showProjectLineDialog(

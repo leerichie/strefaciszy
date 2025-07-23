@@ -6,7 +6,6 @@ import 'package:firebase_storage/firebase_storage.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:strefa_ciszy/screens/customer_list_screen.dart';
 import 'package:strefa_ciszy/screens/scan_screen.dart';
-import 'package:strefa_ciszy/widgets/app_drawer.dart';
 import 'package:strefa_ciszy/widgets/app_scaffold.dart';
 
 class AddContactScreen extends StatefulWidget {
@@ -220,28 +219,32 @@ class _AddContactScreenState extends State<AddContactScreen> {
       'note': _noteCtrl.text.trim(),
       'contactType': _category,
       'updatedAt': FieldValue.serverTimestamp(),
-      // if (_selectedCustomerId != null) 'linkedCustomerId': _selectedCustomerId,
-      // if (widget.linkedCustomerId != null)
-      //   'linkedCustomerId': widget.linkedCustomerId,
     };
     final cid = widget.linkedCustomerId ?? _selectedCustomerId;
     if (cid != null) {
       data['linkedCustomerId'] = cid;
     }
     try {
+      String contactId;
       if (widget.contactId == null) {
         data['createdAt'] = FieldValue.serverTimestamp();
         final docRef = await col.add(data);
-        final url = await _uploadPhoto(docRef.id);
+        contactId = docRef.id;
+        final url = await _uploadPhoto(contactId);
         if (url != null) await docRef.update({'photoUrl': url});
       } else {
-        await col.doc(widget.contactId!).update(data);
-        final url = await _uploadPhoto(widget.contactId!);
+        contactId = widget.contactId!;
+        await col.doc(contactId).update(data);
+        final url = await _uploadPhoto(contactId);
         if (url != null) {
-          await col.doc(widget.contactId!).update({'photoUrl': url});
+          await col.doc(contactId).update({'photoUrl': url});
         }
       }
-      Navigator.pop(context);
+
+      Navigator.pop(context, {
+        'contactId': contactId,
+        'name': _nameCtrl.text.trim(),
+      });
     } catch (e) {
       setState(() => _submitting = false);
       ScaffoldMessenger.of(
@@ -266,6 +269,20 @@ class _AddContactScreenState extends State<AddContactScreen> {
     final title = widget.contactId == null ? 'Dodaj Kontakt' : 'Edytuj Kontakt';
 
     return AppScaffold(
+      floatingActionButton: FloatingActionButton(
+        tooltip: widget.contactId == null
+            ? 'Zapisz Kontakt'
+            : 'Aktualizuj Kontakt',
+        onPressed: _submitting ? null : _save,
+        child: _submitting
+            ? const SizedBox(
+                width: 20,
+                height: 20,
+                child: CircularProgressIndicator(strokeWidth: 2),
+              )
+            : const Icon(Icons.save),
+      ),
+      floatingActionButtonLocation: FloatingActionButtonLocation.centerDocked,
       title: title,
       centreTitle: true,
       actions: [
@@ -377,7 +394,7 @@ class _AddContactScreenState extends State<AddContactScreen> {
                                   controller: controller,
                                   focusNode: focusNode,
                                   decoration: const InputDecoration(
-                                    labelText: 'Nazwa',
+                                    labelText: 'Imię i Nazwisko',
                                   ),
                                   validator: (v) =>
                                       v == null || v.trim().isEmpty
@@ -389,7 +406,9 @@ class _AddContactScreenState extends State<AddContactScreen> {
                       ] else ...[
                         TextFormField(
                           controller: _nameCtrl,
-                          decoration: const InputDecoration(labelText: 'Nazwa'),
+                          decoration: const InputDecoration(
+                            labelText: 'Imię i Nazwisko',
+                          ),
                           validator: (v) => v == null || v.trim().isEmpty
                               ? 'Wpisz nazwę'
                               : null,
@@ -437,76 +456,76 @@ class _AddContactScreenState extends State<AddContactScreen> {
                         keyboardType: TextInputType.emailAddress,
                       ),
                       const SizedBox(height: 12),
-                      TextFormField(
-                        controller: _addressCtrl,
-                        decoration: const InputDecoration(labelText: 'Adres'),
-                      ),
-                      const SizedBox(height: 12),
-                      TextFormField(
-                        controller: _websiteCtrl,
-                        decoration: const InputDecoration(labelText: 'WWW'),
-                        keyboardType: TextInputType.url,
-                      ),
-                      const SizedBox(height: 12),
-                      TextFormField(
-                        controller: _noteCtrl,
-                        decoration: const InputDecoration(
-                          labelText: 'Notatka',
-                          alignLabelWithHint: true,
-                        ),
-                        minLines: 1,
-                        maxLines: 4,
-                      ),
+                      // TextFormField(
+                      //   controller: _addressCtrl,
+                      //   decoration: const InputDecoration(labelText: 'Adres'),
+                      // ),
+                      // const SizedBox(height: 12),
+                      // TextFormField(
+                      //   controller: _websiteCtrl,
+                      //   decoration: const InputDecoration(labelText: 'WWW'),
+                      //   keyboardType: TextInputType.url,
+                      // ),
+                      // const SizedBox(height: 12),
+                      // TextFormField(
+                      //   controller: _noteCtrl,
+                      //   decoration: const InputDecoration(
+                      //     labelText: 'Notatka',
+                      //     alignLabelWithHint: true,
+                      //   ),
+                      //   minLines: 1,
+                      //   maxLines: 4,
+                      // ),
                     ],
                   ),
                 ),
               ),
             ),
-      floatingActionButton: FloatingActionButton(
-        tooltip: widget.contactId == null
-            ? 'Zapisz Kontakt'
-            : 'Aktualizuj Kontakt',
-        onPressed: _submitting ? null : _save,
-        child: _submitting
-            ? const SizedBox(
-                width: 20,
-                height: 20,
-                child: CircularProgressIndicator(strokeWidth: 2),
-              )
-            : const Icon(Icons.save),
-      ),
-      floatingActionButtonLocation: FloatingActionButtonLocation.centerDocked,
-      bottomNavigationBar: SafeArea(
-        child: BottomAppBar(
-          shape: const CircularNotchedRectangle(),
-          notchMargin: 6,
-          child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 32.0),
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                IconButton(
-                  tooltip: 'Klienci',
-                  icon: const Icon(Icons.people),
-                  onPressed: () => Navigator.of(context).push(
-                    MaterialPageRoute(
-                      builder: (_) =>
-                          CustomerListScreen(isAdmin: widget.isAdmin),
-                    ),
-                  ),
-                ),
-                IconButton(
-                  tooltip: 'Skanuj',
-                  icon: const Icon(Icons.qr_code_scanner),
-                  onPressed: () => Navigator.of(
-                    context,
-                  ).push(MaterialPageRoute(builder: (_) => const ScanScreen())),
-                ),
-              ],
-            ),
-          ),
-        ),
-      ),
+      // floatingActionButton: FloatingActionButton(
+      //   tooltip: widget.contactId == null
+      //       ? 'Zapisz Kontakt'
+      //       : 'Aktualizuj Kontakt',
+      //   onPressed: _submitting ? null : _save,
+      //   child: _submitting
+      //       ? const SizedBox(
+      //           width: 20,
+      //           height: 20,
+      //           child: CircularProgressIndicator(strokeWidth: 2),
+      //         )
+      //       : const Icon(Icons.save),
+      // ),
+      // floatingActionButtonLocation: FloatingActionButtonLocation.centerDocked,
+      // bottomNavigationBar: SafeArea(
+      //   child: BottomAppBar(
+      //     shape: const CircularNotchedRectangle(),
+      //     notchMargin: 6,
+      //     child: Padding(
+      //       padding: const EdgeInsets.symmetric(horizontal: 32.0),
+      //       child: Row(
+      //         mainAxisAlignment: MainAxisAlignment.spaceBetween,
+      //         children: [
+      //           IconButton(
+      //             tooltip: 'Klienci',
+      //             icon: const Icon(Icons.people),
+      //             onPressed: () => Navigator.of(context).push(
+      //               MaterialPageRoute(
+      //                 builder: (_) =>
+      //                     CustomerListScreen(isAdmin: widget.isAdmin),
+      //               ),
+      //             ),
+      //           ),
+      //           IconButton(
+      //             tooltip: 'Skanuj',
+      //             icon: const Icon(Icons.qr_code_scanner),
+      //             onPressed: () => Navigator.of(
+      //               context,
+      //             ).push(MaterialPageRoute(builder: (_) => const ScanScreen())),
+      //           ),
+      //         ],
+      //       ),
+      //     ),
+      //   ),
+      // ),
     );
   }
 }

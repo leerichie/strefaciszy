@@ -5,7 +5,6 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:http/http.dart' as http;
 import 'package:strefa_ciszy/widgets/app_scaffold.dart';
 import 'package:url_launcher/url_launcher.dart';
-import 'package:strefa_ciszy/widgets/app_drawer.dart';
 
 class LocationPickerScreen extends StatefulWidget {
   final LatLng? initialLocation;

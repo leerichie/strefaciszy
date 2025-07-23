@@ -1,16 +1,15 @@
 // lib/screens/edit_item_screen.dart
-
-import 'dart:io';
 import 'dart:async';
+import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
-import 'package:firebase_storage/firebase_storage.dart';
 import 'package:image_picker/image_picker.dart';
-import 'package:flutter/foundation.dart' show kIsWeb;
-import 'package:strefa_ciszy/screens/main_menu_screen.dart';
-import 'package:strefa_ciszy/widgets/app_drawer.dart';
+import 'package:strefa_ciszy/screens/inventory_list_screen.dart';
+import 'package:strefa_ciszy/screens/scan_screen.dart';
+import 'package:strefa_ciszy/utils/search_utils.dart';
 import 'package:strefa_ciszy/widgets/app_scaffold.dart';
+import '../services/storage_service.dart';
 
 class EditItemScreen extends StatefulWidget {
   final String docId;
@@ -31,7 +30,7 @@ class EditItemScreen extends StatefulWidget {
 class _EditItemScreenState extends State<EditItemScreen> {
   final _formKey = GlobalKey<FormState>();
 
-  late TextEditingController _producerCtrl,
+  late final TextEditingController _producerCtrl,
       _nameCtrl,
       _skuCtrl,
       _categoryCtrl,
@@ -39,16 +38,21 @@ class _EditItemScreenState extends State<EditItemScreen> {
       _quantityCtrl,
       _locationCtrl;
 
-  String? _imageUrl;
   String _unit = 'szt';
-  bool _saving = false, _uploading = false;
+  String? _imageUrl;
+  File? _pickedImage;
+
+  bool _saving = false;
   String? _error;
 
   final _picker = ImagePicker();
-  final _storage = FirebaseStorage.instance.ref();
+  final StorageService _storageService = StorageService();
 
-  late StreamSubscription<QuerySnapshot> _catSub;
+  late final StreamSubscription<QuerySnapshot> _catSub;
+  late final StreamSubscription<QuerySnapshot> _prodSub;
+
   List<String> _categories = [];
+  List<String> _producers = [];
 
   @override
   void initState() {
@@ -78,11 +82,27 @@ class _EditItemScreenState extends State<EditItemScreen> {
                 .toList();
           });
         });
+
+    _prodSub = FirebaseFirestore.instance
+        .collection('stock_items')
+        .snapshots()
+        .listen((snap) {
+          final set = <String>{};
+          for (final d in snap.docs) {
+            final p = (d['producent'] ?? '').toString().trim();
+            if (p.isNotEmpty) set.add(p);
+          }
+          setState(() {
+            _producers = set.toList()..sort();
+          });
+        });
   }
 
   @override
   void dispose() {
     _catSub.cancel();
+    _prodSub.cancel();
+
     _producerCtrl.dispose();
     _nameCtrl.dispose();
     _skuCtrl.dispose();
@@ -93,70 +113,38 @@ class _EditItemScreenState extends State<EditItemScreen> {
     super.dispose();
   }
 
-  Future<void> _addCategory() async {
-    String? newName;
-    await showDialog<void>(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Text('Nowa kategoria'),
-        content: TextField(
-          decoration: const InputDecoration(labelText: 'Nazwa'),
-          onChanged: (v) => newName = v.trim(),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx),
-            child: const Text('Anuluj'),
-          ),
-          ElevatedButton(
-            onPressed: () {
-              if (newName != null && newName!.isNotEmpty) {
-                FirebaseFirestore.instance.collection('categories').add({
-                  'name': newName,
-                });
-                setState(() => _categoryCtrl.text = newName!);
-              }
-              Navigator.pop(ctx);
-            },
-            child: const Text('Dodaj'),
-          ),
-        ],
-      ),
+  void _goToInventory() {
+    if (!mounted) return;
+    Navigator.of(context).pushAndRemoveUntil(
+      MaterialPageRoute(builder: (_) => InventoryListScreen(isAdmin: true)),
+      (route) => route.isFirst,
     );
   }
 
-  Future<void> _changePhoto() async {
-    final x = await _picker.pickImage(source: ImageSource.camera);
-    if (x == null) return;
-    setState(() {
-      _uploading = true;
-      _error = null;
-    });
-    try {
-      final ref = _storage.child('stock_images/${widget.docId}.jpg');
-      if (kIsWeb) {
-        final bytes = await x.readAsBytes();
-        await ref.putData(bytes);
-      } else {
-        await ref.putFile(File(x.path));
-      }
-      final url = await ref.getDownloadURL();
-      await FirebaseFirestore.instance
-          .collection('stock_items')
-          .doc(widget.docId)
-          .update({
-            'imageUrl': url,
-            'updatedAt': FieldValue.serverTimestamp(),
-            'updatedBy': FirebaseAuth.instance.currentUser!.uid,
-          });
-      setState(() {
-        _imageUrl = url;
-        _uploading = false;
-      });
-    } catch (e) {
-      setState(() {
-        _error = 'Upload failed: $e';
-        _uploading = false;
+  Future<void> _pickImage() async {
+    final x = await _picker.pickImage(
+      source: ImageSource.camera,
+      imageQuality: 70,
+      maxWidth: 1024,
+      maxHeight: 1024,
+    );
+    if (x != null) setState(() => _pickedImage = File(x.path));
+  }
+
+  Future<void> _ensureCategoryExists(String name) async {
+    final trimmed = name.trim();
+    if (trimmed.isEmpty) return;
+
+    if (_categories.contains(trimmed)) return;
+
+    final q = await FirebaseFirestore.instance
+        .collection('categories')
+        .where('name', isEqualTo: trimmed)
+        .limit(1)
+        .get();
+    if (q.docs.isEmpty) {
+      await FirebaseFirestore.instance.collection('categories').add({
+        'name': trimmed,
       });
     }
   }
@@ -167,25 +155,56 @@ class _EditItemScreenState extends State<EditItemScreen> {
       _saving = true;
       _error = null;
     });
+
     try {
       final uid = FirebaseAuth.instance.currentUser!.uid;
-      await FirebaseFirestore.instance
+
+      final name = _nameCtrl.text.trim();
+      final sku = _skuCtrl.text.trim();
+      final producent = _producerCtrl.text.trim();
+      final barcode = _barcodeCtrl.text.trim();
+      final category = _categoryCtrl.text.trim();
+      final location = _locationCtrl.text.trim();
+      final quantity = int.parse(_quantityCtrl.text.trim());
+
+      final docRef = FirebaseFirestore.instance
           .collection('stock_items')
-          .doc(widget.docId)
-          .update({
-            'producent': _producerCtrl.text.trim(),
-            'name': _nameCtrl.text.trim(),
-            'sku': _skuCtrl.text.trim(),
-            'category': _categoryCtrl.text.trim(),
-            'barcode': _barcodeCtrl.text.trim(),
-            'quantity': int.parse(_quantityCtrl.text.trim()),
-            'unit': _unit,
-            'location': _locationCtrl.text.trim(),
-            'imageUrl': _imageUrl,
-            'updatedAt': FieldValue.serverTimestamp(),
-            'updatedBy': uid,
-          });
-      Navigator.of(context).pop();
+          .doc(widget.docId);
+
+      await docRef.update({
+        'producent': producent,
+        'producentFold': normalize(producent),
+        'name': name,
+        'nameFold': normalize(name),
+        'sku': sku,
+        'skuFold': normalize(sku),
+        'barcode': barcode,
+        'category': category,
+        'quantity': quantity,
+        'unit': _unit,
+        'location': location,
+        'updatedAt': FieldValue.serverTimestamp(),
+        'updatedBy': uid,
+      });
+
+      await _ensureCategoryExists(category);
+      if (mounted && category.isNotEmpty && !_categories.contains(category)) {
+        setState(() => _categories.add(category));
+      }
+      if (mounted && producent.isNotEmpty && !_producers.contains(producent)) {
+        setState(() => _producers.add(producent));
+      }
+
+      if (_pickedImage != null) {
+        final url = await _storageService.uploadStockFile(
+          widget.docId,
+          _pickedImage!,
+        );
+        await docRef.update({'imageUrl': url});
+        if (mounted) setState(() => _imageUrl = url);
+      }
+
+      if (mounted) _goToInventory();
     } catch (e) {
       setState(() {
         _error = 'Save failed: $e';
@@ -194,16 +213,22 @@ class _EditItemScreenState extends State<EditItemScreen> {
     }
   }
 
+  Future<void> _scanBarcode() async {
+    final code = await Navigator.of(context).push<String>(
+      MaterialPageRoute(builder: (_) => const ScanScreen(returnCode: true)),
+    );
+    if (!mounted || code == null || code.isEmpty) return;
+    setState(() => _barcodeCtrl.text = code);
+  }
+
   @override
   Widget build(BuildContext context) {
-    final canEdit = widget.isAdmin;
     final title = 'Edytuj produkt';
 
     return AppScaffold(
       centreTitle: true,
       title: title,
       actions: [Padding(padding: const EdgeInsets.symmetric(horizontal: 8))],
-
       body: Padding(
         padding: const EdgeInsets.all(16),
         child: _saving
@@ -215,118 +240,245 @@ class _EditItemScreenState extends State<EditItemScreen> {
                     if (_error != null)
                       Text(_error!, style: const TextStyle(color: Colors.red)),
 
-                    TextFormField(
-                      controller: _producerCtrl,
-                      decoration: const InputDecoration(labelText: 'Producent'),
-                      enabled: canEdit,
+                    // CATEGORY (Autocomplete)
+                    Row(
+                      children: [
+                        Expanded(
+                          child: Autocomplete<String>(
+                            optionsBuilder: (TextEditingValue tev) {
+                              if (tev.text.isEmpty) return _categories;
+                              final q = normalize(tev.text);
+                              return _categories.where(
+                                (c) => normalize(c).contains(q),
+                              );
+                            },
+                            initialValue: TextEditingValue(
+                              text: _categoryCtrl.text,
+                            ),
+                            onSelected: (sel) => _categoryCtrl.text = sel,
+                            fieldViewBuilder:
+                                (ctx, textCtrl, focusNode, onSubmit) {
+                                  textCtrl.text = _categoryCtrl.text;
+                                  textCtrl
+                                      .selection = TextSelection.fromPosition(
+                                    TextPosition(offset: textCtrl.text.length),
+                                  );
+                                  textCtrl.addListener(
+                                    () => _categoryCtrl.text = textCtrl.text,
+                                  );
+
+                                  return TextFormField(
+                                    controller: textCtrl,
+                                    focusNode: focusNode,
+                                    decoration: InputDecoration(
+                                      labelText: 'Kategoria',
+                                      suffixIcon: PopupMenuButton<String>(
+                                        icon: const Icon(
+                                          Icons.arrow_drop_down_circle_outlined,
+                                        ),
+                                        onSelected: (val) {
+                                          _categoryCtrl.text = val;
+                                          textCtrl.selection =
+                                              TextSelection.fromPosition(
+                                                TextPosition(
+                                                  offset: val.length,
+                                                ),
+                                              );
+                                        },
+                                        itemBuilder: (_) => _categories
+                                            .map(
+                                              (c) => PopupMenuItem<String>(
+                                                value: c,
+                                                child: Text(c),
+                                              ),
+                                            )
+                                            .toList(),
+                                      ),
+                                    ),
+                                    validator: (v) =>
+                                        (v == null || v.trim().isEmpty)
+                                        ? 'Wybierz'
+                                        : null,
+                                    textInputAction: TextInputAction.next,
+                                    onFieldSubmitted: (_) =>
+                                        FocusScope.of(context).nextFocus(),
+                                  );
+                                },
+                          ),
+                        ),
+                      ],
                     ),
+
+                    const SizedBox(height: 12),
+
+                    // PRODUCER (Autocomplete)
+                    Row(
+                      children: [
+                        Expanded(
+                          child: Autocomplete<String>(
+                            optionsBuilder: (TextEditingValue tev) {
+                              if (tev.text.isEmpty) return _producers;
+                              final q = normalize(tev.text);
+                              return _producers.where(
+                                (p) => normalize(p).contains(q),
+                              );
+                            },
+                            initialValue: TextEditingValue(
+                              text: _producerCtrl.text,
+                            ),
+                            onSelected: (sel) => _producerCtrl.text = sel,
+                            fieldViewBuilder:
+                                (ctx, textCtrl, focusNode, onSubmit) {
+                                  textCtrl.text = _producerCtrl.text;
+                                  textCtrl
+                                      .selection = TextSelection.fromPosition(
+                                    TextPosition(offset: textCtrl.text.length),
+                                  );
+                                  textCtrl.addListener(
+                                    () => _producerCtrl.text = textCtrl.text,
+                                  );
+
+                                  return TextFormField(
+                                    controller: textCtrl,
+                                    focusNode: focusNode,
+                                    decoration: InputDecoration(
+                                      labelText: 'Producent',
+                                      suffixIcon: PopupMenuButton<String>(
+                                        icon: const Icon(
+                                          Icons.arrow_drop_down_circle_outlined,
+                                        ),
+                                        onSelected: (val) {
+                                          _producerCtrl.text = val;
+                                          textCtrl.selection =
+                                              TextSelection.fromPosition(
+                                                TextPosition(
+                                                  offset: val.length,
+                                                ),
+                                              );
+                                        },
+                                        itemBuilder: (_) => _producers
+                                            .map(
+                                              (p) => PopupMenuItem<String>(
+                                                value: p,
+                                                child: Text(p),
+                                              ),
+                                            )
+                                            .toList(),
+                                      ),
+                                    ),
+                                    textInputAction: TextInputAction.next,
+                                    onFieldSubmitted: (_) =>
+                                        FocusScope.of(context).nextFocus(),
+                                  );
+                                },
+                          ),
+                        ),
+                      ],
+                    ),
+
+                    const SizedBox(height: 12),
+
                     TextFormField(
                       controller: _nameCtrl,
                       decoration: const InputDecoration(labelText: 'Model'),
-                      enabled: canEdit,
                       validator: (v) => v!.trim().isEmpty ? 'Required' : null,
+                      textInputAction: TextInputAction.next,
+                      onFieldSubmitted: (_) =>
+                          FocusScope.of(context).nextFocus(),
                     ),
+
                     const SizedBox(height: 12),
 
                     TextFormField(
                       controller: _skuCtrl,
                       decoration: const InputDecoration(labelText: 'SKU'),
-                      enabled: canEdit,
                       validator: (v) => v!.trim().isEmpty ? 'Required' : null,
+                      textInputAction: TextInputAction.next,
+                      onFieldSubmitted: (_) =>
+                          FocusScope.of(context).nextFocus(),
                     ),
-                    const SizedBox(height: 12),
 
-                    Row(
-                      children: [
-                        Expanded(
-                          child: DropdownButtonFormField<String>(
-                            value: _categoryCtrl.text.isNotEmpty
-                                ? _categoryCtrl.text
-                                : null,
-                            decoration: const InputDecoration(
-                              labelText: 'Kategoria',
-                            ),
-                            items: _categories
-                                .map(
-                                  (cat) => DropdownMenuItem(
-                                    value: cat,
-                                    child: Text(
-                                      cat[0].toUpperCase() + cat.substring(1),
-                                    ),
-                                  ),
-                                )
-                                .toList(),
-                            onChanged: canEdit
-                                ? (v) => setState(() => _categoryCtrl.text = v!)
-                                : null,
-                            validator: (v) =>
-                                v == null ? 'Wybierz kategoria' : null,
-                          ),
-                        ),
-                        IconButton(
-                          icon: const Icon(Icons.add_circle_outline),
-                          tooltip: 'Nowa kategoria',
-                          onPressed: canEdit ? _addCategory : null,
-                        ),
-                      ],
-                    ),
                     const SizedBox(height: 12),
 
                     TextFormField(
                       controller: _barcodeCtrl,
-                      decoration: const InputDecoration(
-                        labelText: 'Kod kreskowy',
+                      decoration: InputDecoration(
+                        labelText: 'Kod Kreskowy',
+                        suffixIcon: IconButton(
+                          tooltip: 'Skanuj kod',
+                          icon: const Icon(Icons.qr_code_scanner),
+                          onPressed: _scanBarcode,
+                        ),
                       ),
-                      enabled: canEdit,
+                      textInputAction: TextInputAction.next,
+                      onFieldSubmitted: (_) =>
+                          FocusScope.of(context).nextFocus(),
                     ),
+
                     const SizedBox(height: 12),
 
+                    // important QTY
                     TextFormField(
                       controller: _quantityCtrl,
                       decoration: const InputDecoration(labelText: 'Ilość'),
-                      enabled: canEdit,
                       keyboardType: TextInputType.number,
                       validator: (v) =>
-                          int.tryParse(v!) == null ? 'Wpisz ilość' : null,
+                          int.tryParse(v!) == null ? 'Wpisz liczba' : null,
+                      textInputAction: TextInputAction.next,
+                      onFieldSubmitted: (_) =>
+                          FocusScope.of(context).nextFocus(),
                     ),
+
                     const SizedBox(height: 12),
 
                     DropdownButtonFormField<String>(
                       value: _unit,
-                      decoration: const InputDecoration(labelText: 'Jm.'),
+                      decoration: const InputDecoration(
+                        labelText: 'Jednostka miary.',
+                      ),
                       items: ['szt', 'm', 'kg', 'kpl']
                           .map(
                             (u) => DropdownMenuItem(value: u, child: Text(u)),
                           )
                           .toList(),
-                      onChanged: canEdit
-                          ? (v) => setState(() => _unit = v!)
-                          : null,
+                      onChanged: (v) => setState(() => _unit = v!),
                     ),
+
                     const SizedBox(height: 12),
 
                     TextFormField(
                       controller: _locationCtrl,
                       decoration: const InputDecoration(labelText: 'Magazyn'),
-                      enabled: canEdit,
+                      textInputAction: TextInputAction.done,
+                      onFieldSubmitted: (_) {
+                        if (!_saving) _saveChanges();
+                      },
                     ),
+
                     const SizedBox(height: 12),
 
-                    if (_uploading)
-                      const Center(child: CircularProgressIndicator()),
-                    if (_imageUrl != null)
+                    if (_pickedImage != null)
+                      Image.file(_pickedImage!, height: 150)
+                    else if (_imageUrl != null)
                       Image.network(_imageUrl!, height: 150),
 
                     ElevatedButton.icon(
                       icon: const Icon(Icons.camera_alt),
-                      label: const Text('Zapisz fotka'),
-                      onPressed: canEdit ? _changePhoto : null,
+                      label: const Text('Dodaj zdjęcia produktu'),
+                      onPressed: _pickImage,
                     ),
-                    const SizedBox(height: 24),
+                    const SizedBox(height: 10),
 
-                    ElevatedButton(
-                      onPressed: canEdit ? _saveChanges : null,
-                      child: const Text('Zapisz'),
+                    ElevatedButton.icon(
+                      icon: const Icon(Icons.check, color: Colors.green),
+                      label: const Text(
+                        'Zaktualizuj produkt',
+                        style: TextStyle(
+                          color: Colors.green,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                      onPressed: _saveChanges,
                     ),
                   ],
                 ),

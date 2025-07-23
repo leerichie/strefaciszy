@@ -2,10 +2,8 @@
 
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
-import 'package:strefa_ciszy/screens/main_menu_screen.dart';
 import 'package:strefa_ciszy/widgets/app_scaffold.dart';
 import '../services/user_functions.dart';
-import 'package:strefa_ciszy/widgets/app_drawer.dart';
 
 import 'inventory_list_screen.dart';
 import 'scan_screen.dart';

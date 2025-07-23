@@ -1,10 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:strefa_ciszy/screens/main_menu_screen.dart';
 import 'package:strefa_ciszy/widgets/app_scaffold.dart';
 import 'add_item_screen.dart';
 import 'edit_item_screen.dart';
-import 'package:strefa_ciszy/widgets/app_drawer.dart';
 
 class ItemDetailScreen extends StatelessWidget {
   final String itemId;
@@ -159,25 +157,7 @@ class ItemDetailScreen extends StatelessWidget {
                     _row('Ilość', data['quantity']),
                   ],
                 ),
-                // Row(
-                //   children: [
-                //     Text(
-                //       'Ilość ($unit):',
-                //       style: const TextStyle(fontSize: 18),
-                //     ),
-                //     const Spacer(),
-                //     IconButton(
-                //       icon: const Icon(Icons.remove),
-                //       onPressed: () => _changeQuantity(doc.id, -1, qty),
-                //     ),
-                //     Text('$qty', style: const TextStyle(fontSize: 18)),
-                //     IconButton(
-                //       icon: const Icon(Icons.add),
-                //       onPressed: () => _changeQuantity(doc.id, 1, qty),
-                //     ),
-                //   ],
-                // ),
-                // const SizedBox(height: 24),
+
                 Center(
                   child: ElevatedButton(
                     onPressed: isAdmin

@@ -7,14 +7,12 @@ import 'package:strefa_ciszy/screens/contacts_list_screen.dart';
 import 'package:strefa_ciszy/screens/customer_detail_screen.dart';
 import 'package:strefa_ciszy/screens/customer_list_screen.dart';
 import 'package:strefa_ciszy/screens/inventory_list_screen.dart';
-import 'package:strefa_ciszy/screens/login_screen.dart';
 import 'package:strefa_ciszy/screens/main_menu_screen.dart';
 import 'package:strefa_ciszy/screens/project_editor_screen.dart';
-import 'package:strefa_ciszy/screens/rw_documents_screen.dart';
 import 'package:strefa_ciszy/screens/scan_screen.dart';
 
 class AppDrawer extends StatelessWidget {
-  const AppDrawer({Key? key}) : super(key: key);
+  const AppDrawer({super.key});
 
   static const favCustomer = 'favouriteCustomers';
   static const favProject = 'favouriteProjects';
@@ -139,7 +137,10 @@ class AppDrawer extends StatelessWidget {
                       onTap: () {
                         Navigator.of(context).pop();
                         Navigator.of(context).push(
-                          MaterialPageRoute(builder: (_) => const ScanScreen()),
+                          MaterialPageRoute(
+                            builder: (_) =>
+                                const ScanScreen(purpose: ScanPurpose.add),
+                          ),
                         );
                       },
                     ),
@@ -154,7 +155,10 @@ class AppDrawer extends StatelessWidget {
                       onTap: () {
                         Navigator.of(context).pop();
                         Navigator.of(context).push(
-                          MaterialPageRoute(builder: (_) => const ScanScreen()),
+                          MaterialPageRoute(
+                            builder: (_) =>
+                                const ScanScreen(purpose: ScanPurpose.search),
+                          ),
                         );
                       },
                     ),

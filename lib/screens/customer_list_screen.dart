@@ -6,13 +6,15 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
+import 'package:strefa_ciszy/screens/add_contact_screen.dart';
 import 'package:strefa_ciszy/screens/contacts_list_screen.dart';
-import 'package:strefa_ciszy/screens/main_menu_screen.dart';
 import 'package:strefa_ciszy/screens/scan_screen.dart';
 import 'package:strefa_ciszy/widgets/app_scaffold.dart';
 import 'customer_detail_screen.dart';
-import 'inventory_list_screen.dart';
-import 'package:strefa_ciszy/widgets/app_drawer.dart';
+
+enum SortMode { nameAZ, nameZA, newest, oldest }
+
+SortMode _sortMode = SortMode.newest;
 
 class CustomerListScreen extends StatefulWidget {
   final bool isAdmin;
@@ -41,6 +43,8 @@ class _CustomerListScreenState extends State<CustomerListScreen> {
   Set<String> _favCustomerIds = {};
   late final StreamSubscription<QuerySnapshot<Map<String, dynamic>>>
   _favsCustSub;
+  late SortMode _sortMode;
+  bool _sortLoaded = false;
 
   @override
   void initState() {
@@ -58,6 +62,8 @@ class _CustomerListScreenState extends State<CustomerListScreen> {
                 .toList();
           });
         });
+    _sortMode = SortMode.newest;
+    _loadSortMode();
     if (widget.showAddOnOpen) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
         _addCustomer();
@@ -74,6 +80,32 @@ class _CustomerListScreenState extends State<CustomerListScreen> {
             _favCustomerIds = snap.docs.map((d) => d.id).toSet();
           });
         });
+  }
+
+  Future<void> _loadSortMode() async {
+    final uid = FirebaseAuth.instance.currentUser!.uid;
+    final doc = await FirebaseFirestore.instance
+        .collection('users')
+        .doc(uid)
+        .get();
+
+    final val = (doc.data()?['customerSortMode'] as String?) ?? 'newest';
+    final found = SortMode.values.firstWhere(
+      (m) => m.name == val,
+      orElse: () => SortMode.newest,
+    );
+    setState(() {
+      _sortMode = found;
+      _sortLoaded = true;
+    });
+  }
+
+  Future<void> _saveSortMode(SortMode m) async {
+    final uid = FirebaseAuth.instance.currentUser!.uid;
+    setState(() => _sortMode = m);
+    await FirebaseFirestore.instance.collection('users').doc(uid).set({
+      'customerSortMode': m.name,
+    }, SetOptions(merge: true));
   }
 
   Future<void> _loadContactNames() async {
@@ -194,69 +226,45 @@ class _CustomerListScreenState extends State<CustomerListScreen> {
   }
 
   Future<void> _addCustomer() async {
-    String name = '';
-    await showDialog<void>(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Text('Dodaj klienta'),
-        content: Autocomplete<String>(
-          optionsBuilder: (TextEditingValue textEditingValue) {
-            if (textEditingValue.text.isEmpty) {
-              return const Iterable<String>.empty();
-            }
-            return _contactNames.where(
-              (option) => option.toLowerCase().contains(
-                textEditingValue.text.toLowerCase(),
-              ),
-            );
-          },
-          fieldViewBuilder: (context, controller, focusNode, onFieldSubmitted) {
-            controller.text = name;
-            controller.selection = TextSelection.fromPosition(
-              TextPosition(offset: controller.text.length),
-            );
-            controller.addListener(() {
-              name = controller.text.trim();
-            });
-            return TextField(
-              controller: controller,
-              focusNode: focusNode,
-              decoration: const InputDecoration(labelText: 'Nazwa Klienta'),
-            );
-          },
-          onSelected: (selection) {
-            name = selection;
-          },
+    final result = await Navigator.of(context).push<Map<String, dynamic>>(
+      MaterialPageRoute(
+        builder: (_) =>
+            AddContactScreen(isAdmin: widget.isAdmin, linkedCustomerId: null),
+      ),
+    );
+
+    if (!mounted || result == null) return;
+
+    var name = (result['name'] ?? '').toString().trim();
+    final contactId = result['contactId'] as String?;
+    if (contactId == null) return;
+
+    if (name.isEmpty) {
+      final snap = await FirebaseFirestore.instance
+          .collection('contacts')
+          .doc(contactId)
+          .get();
+      name = (snap.data()?['name'] ?? '').toString().trim();
+    }
+    if (name.isEmpty) return;
+
+    final custRef = await _col.add({
+      'name': name,
+      'nameFold': name.toLowerCase(),
+      'contactId': contactId,
+      'createdAt': FieldValue.serverTimestamp(),
+    });
+
+    await FirebaseFirestore.instance.collection('contacts').doc(contactId).set({
+      'linkedCustomerId': custRef.id,
+    }, SetOptions(merge: true));
+
+    Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (_) => CustomerDetailScreen(
+          customerId: custRef.id,
+          isAdmin: widget.isAdmin,
         ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx),
-            child: const Text('Anuluj'),
-          ),
-          ElevatedButton(
-            onPressed: () {
-              if (name.isNotEmpty) {
-                QueryDocumentSnapshot<Map<String, dynamic>>? contactDoc;
-                for (var d in _contactDocs) {
-                  if ((d.data()['name'] as String) == name) {
-                    contactDoc = d;
-                    break;
-                  }
-                }
-                final data = <String, dynamic>{
-                  'name': name,
-                  'createdAt': FieldValue.serverTimestamp(),
-                };
-                if (contactDoc != null) {
-                  data['contactId'] = contactDoc.id;
-                }
-                _col.add(data);
-              }
-              Navigator.pop(ctx);
-            },
-            child: const Text('Zapisz'),
-          ),
-        ],
       ),
     );
   }
@@ -264,8 +272,14 @@ class _CustomerListScreenState extends State<CustomerListScreen> {
   @override
   Widget build(BuildContext context) {
     final isAdmin = widget.isAdmin;
-    final title = 'Klienci';
+    final title = 'Lista Klientów';
     return AppScaffold(
+      floatingActionButton: FloatingActionButton(
+        tooltip: 'Dodaj Klienta',
+        onPressed: _addCustomer,
+        child: const Icon(Icons.person_add),
+      ),
+      floatingActionButtonLocation: FloatingActionButtonLocation.centerDocked,
       centreTitle: true,
       title: title,
       bottom: PreferredSize(
@@ -293,6 +307,22 @@ class _CustomerListScreenState extends State<CustomerListScreen> {
                 tooltip: 'Resetuj filtr',
                 icon: const Icon(Icons.refresh),
                 onPressed: _resetSearch,
+              ),
+              PopupMenuButton<SortMode>(
+                icon: const Icon(Icons.sort),
+                onSelected: _saveSortMode,
+                itemBuilder: (_) => const [
+                  PopupMenuItem(value: SortMode.nameAZ, child: Text('A → Z')),
+                  PopupMenuItem(value: SortMode.nameZA, child: Text('Z → A')),
+                  PopupMenuItem(
+                    value: SortMode.newest,
+                    child: Text('Najnowszy'),
+                  ),
+                  PopupMenuItem(
+                    value: SortMode.oldest,
+                    child: Text('Najstarszy'),
+                  ),
+                ],
               ),
             ],
           ),
@@ -332,14 +362,58 @@ class _CustomerListScreenState extends State<CustomerListScreen> {
 
           final docs = snap.data!.docs;
           final filtered = _search.isEmpty
-              ? docs
+              ? docs.toList()
               : docs.where((d) {
                   final name = (d['name'] ?? '').toString().toLowerCase();
                   return name.contains(_search.toLowerCase());
                 }).toList();
 
-          if (filtered.isEmpty) {
-            return const Center(child: Text('Nie znaleziono klientów.'));
+          int cmpName(Map<String, dynamic> a, Map<String, dynamic> b) =>
+              (a['name'] ?? '').toString().toLowerCase().compareTo(
+                (b['name'] ?? '').toString().toLowerCase(),
+              );
+
+          int cmpDate(Map<String, dynamic> a, Map<String, dynamic> b) {
+            final ta =
+                (a['createdAt'] as Timestamp?)?.toDate() ?? DateTime(1970);
+            final tb =
+                (b['createdAt'] as Timestamp?)?.toDate() ?? DateTime(1970);
+            return ta.compareTo(tb);
+          }
+
+          switch (_sortMode) {
+            case SortMode.nameAZ:
+              filtered.sort(
+                (x, y) => cmpName(
+                  x.data()! as Map<String, dynamic>,
+                  y.data()! as Map<String, dynamic>,
+                ),
+              );
+              break;
+            case SortMode.nameZA:
+              filtered.sort(
+                (x, y) => cmpName(
+                  y.data()! as Map<String, dynamic>,
+                  x.data()! as Map<String, dynamic>,
+                ),
+              );
+              break;
+            case SortMode.oldest:
+              filtered.sort(
+                (x, y) => cmpDate(
+                  x.data()! as Map<String, dynamic>,
+                  y.data()! as Map<String, dynamic>,
+                ),
+              );
+              break;
+            case SortMode.newest:
+              filtered.sort(
+                (x, y) => cmpDate(
+                  y.data()! as Map<String, dynamic>,
+                  x.data()! as Map<String, dynamic>,
+                ),
+              );
+              break;
           }
 
           return ListView.separated(
@@ -461,46 +535,46 @@ class _CustomerListScreenState extends State<CustomerListScreen> {
           );
         },
       ),
-      floatingActionButton: FloatingActionButton(
-        tooltip: 'Dodaj Klienta',
-        onPressed: _addCustomer,
-        child: const Icon(Icons.person_add),
-      ),
-      floatingActionButtonLocation: FloatingActionButtonLocation.centerDocked,
-      bottomNavigationBar: SafeArea(
-        child: BottomAppBar(
-          shape: const CircularNotchedRectangle(),
-          notchMargin: 6,
-          child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 32),
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                IconButton(
-                  tooltip: 'Kontakty',
-                  icon: const Icon(Icons.contact_mail_outlined),
-                  onPressed: () => Navigator.of(context).push(
-                    MaterialPageRoute(builder: (_) => ContactsListScreen()),
-                  ),
-                ),
+      // floatingActionButton: FloatingActionButton(
+      //   tooltip: 'Dodaj Klienta',
+      //   onPressed: _addCustomer,
+      //   child: const Icon(Icons.person_add),
+      // ),
+      // floatingActionButtonLocation: FloatingActionButtonLocation.centerDocked,
+      // bottomNavigationBar: SafeArea(
+      //   child: BottomAppBar(
+      //     shape: const CircularNotchedRectangle(),
+      //     notchMargin: 6,
+      //     child: Padding(
+      //       padding: const EdgeInsets.symmetric(horizontal: 32),
+      //       child: Row(
+      //         mainAxisAlignment: MainAxisAlignment.spaceBetween,
+      //         children: [
+      //           IconButton(
+      //             tooltip: 'Kontakty',
+      //             icon: const Icon(Icons.contact_mail_outlined),
+      //             onPressed: () => Navigator.of(context).push(
+      //               MaterialPageRoute(builder: (_) => ContactsListScreen()),
+      //             ),
+      //           ),
 
-                // IconButton(
-                //   tooltip: 'Edytuj klientów',
-                //   icon: const Icon(Icons.edit),
-                //   onPressed: _editCustomers,
-                // ),
-                IconButton(
-                  tooltip: 'Skanuj',
-                  icon: const Icon(Icons.qr_code_scanner),
-                  onPressed: () => Navigator.of(
-                    context,
-                  ).push(MaterialPageRoute(builder: (_) => const ScanScreen())),
-                ),
-              ],
-            ),
-          ),
-        ),
-      ),
+      //           // IconButton(
+      //           //   tooltip: 'Edytuj klientów',
+      //           //   icon: const Icon(Icons.edit),
+      //           //   onPressed: _editCustomers,
+      //           // ),
+      //           IconButton(
+      //             tooltip: 'Skanuj',
+      //             icon: const Icon(Icons.qr_code_scanner),
+      //             onPressed: () => Navigator.of(
+      //               context,
+      //             ).push(MaterialPageRoute(builder: (_) => const ScanScreen())),
+      //           ),
+      //         ],
+      //       ),
+      //     ),
+      //   ),
+      // ),
     );
   }
 }

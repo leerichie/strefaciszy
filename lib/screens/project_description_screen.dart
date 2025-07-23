@@ -13,7 +13,6 @@ import 'package:http/http.dart' as http;
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
-import 'package:intl/intl.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:firebase_storage/firebase_storage.dart';
 import 'package:open_file/open_file.dart';
@@ -21,7 +20,6 @@ import 'package:path/path.dart' as p;
 import 'package:strefa_ciszy/screens/contacts_list_screen.dart';
 import 'package:strefa_ciszy/screens/customer_list_screen.dart';
 import 'package:strefa_ciszy/screens/location_picker_screen.dart';
-import 'package:strefa_ciszy/screens/main_menu_screen.dart';
 import 'package:strefa_ciszy/services/storage_service.dart';
 import 'package:strefa_ciszy/widgets/app_scaffold.dart';
 import 'package:url_launcher/url_launcher.dart';
@@ -30,8 +28,7 @@ import 'package:strefa_ciszy/widgets/app_drawer.dart';
 enum _PhotoSource { camera, gallery }
 
 class NoSwipeCupertinoRoute<T> extends CupertinoPageRoute<T> {
-  NoSwipeCupertinoRoute({required WidgetBuilder builder})
-    : super(builder: builder);
+  NoSwipeCupertinoRoute({required super.builder});
 
   @override
   bool get popGestureEnabled => false;
@@ -384,7 +381,7 @@ class _ProjectDescriptionScreenState extends State<ProjectDescriptionScreen> {
         maxWidth: 1024,
         maxHeight: 1024,
       );
-      if (photos != null && photos.isNotEmpty) {
+      if (photos.isNotEmpty) {
         await _uploadPickedImages(photos);
       }
     }

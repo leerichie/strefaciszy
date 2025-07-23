@@ -5,7 +5,6 @@ import 'package:excel/excel.dart';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:strefa_ciszy/services/file_saver.dart';
-import 'package:strefa_ciszy/widgets/app_drawer.dart';
 import 'package:strefa_ciszy/widgets/app_scaffold.dart';
 
 class FilteredReportScreen extends StatelessWidget {

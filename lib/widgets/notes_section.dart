@@ -1,6 +1,5 @@
 import 'package:auto_size_text/auto_size_text.dart';
 import 'package:flutter/material.dart';
-import 'package:intl/intl.dart';
 import 'package:strefa_ciszy/widgets/note_dialogue.dart';
 
 typedef OnNoteAdded = Future<Note?> Function(BuildContext context);

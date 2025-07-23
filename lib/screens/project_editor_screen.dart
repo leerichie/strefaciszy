@@ -1,7 +1,6 @@
 // lib/screens/project_editor_screen.dart
 
 import 'dart:async';
-import 'dart:io';
 import 'dart:core';
 import 'package:auto_size_text/auto_size_text.dart';
 import 'package:flutter/cupertino.dart';
@@ -11,26 +10,18 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:strefa_ciszy/models/stock_item.dart';
 import 'package:strefa_ciszy/models/project_line.dart';
-import 'package:strefa_ciszy/screens/inventory_list_screen.dart';
-import 'package:strefa_ciszy/screens/main_menu_screen.dart';
 import 'package:strefa_ciszy/screens/project_description_screen.dart';
 import 'package:strefa_ciszy/screens/rw_documents_screen.dart';
 import 'package:strefa_ciszy/services/stock_service.dart';
 import 'package:strefa_ciszy/widgets/app_scaffold.dart';
 import 'package:strefa_ciszy/widgets/note_dialogue.dart';
 import 'package:strefa_ciszy/widgets/project_line_dialog.dart';
-import 'package:strefa_ciszy/models/rw_document.dart';
-import 'package:strefa_ciszy/screens/scan_screen.dart';
 import 'package:strefa_ciszy/services/audit_service.dart';
-import 'package:strefa_ciszy/widgets/audit_log_list.dart';
-import 'package:strefa_ciszy/widgets/photo_gallery.dart';
 import 'package:strefa_ciszy/widgets/notes_section.dart';
 import 'package:strefa_ciszy/services/storage_service.dart';
-import 'package:strefa_ciszy/widgets/app_drawer.dart';
 
 class NoSwipeCupertinoRoute<T> extends CupertinoPageRoute<T> {
-  NoSwipeCupertinoRoute({required WidgetBuilder builder})
-    : super(builder: builder);
+  NoSwipeCupertinoRoute({required super.builder});
 
   @override
   bool get popGestureEnabled => false;
@@ -866,8 +857,9 @@ class _ProjectEditorScreenState extends State<ProjectEditorScreen> {
                         createdAt: old.createdAt,
                         initial: existingText,
                       );
-                      if (updated == null || updated.trim() == existingText)
-                        return null;
+                      if (updated == null || updated.trim() == existingText) {
+                        return;
+                      }
 
                       final oldMap = {
                         'text': old.text,
@@ -908,7 +900,7 @@ class _ProjectEditorScreenState extends State<ProjectEditorScreen> {
                           'notesList': FieldValue.arrayUnion([newMap]),
                         });
                       }
-                      return null;
+                      return;
                     },
 
                     onDelete: (i) async {
@@ -928,7 +920,7 @@ class _ProjectEditorScreenState extends State<ProjectEditorScreen> {
                           'notesList': FieldValue.arrayRemove([map]),
                         });
                       }
-                      return null;
+                      return;
                     },
                   ),
                   Divider(),

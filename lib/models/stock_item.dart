@@ -5,6 +5,8 @@ class StockItem {
   final String name;
   final String description;
   final int quantity;
+  final String? sku;
+  final String? barcode;
   final String? unit;
   final String? producent;
   final String? imageUrl;
@@ -14,6 +16,8 @@ class StockItem {
     required this.name,
     required this.description,
     required this.quantity,
+    this.sku,
+    this.barcode,
     this.unit,
     this.producent,
     this.imageUrl,
@@ -25,6 +29,8 @@ class StockItem {
       name: map['name'] ?? '',
       description: map['category'] as String? ?? '',
       quantity: map['quantity'] ?? 0,
+      sku: map['sku'],
+      barcode: map['barcode'],
       unit: map['unit'],
       producent: map['producent'],
       imageUrl: map['imageUrl'],
@@ -36,6 +42,8 @@ class StockItem {
       'name': name,
       'description': description,
       'quantity': quantity,
+      'sku': sku,
+      'barcode': barcode,
       if (unit != null) 'unit': unit,
       if (producent != null) 'producent': producent,
       if (imageUrl != null) 'imageUrl': imageUrl,

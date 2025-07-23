@@ -3,15 +3,23 @@
 import 'package:flutter/material.dart';
 import 'package:mobile_scanner/mobile_scanner.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:strefa_ciszy/widgets/app_drawer.dart';
+import 'package:strefa_ciszy/screens/inventory_list_screen.dart';
 import 'package:strefa_ciszy/widgets/app_scaffold.dart';
 import 'add_item_screen.dart';
 import 'item_detail_screen.dart';
+import 'package:strefa_ciszy/utils/search_utils.dart';
+
+enum ScanPurpose { add, search }
 
 class ScanScreen extends StatefulWidget {
-  final bool returnCode;
+  const ScanScreen({
+    super.key,
+    this.returnCode = false,
+    this.purpose = ScanPurpose.add,
+  });
 
-  const ScanScreen({super.key, this.returnCode = false});
+  final bool returnCode;
+  final ScanPurpose purpose;
 
   @override
   _ScanScreenState createState() => _ScanScreenState();
@@ -27,6 +35,7 @@ class _ScanScreenState extends State<ScanScreen> {
   String? _scannedCode;
   bool _isLoading = false;
   bool? _found;
+  bool get _isSearch => widget.purpose == ScanPurpose.search;
 
   @override
   void dispose() {
@@ -34,69 +43,159 @@ class _ScanScreenState extends State<ScanScreen> {
     super.dispose();
   }
 
-  void _lookupCode(String code) {
-    if (code == _scannedCode && _found != null) return;
+  bool _looksLikeBarcode(String v) => RegExp(r'^\d{6,}$').hasMatch(v);
+
+  void _resetIdle() {
+    setState(() {
+      _isLoading = false;
+      _found = null;
+      _scannedCode = null;
+    });
+  }
+
+  Future<void> _resumeScanner() async {
+    try {
+      await _controller.start();
+    } catch (_) {}
+  }
+
+  void _goToAddItem(String value) {
+    Navigator.of(context)
+        .push(
+          MaterialPageRoute(
+            builder: (_) => AddItemScreen(
+              initialBarcode: _looksLikeBarcode(value) ? value : null,
+              initialName: !_looksLikeBarcode(value) ? value : null,
+            ),
+          ),
+        )
+        .then((_) async {
+          if (!mounted) return;
+          _resetIdle();
+          await _resumeScanner();
+        });
+  }
+
+  Future<List<QueryDocumentSnapshot<Map<String, dynamic>>>> _findItems(
+    String raw,
+  ) async {
+    final col = FirebaseFirestore.instance.collection('stock_items');
+    final norm = normalize(raw);
+
+    for (final f in ['barcode', 'sku']) {
+      final snap = await col.where(f, isEqualTo: raw).get();
+      if (snap.docs.isNotEmpty) return snap.docs;
+    }
+
+    final all = await col.get();
+    return all.docs.where((d) {
+      final data = d.data();
+      return matchesSearch(norm, [
+        data['name'] as String?,
+        data['producent'] as String?,
+        data['sku'] as String?,
+        data['barcode'] as String?,
+      ]);
+    }).toList();
+  }
+
+  Future<void> _lookupAndHandle(String value) async {
+    if (value == _scannedCode && _found != null) return;
+
+    if (!_isSearch) {
+      _goToAddItem(value);
+      return;
+    }
 
     setState(() {
-      _scannedCode = code;
+      _scannedCode = value;
       _isLoading = true;
       _found = null;
     });
 
-    FirebaseFirestore.instance
-        .collection('stock_items')
-        .where('barcode', isEqualTo: code)
-        .limit(1)
-        .get()
-        .then((snap) {
-          if (snap.docs.isNotEmpty) {
-            if (widget.returnCode) {
-              Navigator.of(context).pop(code);
-            } else {
-              final itemId = snap.docs.first.id;
-              Navigator.of(context).pushReplacement(
-                MaterialPageRoute(
-                  builder: (_) => ItemDetailScreen(itemId: itemId),
-                ),
-              );
-            }
-          } else {
-            setState(() {
-              _isLoading = false;
-              _found = false;
-            });
-          }
-        })
-        .catchError((e) {
-          setState(() {
-            _isLoading = false;
-            _found = false;
-          });
+    try {
+      final docs = await _findItems(value);
+      if (docs.isEmpty) {
+        setState(() {
+          _isLoading = false;
+          _found = false;
         });
+        final add = await showDialog<bool>(
+          context: context,
+          builder: (_) => AlertDialog(
+            title: const Text('Brak produktu'),
+            content: Text('Nie znaleziono „$value”.\n Dodać nowy produkt?'),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(context, false),
+                child: const Text('Nie'),
+              ),
+              ElevatedButton(
+                onPressed: () => Navigator.pop(context, true),
+                child: const Text('Tak'),
+              ),
+            ],
+          ),
+        );
+        if (!mounted) return;
+        if (add == true) {
+          _goToAddItem(value);
+        } else {
+          _resetIdle();
+          await _resumeScanner();
+        }
+        return;
+      }
+
+      if (docs.length == 1) {
+        final id = docs.first.id;
+        await Navigator.of(
+          context,
+        ).push(MaterialPageRoute(builder: (_) => ItemDetailScreen(itemId: id)));
+        if (!mounted) return;
+        _resetIdle();
+        await _resumeScanner();
+      } else {
+        await Navigator.of(context).push(
+          MaterialPageRoute(
+            builder: (_) =>
+                InventoryListScreen(isAdmin: true, initialSearch: value),
+          ),
+        );
+        if (!mounted) return;
+        _resetIdle();
+        await _resumeScanner();
+      }
+    } catch (_) {
+      setState(() {
+        _isLoading = false;
+        _found = false;
+      });
+      await _resumeScanner();
+    }
   }
 
   void _onDetect(BarcodeCapture capture) {
     final raw = capture.barcodes.first.rawValue;
     if (raw == null || raw.isEmpty) return;
     _controller.stop();
-    _lookupCode(raw);
+    _lookupAndHandle(raw);
   }
 
   void _onManualEntry(String input) {
     final code = input.trim();
     if (code.isNotEmpty) {
       _controller.stop();
-      _lookupCode(code);
+      _lookupAndHandle(code);
     }
   }
 
   @override
   Widget build(BuildContext context) {
-    final title = 'Szukaj towar';
+    final isSearch = widget.purpose == ScanPurpose.search;
 
     return AppScaffold(
-      title: title,
-
+      title: isSearch ? 'Wyszukaj produkt' : 'Dodaj produkt',
       body: SafeArea(
         child: Column(
           children: [
@@ -106,12 +205,12 @@ class _ScanScreenState extends State<ScanScreen> {
                 onDetect: _onDetect,
               ),
             ),
-            if (_isLoading)
+            if (_isSearch && _isLoading)
               const Padding(
                 padding: EdgeInsets.all(12),
                 child: CircularProgressIndicator(),
               ),
-            if (_found == false)
+            if (_isSearch && _found == false)
               Padding(
                 padding: const EdgeInsets.all(12),
                 child: Text(
@@ -120,11 +219,11 @@ class _ScanScreenState extends State<ScanScreen> {
                   textAlign: TextAlign.center,
                 ),
               ),
-            if (_scannedCode != null)
+            if (_isSearch && _scannedCode != null)
               Padding(
                 padding: const EdgeInsets.all(12),
                 child: Text(
-                  'Skanowany: $_scannedCode',
+                  'Szukam: $_scannedCode',
                   style: const TextStyle(
                     fontSize: 16,
                     fontWeight: FontWeight.bold,
@@ -134,14 +233,17 @@ class _ScanScreenState extends State<ScanScreen> {
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
               child: TextField(
-                decoration: const InputDecoration(
-                  labelText: 'Ręcznie szukać po nazwie lub kodu...',
-                  border: OutlineInputBorder(),
+                decoration: InputDecoration(
+                  labelText: _isSearch
+                      ? 'Ręcznie szukać po nazwie lub kod…'
+                      : 'Wpisz kod lub nazwę, aby dodać…',
+                  border: const OutlineInputBorder(),
                 ),
                 onSubmitted: _onManualEntry,
               ),
             ),
-            if (_found == false)
+
+            if (_found == false && !isSearch)
               Padding(
                 padding: EdgeInsets.fromLTRB(
                   16,

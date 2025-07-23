@@ -8,14 +8,19 @@ import 'package:strefa_ciszy/screens/add_item_screen.dart';
 import 'package:strefa_ciszy/screens/item_detail_screen.dart';
 import 'package:strefa_ciszy/screens/scan_screen.dart';
 import 'package:strefa_ciszy/screens/customer_list_screen.dart';
-import 'package:strefa_ciszy/screens/main_menu_screen.dart';
 import 'package:strefa_ciszy/utils/search_utils.dart';
-import 'package:strefa_ciszy/widgets/app_drawer.dart';
 import 'package:strefa_ciszy/widgets/app_scaffold.dart';
 
 class InventoryListScreen extends StatefulWidget {
   final bool isAdmin;
-  const InventoryListScreen({super.key, required this.isAdmin});
+  final String? initialSearch;
+  final Set<String>? onlyIds;
+  const InventoryListScreen({
+    super.key,
+    required this.isAdmin,
+    this.initialSearch,
+    this.onlyIds,
+  });
 
   @override
   _InventoryListScreenState createState() => _InventoryListScreenState();
@@ -31,7 +36,8 @@ class _InventoryListScreenState extends State<InventoryListScreen> {
   @override
   void initState() {
     super.initState();
-    _searchController = TextEditingController();
+    _searchController = TextEditingController(text: widget.initialSearch ?? '');
+    _search = widget.initialSearch?.trim() ?? '';
     _catSub = FirebaseFirestore.instance
         .collection('categories')
         .orderBy('name')
@@ -91,7 +97,7 @@ class _InventoryListScreenState extends State<InventoryListScreen> {
   @override
   Widget build(BuildContext context) {
     final isAdmin = widget.isAdmin;
-    final title = 'Inwentaryzacja';
+    final title = 'Magazyn';
     return AppScaffold(
       centreTitle: true,
       title: title,
@@ -125,30 +131,7 @@ class _InventoryListScreenState extends State<InventoryListScreen> {
           ),
         ),
       ),
-      actions: [
-        Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 8.0),
-          // child: DecoratedBox(
-          //   decoration: BoxDecoration(
-          //     color: Colors.black,
-          //     shape: BoxShape.circle,
-          //   ),
-          //   child: IconButton(
-          //     icon: const Icon(Icons.home),
-          //     tooltip: 'Home',
-          //     onPressed: () {
-          //       Navigator.of(context).pushAndRemoveUntil(
-          //         MaterialPageRoute(
-          //           builder: (_) => const MainMenuScreen(role: 'admin'),
-          //         ),
-          //         (route) => false,
-          //       );
-          //     },
-          //     color: Colors.white,
-          //   ),
-          // ),
-        ),
-      ],
+      actions: [Padding(padding: const EdgeInsets.symmetric(horizontal: 8.0))],
 
       body: Column(
         children: [
@@ -190,13 +173,22 @@ class _InventoryListScreenState extends State<InventoryListScreen> {
                 }
 
                 final allItems = snap.data!.docs.map((d) => d.data()).toList();
-                final filtered = _search.isEmpty
+
+                final preFiltered = widget.onlyIds == null
                     ? allItems
-                    : allItems.where((item) {
+                    : allItems
+                          .where((i) => widget.onlyIds!.contains(i.id))
+                          .toList();
+
+                final filtered = _search.isEmpty
+                    ? preFiltered
+                    : preFiltered.where((item) {
                         return matchesSearch(_search, [
                           item.name,
                           item.producent,
                           item.description,
+                          item.sku,
+                          item.barcode,
                         ]);
                       }).toList();
 

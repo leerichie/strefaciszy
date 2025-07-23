@@ -8,11 +8,9 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:strefa_ciszy/screens/contacts_list_screen.dart';
-import 'package:strefa_ciszy/screens/main_menu_screen.dart';
 import 'package:strefa_ciszy/screens/scan_screen.dart';
 import 'package:strefa_ciszy/widgets/app_scaffold.dart';
 import 'project_editor_screen.dart';
-import 'package:strefa_ciszy/widgets/app_drawer.dart';
 
 class CustomerDetailScreen extends StatefulWidget {
   final String customerId;
