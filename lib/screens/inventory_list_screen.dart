@@ -99,6 +99,16 @@ class _InventoryListScreenState extends State<InventoryListScreen> {
     final isAdmin = widget.isAdmin;
     final title = 'Magazyn';
     return AppScaffold(
+      floatingActionButton: isAdmin
+          ? FloatingActionButton(
+              onPressed: () => Navigator.of(
+                context,
+              ).push(MaterialPageRoute(builder: (_) => const AddItemScreen())),
+              tooltip: 'Dodaj stock',
+              child: const Icon(Icons.add),
+            )
+          : null,
+      floatingActionButtonLocation: FloatingActionButtonLocation.centerDocked,
       centreTitle: true,
       title: title,
       bottom: PreferredSize(
@@ -226,7 +236,7 @@ class _InventoryListScreenState extends State<InventoryListScreen> {
                       ),
 
                       subtitle: Text(
-                        '• ${item.quantity}${item.unit != null ? ' ${item.unit}' : ''}',
+                        '${item.quantity}${item.unit != null ? ' ${item.unit}' : ''}',
                         style: TextStyle(
                           fontSize: 14,
                           fontWeight: FontWeight.bold,
@@ -294,46 +304,46 @@ class _InventoryListScreenState extends State<InventoryListScreen> {
           ),
         ],
       ),
-      floatingActionButton: isAdmin
-          ? FloatingActionButton(
-              onPressed: () => Navigator.of(
-                context,
-              ).push(MaterialPageRoute(builder: (_) => const AddItemScreen())),
-              tooltip: 'Dodaj stock',
-              child: const Icon(Icons.add),
-            )
-          : null,
-      floatingActionButtonLocation: FloatingActionButtonLocation.centerDocked,
-      bottomNavigationBar: SafeArea(
-        child: BottomAppBar(
-          shape: const CircularNotchedRectangle(),
-          notchMargin: 6,
-          child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 32),
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                IconButton(
-                  tooltip: 'Klienci',
-                  icon: const Icon(Icons.group),
-                  onPressed: () => Navigator.of(context).push(
-                    MaterialPageRoute(
-                      builder: (_) => CustomerListScreen(isAdmin: isAdmin),
-                    ),
-                  ),
-                ),
-                IconButton(
-                  tooltip: 'Skanuj',
-                  icon: const Icon(Icons.qr_code_scanner),
-                  onPressed: () => Navigator.of(
-                    context,
-                  ).push(MaterialPageRoute(builder: (_) => const ScanScreen())),
-                ),
-              ],
-            ),
-          ),
-        ),
-      ),
+      // floatingActionButton: isAdmin
+      //     ? FloatingActionButton(
+      //         onPressed: () => Navigator.of(
+      //           context,
+      //         ).push(MaterialPageRoute(builder: (_) => const AddItemScreen())),
+      //         tooltip: 'Dodaj stock',
+      //         child: const Icon(Icons.add),
+      //       )
+      //     : null,
+      // floatingActionButtonLocation: FloatingActionButtonLocation.centerDocked,
+      // bottomNavigationBar: SafeArea(
+      //   child: BottomAppBar(
+      //     shape: const CircularNotchedRectangle(),
+      //     notchMargin: 6,
+      //     child: Padding(
+      //       padding: const EdgeInsets.symmetric(horizontal: 32),
+      //       child: Row(
+      //         mainAxisAlignment: MainAxisAlignment.spaceBetween,
+      //         children: [
+      //           IconButton(
+      //             tooltip: 'Klienci',
+      //             icon: const Icon(Icons.group),
+      //             onPressed: () => Navigator.of(context).push(
+      //               MaterialPageRoute(
+      //                 builder: (_) => CustomerListScreen(isAdmin: isAdmin),
+      //               ),
+      //             ),
+      //           ),
+      //           IconButton(
+      //             tooltip: 'Skanuj',
+      //             icon: const Icon(Icons.qr_code_scanner),
+      //             onPressed: () => Navigator.of(
+      //               context,
+      //             ).push(MaterialPageRoute(builder: (_) => const ScanScreen())),
+      //           ),
+      //         ],
+      //       ),
+      //     ),
+      //   ),
+      // ),
     );
   }
 }

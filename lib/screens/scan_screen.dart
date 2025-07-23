@@ -82,7 +82,7 @@ class _ScanScreenState extends State<ScanScreen> {
     final col = FirebaseFirestore.instance.collection('stock_items');
     final norm = normalize(raw);
 
-    for (final f in ['barcode', 'sku']) {
+    for (final f in ['barcode', 'sku', 'category']) {
       final snap = await col.where(f, isEqualTo: raw).get();
       if (snap.docs.isNotEmpty) return snap.docs;
     }
@@ -95,6 +95,7 @@ class _ScanScreenState extends State<ScanScreen> {
         data['producent'] as String?,
         data['sku'] as String?,
         data['barcode'] as String?,
+        data['category'] as String?,
       ]);
     }).toList();
   }
