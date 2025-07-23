@@ -71,7 +71,7 @@ class _MainMenuScreenState extends State<MainMenuScreen> {
 
         ListTile(
           leading: const Icon(Icons.inventory_2),
-          title: const Text('Inwentaryzacja'),
+          title: const Text('Magazyn'),
           onTap: () {
             Navigator.of(context).push(
               MaterialPageRoute(

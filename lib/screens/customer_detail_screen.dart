@@ -135,7 +135,7 @@ class _CustomerDetailScreenState extends State<CustomerDetailScreen> {
     _favsSub = FirebaseFirestore.instance
         .collection('users')
         .doc(uid)
-        .collection('favourites')
+        .collection('favouriteProjects')
         .snapshots()
         .listen((snap) {
           setState(() {
@@ -160,12 +160,12 @@ class _CustomerDetailScreenState extends State<CustomerDetailScreen> {
     });
   }
 
-  Future<void> _toggleFavourite(String projectId, String title) async {
+  Future<void> _toggleFavouriteProjects(String projectId, String title) async {
     final uid = FirebaseAuth.instance.currentUser!.uid;
     final favDoc = FirebaseFirestore.instance
         .collection('users')
         .doc(uid)
-        .collection('favourites')
+        .collection('favouriteProjects')
         .doc(projectId);
 
     if (_favProjectIds.contains(projectId)) {
@@ -465,7 +465,7 @@ class _CustomerDetailScreenState extends State<CustomerDetailScreen> {
                             tooltip: _favProjectIds.contains(d.id)
                                 ? 'Usuń z ulubionych'
                                 : 'Dodaj do ulubionych',
-                            onPressed: () => _toggleFavourite(
+                            onPressed: () => _toggleFavouriteProjects(
                               d.id,
                               data['title'] as String? ?? '',
                             ),

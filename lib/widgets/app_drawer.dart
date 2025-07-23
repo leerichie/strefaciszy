@@ -1,8 +1,10 @@
+import 'package:auto_size_text/auto_size_text.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:strefa_ciszy/screens/add_contact_screen.dart';
 import 'package:strefa_ciszy/screens/contacts_list_screen.dart';
+import 'package:strefa_ciszy/screens/customer_detail_screen.dart';
 import 'package:strefa_ciszy/screens/customer_list_screen.dart';
 import 'package:strefa_ciszy/screens/inventory_list_screen.dart';
 import 'package:strefa_ciszy/screens/login_screen.dart';
@@ -14,6 +16,43 @@ import 'package:strefa_ciszy/screens/scan_screen.dart';
 class AppDrawer extends StatelessWidget {
   const AppDrawer({Key? key}) : super(key: key);
 
+  static const favCustomer = 'favouriteCustomers';
+  static const favProject = 'favouriteProjects';
+
+  Future<void> _removeFavourite(
+    BuildContext context, {
+    required String uid,
+    required String collection,
+    required String docId,
+    required String name,
+  }) async {
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (_) => AlertDialog(
+        title: const Text('Usuń z ulubionych?'),
+        content: Text(name),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Anuluj'),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text('Usuń'),
+          ),
+        ],
+      ),
+    );
+    if (ok == true) {
+      await FirebaseFirestore.instance
+          .collection('users')
+          .doc(uid)
+          .collection(collection)
+          .doc(docId)
+          .delete();
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final user = FirebaseAuth.instance.currentUser;
@@ -23,6 +62,7 @@ class AppDrawer extends StatelessWidget {
       fontSize: 14,
       fontWeight: FontWeight.bold,
     );
+
     return Drawer(
       width: 240,
       child: Container(
@@ -54,6 +94,72 @@ class AppDrawer extends StatelessWidget {
                     ),
                   );
                 },
+              ),
+
+              Theme(
+                data: Theme.of(context).copyWith(
+                  dividerColor: Colors.transparent,
+                  unselectedWidgetColor: Colors.white70,
+                  colorScheme: const ColorScheme.dark(
+                    primary: Colors.tealAccent,
+                    onSurface: Colors.white,
+                  ),
+                ),
+                child: ExpansionTile(
+                  leading: const Icon(
+                    Icons.inventory_2_outlined,
+                    color: Colors.white,
+                  ),
+                  title: Text('Magazyn', style: menuTitles),
+
+                  childrenPadding: const EdgeInsets.only(left: 16),
+                  children: [
+                    ListTile(
+                      leading: const Icon(Icons.list, color: Colors.white),
+                      title: Text('List produktów', style: menuTitles),
+
+                      onTap: () {
+                        Navigator.of(context).pop();
+                        Navigator.of(context).push(
+                          MaterialPageRoute(
+                            builder: (_) =>
+                                const InventoryListScreen(isAdmin: true),
+                          ),
+                        );
+                      },
+                    ),
+
+                    ListTile(
+                      leading: const Icon(
+                        Icons.qr_code_scanner,
+                        color: Colors.white,
+                      ),
+                      title: Text('Dodać produkt', style: menuTitles),
+
+                      onTap: () {
+                        Navigator.of(context).pop();
+                        Navigator.of(context).push(
+                          MaterialPageRoute(builder: (_) => const ScanScreen()),
+                        );
+                      },
+                    ),
+
+                    ListTile(
+                      leading: const Icon(
+                        Icons.qr_code_scanner,
+                        color: Colors.white,
+                      ),
+                      title: Text('Wyszukaj produkt', style: menuTitles),
+
+                      onTap: () {
+                        Navigator.of(context).pop();
+                        Navigator.of(context).push(
+                          MaterialPageRoute(builder: (_) => const ScanScreen()),
+                        );
+                      },
+                    ),
+                  ],
+                ),
               ),
 
               Theme(
@@ -111,56 +217,71 @@ class AppDrawer extends StatelessWidget {
                         );
                       },
                     ),
-                  ],
-                ),
-              ),
-              Theme(
-                data: Theme.of(context).copyWith(
-                  dividerColor: Colors.transparent,
-                  unselectedWidgetColor: Colors.white70,
-                  colorScheme: const ColorScheme.dark(
-                    primary: Colors.tealAccent,
-                    onSurface: Colors.white,
-                  ),
-                ),
-                child: ExpansionTile(
-                  leading: const Icon(
-                    Icons.inventory_2_outlined,
-                    color: Colors.white,
-                  ),
-                  title: Text('Inwentaryzacja', style: menuTitles),
 
-                  childrenPadding: const EdgeInsets.only(left: 16),
-                  children: [
-                    ListTile(
-                      leading: const Icon(Icons.list, color: Colors.white),
-                      title: Text('List produktów', style: menuTitles),
+                    if (uid != null)
+                      StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
+                        stream: FirebaseFirestore.instance
+                            .collection('users')
+                            .doc(uid)
+                            .collection(favCustomer)
+                            .orderBy('name')
+                            .snapshots(),
+                        builder: (ctx, snap) {
+                          if (snap.connectionState == ConnectionState.waiting) {
+                            return const Padding(
+                              padding: EdgeInsets.symmetric(vertical: 8),
+                              child: Center(child: CircularProgressIndicator()),
+                            );
+                          }
+                          final favDocs = snap.data?.docs ?? [];
+                          if (favDocs.isEmpty) return const SizedBox.shrink();
 
-                      onTap: () {
-                        Navigator.of(context).pop();
-                        Navigator.of(context).push(
-                          MaterialPageRoute(
-                            builder: (_) =>
-                                const InventoryListScreen(isAdmin: true),
-                          ),
-                        );
-                      },
-                    ),
-
-                    ListTile(
-                      leading: const Icon(
-                        Icons.qr_code_scanner,
-                        color: Colors.white,
+                          return ExpansionTile(
+                            leading: const Icon(
+                              Icons.star,
+                              color: Colors.amber,
+                            ),
+                            title: Row(
+                              children: [
+                                AutoSizeText(
+                                  'Ulubione klienci',
+                                  style: menuTitles,
+                                  maxLines: 2,
+                                  minFontSize: 8,
+                                ),
+                              ],
+                            ),
+                            tilePadding: EdgeInsets.zero,
+                            childrenPadding: const EdgeInsets.only(left: 16),
+                            children: favDocs.map((d) {
+                              final name = d.data()['name'] as String? ?? '—';
+                              return ListTile(
+                                contentPadding: EdgeInsets.zero,
+                                leading: const SizedBox(width: 24),
+                                title: Text(name, style: menuTitles),
+                                onTap: () {
+                                  Navigator.of(context).pop();
+                                  Navigator.of(context).push(
+                                    MaterialPageRoute(
+                                      builder: (_) => CustomerDetailScreen(
+                                        customerId: d.id,
+                                        isAdmin: true,
+                                      ),
+                                    ),
+                                  );
+                                },
+                                onLongPress: () => _removeFavourite(
+                                  context,
+                                  uid: uid,
+                                  collection: favCustomer,
+                                  docId: d.id,
+                                  name: name,
+                                ),
+                              );
+                            }).toList(),
+                          );
+                        },
                       ),
-                      title: Text('Dodać produkt', style: menuTitles),
-
-                      onTap: () {
-                        Navigator.of(context).pop();
-                        Navigator.of(context).push(
-                          MaterialPageRoute(builder: (_) => const ScanScreen()),
-                        );
-                      },
-                    ),
                   ],
                 ),
               ),
@@ -229,7 +350,8 @@ class AppDrawer extends StatelessWidget {
                     stream: FirebaseFirestore.instance
                         .collection('users')
                         .doc(uid)
-                        .collection('favourites')
+                        .collection(favProject)
+                        .orderBy('title')
                         .snapshots(),
                     builder: (ctx, favSnap) {
                       if (favSnap.connectionState == ConnectionState.waiting) {
@@ -239,41 +361,47 @@ class AppDrawer extends StatelessWidget {
                         );
                       }
                       final docs = favSnap.data?.docs ?? [];
+                      if (docs.isEmpty) return const SizedBox.shrink();
 
                       return ExpansionTile(
                         leading: const Icon(Icons.star, color: Colors.amber),
-                        title: Text('Ulubiony', style: menuTitles),
+                        title: Text('Ulubione projekty', style: menuTitles),
                         childrenPadding: const EdgeInsets.only(left: 16),
                         children: docs.isEmpty
                             ? [
                                 ListTile(
                                   contentPadding: EdgeInsets.zero,
                                   leading: const SizedBox(width: 24),
-                                  title: Text('- Brak', style: menuTitles),
+                                  title: Text('– Brak –', style: menuTitles),
                                 ),
                               ]
                             : docs.map((doc) {
                                 final data = doc.data();
+                                final title = data['title'] as String? ?? '–';
+                                final customerId = data['customerId'] as String;
                                 return ListTile(
                                   contentPadding: EdgeInsets.zero,
                                   leading: const SizedBox(width: 24),
-                                  title: Text(
-                                    data['title'] as String? ?? '–',
-                                    style: menuTitles,
-                                  ),
+                                  title: Text(title, style: menuTitles),
                                   onTap: () {
                                     Navigator.of(context).pop();
                                     Navigator.of(context).push(
                                       MaterialPageRoute(
                                         builder: (_) => ProjectEditorScreen(
-                                          customerId:
-                                              data['customerId'] as String,
+                                          customerId: customerId,
                                           projectId: doc.id,
                                           isAdmin: true,
                                         ),
                                       ),
                                     );
                                   },
+                                  onLongPress: () => _removeFavourite(
+                                    context,
+                                    uid: uid,
+                                    collection: favProject,
+                                    docId: doc.id,
+                                    name: title,
+                                  ),
                                 );
                               }).toList(),
                       );

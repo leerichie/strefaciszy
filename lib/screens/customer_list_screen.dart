@@ -3,6 +3,7 @@
 import 'dart:async';
 
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:strefa_ciszy/screens/contacts_list_screen.dart';
@@ -37,6 +38,9 @@ class _CustomerListScreenState extends State<CustomerListScreen> {
   List<QueryDocumentSnapshot<Map<String, dynamic>>> _contactDocs = [];
   late final StreamSubscription<QuerySnapshot<Map<String, dynamic>>>
   _contactsSub;
+  Set<String> _favCustomerIds = {};
+  late final StreamSubscription<QuerySnapshot<Map<String, dynamic>>>
+  _favsCustSub;
 
   @override
   void initState() {
@@ -59,6 +63,17 @@ class _CustomerListScreenState extends State<CustomerListScreen> {
         _addCustomer();
       });
     }
+    final uid = FirebaseAuth.instance.currentUser!.uid;
+    _favsCustSub = FirebaseFirestore.instance
+        .collection('users')
+        .doc(uid)
+        .collection('favouriteCustomers')
+        .snapshots()
+        .listen((snap) {
+          setState(() {
+            _favCustomerIds = snap.docs.map((d) => d.id).toSet();
+          });
+        });
   }
 
   Future<void> _loadContactNames() async {
@@ -147,10 +162,26 @@ class _CustomerListScreenState extends State<CustomerListScreen> {
     );
   }
 
+  Future<void> _toggleFavouriteCustomer(String customerId, String name) async {
+    final uid = FirebaseAuth.instance.currentUser!.uid;
+    final ref = FirebaseFirestore.instance
+        .collection('users')
+        .doc(uid)
+        .collection('favouriteCustomers')
+        .doc(customerId);
+
+    if (_favCustomerIds.contains(customerId)) {
+      await ref.delete();
+    } else {
+      await ref.set({'name': name});
+    }
+  }
+
   @override
   void dispose() {
     _searchController.dispose();
     _contactsSub.cancel();
+    _favsCustSub.cancel();
     super.dispose();
   }
 
@@ -339,6 +370,19 @@ class _CustomerListScreenState extends State<CustomerListScreen> {
                 trailing: Row(
                   mainAxisSize: MainAxisSize.min,
                   children: [
+                    IconButton(
+                      icon: Icon(
+                        _favCustomerIds.contains(doc.id)
+                            ? Icons.star
+                            : Icons.star_border,
+                        color: Colors.amber,
+                      ),
+                      tooltip: _favCustomerIds.contains(doc.id)
+                          ? 'Usuń z ulubionych'
+                          : 'Dodaj do ulubionych',
+                      onPressed: () =>
+                          _toggleFavouriteCustomer(doc.id, data['name'] ?? ''),
+                    ),
                     FutureBuilder<QuerySnapshot>(
                       future: _col.doc(doc.id).collection('projects').get(),
                       builder: (ctx2, snap2) {
