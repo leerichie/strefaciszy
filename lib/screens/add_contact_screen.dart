@@ -1,17 +1,18 @@
 // lib/screens/add_contact_screen.dart
-import 'dart:async'; // NEW
+import 'dart:async';
 import 'dart:typed_data';
+import 'package:auto_size_text/auto_size_text.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_storage/firebase_storage.dart';
-import 'package:firebase_auth/firebase_auth.dart'; // NEW
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:image_picker/image_picker.dart';
-import 'package:intl/intl.dart'; // NEW (for dates)
+import 'package:intl/intl.dart';
 import 'package:strefa_ciszy/screens/customer_list_screen.dart';
 import 'package:strefa_ciszy/screens/scan_screen.dart';
 import 'package:strefa_ciszy/widgets/app_scaffold.dart';
-import 'project_editor_screen.dart'; // NEW (open after add?)
+import 'project_editor_screen.dart';
 
 class AddContactScreen extends StatefulWidget {
   final bool isAdmin;
@@ -37,14 +38,11 @@ class _AddContactScreenState extends State<AddContactScreen> {
   final _websiteCtrl = TextEditingController();
   final _noteCtrl = TextEditingController();
 
-  // --- NEW: Project fields --------------------------------------------------
-  bool _createProjectNow =
-      false; // if you ever want auto project from here (kept for future)
+  bool _createProjectNow = false;
   final _projTitleCtrl = TextEditingController();
   DateTime? _projStartDate;
   DateTime? _projEndDate;
   final _projCostCtrl = TextEditingController();
-  // -------------------------------------------------------------------------
 
   bool _loading = false;
   bool _submitting = false;
@@ -53,13 +51,10 @@ class _AddContactScreenState extends State<AddContactScreen> {
   final _picker = ImagePicker();
   String? _selectedCustomerId;
 
-  // NEW: we keep local created ids
-  String? _contactId; // will hold (existing or newly created) contact id
-  String? _customerId; // if/when we create the customer doc
-  bool _createdEmptyDraft =
-      false; // if we created a draft to autosave, delete on exit if still empty
+  String? _contactId;
+  String? _customerId;
+  bool _createdEmptyDraft = false;
 
-  // NEW: debounce timer for autosave
   Timer? _debounce;
 
   List<String> _extraNumbers = [];
@@ -67,6 +62,8 @@ class _AddContactScreenState extends State<AddContactScreen> {
   String? _category;
   List<QueryDocumentSnapshot<Map<String, dynamic>>> _customerDocs = [];
   List<String> _customerNames = [];
+
+  bool get _isEditing => widget.contactId != null;
 
   @override
   void initState() {
@@ -81,11 +78,10 @@ class _AddContactScreenState extends State<AddContactScreen> {
     }
     if (widget.linkedCustomerId != null) {
       _selectedCustomerId = widget.linkedCustomerId;
-      _customerId = widget.linkedCustomerId; // might already be a customer id
+      _customerId = widget.linkedCustomerId;
     }
     _loadCustomerSuggestions();
 
-    // Attach listeners for autosave
     _attachAutoSaveListeners();
   }
 
@@ -109,13 +105,11 @@ class _AddContactScreenState extends State<AddContactScreen> {
   }
 
   Future<void> _autoSave() async {
-    if (!_formKey.currentState!.validate()) {
-      // still allow partial save? For now, only save when valid category & name
-      // but we can skip validation here to avoid blocking.
-    }
+    final name = _nameCtrl.text.trim();
+    if (name.isEmpty) return;
 
     final data = {
-      'name': _nameCtrl.text.trim(),
+      'name': name,
       'phone': _phoneCtrl.text.trim(),
       'extraNumbers': _extraNumbers,
       'email': _emailCtrl.text.trim(),
@@ -124,25 +118,21 @@ class _AddContactScreenState extends State<AddContactScreen> {
       'note': _noteCtrl.text.trim(),
       'contactType': _category,
       'updatedAt': FieldValue.serverTimestamp(),
+      if (_customerId != null) 'linkedCustomerId': _customerId,
     };
 
-    final cid = widget.linkedCustomerId ?? _selectedCustomerId ?? _customerId;
-    if (cid != null) data['linkedCustomerId'] = cid;
-
     final col = FirebaseFirestore.instance.collection('contacts');
+    if (_contactId == null) {
+      data['createdAt'] = FieldValue.serverTimestamp();
+      final docRef = await col.add(data);
+      _contactId = docRef.id;
+      _createdEmptyDraft = true;
+    } else {
+      await col.doc(_contactId!).set(data, SetOptions(merge: true));
+    }
 
-    try {
-      if (_contactId == null) {
-        // create draft
-        data['createdAt'] = FieldValue.serverTimestamp();
-        final docRef = await col.add(data);
-        _contactId = docRef.id;
-        _createdEmptyDraft = true;
-      } else {
-        await col.doc(_contactId!).set(data, SetOptions(merge: true));
-      }
-    } catch (e) {
-      // ignore silent fail or show snackbar
+    if (_customerId == null) {
+      await _ensureCustomerExists();
     }
   }
 
@@ -180,16 +170,44 @@ class _AddContactScreenState extends State<AddContactScreen> {
   }
 
   Future<void> _pickImage() async {
-    final XFile? picked = await _picker.pickImage(source: ImageSource.gallery);
-    if (picked != null) {
-      final bytes = await picked.readAsBytes();
-      setState(() {
-        _imageData = bytes;
-        _existingPhotoUrl = null;
-      });
-      // autosave photo
-      _scheduleAutoSave();
-    }
+    final ImageSource? src = await showModalBottomSheet<ImageSource>(
+      context: context,
+      builder: (_) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            ListTile(
+              leading: const Icon(Icons.camera_alt),
+              title: const Text('Zrób zdjęcie'),
+              onTap: () => Navigator.of(context).pop(ImageSource.camera),
+            ),
+            ListTile(
+              leading: const Icon(Icons.photo_library),
+              title: const Text('Wybierz z galerii'),
+              onTap: () => Navigator.of(context).pop(ImageSource.gallery),
+            ),
+          ],
+        ),
+      ),
+    );
+
+    if (src == null) return;
+
+    final XFile? picked = await _picker.pickImage(
+      source: src,
+      maxWidth: 1024,
+      maxHeight: 1024,
+      imageQuality: 80,
+    );
+    if (picked == null) return;
+
+    final bytes = await picked.readAsBytes();
+    setState(() {
+      _imageData = bytes;
+      _existingPhotoUrl = null;
+    });
+
+    _scheduleAutoSave();
   }
 
   Future<void> _loadContact() async {
@@ -292,9 +310,7 @@ class _AddContactScreenState extends State<AddContactScreen> {
     _scheduleAutoSave();
   }
 
-  /// Called when user presses FAB to create a project
   Future<void> _addProject() async {
-    // Ensure we have a customerId. If not, create one now.
     await _ensureCustomerExists();
 
     if (_customerId == null) return;
@@ -446,13 +462,10 @@ class _AddContactScreenState extends State<AddContactScreen> {
         });
     _customerId = custRef.id;
 
-    // link contact
-    if (_contactId != null) {
-      await FirebaseFirestore.instance
-          .collection('contacts')
-          .doc(_contactId)
-          .set({'linkedCustomerId': _customerId}, SetOptions(merge: true));
-    }
+    await FirebaseFirestore.instance.collection('contacts').doc(_contactId).set(
+      {'linkedCustomerId': _customerId},
+      SetOptions(merge: true),
+    );
   }
 
   Future<void> _finalizeImage() async {
@@ -466,11 +479,10 @@ class _AddContactScreenState extends State<AddContactScreen> {
     }
   }
 
-  /// Old save button is gone, but we still might need a final submit (unused now)
   Future<void> _legacySaveAndPop() async {
     _submitting = true;
-    await _autoSave(); // ensure last data saved
-    await _finalizeImage(); // upload if pending
+    await _autoSave();
+    await _finalizeImage();
     if (!mounted) return;
 
     Navigator.pop(context, {
@@ -499,7 +511,6 @@ class _AddContactScreenState extends State<AddContactScreen> {
     await _autoSave();
     await _finalizeImage();
 
-    // If we created a blank draft and name is still empty, clean it up
     if (_createdEmptyDraft &&
         (_nameCtrl.text.trim().isEmpty) &&
         _contactId != null) {
@@ -510,28 +521,29 @@ class _AddContactScreenState extends State<AddContactScreen> {
       _contactId = null;
     }
 
-    Navigator.pop(context, {
-      'contactId': _contactId,
-      'name': _nameCtrl.text.trim(),
-      'customerId': _customerId,
-    });
-    return false;
+    // Navigator.pop(context, {
+    //   'contactId': _contactId,
+    //   'name': _nameCtrl.text.trim(),
+    //   'customerId': _customerId,
+    // });
+    return true;
   }
 
   @override
   Widget build(BuildContext context) {
-    final title = widget.contactId == null ? 'Dodaj Klient' : 'Edytuj Klient';
-
     return WillPopScope(
-      onWillPop: _onWillPop, // intercept back to return map
+      onWillPop: _onWillPop,
       child: AppScaffold(
-        floatingActionButton: FloatingActionButton(
-          tooltip: 'Dodaj Projekt',
-          onPressed: _addProject,
-          child: const Icon(Icons.playlist_add),
-        ),
+        title: widget.contactId == null ? 'Dodaj Klient' : 'Edytuj Klient',
+
+        floatingActionButton: _isEditing
+            ? null
+            : FloatingActionButton(
+                tooltip: 'Dodaj Projekt',
+                onPressed: _addProject,
+                child: const Icon(Icons.playlist_add),
+              ),
         floatingActionButtonLocation: FloatingActionButtonLocation.centerDocked,
-        title: title,
         centreTitle: true,
 
         body: _loading
@@ -636,7 +648,7 @@ class _AddContactScreenState extends State<AddContactScreen> {
                                     ),
                                     validator: (v) =>
                                         v == null || v.trim().isEmpty
-                                        ? 'Wpisz nazwę'
+                                        ? 'Wpisz nazwa'
                                         : null,
                                   );
                                 },
@@ -648,7 +660,7 @@ class _AddContactScreenState extends State<AddContactScreen> {
                               labelText: 'Imię i Nazwisko',
                             ),
                             validator: (v) => v == null || v.trim().isEmpty
-                                ? 'Wpisz nazwę'
+                                ? 'Wpisz nazwa'
                                 : null,
                             onChanged: (_) => _scheduleAutoSave(),
                           ),
@@ -691,13 +703,16 @@ class _AddContactScreenState extends State<AddContactScreen> {
                         ),
                         const SizedBox(height: 12),
 
-                        // TextFormField(
-                        //   controller: _emailCtrl,
-                        //   decoration: const InputDecoration(labelText: 'Email'),
-                        //   keyboardType: TextInputType.emailAddress,
-                        //   onChanged: (_) => _scheduleAutoSave(),
-                        // ),
-                        // const SizedBox(height: 12),
+                        TextFormField(
+                          controller: _emailCtrl,
+                          decoration: const InputDecoration(labelText: 'Email'),
+                          keyboardType: TextInputType.emailAddress,
+                          validator: (v) => v == null || v.trim().isEmpty
+                              ? 'Wpisz email'
+                              : null,
+                          onChanged: (_) => _scheduleAutoSave(),
+                        ),
+                        const SizedBox(height: 12),
 
                         // TextFormField(
                         //   controller: _addressCtrl,
@@ -722,16 +737,16 @@ class _AddContactScreenState extends State<AddContactScreen> {
                         //   maxLines: 4,
                         //   onChanged: (_) => _scheduleAutoSave(),
                         // ),
-                        // const SizedBox(height: 24),
-
-                        //  PROJECTS
-                        if (_customerId != null) ...[
-                          const Divider(),
-                          Text(
+                        const SizedBox(height: 24),
+                        if (!_isEditing && _customerId != null) ...[
+                          AutoSizeText(
                             'Projekty',
-                            style: Theme.of(context).textTheme.titleLarge,
+                            style: TextStyle(fontWeight: FontWeight.bold),
+                            minFontSize: 15,
+                            maxLines: 1,
                           ),
-                          const SizedBox(height: 8),
+
+                          Divider(),
                           StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
                             stream: FirebaseFirestore.instance
                                 .collection('customers')
@@ -793,9 +808,8 @@ class _AddContactScreenState extends State<AddContactScreen> {
                               );
                             },
                           ),
-                          const SizedBox(height: 80), // space for FAB
+                          const SizedBox(height: 80),
                         ],
-                        // ------------------------------------------------------------------
                       ],
                     ),
                   ),

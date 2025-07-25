@@ -113,34 +113,16 @@ class _ContactsListScreenState extends State<ContactsListScreen> {
           );
 
     return AppScaffold(
+      floatingActionButton: FloatingActionButton(
+        tooltip: 'Dodaj Kontakt',
+        onPressed: _addContact,
+        child: const Icon(Icons.person_add_alt),
+      ),
+      floatingActionButtonLocation: FloatingActionButtonLocation.centerDocked,
       title: 'Kontakty',
       titleWidget: dynamicTitleWidget,
       centreTitle: true,
 
-      actions: [
-        Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 8.0),
-          child: DecoratedBox(
-            decoration: BoxDecoration(
-              color: Colors.black,
-              shape: BoxShape.circle,
-            ),
-            child: IconButton(
-              icon: const Icon(Icons.home),
-              tooltip: 'Home',
-              onPressed: () {
-                Navigator.of(context).pushAndRemoveUntil(
-                  MaterialPageRoute(
-                    builder: (_) => const MainMenuScreen(role: 'admin'),
-                  ),
-                  (route) => false,
-                );
-              },
-              color: Colors.white,
-            ),
-          ),
-        ),
-      ],
       bottom: PreferredSize(
         preferredSize: const Size.fromHeight(56),
         child: Padding(
@@ -227,7 +209,7 @@ class _ContactsListScreenState extends State<ContactsListScreen> {
                     return ListTile(
                       title: Text(data['name'] ?? ''),
                       subtitle: Text(
-                        '${data['contactType'] ?? ''} • ${data['phone'] ?? ''}',
+                        '${data['contactType'] ?? ''} • ${data['phone'] ?? ''} • ${data['email'] ?? ''}',
                       ),
                       onTap: () => Navigator.of(context).push(
                         MaterialPageRoute(
@@ -244,43 +226,6 @@ class _ContactsListScreenState extends State<ContactsListScreen> {
             ),
           ),
         ],
-      ),
-      floatingActionButton: FloatingActionButton(
-        tooltip: 'Dodaj Kontakt',
-        onPressed: _addContact,
-        child: const Icon(Icons.person_add_alt),
-      ),
-      floatingActionButtonLocation: FloatingActionButtonLocation.centerDocked,
-      bottomNavigationBar: SafeArea(
-        child: BottomAppBar(
-          shape: const CircularNotchedRectangle(),
-          notchMargin: 6,
-          child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 32.0),
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                IconButton(
-                  tooltip: 'Klienci',
-                  icon: const Icon(Icons.people),
-                  onPressed: () => Navigator.of(context).push(
-                    MaterialPageRoute(
-                      builder: (_) =>
-                          CustomerListScreen(isAdmin: widget.isAdmin),
-                    ),
-                  ),
-                ),
-                IconButton(
-                  tooltip: 'Skanuj',
-                  icon: const Icon(Icons.qr_code_scanner),
-                  onPressed: () => Navigator.of(
-                    context,
-                  ).push(MaterialPageRoute(builder: (_) => const ScanScreen())),
-                ),
-              ],
-            ),
-          ),
-        ),
       ),
     );
   }

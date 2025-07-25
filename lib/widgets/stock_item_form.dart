@@ -145,7 +145,26 @@ class _StockItemFormState extends State<StockItemForm> {
     return Form(
       key: _formKey,
       child: ListView(
+        padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 24),
         children: [
+          Center(
+            child: GestureDetector(
+              onTap: _pickImage,
+              child: CircleAvatar(
+                radius: 48,
+                backgroundImage: _pickedImage != null
+                    ? FileImage(_pickedImage!)
+                    : (widget.initial.imageUrl != null
+                              ? NetworkImage(widget.initial.imageUrl!)
+                              : null)
+                          as ImageProvider<Object>?,
+                child: _pickedImage == null && widget.initial.imageUrl == null
+                    ? const Icon(Icons.camera_alt, size: 48)
+                    : null,
+              ),
+            ),
+          ),
+          const SizedBox(height: 24),
           if (_error != null)
             Text(_error!, style: const TextStyle(color: Colors.red)),
 
@@ -224,15 +243,14 @@ class _StockItemFormState extends State<StockItemForm> {
           ),
           const SizedBox(height: 12),
 
-          if (_pickedImage != null) Image.file(_pickedImage!, height: 150),
+          // if (_pickedImage != null) Image.file(_pickedImage!, height: 150),
 
-          ElevatedButton.icon(
-            icon: const Icon(Icons.camera_alt),
-            label: const Text('Dodaj zdjęcia produktu'),
-            onPressed: _pickImage,
-          ),
-          const SizedBox(height: 10),
-
+          // ElevatedButton.icon(
+          //   icon: const Icon(Icons.camera_alt),
+          //   label: const Text('Dodaj zdjęcia produktu'),
+          //   onPressed: _pickImage,
+          // ),
+          // const SizedBox(height: 10),
           ElevatedButton.icon(
             icon: const Icon(Icons.check, color: Colors.green),
             label: const Text(

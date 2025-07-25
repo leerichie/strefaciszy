@@ -7,6 +7,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:strefa_ciszy/screens/add_contact_screen.dart';
+import 'package:strefa_ciszy/screens/contact_detail_screen.dart';
 import 'package:strefa_ciszy/screens/contacts_list_screen.dart';
 import 'package:strefa_ciszy/screens/scan_screen.dart';
 import 'package:strefa_ciszy/widgets/app_scaffold.dart';
@@ -328,28 +329,28 @@ class _CustomerListScreenState extends State<CustomerListScreen> {
           ),
         ),
       ),
-      actions: [
-        Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 8.0),
-          // child: CircleAvatar(
-          //   backgroundColor: Colors.black,
-          //   child: IconButton(
-          //     icon: const Icon(Icons.home),
-          //     color: Colors.white,
-          //     tooltip: 'Home',
-          //     onPressed: () {
-          //       Navigator.of(context).pushAndRemoveUntil(
-          //         MaterialPageRoute(
-          //           builder: (_) => const MainMenuScreen(role: 'admin'),
-          //         ),
-          //         (route) => false,
-          //       );
-          //     },
-          //   ),
-          // ),
-        ),
-      ],
 
+      // actions: [
+      //   Padding(
+      //     padding: const EdgeInsets.symmetric(horizontal: 8.0),
+      //     child: CircleAvatar(
+      //       backgroundColor: Colors.black,
+      //       child: IconButton(
+      //         icon: const Icon(Icons.home),
+      //         color: Colors.white,
+      //         tooltip: 'Home',
+      //         onPressed: () {
+      //           Navigator.of(context).pushAndRemoveUntil(
+      //             MaterialPageRoute(
+      //               builder: (_) => const MainMenuScreen(role: 'admin'),
+      //             ),
+      //             (route) => false,
+      //           );
+      //         },
+      //       ),
+      //     ),
+      //   ),
+      // ],
       body: StreamBuilder<QuerySnapshot>(
         stream: _col.orderBy('createdAt', descending: true).snapshots(),
         builder: (ctx, snap) {
@@ -433,14 +434,26 @@ class _CustomerListScreenState extends State<CustomerListScreen> {
               return ListTile(
                 title: Text(data['name'] ?? '—'),
                 subtitle: ts != null ? Text(dateStr) : null,
-                onTap: () => Navigator.of(context).push(
-                  MaterialPageRoute(
-                    builder: (_) => CustomerDetailScreen(
-                      customerId: doc.id,
-                      isAdmin: isAdmin,
+                // onTap: () => Navigator.of(context).push(
+                //   MaterialPageRoute(
+                //     builder: (_) => CustomerDetailScreen(
+                //       customerId: doc.id,
+                //       isAdmin: isAdmin,
+                //     ),
+                //   ),
+                // ),
+                onTap: () {
+                  final contactId = data['contactId'] as String?;
+                  if (contactId == null) return;
+                  Navigator.of(context).push(
+                    MaterialPageRoute(
+                      builder: (_) => ContactDetailScreen(
+                        contactId: contactId,
+                        isAdmin: isAdmin,
+                      ),
                     ),
-                  ),
-                ),
+                  );
+                },
                 trailing: Row(
                   mainAxisSize: MainAxisSize.min,
                   children: [
@@ -498,7 +511,7 @@ class _CustomerListScreenState extends State<CustomerListScreen> {
                             builder: (ctx) => AlertDialog(
                               title: const Text('Usuń klienta?'),
                               content: Text(
-                                'Na pewno usunąć klienta "${data['name']}" i wszystkie projekty?',
+                                'Na pewno usunąć klienta "${data['name']}" i związany projekty?',
                               ),
                               actions: [
                                 TextButton(
