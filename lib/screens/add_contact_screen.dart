@@ -117,8 +117,8 @@ class _AddContactScreenState extends State<AddContactScreen> {
       'www': _websiteCtrl.text.trim(),
       'note': _noteCtrl.text.trim(),
       'contactType': _category,
-      'updatedAt': FieldValue.serverTimestamp(),
       if (_customerId != null) 'linkedCustomerId': _customerId,
+      'updatedAt': FieldValue.serverTimestamp(),
     };
 
     final col = FirebaseFirestore.instance.collection('contacts');
@@ -129,6 +129,16 @@ class _AddContactScreenState extends State<AddContactScreen> {
       _createdEmptyDraft = true;
     } else {
       await col.doc(_contactId!).set(data, SetOptions(merge: true));
+    }
+
+    if (_customerId != null) {
+      await FirebaseFirestore.instance
+          .collection('customers')
+          .doc(_customerId)
+          .set({
+            'name': name,
+            'nameFold': name.toLowerCase(),
+          }, SetOptions(merge: true));
     }
 
     if (_customerId == null) {
@@ -484,6 +494,17 @@ class _AddContactScreenState extends State<AddContactScreen> {
     await _autoSave();
     await _finalizeImage();
     if (!mounted) return;
+
+    if (_customerId != null) {
+      final name = _nameCtrl.text.trim();
+      await FirebaseFirestore.instance
+          .collection('customers')
+          .doc(_customerId)
+          .set({
+            'name': name,
+            'nameFold': name.toLowerCase(),
+          }, SetOptions(merge: true));
+    }
 
     Navigator.pop(context, {
       'contactId': _contactId,

@@ -442,9 +442,11 @@ class _CustomerListScreenState extends State<CustomerListScreen> {
                 //     ),
                 //   ),
                 // ),
-                onTap: () {
+                onTap: () async {
                   final contactId = data['contactId'] as String?;
+
                   if (contactId == null) return;
+
                   Navigator.of(context).push(
                     MaterialPageRoute(
                       builder: (_) => ContactDetailScreen(
@@ -454,6 +456,7 @@ class _CustomerListScreenState extends State<CustomerListScreen> {
                     ),
                   );
                 },
+
                 trailing: Row(
                   mainAxisSize: MainAxisSize.min,
                   children: [

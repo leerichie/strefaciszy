@@ -243,27 +243,6 @@ class ContactDetailScreen extends StatelessWidget {
                                 },
                               )),
 
-                  // actions: [
-                  //   Padding(
-                  //     padding: const EdgeInsets.symmetric(horizontal: 8.0),
-                  //     child: CircleAvatar(
-                  //       backgroundColor: Colors.black,
-                  //       child: IconButton(
-                  //         icon: const Icon(Icons.home),
-                  //         color: Colors.white,
-                  //         tooltip: 'Home',
-                  //         onPressed: () {
-                  //           Navigator.of(context).pushAndRemoveUntil(
-                  //             MaterialPageRoute(
-                  //               builder: (_) => const MainMenuScreen(role: 'admin'),
-                  //             ),
-                  //             (route) => false,
-                  //           );
-                  //         },
-                  //       ),
-                  //     ),
-                  //   ),
-                  // ],
                   body: TabBarView(
                     children: [
                       // === Szczegóły Tab ===
@@ -284,44 +263,92 @@ class ContactDetailScreen extends StatelessWidget {
                               const SizedBox(height: 16),
                             ],
 
-                            AutoSizeText(
-                              data['contactType'] ?? '-',
-                              style: const TextStyle(
-                                fontWeight: FontWeight.bold,
-                              ),
-                              minFontSize: 15,
-                            ),
-                            const Divider(),
-
+                            // AutoSizeText(
+                            //   data['contactType'] ?? '-',
+                            //   style: const TextStyle(
+                            //     fontWeight: FontWeight.bold,
+                            //   ),
+                            //   minFontSize: 15,
+                            // ),
+                            // const Divider(),
                             Text(
                               data['name'] ?? '',
-                              style: const TextStyle(fontSize: 17),
+                              style: const TextStyle(
+                                fontSize: 17,
+                                fontWeight: FontWeight.bold,
+                              ),
                             ),
                             const SizedBox(height: 12),
 
-                            if ((data['phone'] ?? '').isNotEmpty)
-                              ListTile(
-                                leading: const Icon(Icons.phone),
-                                title: Text(
-                                  data['phone'],
-                                  style: const TextStyle(fontSize: 15),
-                                ),
-                                onTap: () => openUri(
-                                  Uri(scheme: 'tel', path: data['phone']),
-                                ),
-                              ),
-
-                            if ((data['email'] ?? '').isNotEmpty)
-                              ListTile(
-                                leading: const Icon(Icons.email),
-                                title: Text(
-                                  data['email'],
-                                  style: const TextStyle(fontSize: 15),
-                                ),
-                                onTap: () => openUri(
-                                  Uri(scheme: 'mailto', path: data['email']),
-                                ),
-                              ),
+                            Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                if ((data['phone'] ?? '').isNotEmpty) ...[
+                                  Padding(
+                                    padding: const EdgeInsets.only(left: 20),
+                                    child: InkWell(
+                                      onTap: () => openUri(
+                                        Uri.parse('tel:${data['phone']}'),
+                                      ),
+                                      child: Row(
+                                        children: [
+                                          const Icon(
+                                            Icons.phone,
+                                            size: 18,
+                                            color: Colors.green,
+                                          ),
+                                          const SizedBox(width: 10),
+                                          Text(
+                                            data['phone'],
+                                            style: const TextStyle(
+                                              fontSize: 18,
+                                            ),
+                                          ),
+                                          const Spacer(),
+                                          Text(
+                                            data['contactType'] ?? '-',
+                                            style: const TextStyle(
+                                              fontSize: 15,
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                    ),
+                                  ),
+                                ],
+                                if ((data['phone'] ?? '').isNotEmpty &&
+                                    (data['email'] ?? '').isNotEmpty) ...[
+                                  const SizedBox(height: 4),
+                                ],
+                                if ((data['email'] ?? '').isNotEmpty) ...[
+                                  Padding(
+                                    padding: const EdgeInsets.only(left: 20),
+                                    child: InkWell(
+                                      onTap: () => openUri(
+                                        Uri.parse('mailto:${data['email']}'),
+                                      ),
+                                      child: Row(
+                                        children: [
+                                          const Icon(
+                                            Icons.email,
+                                            size: 18,
+                                            color: Colors.blue,
+                                          ),
+                                          const SizedBox(width: 10),
+                                          Text(
+                                            data['email'],
+                                            style: const TextStyle(
+                                              fontSize: 18,
+                                            ),
+                                          ),
+                                          const Spacer(),
+                                        ],
+                                      ),
+                                    ),
+                                  ),
+                                ],
+                              ],
+                            ),
 
                             // if ((data['address'] ?? '').isNotEmpty)
                             //   ListTile(
@@ -332,7 +359,8 @@ class ContactDetailScreen extends StatelessWidget {
                             //       mode: LaunchMode.externalApplication,
                             //     ),
                             //   ),
-                            const SizedBox(height: 24),
+                            const SizedBox(height: 15),
+                            Divider(),
 
                             AutoSizeText(
                               'Projekty',
@@ -341,7 +369,7 @@ class ContactDetailScreen extends StatelessWidget {
                               ),
                               minFontSize: 15,
                             ),
-                            const Divider(),
+
                             if (custId == null) ...[
                               const Text('Brak powiązany klient'),
                             ] else
@@ -448,11 +476,95 @@ class ContactDetailScreen extends StatelessWidget {
                                   separatorBuilder: (_, __) =>
                                       const Divider(height: 1),
                                   itemBuilder: (_, i) {
-                                    final d = docs[i].data();
+                                    final contact = docs[i].data();
+                                    final phone =
+                                        (contact['phone'] ?? '') as String;
+                                    final email =
+                                        (contact['email'] ?? '') as String;
+
                                     return ListTile(
-                                      title: Text(d['name'] ?? ''),
-                                      subtitle: Text(
-                                        '${d['contactType'] ?? '-'} • ${d['phone'] ?? ''} • ${d['email'] ?? ''}',
+                                      title: Text(
+                                        contact['name'] ?? '',
+                                        style: const TextStyle(
+                                          fontWeight: FontWeight.bold,
+                                          fontSize: 20,
+                                        ),
+                                      ),
+
+                                      subtitle: Column(
+                                        crossAxisAlignment:
+                                            CrossAxisAlignment.start,
+                                        children: [
+                                          if (phone.isNotEmpty) ...[
+                                            Padding(
+                                              padding: const EdgeInsets.only(
+                                                left: 20,
+                                              ),
+                                              child: InkWell(
+                                                onTap: () => openUri(
+                                                  Uri.parse('tel:$phone'),
+                                                ),
+                                                child: Row(
+                                                  mainAxisSize:
+                                                      MainAxisSize.min,
+                                                  children: [
+                                                    const Icon(
+                                                      Icons.phone,
+                                                      size: 18,
+                                                      color: Colors.green,
+                                                    ),
+                                                    const SizedBox(width: 10),
+                                                    Text(
+                                                      phone,
+                                                      style: const TextStyle(
+                                                        fontSize: 18,
+                                                      ),
+                                                    ),
+                                                  ],
+                                                ),
+                                              ),
+                                            ),
+                                          ],
+                                          if (phone.isNotEmpty &&
+                                              email.isNotEmpty) ...[
+                                            const SizedBox(height: 4),
+                                          ],
+                                          if (email.isNotEmpty) ...[
+                                            Padding(
+                                              padding: const EdgeInsets.only(
+                                                left: 20,
+                                              ),
+                                              child: InkWell(
+                                                onTap: () => openUri(
+                                                  Uri.parse('mailto:$email'),
+                                                ),
+                                                child: Row(
+                                                  mainAxisSize:
+                                                      MainAxisSize.min,
+                                                  children: [
+                                                    const Icon(
+                                                      Icons.email,
+                                                      size: 18,
+                                                      color: Colors.blue,
+                                                    ),
+                                                    const SizedBox(width: 10),
+                                                    Text(
+                                                      email,
+                                                      style: const TextStyle(
+                                                        fontSize: 18,
+                                                      ),
+                                                    ),
+                                                  ],
+                                                ),
+                                              ),
+                                            ),
+                                          ],
+                                        ],
+                                      ),
+
+                                      trailing: Text(
+                                        contact['contactType'] ?? '-',
+                                        style: TextStyle(fontSize: 15),
                                       ),
                                       onTap: () => Navigator.of(context).push(
                                         MaterialPageRoute(

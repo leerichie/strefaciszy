@@ -8,6 +8,7 @@ import 'package:strefa_ciszy/screens/customer_list_screen.dart';
 import 'package:strefa_ciszy/screens/main_menu_screen.dart';
 import 'package:strefa_ciszy/screens/scan_screen.dart';
 import 'package:strefa_ciszy/widgets/app_scaffold.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 class ContactsListScreen extends StatefulWidget {
   final bool isAdmin;
@@ -74,6 +75,16 @@ class _ContactsListScreenState extends State<ContactsListScreen> {
     );
   }
 
+  Future<void> _openUri(Uri uri) async {
+    if (await canLaunchUrl(uri)) {
+      await launchUrl(uri, mode: LaunchMode.externalApplication);
+    } else {
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('Could not launch $uri')));
+    }
+  }
+
   Widget _buildCategoryChip(String label) {
     final selected = _category == label;
     return Padding(
@@ -98,6 +109,7 @@ class _ContactsListScreenState extends State<ContactsListScreen> {
                 .collection('customers')
                 .doc(widget.customerId!)
                 .get(),
+
             builder: (ctx, snap) {
               if (snap.connectionState != ConnectionState.done ||
                   !snap.hasData ||
@@ -207,10 +219,56 @@ class _ContactsListScreenState extends State<ContactsListScreen> {
                   itemBuilder: (context, i) {
                     final data = docs[i].data();
                     return ListTile(
-                      title: Text(data['name'] ?? ''),
-                      subtitle: Text(
-                        '${data['contactType'] ?? ''} • ${data['phone'] ?? ''} • ${data['email'] ?? ''}',
+                      title: Text(
+                        data['name'] ?? '',
+                        style: TextStyle(fontWeight: FontWeight.bold),
                       ),
+                      subtitle: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          if ((data['phone'] ?? '').isNotEmpty) ...[
+                            InkWell(
+                              onTap: () =>
+                                  _openUri(Uri.parse('tel:${data['phone']}')),
+                              child: Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  Icon(Icons.phone, size: 15),
+                                  const SizedBox(width: 4),
+                                  Text(
+                                    data['phone']!,
+                                    style: const TextStyle(fontSize: 15),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ],
+                          if ((data['phone'] ?? '').isNotEmpty &&
+                              (data['email'] ?? '').isNotEmpty) ...[
+                            const SizedBox(height: 4),
+                          ],
+                          if ((data['email'] ?? '').isNotEmpty) ...[
+                            InkWell(
+                              onTap: () => _openUri(
+                                Uri.parse('mailto:${data['email']}'),
+                              ),
+                              child: Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  Icon(Icons.email, size: 15),
+                                  const SizedBox(width: 4),
+                                  Text(
+                                    data['email']!,
+                                    style: const TextStyle(fontSize: 15),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ],
+                        ],
+                      ),
+
+                      trailing: Text('${data['contactType'] ?? '-'}'),
                       onTap: () => Navigator.of(context).push(
                         MaterialPageRoute(
                           builder: (_) => ContactDetailScreen(
