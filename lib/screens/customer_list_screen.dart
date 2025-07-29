@@ -434,14 +434,7 @@ class _CustomerListScreenState extends State<CustomerListScreen> {
               return ListTile(
                 title: Text(data['name'] ?? '—'),
                 subtitle: ts != null ? Text(dateStr) : null,
-                // onTap: () => Navigator.of(context).push(
-                //   MaterialPageRoute(
-                //     builder: (_) => CustomerDetailScreen(
-                //       customerId: doc.id,
-                //       isAdmin: isAdmin,
-                //     ),
-                //   ),
-                // ),
+
                 onTap: () async {
                   final contactId = data['contactId'] as String?;
 
@@ -512,10 +505,10 @@ class _CustomerListScreenState extends State<CustomerListScreen> {
                           final ok = await showDialog<bool>(
                             context: context,
                             builder: (ctx) => AlertDialog(
-                              title: const Text('Usuń klienta?'),
-                              content: Text(
-                                'Na pewno usunąć klienta "${data['name']}" i związany projekty?',
+                              title: const Text(
+                                'Usuń klienta związany projekty?',
                               ),
+                              content: Text('${data['name']}'),
                               actions: [
                                 TextButton(
                                   onPressed: () => Navigator.pop(ctx, false),

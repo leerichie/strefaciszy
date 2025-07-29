@@ -1,9 +1,11 @@
 // lib/screens/contacts_list_screen.dart
 
+import 'package:auto_size_text/auto_size_text.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:strefa_ciszy/screens/add_contact_screen.dart';
 import 'package:strefa_ciszy/screens/contact_detail_screen.dart';
+import 'package:strefa_ciszy/screens/customer_detail_screen.dart';
 import 'package:strefa_ciszy/screens/customer_list_screen.dart';
 import 'package:strefa_ciszy/screens/main_menu_screen.dart';
 import 'package:strefa_ciszy/screens/scan_screen.dart';
@@ -58,6 +60,70 @@ class _ContactsListScreenState extends State<ContactsListScreen> {
     });
   }
 
+  Future<void> _showEditContactDialog(
+    BuildContext context,
+    QueryDocumentSnapshot<Map<String, dynamic>> docSnap,
+  ) async {
+    final data = docSnap.data();
+    var name = data['name'] as String? ?? '';
+    var phone = data['phone'] as String? ?? '';
+    var email = data['email'] as String? ?? '';
+    var type = data['contactType'] as String? ?? '';
+
+    await showDialog<void>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Edytuj kontakt'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            TextFormField(
+              initialValue: name,
+              decoration: const InputDecoration(labelText: 'Imię i nazwisko'),
+              onChanged: (v) => name = v.trim(),
+            ),
+            TextFormField(
+              initialValue: phone,
+              decoration: const InputDecoration(labelText: 'Telefon'),
+              keyboardType: TextInputType.phone,
+              onChanged: (v) => phone = v.trim(),
+            ),
+            TextFormField(
+              initialValue: email,
+              decoration: const InputDecoration(labelText: 'Email'),
+              keyboardType: TextInputType.emailAddress,
+              onChanged: (v) => email = v.trim(),
+            ),
+            TextFormField(
+              initialValue: type,
+              decoration: const InputDecoration(labelText: 'Typ kontaktu'),
+              onChanged: (v) => type = v.trim(),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(),
+            child: const Text('Anuluj'),
+          ),
+          ElevatedButton(
+            onPressed: () async {
+              await docSnap.reference.update({
+                'name': name,
+                'phone': phone,
+                'email': email,
+                'contactType': type,
+                'updatedAt': FieldValue.serverTimestamp(),
+              });
+              Navigator.of(ctx).pop();
+            },
+            child: const Text('Zapisz'),
+          ),
+        ],
+      ),
+    );
+  }
+
   @override
   void dispose() {
     _searchController.dispose();
@@ -70,6 +136,7 @@ class _ContactsListScreenState extends State<ContactsListScreen> {
         builder: (_) => AddContactScreen(
           isAdmin: widget.isAdmin,
           linkedCustomerId: widget.customerId,
+          // forceAsContact: true,
         ),
       ),
     );
@@ -103,7 +170,12 @@ class _ContactsListScreenState extends State<ContactsListScreen> {
   @override
   Widget build(BuildContext context) {
     final Widget dynamicTitleWidget = widget.customerId == null
-        ? const Text('Kontakty', style: TextStyle(fontSize: 16))
+        ? const AutoSizeText(
+            'Kontakty',
+            style: TextStyle(fontSize: 16),
+            minFontSize: 9,
+            maxLines: 1,
+          )
         : FutureBuilder<DocumentSnapshot<Map<String, dynamic>>>(
             future: FirebaseFirestore.instance
                 .collection('customers')
@@ -217,23 +289,42 @@ class _ContactsListScreenState extends State<ContactsListScreen> {
                   itemCount: docs.length,
                   separatorBuilder: (_, __) => const Divider(height: 1),
                   itemBuilder: (context, i) {
-                    final data = docs[i].data();
+                    final doc = docs[i];
+                    final data = doc.data();
+                    final contactType = (data['contactType'] as String?) ?? '';
+
                     return ListTile(
                       title: Text(
                         data['name'] ?? '',
-                        style: TextStyle(fontWeight: FontWeight.bold),
+                        style: const TextStyle(fontWeight: FontWeight.bold),
                       ),
                       subtitle: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           if ((data['phone'] ?? '').isNotEmpty) ...[
                             InkWell(
-                              onTap: () =>
-                                  _openUri(Uri.parse('tel:${data['phone']}')),
+                              onTap: () {
+                                if (contactType.toLowerCase() == 'klient') {
+                                  Navigator.of(context).push(
+                                    MaterialPageRoute(
+                                      builder: (_) => CustomerDetailScreen(
+                                        customerId: doc.id,
+                                        isAdmin: widget.isAdmin,
+                                      ),
+                                    ),
+                                  );
+                                } else {
+                                  _showEditContactDialog(context, doc);
+                                }
+                              },
                               child: Row(
                                 mainAxisSize: MainAxisSize.min,
                                 children: [
-                                  Icon(Icons.phone, size: 15),
+                                  const Icon(
+                                    Icons.phone,
+                                    size: 15,
+                                    color: Colors.green,
+                                  ),
                                   const SizedBox(width: 4),
                                   Text(
                                     data['phone']!,
@@ -255,7 +346,11 @@ class _ContactsListScreenState extends State<ContactsListScreen> {
                               child: Row(
                                 mainAxisSize: MainAxisSize.min,
                                 children: [
-                                  Icon(Icons.email, size: 15),
+                                  const Icon(
+                                    Icons.email,
+                                    size: 15,
+                                    color: Colors.blue,
+                                  ),
                                   const SizedBox(width: 4),
                                   Text(
                                     data['email']!,
@@ -267,16 +362,21 @@ class _ContactsListScreenState extends State<ContactsListScreen> {
                           ],
                         ],
                       ),
-
-                      trailing: Text('${data['contactType'] ?? '-'}'),
-                      onTap: () => Navigator.of(context).push(
-                        MaterialPageRoute(
-                          builder: (_) => ContactDetailScreen(
-                            contactId: docs[i].id,
-                            isAdmin: widget.isAdmin,
-                          ),
-                        ),
-                      ),
+                      trailing: Text(contactType),
+                      onTap: () {
+                        if (contactType.toLowerCase() == 'klient') {
+                          Navigator.of(context).push(
+                            MaterialPageRoute(
+                              builder: (_) => ContactDetailScreen(
+                                contactId: doc.id,
+                                isAdmin: widget.isAdmin,
+                              ),
+                            ),
+                          );
+                        } else {
+                          _showEditContactDialog(context, doc);
+                        }
+                      },
                     );
                   },
                 );

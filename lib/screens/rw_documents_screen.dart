@@ -104,7 +104,7 @@ class _RWDocumentsScreenState extends State<RWDocumentsScreen> {
             builder: (ctx, snap) {
               if (snap.connectionState != ConnectionState.done ||
                   !snap.hasData) {
-                return const Text("RW");
+                return const Text("Raport");
               }
               final List<DocumentSnapshot<Map<String, dynamic>>> docs =
                   snap.data!;
@@ -141,7 +141,7 @@ class _RWDocumentsScreenState extends State<RWDocumentsScreen> {
                   DefaultTextStyle.of(context).style,
               children: [
                 TextSpan(
-                  text: 'RW – wszystkie',
+                  text: 'Raport – wszystkie',
                   style: TextStyle(
                     color: Colors.blueGrey,
                     fontSize: 18,
@@ -157,27 +157,7 @@ class _RWDocumentsScreenState extends State<RWDocumentsScreen> {
       titleWidget: titleWidg,
       centreTitle: true,
 
-      actions: [
-        Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 8.0),
-          // child: CircleAvatar(
-          //   backgroundColor: Colors.black,
-          //   child: IconButton(
-          //     icon: const Icon(Icons.home),
-          //     color: Colors.white,
-          //     tooltip: 'Home',
-          //     onPressed: () {
-          //       Navigator.of(context).pushAndRemoveUntil(
-          //         MaterialPageRoute(
-          //           builder: (_) => const MainMenuScreen(role: 'admin'),
-          //         ),
-          //         (route) => false,
-          //       );
-          //     },
-          //   ),
-          // ),
-        ),
-      ],
+      actions: [Padding(padding: const EdgeInsets.symmetric(horizontal: 8.0))],
 
       body: Column(
         children: [
@@ -439,17 +419,6 @@ class _RWDocumentsScreenState extends State<RWDocumentsScreen> {
                               ),
                             ],
                           ),
-                          // Row(
-                          //   children: [
-                          //     const Icon(
-                          //       Icons.person,
-                          //       size: 16,
-                          //       color: Colors.grey,
-                          //     ),
-                          //     const SizedBox(width: 4),
-                          //     Text(displayName),
-                          //   ],
-                          // ),
                         ],
                       ),
                       // isThreeLine: true,
@@ -640,43 +609,21 @@ class _RWDocumentsScreenState extends State<RWDocumentsScreen> {
               ),
               const SizedBox(height: 16),
 
-              Text('Produkt:', style: TextStyle(fontWeight: FontWeight.bold)),
-              const SizedBox(height: 4),
-
               ...((data['items'] as List<dynamic>?) ?? []).map((item) {
-                print('🧾 Exported items:');
-                for (final it in (data['items'] as List<dynamic>? ?? [])) {
-                  print(it);
-                }
-
                 final prod = (item['producent'] ?? '').toString();
                 final name = (item['name'] ?? '').toString();
+                final qty = (item['quantity'] ?? '').toString();
+                final unit = (item['unit'] ?? '').toString();
+                final fullName = prod.isNotEmpty ? '$prod – $name' : name;
+
                 return Padding(
-                  padding: const EdgeInsets.symmetric(vertical: 2.0),
-                  child: Row(
-                    children: [
-                      Expanded(
-                        flex: 4,
-                        child: Text(prod.isNotEmpty ? '$prod – $name' : name),
-                      ),
-                      Expanded(
-                        flex: 2,
-                        child: Text(
-                          '${item['quantity'] ?? ''}',
-                          textAlign: TextAlign.right,
-                        ),
-                      ),
-                      Expanded(
-                        flex: 2,
-                        child: Text(
-                          item['unit'] ?? '',
-                          textAlign: TextAlign.center,
-                        ),
-                      ),
-                    ],
+                  padding: const EdgeInsets.symmetric(vertical: 2),
+                  child: Text(
+                    '$fullName    $qty$unit',
+                    style: TextStyle(fontSize: 16),
                   ),
                 );
-              }),
+              }).toList(),
 
               Text('Notatki:', style: TextStyle(fontWeight: FontWeight.bold)),
               const SizedBox(height: 4),

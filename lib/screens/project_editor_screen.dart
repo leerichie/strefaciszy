@@ -277,16 +277,6 @@ class _ProjectEditorScreenState extends State<ProjectEditorScreen> {
     if (todaySnap.docs.isNotEmpty) {
       final data = todaySnap.docs.first.data();
       final rawItems = (data['items'] as List<dynamic>?) ?? [];
-      // final rawNotes = (data['notesList'] as List<dynamic>?) ?? [];
-
-      // _notes = rawNotes.map((n) {
-      //   final m = n as Map<String, dynamic>;
-      //   return Note(
-      //     text: m['text'] as String,
-      //     userName: m['userName'] as String,
-      //     createdAt: (m['createdAt'] as Timestamp).toDate(),
-      //   );
-      // }).toList();
 
       _lines = rawItems.map((e) {
         final m = e as Map<String, dynamic>;
@@ -319,10 +309,6 @@ class _ProjectEditorScreenState extends State<ProjectEditorScreen> {
       });
       return;
     }
-
-    // setState(() {
-    //   _notes = [];
-    // });
 
     final snap = await projRef.get();
     final data = snap.data()!;
@@ -524,7 +510,7 @@ class _ProjectEditorScreenState extends State<ProjectEditorScreen> {
         final changeText = '-${ln.previousQty}${ln.unit}';
 
         await AuditService.logAction(
-          action: 'Usunięto RW',
+          action: 'Usunięto Raport',
           customerId: widget.customerId,
           projectId: widget.projectId,
           details: {
@@ -537,7 +523,7 @@ class _ProjectEditorScreenState extends State<ProjectEditorScreen> {
       }
 
       await rwRef.delete();
-      debugPrint('🗑️ RW $rwId usunięto (empty list)');
+      debugPrint('🗑️ Raport $rwId usunięto (empty list)');
 
       await projectRef.update({
         'items': <Map<String, dynamic>>[],
@@ -609,7 +595,7 @@ class _ProjectEditorScreenState extends State<ProjectEditorScreen> {
         final changeText = '${diff > 0 ? '+' : ''}$diff${ln.unit}';
 
         await AuditService.logAction(
-          action: existsToday ? 'Zaktualizowano RW' : 'Utworzono RW',
+          action: existsToday ? 'Zaktualizowano Raport' : 'Utworzono Raport',
           customerId: widget.customerId,
           projectId: widget.projectId,
           details: {'Produkt': name, 'Zmiana': changeText},
@@ -630,7 +616,7 @@ class _ProjectEditorScreenState extends State<ProjectEditorScreen> {
 
       await _checkTodayExists(type);
     } catch (e, st) {
-      debugPrint('🔥 _saveRWDocument failed: $e\n$st');
+      debugPrint('🔥 _saveRaportDocument failed: $e\n$st');
       ScaffoldMessenger.of(
         context,
       ).showSnackBar(SnackBar(content: Text('Błąd: ${e.toString()}')));
@@ -764,27 +750,7 @@ class _ProjectEditorScreenState extends State<ProjectEditorScreen> {
       title: '',
       titleWidget: titleGest,
 
-      actions: [
-        Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 8.0),
-          // child: CircleAvatar(
-          //   backgroundColor: Colors.black,
-          //   child: IconButton(
-          //     icon: const Icon(Icons.home),
-          //     color: Colors.white,
-          //     tooltip: 'Home',
-          //     onPressed: () {
-          //       Navigator.of(context).pushAndRemoveUntil(
-          //         MaterialPageRoute(
-          //           builder: (_) => const MainMenuScreen(role: 'admin'),
-          //         ),
-          //         (route) => false,
-          //       );
-          //     },
-          //   ),
-          // ),
-        ),
-      ],
+      actions: [Padding(padding: const EdgeInsets.symmetric(horizontal: 8.0))],
 
       body: Stack(
         children: [
@@ -943,7 +909,7 @@ class _ProjectEditorScreenState extends State<ProjectEditorScreen> {
                           SizedBox(width: 8),
                           Expanded(
                             child: Text(
-                              'Preview. Kliknij "Zapisz RW", aby dodać do RW.',
+                              'Preview. Kliknij "Zapisz Raport" aby dodać do Raporty.',
                               style: TextStyle(color: Colors.orange[900]),
                             ),
                           ),
@@ -1120,7 +1086,7 @@ class _ProjectEditorScreenState extends State<ProjectEditorScreen> {
                                                     ).showSnackBar(
                                                       SnackBar(
                                                         content: Text(
-                                                          'Update RW - nie udało się: $e',
+                                                          'Update Raport - nie udało się: $e',
                                                         ),
                                                       ),
                                                     );
@@ -1409,17 +1375,6 @@ class _ProjectEditorScreenState extends State<ProjectEditorScreen> {
                       );
 
                 if (existingIndex != -1) {
-                  //   final old = _lines[existingIndex];
-                  //   final added = lineWithUnit.requestedQty;
-                  //   final merged = old.copyWith(
-                  //     requestedQty: old.requestedQty + added,
-                  //   );
-
-                  //   setState(() => _lines[existingIndex] = merged);
-                  // } else {
-                  //   setState(() => _lines.add(lineWithUnit));
-                  // }
-
                   setState(() => _lines[existingIndex] = lineWithUnit);
                 } else {
                   setState(() => _lines.add(lineWithUnit));

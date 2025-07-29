@@ -11,11 +11,56 @@ import 'package:strefa_ciszy/screens/main_menu_screen.dart';
 import 'package:strefa_ciszy/screens/project_editor_screen.dart';
 import 'package:strefa_ciszy/screens/scan_screen.dart';
 
-class AppDrawer extends StatelessWidget {
+class AppDrawer extends StatefulWidget {
   const AppDrawer({super.key});
 
   static const favCustomer = 'favouriteCustomers';
   static const favProject = 'favouriteProjects';
+
+  @override
+  State<AppDrawer> createState() => _AppDrawerState();
+}
+
+class _AppDrawerState extends State<AppDrawer> {
+  @override
+  void initState() {
+    super.initState();
+    _cleanupFavorites();
+  }
+
+  Future<void> _cleanupFavorites() async {
+    final uid = FirebaseAuth.instance.currentUser?.uid;
+    if (uid == null) return;
+
+    final userRef = FirebaseFirestore.instance.collection('users').doc(uid);
+
+    final favCustSnapshot = await userRef
+        .collection(AppDrawer.favCustomer)
+        .get();
+    for (var doc in favCustSnapshot.docs) {
+      final exists =
+          (await FirebaseFirestore.instance
+                  .collection('customers')
+                  .doc(doc.id)
+                  .get())
+              .exists;
+      if (!exists) await doc.reference.delete();
+    }
+
+    final favProjSnapshot = await userRef
+        .collection(AppDrawer.favProject)
+        .get();
+    for (var doc in favProjSnapshot.docs) {
+      final exists =
+          (await FirebaseFirestore.instance
+                  .collectionGroup('projects')
+                  .where(FieldPath.documentId, isEqualTo: doc.id)
+                  .get())
+              .docs
+              .isNotEmpty;
+      if (!exists) await doc.reference.delete();
+    }
+  }
 
   Future<void> _removeFavourite(
     BuildContext context, {
@@ -213,10 +258,8 @@ class AppDrawer extends StatelessWidget {
                         Navigator.of(context).pop();
                         Navigator.of(context).push(
                           MaterialPageRoute(
-                            builder: (_) => const CustomerListScreen(
-                              isAdmin: true,
-                              showAddOnOpen: true,
-                            ),
+                            builder: (_) =>
+                                const AddContactScreen(isAdmin: true),
                           ),
                         );
                       },
@@ -227,7 +270,7 @@ class AppDrawer extends StatelessWidget {
                         stream: FirebaseFirestore.instance
                             .collection('users')
                             .doc(uid)
-                            .collection(favCustomer)
+                            .collection(AppDrawer.favCustomer)
                             .orderBy('name')
                             .snapshots(),
                         builder: (ctx, snap) {
@@ -277,7 +320,7 @@ class AppDrawer extends StatelessWidget {
                                 onLongPress: () => _removeFavourite(
                                   context,
                                   uid: uid,
-                                  collection: favCustomer,
+                                  collection: AppDrawer.favCustomer,
                                   docId: d.id,
                                   name: name,
                                 ),
@@ -331,7 +374,10 @@ class AppDrawer extends StatelessWidget {
                         Navigator.of(context).pop();
                         Navigator.of(context).push(
                           MaterialPageRoute(
-                            builder: (_) => const AddContactScreen(),
+                            builder: (_) => const AddContactScreen(
+                              isAdmin: true,
+                              forceAsContact: true,
+                            ),
                           ),
                         );
                       },
@@ -354,7 +400,7 @@ class AppDrawer extends StatelessWidget {
                     stream: FirebaseFirestore.instance
                         .collection('users')
                         .doc(uid)
-                        .collection(favProject)
+                        .collection(AppDrawer.favCustomer)
                         .orderBy('title')
                         .snapshots(),
                     builder: (ctx, favSnap) {
@@ -402,7 +448,7 @@ class AppDrawer extends StatelessWidget {
                                   onLongPress: () => _removeFavourite(
                                     context,
                                     uid: uid,
-                                    collection: favProject,
+                                    collection: AppDrawer.favCustomer,
                                     docId: doc.id,
                                     name: title,
                                   ),

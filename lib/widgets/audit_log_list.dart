@@ -1,5 +1,3 @@
-// lib/widgets/audit_log_list.dart
-
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
@@ -61,46 +59,36 @@ class AuditLogList extends StatelessWidget {
 
     final details = (log['details'] as Map?)?.cast<String, dynamic>() ?? {};
     final detailWidgets = <Widget>[];
-    void addLine(String key, String val) {
+    void addLineText(String text) {
       detailWidgets.add(
         Padding(
           padding: const EdgeInsets.only(left: 32, bottom: 2),
-          child: Text('$key: $val', style: Theme.of(c).textTheme.bodySmall),
+          child: Text(text, style: Theme.of(c).textTheme.bodySmall),
         ),
       );
     }
 
+    // merge Produkt + Zmiana into single line if both exist
+    if (details.containsKey('Produkt') && details.containsKey('Zmiana')) {
+      final prodVal = details['Produkt'].toString();
+      final zmVal = details['Zmiana'].toString();
+      addLineText('$prodVal    $zmVal');
+      details.remove('Produkt');
+      details.remove('Zmiana');
+    }
+
+    // render remaining detail entries
     details.forEach((k, v) {
       if (!showContextLabels && (k == 'Klient' || k == 'Projekt')) return;
-      addLine(k, v.toString());
+      addLineText('$k: ${v.toString()}');
     });
 
-    // 4) render
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 6, horizontal: 16),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Row(
-            // children: [
-            //   Icon(_iconForAction(action), size: 14),
-            //   const SizedBox(width: 8),
-
-            //   Text(
-            //     '$action • $when  ',
-            //     style: Theme.of(
-            //       c,
-            //     ).textTheme.bodyMedium?.copyWith(fontWeight: FontWeight.w400),
-            //   ),
-            //   Icon(Icons.person, size: 14, color: Colors.blueGrey),
-            //   Text(
-            //     ' $userName',
-            //     style: TextStyle(
-            //       color: colourFromString(userName),
-            //       fontWeight: FontWeight.w400,
-            //     ),
-            //   ),
-            // ],
             children: [
               Tooltip(
                 message: action,

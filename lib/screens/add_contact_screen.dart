@@ -2,6 +2,7 @@
 import 'dart:async';
 import 'dart:typed_data';
 import 'package:auto_size_text/auto_size_text.dart';
+import 'package:excel/excel.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
@@ -9,6 +10,8 @@ import 'package:firebase_storage/firebase_storage.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:intl/intl.dart';
+import 'package:strefa_ciszy/screens/contact_detail_screen.dart';
+import 'package:strefa_ciszy/screens/customer_detail_screen.dart';
 import 'package:strefa_ciszy/screens/customer_list_screen.dart';
 import 'package:strefa_ciszy/screens/scan_screen.dart';
 import 'package:strefa_ciszy/widgets/app_scaffold.dart';
@@ -18,11 +21,13 @@ class AddContactScreen extends StatefulWidget {
   final bool isAdmin;
   final String? contactId;
   final String? linkedCustomerId;
+  final bool forceAsContact;
   const AddContactScreen({
     super.key,
     this.isAdmin = false,
     this.contactId,
     this.linkedCustomerId,
+    this.forceAsContact = false,
   });
 
   @override
@@ -58,31 +63,75 @@ class _AddContactScreenState extends State<AddContactScreen> {
   Timer? _debounce;
 
   List<String> _extraNumbers = [];
+  final List<String> _addedExtraFields = [];
+  final _secondPhoneCtrl = TextEditingController();
+
   List<String> _categories = [];
   String? _category;
   List<QueryDocumentSnapshot<Map<String, dynamic>>> _customerDocs = [];
   List<String> _customerNames = [];
 
+  bool _isPrimaryContact = false;
   bool get _isEditing => widget.contactId != null;
+  bool get _isNewClient =>
+      widget.contactId == null &&
+      !_isPrimaryContact &&
+      (_category?.toLowerCase() == 'klient');
+
+  List<QueryDocumentSnapshot<Map<String, dynamic>>> _allProjects = [];
+  bool _projectsLoading = false;
+  String? _selectedProjectId;
 
   @override
   void initState() {
     super.initState();
     _loadCategories();
-
     _selectedCustomerId = widget.linkedCustomerId;
-
     if (widget.contactId != null) {
       _contactId = widget.contactId;
-      _loadContact();
+      _loadContact().then((_) => _checkIfPrimaryClient());
     }
     if (widget.linkedCustomerId != null) {
       _selectedCustomerId = widget.linkedCustomerId;
       _customerId = widget.linkedCustomerId;
     }
     _loadCustomerSuggestions();
-
     _attachAutoSaveListeners();
+
+    if (widget.linkedCustomerId == null) {
+      _loadAllProjects();
+    }
+  }
+
+  final List<String> _availableExtraFields = [
+    'Drugi numer',
+    'Adres',
+    'WWW',
+    'Notatka',
+  ];
+
+  Future<void> _loadAllProjects() async {
+    setState(() => _projectsLoading = true);
+    final snap = await FirebaseFirestore.instance
+        .collectionGroup('projects')
+        .orderBy('title')
+        .get();
+    setState(() {
+      _allProjects = snap.docs;
+      _projectsLoading = false;
+    });
+  }
+
+  Future<void> _checkIfPrimaryClient() async {
+    if (_customerId == null || widget.contactId == null) return;
+    final doc = await FirebaseFirestore.instance
+        .collection('customers')
+        .doc(_customerId)
+        .get();
+    final data = doc.data();
+    if (data != null && data['contactId'] == widget.contactId) {
+      setState(() => _isPrimaryContact = true);
+    }
   }
 
   void _attachAutoSaveListeners() {
@@ -111,38 +160,63 @@ class _AddContactScreenState extends State<AddContactScreen> {
     final data = {
       'name': name,
       'phone': _phoneCtrl.text.trim(),
-      'extraNumbers': _extraNumbers,
+      'extraNumbers': _addedExtraFields.contains('Drugi numer')
+          ? <String>[_secondPhoneCtrl.text.trim(), ..._extraNumbers]
+          : _extraNumbers,
       'email': _emailCtrl.text.trim(),
-      'address': _addressCtrl.text.trim(),
-      'www': _websiteCtrl.text.trim(),
-      'note': _noteCtrl.text.trim(),
-      'contactType': _category,
+      if (_addedExtraFields.contains('Adres'))
+        'address': _addressCtrl.text.trim(),
+      if (_addedExtraFields.contains('WWW')) 'www': _websiteCtrl.text.trim(),
+      if (_addedExtraFields.contains('Notatka')) 'note': _noteCtrl.text.trim(),
+      'contactType': (_isPrimaryContact || _isNewClient) ? 'Klient' : _category,
       if (_customerId != null) 'linkedCustomerId': _customerId,
       'updatedAt': FieldValue.serverTimestamp(),
+      if (_selectedProjectId != null) 'linkedProjectId': _selectedProjectId,
+      if (_customerId != null) 'linkedCustomerId': _customerId,
     };
 
-    final col = FirebaseFirestore.instance.collection('contacts');
+    final contactsCol = FirebaseFirestore.instance.collection('contacts');
+
     if (_contactId == null) {
       data['createdAt'] = FieldValue.serverTimestamp();
-      final docRef = await col.add(data);
+      final docRef = await contactsCol.add(data);
       _contactId = docRef.id;
       _createdEmptyDraft = true;
     } else {
-      await col.doc(_contactId!).set(data, SetOptions(merge: true));
+      await contactsCol.doc(_contactId!).set(data, SetOptions(merge: true));
     }
 
-    if (_customerId != null) {
-      await FirebaseFirestore.instance
+    final isKlient =
+        (_isPrimaryContact || _isNewClient) ||
+        (_category?.toLowerCase() == 'klient');
+    if (isKlient && _customerId == null && _contactId != null) {
+      final custRef = await FirebaseFirestore.instance
           .collection('customers')
-          .doc(_customerId)
-          .set({
+          .add({
             'name': name,
             'nameFold': name.toLowerCase(),
-          }, SetOptions(merge: true));
+            'contactId': _contactId,
+            'createdAt': FieldValue.serverTimestamp(),
+          });
+      _customerId = custRef.id;
+
+      await contactsCol.doc(_contactId!).update({
+        'linkedCustomerId': _customerId,
+      });
     }
 
-    if (_customerId == null) {
-      await _ensureCustomerExists();
+    if (_customerId != null && _contactId != null) {
+      final custDoc = FirebaseFirestore.instance
+          .collection('customers')
+          .doc(_customerId!);
+      final snap = await custDoc.get();
+      final custData = snap.data();
+      if (custData != null && custData['contactId'] == _contactId) {
+        await custDoc.set({
+          'name': name,
+          'nameFold': name.toLowerCase(),
+        }, SetOptions(merge: true));
+      }
     }
   }
 
@@ -238,8 +312,37 @@ class _AddContactScreenState extends State<AddContactScreen> {
       _category = data['contactType'];
       _existingPhotoUrl = data['photoUrl'];
       _customerId = data['linkedCustomerId'] as String?;
+      _addedExtraFields.clear();
+      _availableExtraFields.removeWhere((_) => false);
+      _availableExtraFields
+          .where((f) {
+            switch (f) {
+              case 'Drugi numer':
+                return (_extraNumbers.isNotEmpty);
+              case 'Adres':
+                return _addressCtrl.text.trim().isNotEmpty;
+              case 'WWW':
+                return _websiteCtrl.text.trim().isNotEmpty;
+              case 'Notatka':
+                return _noteCtrl.text.trim().isNotEmpty;
+              default:
+                return false;
+            }
+          })
+          .toList()
+          .forEach((f) {
+            _addedExtraFields.add(f);
+            _availableExtraFields.remove(f);
+          });
+
+      if (_addedExtraFields.contains('Drugi numer') &&
+          _extraNumbers.isNotEmpty) {
+        _secondPhoneCtrl.text = _extraNumbers.removeAt(0);
+      }
     }
     setState(() => _loading = false);
+
+    await _checkIfPrimaryClient();
   }
 
   Future<String?> _uploadPhoto(String id) async {
@@ -247,37 +350,6 @@ class _AddContactScreenState extends State<AddContactScreen> {
     final ref = FirebaseStorage.instance.ref('contacts/$id/photo.jpg');
     await ref.putData(_imageData!);
     return await ref.getDownloadURL();
-  }
-
-  Future<void> _addExtraNumber() async {
-    String temp = '';
-    await showDialog<void>(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Text('Dodaj numer'),
-        content: TextField(
-          decoration: const InputDecoration(labelText: 'Numer telefonu'),
-          keyboardType: TextInputType.phone,
-          onChanged: (v) => temp = v.trim(),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx),
-            child: const Text('Anuluj'),
-          ),
-          ElevatedButton(
-            onPressed: () {
-              if (temp.isNotEmpty) {
-                setState(() => _extraNumbers.add(temp));
-                _scheduleAutoSave();
-              }
-              Navigator.pop(ctx);
-            },
-            child: const Text('Dodaj'),
-          ),
-        ],
-      ),
-    );
   }
 
   Future<void> _addCategory() async {
@@ -472,6 +544,8 @@ class _AddContactScreenState extends State<AddContactScreen> {
         });
     _customerId = custRef.id;
 
+    setState(() => _isPrimaryContact = true);
+
     await FirebaseFirestore.instance.collection('contacts').doc(_contactId).set(
       {'linkedCustomerId': _customerId},
       SetOptions(merge: true),
@@ -495,17 +569,23 @@ class _AddContactScreenState extends State<AddContactScreen> {
     await _finalizeImage();
     if (!mounted) return;
 
-    if (_customerId != null) {
-      final name = _nameCtrl.text.trim();
-      await FirebaseFirestore.instance
+    if (_customerId != null && _contactId != null) {
+      final custSnap = await FirebaseFirestore.instance
           .collection('customers')
           .doc(_customerId)
-          .set({
-            'name': name,
-            'nameFold': name.toLowerCase(),
-          }, SetOptions(merge: true));
+          .get();
+      final custData = custSnap.data();
+      if (custData != null && custData['contactId'] == _contactId) {
+        final name = _nameCtrl.text.trim();
+        await FirebaseFirestore.instance
+            .collection('customers')
+            .doc(_customerId)
+            .set({
+              'name': name,
+              'nameFold': name.toLowerCase(),
+            }, SetOptions(merge: true));
+      }
     }
-
     Navigator.pop(context, {
       'contactId': _contactId,
       'name': _nameCtrl.text.trim(),
@@ -518,6 +598,7 @@ class _AddContactScreenState extends State<AddContactScreen> {
     _debounce?.cancel();
     _nameCtrl.dispose();
     _phoneCtrl.dispose();
+    _secondPhoneCtrl.dispose();
     _emailCtrl.dispose();
     _addressCtrl.dispose();
     _websiteCtrl.dispose();
@@ -532,22 +613,64 @@ class _AddContactScreenState extends State<AddContactScreen> {
     await _autoSave();
     await _finalizeImage();
 
-    if (_createdEmptyDraft &&
-        (_nameCtrl.text.trim().isEmpty) &&
-        _contactId != null) {
-      await FirebaseFirestore.instance
-          .collection('contacts')
-          .doc(_contactId)
-          .delete();
-      _contactId = null;
+    final isClientRecord =
+        _isPrimaryContact ||
+        _category == 'Klient' ||
+        (_isNewClient && widget.forceAsContact == false);
+
+    if (isClientRecord && _customerId != null && _contactId != null) {
+      Navigator.of(context).pushReplacement(
+        MaterialPageRoute(
+          builder: (_) => CustomerDetailScreen(
+            customerId: _customerId!,
+            isAdmin: widget.isAdmin,
+          ),
+        ),
+      );
+      return false;
     }
 
-    // Navigator.pop(context, {
-    //   'contactId': _contactId,
-    //   'name': _nameCtrl.text.trim(),
-    //   'customerId': _customerId,
-    // });
     return true;
+  }
+
+  Future<void> _deleteContact() async {
+    if (_contactId == null) return;
+    final contactName = _nameCtrl.text.trim();
+
+    final confirm = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Usuń kontakt?'),
+        content: Text(contactName),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Anuluj'),
+          ),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('Usuń'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirm != true) return;
+
+    await FirebaseFirestore.instance
+        .collection('contacts')
+        .doc(_contactId)
+        .delete();
+
+    if (_isPrimaryContact && _customerId != null) {
+      await FirebaseFirestore.instance
+          .collection('customers')
+          .doc(_customerId)
+          .delete();
+    }
+
+    Navigator.pop(context);
   }
 
   @override
@@ -555,17 +678,30 @@ class _AddContactScreenState extends State<AddContactScreen> {
     return WillPopScope(
       onWillPop: _onWillPop,
       child: AppScaffold(
-        title: widget.contactId == null ? 'Dodaj Klient' : 'Edytuj Klient',
+        title: _isPrimaryContact
+            ? 'Edytuj Klient'
+            : _isNewClient
+            ? 'Dodaj Klienta'
+            : widget.contactId == null
+            ? 'Dodaj Kontakt'
+            : 'Edytuj Kontakt',
 
-        floatingActionButton: _isEditing
-            ? null
-            : FloatingActionButton(
-                tooltip: 'Dodaj Projekt',
-                onPressed: _addProject,
-                child: const Icon(Icons.playlist_add),
-              ),
-        floatingActionButtonLocation: FloatingActionButtonLocation.centerDocked,
         centreTitle: true,
+
+        floatingActionButtonLocation: FloatingActionButtonLocation.centerDocked,
+        floatingActionButton: _isEditing
+            ? FloatingActionButton(
+                tooltip: 'Usuń kontakt',
+                onPressed: _deleteContact,
+                child: const Icon(Icons.delete, color: Colors.red),
+              )
+            // : (!_isEditing && _customerId != null)
+            // ? FloatingActionButton(
+            //     tooltip: 'Dodaj Projekt',
+            //     onPressed: _addProject,
+            //     child: const Icon(Icons.playlist_add),
+            //   )
+            : null,
 
         body: _loading
             ? const Center(child: CircularProgressIndicator())
@@ -577,6 +713,7 @@ class _AddContactScreenState extends State<AddContactScreen> {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.stretch,
                       children: [
+                        // === Avatar Picker (always) ===
                         GestureDetector(
                           onTap: _pickImage,
                           child: CircleAvatar(
@@ -594,40 +731,87 @@ class _AddContactScreenState extends State<AddContactScreen> {
                           ),
                         ),
                         const SizedBox(height: 16),
-                        Row(
-                          children: [
-                            Expanded(
-                              child: DropdownButtonFormField<String>(
-                                value: _category,
-                                decoration: const InputDecoration(
-                                  labelText: 'Typ kontaktu',
-                                ),
-                                items: _categories
-                                    .map(
-                                      (c) => DropdownMenuItem(
-                                        value: c,
-                                        child: Text(c),
-                                      ),
-                                    )
-                                    .toList(),
-                                onChanged: (v) {
-                                  setState(() => _category = v);
-                                  _scheduleAutoSave();
-                                },
-                                validator: (v) => v == null || v.isEmpty
-                                    ? 'Wybierz...'
-                                    : null,
-                              ),
-                            ),
-                            IconButton(
-                              icon: const Icon(Icons.add_circle_outline),
-                              tooltip: 'Dodaj typ',
-                              onPressed: _addCategory,
-                            ),
-                          ],
-                        ),
-                        const SizedBox(height: 12),
 
+                        // === Typ Kontaktu (hide on add client) ===
+                        if (!_isPrimaryContact && !_isNewClient) ...[
+                          Row(
+                            children: [
+                              Expanded(
+                                child: DropdownButtonFormField<String>(
+                                  value: _categories.contains(_category)
+                                      ? _category
+                                      : null,
+                                  decoration: const InputDecoration(
+                                    labelText: 'Typ kontaktu',
+                                  ),
+                                  items: _categories
+                                      .map(
+                                        (c) => DropdownMenuItem(
+                                          value: c,
+                                          child: Text(c),
+                                        ),
+                                      )
+                                      .toList(),
+                                  onChanged: (v) {
+                                    setState(() => _category = v);
+                                    _scheduleAutoSave();
+                                  },
+                                  validator: (v) => v == null || v.isEmpty
+                                      ? 'Wybierz...'
+                                      : null,
+                                ),
+                              ),
+                              IconButton(
+                                icon: const Icon(Icons.add_circle_outline),
+                                tooltip: 'Dodaj typ',
+                                onPressed: _addCategory,
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: 12),
+                        ],
+
+                        // === Assign to project
+                        if (widget.linkedCustomerId == null) ...[
+                          _projectsLoading
+                              ? const Center(child: CircularProgressIndicator())
+                              : DropdownButtonFormField<String>(
+                                  decoration: const InputDecoration(
+                                    labelText: 'Przypisz do projektu',
+                                  ),
+                                  value: _selectedProjectId,
+                                  items: [
+                                    const DropdownMenuItem(
+                                      value: null,
+                                      child: Text('Nie'),
+                                    ),
+                                    ..._allProjects.map((doc) {
+                                      final data = doc.data();
+                                      final title =
+                                          data['title'] as String? ?? '';
+                                      return DropdownMenuItem(
+                                        value: doc.id,
+                                        child: Text(title),
+                                      );
+                                    }),
+                                  ],
+                                  onChanged: (projId) {
+                                    setState(() {
+                                      _selectedProjectId = projId;
+                                      if (projId != null) {
+                                        final projData = _allProjects
+                                            .firstWhere((d) => d.id == projId)
+                                            .data();
+                                        _customerId =
+                                            projData['customerId'] as String?;
+                                      }
+                                    });
+                                  },
+                                ),
+                          const SizedBox(height: 12),
+                        ],
+
+                        // === Name Field (always) ===
                         if (widget.contactId == null) ...[
                           Autocomplete<String>(
                             optionsBuilder: (TextEditingValue txt) {
@@ -640,7 +824,6 @@ class _AddContactScreenState extends State<AddContactScreen> {
                             },
                             onSelected: (selection) {
                               _nameCtrl.text = selection;
-
                               final doc = _customerDocs.firstWhere(
                                 (d) => (d.data())['name'] == selection,
                               );
@@ -660,7 +843,6 @@ class _AddContactScreenState extends State<AddContactScreen> {
                                     _nameCtrl.text = controller.text;
                                     _scheduleAutoSave();
                                   });
-
                                   return TextFormField(
                                     controller: controller,
                                     focusNode: focusNode,
@@ -686,44 +868,23 @@ class _AddContactScreenState extends State<AddContactScreen> {
                             onChanged: (_) => _scheduleAutoSave(),
                           ),
                         ],
-
                         const SizedBox(height: 12),
 
-                        Row(
-                          children: [
-                            Expanded(
-                              child: TextFormField(
-                                controller: _phoneCtrl,
-                                decoration: const InputDecoration(
-                                  labelText: 'Telefon',
-                                ),
-                                keyboardType: TextInputType.phone,
-                                validator: (v) => v == null || v.trim().isEmpty
-                                    ? 'Wpisz numer'
-                                    : null,
-                                onChanged: (_) => _scheduleAutoSave(),
-                              ),
-                            ),
-                            IconButton(
-                              icon: const Icon(Icons.add_circle_outline),
-                              tooltip: 'Dodaj numer',
-                              onPressed: _addExtraNumber,
-                            ),
-                          ],
-                        ),
-                        ..._extraNumbers.map(
-                          (num) => ListTile(
-                            title: Text(num),
-                            onTap: () {
-                              setState(() {
-                                _phoneCtrl.text = num;
-                              });
-                              _scheduleAutoSave();
-                            },
+                        // === Telefon (always) ===
+                        TextFormField(
+                          controller: _phoneCtrl,
+                          decoration: const InputDecoration(
+                            labelText: 'Telefon',
                           ),
+                          keyboardType: TextInputType.phone,
+                          validator: (v) => v == null || v.trim().isEmpty
+                              ? 'Wpisz numer'
+                              : null,
+                          onChanged: (_) => _scheduleAutoSave(),
                         ),
                         const SizedBox(height: 12),
 
+                        // === Email (always) ===
                         TextFormField(
                           controller: _emailCtrl,
                           decoration: const InputDecoration(labelText: 'Email'),
@@ -735,30 +896,76 @@ class _AddContactScreenState extends State<AddContactScreen> {
                         ),
                         const SizedBox(height: 12),
 
-                        // TextFormField(
-                        //   controller: _addressCtrl,
-                        //   decoration: const InputDecoration(labelText: 'Adres'),
-                        //   onChanged: (_) => _scheduleAutoSave(),
-                        // ),
-                        // const SizedBox(height: 12),
-                        // TextFormField(
-                        //   controller: _websiteCtrl,
-                        //   decoration: const InputDecoration(labelText: 'WWW'),
-                        //   keyboardType: TextInputType.url,
-                        //   onChanged: (_) => _scheduleAutoSave(),
-                        // ),
-                        // const SizedBox(height: 12),
-                        // TextFormField(
-                        //   controller: _noteCtrl,
-                        //   decoration: const InputDecoration(
-                        //     labelText: 'Notatka',
-                        //     alignLabelWithHint: true,
-                        //   ),
-                        //   minLines: 1,
-                        //   maxLines: 4,
-                        //   onChanged: (_) => _scheduleAutoSave(),
-                        // ),
+                        // === Dropdown extras ===
+                        DropdownButtonFormField<String>(
+                          key: ValueKey(_availableExtraFields.length),
+                          value: null,
+                          decoration: const InputDecoration(
+                            labelText: 'Dodaj pole...',
+                          ),
+                          items: _availableExtraFields
+                              .map(
+                                (f) =>
+                                    DropdownMenuItem(value: f, child: Text(f)),
+                              )
+                              .toList(),
+                          onChanged: (f) {
+                            if (f == null) return;
+                            setState(() {
+                              _addedExtraFields.add(f);
+                              _availableExtraFields.remove(f);
+                            });
+                          },
+                        ),
+
+                        // === Render any extra fields the user added ===
+                        for (var field in _addedExtraFields) ...[
+                          if (field == 'Drugi numer') ...[
+                            TextFormField(
+                              controller: _secondPhoneCtrl,
+                              decoration: const InputDecoration(
+                                labelText: 'Drugi numer',
+                              ),
+                              keyboardType: TextInputType.phone,
+                              onChanged: (_) => _scheduleAutoSave(),
+                            ),
+                            const SizedBox(height: 12),
+                          ] else if (field == 'Adres') ...[
+                            TextFormField(
+                              controller: _addressCtrl,
+                              decoration: const InputDecoration(
+                                labelText: 'Adres',
+                              ),
+                              onChanged: (_) => _scheduleAutoSave(),
+                            ),
+                            const SizedBox(height: 12),
+                          ] else if (field == 'WWW') ...[
+                            TextFormField(
+                              controller: _websiteCtrl,
+                              decoration: const InputDecoration(
+                                labelText: 'WWW',
+                              ),
+                              keyboardType: TextInputType.url,
+                              onChanged: (_) => _scheduleAutoSave(),
+                            ),
+                            const SizedBox(height: 12),
+                          ] else if (field == 'Notatka') ...[
+                            TextFormField(
+                              controller: _noteCtrl,
+                              decoration: const InputDecoration(
+                                labelText: 'Notatka',
+                                alignLabelWithHint: true,
+                              ),
+                              minLines: 1,
+                              maxLines: 4,
+                              onChanged: (_) => _scheduleAutoSave(),
+                            ),
+                            const SizedBox(height: 12),
+                          ],
+                        ],
+
                         const SizedBox(height: 24),
+
                         if (!_isEditing && _customerId != null) ...[
                           AutoSizeText(
                             'Projekty',

@@ -30,106 +30,110 @@ class NotesSection extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    // sort newest first
+    // sort newest
     final sorted = List<Note>.from(notes)
       ..sort((a, b) => b.createdAt.compareTo(a.createdAt));
 
-    return SizedBox(
-      height: 44,
-      child: Row(
-        children: [
-          // Add button
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 4),
-            child: InkWell(
-              onTap: () async => await onAddNote(context),
-              child: Container(
-                width: 44,
-                height: 44,
-                decoration: BoxDecoration(
-                  border: Border.all(color: Colors.grey),
-                  borderRadius: BorderRadius.circular(6),
+    return GestureDetector(
+      onTap: () async => await onAddNote(context),
+      behavior: HitTestBehavior.opaque,
+      child: SizedBox(
+        height: 70,
+        child: sorted.isEmpty
+            ? Center(
+                child: Text(
+                  'Dotknij aby dodać notatka',
+                  style: TextStyle(color: Colors.grey),
                 ),
-                child: const Center(child: Icon(Icons.note_add, size: 32)),
-              ),
-            ),
-          ),
-
-          // Note thumbnails
-          Expanded(
-            child: sorted.isEmpty
-                ? const Center(
-                    child: Text('Brak', style: TextStyle(color: Colors.grey)),
-                  )
-                : ListView.builder(
-                    scrollDirection: Axis.horizontal,
-                    itemCount: sorted.length,
-                    itemBuilder: (ctx, i) {
-                      final note = sorted[i];
-                      final header = note.userName;
-
-                      return Padding(
-                        padding: const EdgeInsets.symmetric(horizontal: 4),
-                        child: Stack(
-                          children: [
-                            InkWell(
-                              onTap: () async {
-                                final updated = await showNoteDialog(
-                                  context,
-                                  userName: note.userName,
-                                  createdAt: note.createdAt,
-                                  initial: note.text,
-                                );
-                                if (updated != null &&
-                                    updated.trim() != note.text) {
-                                  await onEdit(i, updated.trim());
-                                }
-                              },
+              )
+            : ListView.builder(
+                scrollDirection: Axis.horizontal,
+                itemCount: sorted.length + 1,
+                itemBuilder: (ctx, i) {
+                  if (i < sorted.length) {
+                    final note = sorted[i];
+                    final header = note.userName;
+                    return Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 4),
+                      child: Stack(
+                        children: [
+                          InkWell(
+                            onTap: () async {
+                              final updated = await showNoteDialog(
+                                context,
+                                userName: note.userName,
+                                createdAt: note.createdAt,
+                                initial: note.text,
+                              );
+                              if (updated != null &&
+                                  updated.trim() != note.text) {
+                                await onEdit(i, updated.trim());
+                              }
+                            },
+                            child: Container(
+                              width: 64,
+                              height: 70,
+                              padding: const EdgeInsets.all(8),
+                              decoration: BoxDecoration(
+                                color: Colors.grey.shade200,
+                                borderRadius: BorderRadius.circular(6),
+                              ),
+                              child: AutoSizeText(
+                                header,
+                                maxLines: 2,
+                                minFontSize: 10,
+                                style: const TextStyle(
+                                  fontWeight: FontWeight.bold,
+                                ),
+                              ),
+                            ),
+                          ),
+                          Positioned(
+                            top: 0,
+                            right: 0,
+                            child: InkWell(
+                              onTap: () => onDelete(i),
                               child: Container(
-                                width: 64,
-                                height: 44,
-                                padding: const EdgeInsets.all(8),
+                                padding: const EdgeInsets.all(2),
                                 decoration: BoxDecoration(
-                                  color: Colors.grey.shade200,
-                                  borderRadius: BorderRadius.circular(6),
+                                  color: Colors.black45,
+                                  shape: BoxShape.circle,
                                 ),
-                                child: AutoSizeText(
-                                  header,
-                                  maxLines: 2,
-                                  minFontSize: 8,
-                                  style: const TextStyle(
-                                    fontWeight: FontWeight.bold,
-                                  ),
+                                child: const Icon(
+                                  Icons.close,
+                                  size: 14,
+                                  color: Colors.white,
                                 ),
                               ),
                             ),
-
-                            Positioned(
-                              top: 0,
-                              right: 0,
-                              child: InkWell(
-                                onTap: () => onDelete(i),
-                                child: Container(
-                                  padding: const EdgeInsets.all(2),
-                                  decoration: BoxDecoration(
-                                    color: Colors.black45,
-                                    shape: BoxShape.circle,
-                                  ),
-                                  child: const Icon(
-                                    Icons.close,
-                                    size: 14,
-                                    color: Colors.white,
-                                  ),
-                                ),
-                              ),
-                            ),
-                          ],
+                          ),
+                        ],
+                      ),
+                    );
+                  }
+                  // trailing placeholder
+                  return Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 4),
+                    child: GestureDetector(
+                      onTap: () async => await onAddNote(context),
+                      child: Container(
+                        width: 80,
+                        height: 70,
+                        alignment: Alignment.center,
+                        decoration: BoxDecoration(
+                          color: Colors.transparent,
+                          borderRadius: BorderRadius.circular(6),
                         ),
-                      );
-                    },
-                  ),
-          ),
-        ],
+                        child: Text(
+                          'Dotknij aby dodać notatka',
+                          textAlign: TextAlign.center,
+                          style: TextStyle(color: Colors.grey),
+                        ),
+                      ),
+                    ),
+                  );
+                },
+              ),
       ),
     );
   }
