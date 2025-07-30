@@ -111,353 +111,402 @@ class _AppDrawerState extends State<AppDrawer> {
       child: Container(
         color: Colors.black,
         child: SafeArea(
-          child: ListView(
-            padding: EdgeInsets.zero,
+          child: Column(
             children: [
-              Container(
-                height: 100,
-                decoration: const BoxDecoration(
-                  image: DecorationImage(
-                    image: AssetImage('assets/favicon/Icon-512.png'),
-                    fit: BoxFit.scaleDown,
-                  ),
-                ),
-              ),
-
-              const Divider(color: Colors.white54),
-
-              ListTile(
-                leading: const Icon(Icons.home, color: Colors.white),
-                title: Text('Home', style: menuTitles),
-
-                onTap: () {
-                  Navigator.of(context).pushReplacement(
-                    MaterialPageRoute(
-                      builder: (_) => const MainMenuScreen(role: 'admin'),
-                    ),
-                  );
-                },
-              ),
-
-              Theme(
-                data: Theme.of(context).copyWith(
-                  dividerColor: Colors.transparent,
-                  unselectedWidgetColor: Colors.white70,
-                  colorScheme: const ColorScheme.dark(
-                    primary: Colors.tealAccent,
-                    onSurface: Colors.white,
-                  ),
-                ),
-                child: ExpansionTile(
-                  leading: const Icon(
-                    Icons.inventory_2_outlined,
-                    color: Colors.white,
-                  ),
-                  title: Text('Magazyn', style: menuTitles),
-
-                  childrenPadding: const EdgeInsets.only(left: 16),
+              // 1) scrollable menu
+              Expanded(
+                child: ListView(
+                  padding: EdgeInsets.zero,
                   children: [
-                    ListTile(
-                      leading: const Icon(Icons.list, color: Colors.white),
-                      title: Text('List produktów', style: menuTitles),
-
-                      onTap: () {
-                        Navigator.of(context).pop();
-                        Navigator.of(context).push(
-                          MaterialPageRoute(
-                            builder: (_) =>
-                                const InventoryListScreen(isAdmin: true),
-                          ),
-                        );
-                      },
-                    ),
-
-                    ListTile(
-                      leading: const Icon(
-                        Icons.qr_code_scanner,
-                        color: Colors.white,
+                    Container(
+                      height: 100,
+                      decoration: const BoxDecoration(
+                        image: DecorationImage(
+                          image: AssetImage('assets/favicon/Icon-512.png'),
+                          fit: BoxFit.scaleDown,
+                        ),
                       ),
-                      title: Text('Dodać produkt', style: menuTitles),
-
-                      onTap: () {
-                        Navigator.of(context).pop();
-                        Navigator.of(context).push(
-                          MaterialPageRoute(
-                            builder: (_) =>
-                                const ScanScreen(purpose: ScanPurpose.add),
-                          ),
-                        );
-                      },
                     ),
+
+                    const Divider(color: Colors.white54),
 
                     ListTile(
-                      leading: const Icon(
-                        Icons.qr_code_scanner,
-                        color: Colors.white,
-                      ),
-                      title: Text('Wyszukaj produkt', style: menuTitles),
-
+                      leading: const Icon(Icons.home, color: Colors.white),
+                      title: Text('Home', style: menuTitles),
                       onTap: () {
-                        Navigator.of(context).pop();
-                        Navigator.of(context).push(
+                        Navigator.of(context).pushReplacement(
                           MaterialPageRoute(
-                            builder: (_) =>
-                                const ScanScreen(purpose: ScanPurpose.search),
-                          ),
-                        );
-                      },
-                    ),
-                  ],
-                ),
-              ),
-
-              Theme(
-                data: Theme.of(context).copyWith(
-                  dividerColor: Colors.transparent,
-                  unselectedWidgetColor: Colors.white70,
-                  colorScheme: ColorScheme.dark(
-                    primary: Colors.tealAccent,
-                    onSurface: Colors.white,
-                  ),
-                ),
-
-                child: ExpansionTile(
-                  leading: const Icon(
-                    Icons.person_2_outlined,
-                    color: Colors.white,
-                  ),
-                  title: Text('Klienci', style: menuTitles),
-
-                  childrenPadding: const EdgeInsets.only(left: 16),
-                  children: [
-                    ListTile(
-                      leading: const Icon(
-                        Icons.my_library_books_rounded,
-                        color: Colors.white,
-                      ),
-                      title: Text('List klientów', style: menuTitles),
-
-                      onTap: () {
-                        Navigator.of(context).pop();
-                        Navigator.of(context).push(
-                          MaterialPageRoute(
-                            builder: (_) =>
-                                const CustomerListScreen(isAdmin: true),
-                          ),
-                        );
-                      },
-                    ),
-                    ListTile(
-                      leading: const Icon(
-                        Icons.person_add,
-                        color: Colors.white,
-                      ),
-                      title: Text('Dodaj klient', style: menuTitles),
-
-                      onTap: () {
-                        Navigator.of(context).pop();
-                        Navigator.of(context).push(
-                          MaterialPageRoute(
-                            builder: (_) =>
-                                const AddContactScreen(isAdmin: true),
+                            builder: (_) => const MainMenuScreen(role: 'admin'),
                           ),
                         );
                       },
                     ),
 
-                    if (uid != null)
-                      StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
-                        stream: FirebaseFirestore.instance
-                            .collection('users')
-                            .doc(uid)
-                            .collection(AppDrawer.favCustomer)
-                            .orderBy('name')
-                            .snapshots(),
-                        builder: (ctx, snap) {
-                          if (snap.connectionState == ConnectionState.waiting) {
-                            return const Padding(
-                              padding: EdgeInsets.symmetric(vertical: 8),
-                              child: Center(child: CircularProgressIndicator()),
-                            );
-                          }
-                          final favDocs = snap.data?.docs ?? [];
-                          if (favDocs.isEmpty) return const SizedBox.shrink();
-
-                          return ExpansionTile(
+                    // — Magazyn expansion
+                    Theme(
+                      data: Theme.of(context).copyWith(
+                        dividerColor: Colors.transparent,
+                        unselectedWidgetColor: Colors.white70,
+                        colorScheme: const ColorScheme.dark(
+                          primary: Colors.tealAccent,
+                          onSurface: Colors.white,
+                        ),
+                      ),
+                      child: ExpansionTile(
+                        leading: const Icon(
+                          Icons.inventory_2_outlined,
+                          color: Colors.white,
+                        ),
+                        title: Text('Magazyn', style: menuTitles),
+                        childrenPadding: const EdgeInsets.only(left: 16),
+                        children: [
+                          ListTile(
                             leading: const Icon(
-                              Icons.star,
-                              color: Colors.amber,
+                              Icons.list,
+                              color: Colors.white,
                             ),
-                            title: Row(
-                              children: [
-                                AutoSizeText(
-                                  'Ulubione klienci',
-                                  style: menuTitles,
-                                  maxLines: 2,
-                                  minFontSize: 8,
-                                ),
-                              ],
-                            ),
-                            tilePadding: EdgeInsets.zero,
-                            childrenPadding: const EdgeInsets.only(left: 16),
-                            children: favDocs.map((d) {
-                              final name = d.data()['name'] as String? ?? '—';
-                              return ListTile(
-                                contentPadding: EdgeInsets.zero,
-                                leading: const SizedBox(width: 24),
-                                title: Text(name, style: menuTitles),
-                                onTap: () {
-                                  Navigator.of(context).pop();
-                                  Navigator.of(context).push(
-                                    MaterialPageRoute(
-                                      builder: (_) => CustomerDetailScreen(
-                                        customerId: d.id,
-                                        isAdmin: true,
-                                      ),
-                                    ),
-                                  );
-                                },
-                                onLongPress: () => _removeFavourite(
-                                  context,
-                                  uid: uid,
-                                  collection: AppDrawer.favCustomer,
-                                  docId: d.id,
-                                  name: name,
+                            title: Text('List produktów', style: menuTitles),
+                            onTap: () {
+                              Navigator.of(context).pop();
+                              Navigator.of(context).push(
+                                MaterialPageRoute(
+                                  builder: (_) =>
+                                      const InventoryListScreen(isAdmin: true),
                                 ),
                               );
-                            }).toList(),
-                          );
-                        },
-                      ),
-                  ],
-                ),
-              ),
-
-              // Kontakty
-              Theme(
-                data: Theme.of(context).copyWith(
-                  dividerColor: Colors.transparent,
-                  unselectedWidgetColor: Colors.white70,
-                  colorScheme: const ColorScheme.dark(
-                    primary: Colors.tealAccent,
-                    onSurface: Colors.white,
-                  ),
-                ),
-                child: ExpansionTile(
-                  leading: const Icon(
-                    Icons.contact_phone_outlined,
-                    color: Colors.white,
-                  ),
-                  title: Text('Kontakty', style: menuTitles),
-                  childrenPadding: const EdgeInsets.only(left: 16),
-                  children: [
-                    ListTile(
-                      leading: const Icon(Icons.people, color: Colors.white),
-                      title: Text('List kontaktów', style: menuTitles),
-                      onTap: () {
-                        Navigator.of(context).pop();
-                        Navigator.of(context).push(
-                          MaterialPageRoute(
-                            builder: (_) =>
-                                const ContactsListScreen(isAdmin: true),
+                            },
                           ),
-                        );
-                      },
-                    ),
-                    ListTile(
-                      leading: const Icon(
-                        Icons.person_add_alt,
-                        color: Colors.white,
-                      ),
-                      title: Text('Dodaj kontakt', style: menuTitles),
-                      onTap: () {
-                        Navigator.of(context).pop();
-                        Navigator.of(context).push(
-                          MaterialPageRoute(
-                            builder: (_) => const AddContactScreen(
-                              isAdmin: true,
-                              forceAsContact: true,
+                          ListTile(
+                            leading: const Icon(
+                              Icons.qr_code_scanner,
+                              color: Colors.white,
                             ),
-                          ),
-                        );
-                      },
-                    ),
-                  ],
-                ),
-              ),
-
-              if (uid != null)
-                Theme(
-                  data: Theme.of(context).copyWith(
-                    dividerColor: Colors.transparent,
-                    unselectedWidgetColor: Colors.white70,
-                    colorScheme: const ColorScheme.dark(
-                      primary: Colors.tealAccent,
-                      onSurface: Colors.white,
-                    ),
-                  ),
-                  child: StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
-                    stream: FirebaseFirestore.instance
-                        .collection('users')
-                        .doc(uid)
-                        .collection(AppDrawer.favCustomer)
-                        .orderBy('title')
-                        .snapshots(),
-                    builder: (ctx, favSnap) {
-                      if (favSnap.connectionState == ConnectionState.waiting) {
-                        return const Padding(
-                          padding: EdgeInsets.symmetric(vertical: 8),
-                          child: Center(child: CircularProgressIndicator()),
-                        );
-                      }
-                      final docs = favSnap.data?.docs ?? [];
-                      if (docs.isEmpty) return const SizedBox.shrink();
-
-                      return ExpansionTile(
-                        leading: const Icon(Icons.star, color: Colors.amber),
-                        title: Text('Ulubione projekty', style: menuTitles),
-                        childrenPadding: const EdgeInsets.only(left: 16),
-                        children: docs.isEmpty
-                            ? [
-                                ListTile(
-                                  contentPadding: EdgeInsets.zero,
-                                  leading: const SizedBox(width: 24),
-                                  title: Text('– Brak –', style: menuTitles),
+                            title: Text('Dodać produkt', style: menuTitles),
+                            onTap: () {
+                              Navigator.of(context).pop();
+                              Navigator.of(context).push(
+                                MaterialPageRoute(
+                                  builder: (_) => const ScanScreen(
+                                    purpose: ScanPurpose.add,
+                                  ),
                                 ),
-                              ]
-                            : docs.map((doc) {
-                                final data = doc.data();
-                                final title = data['title'] as String? ?? '–';
-                                final customerId = data['customerId'] as String;
-                                return ListTile(
-                                  contentPadding: EdgeInsets.zero,
-                                  leading: const SizedBox(width: 24),
-                                  title: Text(title, style: menuTitles),
-                                  onTap: () {
-                                    Navigator.of(context).pop();
-                                    Navigator.of(context).push(
-                                      MaterialPageRoute(
-                                        builder: (_) => ProjectEditorScreen(
-                                          customerId: customerId,
-                                          projectId: doc.id,
-                                          isAdmin: true,
-                                        ),
+                              );
+                            },
+                          ),
+                          ListTile(
+                            leading: const Icon(
+                              Icons.qr_code_scanner,
+                              color: Colors.white,
+                            ),
+                            title: Text('Wyszukaj produkt', style: menuTitles),
+                            onTap: () {
+                              Navigator.of(context).pop();
+                              Navigator.of(context).push(
+                                MaterialPageRoute(
+                                  builder: (_) => const ScanScreen(
+                                    purpose: ScanPurpose.search,
+                                  ),
+                                ),
+                              );
+                            },
+                          ),
+                        ],
+                      ),
+                    ),
+
+                    // — Klienci expansion
+                    Theme(
+                      data: Theme.of(context).copyWith(
+                        dividerColor: Colors.transparent,
+                        unselectedWidgetColor: Colors.white70,
+                        colorScheme: const ColorScheme.dark(
+                          primary: Colors.tealAccent,
+                          onSurface: Colors.white,
+                        ),
+                      ),
+                      child: ExpansionTile(
+                        leading: const Icon(
+                          Icons.person_2_outlined,
+                          color: Colors.white,
+                        ),
+                        title: Text('Klienci', style: menuTitles),
+                        childrenPadding: const EdgeInsets.only(left: 16),
+                        children: [
+                          ListTile(
+                            leading: const Icon(
+                              Icons.my_library_books_rounded,
+                              color: Colors.white,
+                            ),
+                            title: Text('List klientów', style: menuTitles),
+                            onTap: () {
+                              Navigator.of(context).pop();
+                              Navigator.of(context).push(
+                                MaterialPageRoute(
+                                  builder: (_) =>
+                                      const CustomerListScreen(isAdmin: true),
+                                ),
+                              );
+                            },
+                          ),
+                          ListTile(
+                            leading: const Icon(
+                              Icons.person_add,
+                              color: Colors.white,
+                            ),
+                            title: Text('Dodaj klient', style: menuTitles),
+                            onTap: () {
+                              Navigator.of(context).pop();
+                              Navigator.of(context).push(
+                                MaterialPageRoute(
+                                  builder: (_) =>
+                                      const AddContactScreen(isAdmin: true),
+                                ),
+                              );
+                            },
+                          ),
+
+                          if (uid != null)
+                            StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
+                              stream: FirebaseFirestore.instance
+                                  .collection('users')
+                                  .doc(uid)
+                                  .collection(AppDrawer.favCustomer)
+                                  .orderBy('name')
+                                  .snapshots(),
+                              builder: (ctx, snap) {
+                                if (snap.connectionState ==
+                                    ConnectionState.waiting) {
+                                  return const Padding(
+                                    padding: EdgeInsets.symmetric(vertical: 8),
+                                    child: Center(
+                                      child: CircularProgressIndicator(),
+                                    ),
+                                  );
+                                }
+                                final favDocs = snap.data?.docs ?? [];
+                                if (favDocs.isEmpty)
+                                  return const SizedBox.shrink();
+
+                                return ExpansionTile(
+                                  leading: const Icon(
+                                    Icons.star,
+                                    color: Colors.amber,
+                                  ),
+                                  title: Text(
+                                    'Ulubione klienci',
+                                    style: menuTitles,
+                                  ),
+                                  childrenPadding: const EdgeInsets.only(
+                                    left: 16,
+                                  ),
+                                  children: favDocs.map((d) {
+                                    final name =
+                                        d.data()['name'] as String? ?? '—';
+                                    return ListTile(
+                                      contentPadding: EdgeInsets.zero,
+                                      leading: const SizedBox(width: 24),
+                                      title: Text(name, style: menuTitles),
+                                      onTap: () {
+                                        Navigator.of(context).pop();
+                                        Navigator.of(context).push(
+                                          MaterialPageRoute(
+                                            builder: (_) =>
+                                                CustomerDetailScreen(
+                                                  customerId: d.id,
+                                                  isAdmin: true,
+                                                ),
+                                          ),
+                                        );
+                                      },
+                                      onLongPress: () => _removeFavourite(
+                                        context,
+                                        uid: uid,
+                                        collection: AppDrawer.favCustomer,
+                                        docId: d.id,
+                                        name: name,
                                       ),
                                     );
-                                  },
-                                  onLongPress: () => _removeFavourite(
-                                    context,
-                                    uid: uid,
-                                    collection: AppDrawer.favCustomer,
-                                    docId: doc.id,
-                                    name: title,
-                                  ),
+                                  }).toList(),
                                 );
-                              }).toList(),
-                      );
-                    },
+                              },
+                            ),
+                        ],
+                      ),
+                    ),
+
+                    // — Kontakty expansion
+                    Theme(
+                      data: Theme.of(context).copyWith(
+                        dividerColor: Colors.transparent,
+                        unselectedWidgetColor: Colors.white70,
+                        colorScheme: const ColorScheme.dark(
+                          primary: Colors.tealAccent,
+                          onSurface: Colors.white,
+                        ),
+                      ),
+                      child: ExpansionTile(
+                        leading: const Icon(
+                          Icons.contact_phone_outlined,
+                          color: Colors.white,
+                        ),
+                        title: Text('Kontakty', style: menuTitles),
+                        childrenPadding: const EdgeInsets.only(left: 16),
+                        children: [
+                          ListTile(
+                            leading: const Icon(
+                              Icons.people,
+                              color: Colors.white,
+                            ),
+                            title: Text('List kontaktów', style: menuTitles),
+                            onTap: () {
+                              Navigator.of(context).pop();
+                              Navigator.of(context).push(
+                                MaterialPageRoute(
+                                  builder: (_) =>
+                                      const ContactsListScreen(isAdmin: true),
+                                ),
+                              );
+                            },
+                          ),
+                          ListTile(
+                            leading: const Icon(
+                              Icons.person_add_alt,
+                              color: Colors.white,
+                            ),
+                            title: Text('Dodaj kontakt', style: menuTitles),
+                            onTap: () {
+                              Navigator.of(context).pop();
+                              Navigator.of(context).push(
+                                MaterialPageRoute(
+                                  builder: (_) => const AddContactScreen(
+                                    isAdmin: true,
+                                    forceAsContact: true,
+                                  ),
+                                ),
+                              );
+                            },
+                          ),
+                        ],
+                      ),
+                    ),
+
+                    // — Ulubione projekty
+                    if (uid != null)
+                      Theme(
+                        data: Theme.of(context).copyWith(
+                          dividerColor: Colors.transparent,
+                          unselectedWidgetColor: Colors.white70,
+                          colorScheme: const ColorScheme.dark(
+                            primary: Colors.tealAccent,
+                            onSurface: Colors.white,
+                          ),
+                        ),
+                        child:
+                            StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
+                              stream: FirebaseFirestore.instance
+                                  .collection('users')
+                                  .doc(uid)
+                                  .collection(AppDrawer.favCustomer)
+                                  .orderBy('title')
+                                  .snapshots(),
+                              builder: (ctx, favSnap) {
+                                if (favSnap.connectionState ==
+                                    ConnectionState.waiting) {
+                                  return const Padding(
+                                    padding: EdgeInsets.symmetric(vertical: 8),
+                                    child: Center(
+                                      child: CircularProgressIndicator(),
+                                    ),
+                                  );
+                                }
+                                final docs = favSnap.data?.docs ?? [];
+                                if (docs.isEmpty)
+                                  return const SizedBox.shrink();
+
+                                return ExpansionTile(
+                                  leading: const Icon(
+                                    Icons.star,
+                                    color: Colors.amber,
+                                  ),
+                                  title: Text(
+                                    'Ulubione projekty',
+                                    style: menuTitles,
+                                  ),
+                                  childrenPadding: const EdgeInsets.only(
+                                    left: 16,
+                                  ),
+                                  children: docs.isEmpty
+                                      ? [
+                                          ListTile(
+                                            contentPadding: EdgeInsets.zero,
+                                            leading: const SizedBox(width: 24),
+                                            title: Text(
+                                              '– Brak –',
+                                              style: menuTitles,
+                                            ),
+                                          ),
+                                        ]
+                                      : docs.map((doc) {
+                                          final data = doc.data();
+                                          final title =
+                                              data['title'] as String? ?? '–';
+                                          final customerId =
+                                              data['customerId'] as String;
+                                          return ListTile(
+                                            contentPadding: EdgeInsets.zero,
+                                            leading: const SizedBox(width: 24),
+                                            title: Text(
+                                              title,
+                                              style: menuTitles,
+                                            ),
+                                            onTap: () {
+                                              Navigator.of(context).pop();
+                                              Navigator.of(context).push(
+                                                MaterialPageRoute(
+                                                  builder: (_) =>
+                                                      ProjectEditorScreen(
+                                                        customerId: customerId,
+                                                        projectId: doc.id,
+                                                        isAdmin: true,
+                                                      ),
+                                                ),
+                                              );
+                                            },
+                                            onLongPress: () => _removeFavourite(
+                                              context,
+                                              uid: uid,
+                                              collection: AppDrawer.favCustomer,
+                                              docId: doc.id,
+                                              name: title,
+                                            ),
+                                          );
+                                        }).toList(),
+                                );
+                              },
+                            ),
+                      ),
+                  ],
+                ),
+              ),
+              // 2) footer signature
+              Padding(
+                padding: const EdgeInsets.only(right: 16, bottom: 16),
+                child: Align(
+                  alignment: Alignment.bottomRight,
+                  // child: Image.asset(
+                  //   'assets/images/Lee_logo_app_dev.png',
+                  //   width: 80,
+                  //   fit: BoxFit.contain,
+                  // ),
+                  child: Text(
+                    'developed by LEE',
+                    style: TextStyle(
+                      color: Colors.blueGrey,
+                      fontWeight: FontWeight.bold,
+                    ),
                   ),
                 ),
+              ),
             ],
           ),
         ),

@@ -6,8 +6,6 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:strefa_ciszy/models/stock_item.dart';
 import 'package:strefa_ciszy/screens/add_item_screen.dart';
 import 'package:strefa_ciszy/screens/item_detail_screen.dart';
-import 'package:strefa_ciszy/screens/scan_screen.dart';
-import 'package:strefa_ciszy/screens/customer_list_screen.dart';
 import 'package:strefa_ciszy/utils/search_utils.dart';
 import 'package:strefa_ciszy/widgets/app_scaffold.dart';
 

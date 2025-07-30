@@ -43,7 +43,7 @@ class _AddContactScreenState extends State<AddContactScreen> {
   final _websiteCtrl = TextEditingController();
   final _noteCtrl = TextEditingController();
 
-  bool _createProjectNow = false;
+  final bool _createProjectNow = false;
   final _projTitleCtrl = TextEditingController();
   DateTime? _projStartDate;
   DateTime? _projEndDate;

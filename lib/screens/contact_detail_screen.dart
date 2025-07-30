@@ -317,7 +317,7 @@ class _ContactDetailScreenState extends State<ContactDetailScreen> {
           length: 2,
           child: Builder(
             builder: (context) {
-              final tabController = DefaultTabController.of(context)!;
+              final tabController = DefaultTabController.of(context);
               return AnimatedBuilder(
                 animation: tabController,
                 builder: (context, _) => AppScaffold(
@@ -598,8 +598,9 @@ class _ContactDetailScreenState extends State<ContactDetailScreen> {
                                     );
                                   }
                                   final docs = projSnap.data?.docs ?? [];
-                                  if (docs.isEmpty)
+                                  if (docs.isEmpty) {
                                     return const Text('Brak projektów.');
+                                  }
 
                                   return ListView.separated(
                                     shrinkWrap: true,
@@ -676,7 +677,7 @@ class _ContactDetailScreenState extends State<ContactDetailScreen> {
                                                   .get(),
                                               builder: (ctx2, s2) {
                                                 if (s2.connectionState ==
-                                                    ConnectionState.waiting)
+                                                    ConnectionState.waiting) {
                                                   return const SizedBox(
                                                     width: 24,
                                                     height: 24,
@@ -685,6 +686,7 @@ class _ContactDetailScreenState extends State<ContactDetailScreen> {
                                                           strokeWidth: 2,
                                                         ),
                                                   );
+                                                }
                                                 final cnt =
                                                     s2.data?.docs.length ?? 0;
                                                 return Container(

@@ -1,6 +1,7 @@
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:package_info_plus/package_info_plus.dart';
 import 'package:qr_flutter/qr_flutter.dart';
 import 'package:strefa_ciszy/screens/contacts_list_screen.dart';
 import 'package:strefa_ciszy/screens/login_screen.dart';
@@ -23,6 +24,20 @@ class MainMenuScreen extends StatefulWidget {
 class _MainMenuScreenState extends State<MainMenuScreen> {
   String get role => widget.role;
   bool get isAdmin => role == 'admin';
+  String _version = '';
+
+  @override
+  void initState() {
+    super.initState();
+    _loadVersion();
+  }
+
+  Future<void> _loadVersion() async {
+    final info = await PackageInfo.fromPlatform();
+    setState(() {
+      _version = 'v.${info.version} _${info.buildNumber}';
+    });
+  }
 
   Future<void> _signOut() async {
     await FirebaseAuth.instance.signOut();
@@ -48,11 +63,6 @@ class _MainMenuScreenState extends State<MainMenuScreen> {
     final body = ListView(
       padding: const EdgeInsets.all(16),
       children: [
-        // const Text(
-        //   'Strefa Ciszy _inventory',
-        //   style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold),
-        //   textAlign: TextAlign.center,
-        // ),
         Image.asset('assets/images/strefa_ciszy_logo.png', width: 200),
 
         const SizedBox(height: 24),
@@ -139,6 +149,7 @@ class _MainMenuScreenState extends State<MainMenuScreen> {
         ),
       ],
     );
+
     return AppScaffold(
       floatingActionButton: !kIsWeb
           ? FloatingActionButton(
@@ -152,9 +163,34 @@ class _MainMenuScreenState extends State<MainMenuScreen> {
             )
           : null,
       floatingActionButtonLocation: FloatingActionButtonLocation.centerFloat,
-      title: 'Panel',
+
+      title: '',
+      titleWidget: Text(_version, style: TextStyle(fontSize: 15)),
+
       showBackOnMobile: false,
-      body: body,
+
+      body: Stack(
+        children: [
+          body,
+          Positioned(
+            bottom: 30,
+            right: 20,
+            // child: Image.asset(
+            //   'assets/images/Lee_logo_app_dev.png',
+            //   width: 80,
+            //   fit: BoxFit.contain,
+            // ),
+            child: Text(
+              'developed by LEE',
+              style: TextStyle(
+                color: Colors.blueGrey,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+          ),
+        ],
+      ),
+
       actions: [
         IconButton(
           icon: const Icon(Icons.logout),

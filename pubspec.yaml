@@ -46,6 +46,7 @@ dependencies:
   path: ^1.9.1
   auto_size_text: ^3.0.0
   file_picker: ^10.2.0
+  package_info_plus: ^8.3.0
 
 dev_dependencies:
   flutter_test:
@@ -72,6 +73,7 @@ flutter:
   assets:
     - assets/images/strefa_ciszy_logo.png
     - assets/favicon/Icon-512.png
+    - assets/images/Lee_logo_app_dev.png
 
   # To add assets to your application, add an assets section, like this:
   # assets:

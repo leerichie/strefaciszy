@@ -6,9 +6,6 @@ import 'package:flutter/material.dart';
 import 'package:strefa_ciszy/screens/add_contact_screen.dart';
 import 'package:strefa_ciszy/screens/contact_detail_screen.dart';
 import 'package:strefa_ciszy/screens/customer_detail_screen.dart';
-import 'package:strefa_ciszy/screens/customer_list_screen.dart';
-import 'package:strefa_ciszy/screens/main_menu_screen.dart';
-import 'package:strefa_ciszy/screens/scan_screen.dart';
 import 'package:strefa_ciszy/widgets/app_scaffold.dart';
 import 'package:url_launcher/url_launcher.dart';
 

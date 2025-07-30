@@ -623,7 +623,7 @@ class _RWDocumentsScreenState extends State<RWDocumentsScreen> {
                     style: TextStyle(fontSize: 16),
                   ),
                 );
-              }).toList(),
+              }),
 
               Text('Notatki:', style: TextStyle(fontWeight: FontWeight.bold)),
               const SizedBox(height: 4),
