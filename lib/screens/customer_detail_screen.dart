@@ -247,8 +247,10 @@ class _CustomerDetailScreenState extends State<CustomerDetailScreen> {
 
     if (_favProjectIds.contains(projectId)) {
       await favDoc.delete();
+      setState(() => _favProjectIds.remove(projectId));
     } else {
       await favDoc.set({'customerId': widget.customerId, 'title': title});
+      setState(() => _favProjectIds.add(projectId));
     }
   }
 

@@ -16,10 +16,14 @@ class ScanScreen extends StatefulWidget {
     super.key,
     this.returnCode = false,
     this.purpose = ScanPurpose.add,
+    this.titleText,
+    this.onScanned,
   });
 
   final bool returnCode;
   final ScanPurpose purpose;
+  final String? titleText;
+  final void Function(String code)? onScanned;
 
   @override
   _ScanScreenState createState() => _ScanScreenState();
@@ -81,7 +85,9 @@ class _ScanScreenState extends State<ScanScreen> {
   ) async {
     final col = FirebaseFirestore.instance.collection('stock_items');
     final norm = normalize(raw);
+    final tokens = norm.split(RegExp(r'\s+')).where((t) => t.isNotEmpty);
 
+    // Exact field matches first
     for (final f in ['barcode', 'sku', 'category']) {
       final snap = await col.where(f, isEqualTo: raw).get();
       if (snap.docs.isNotEmpty) return snap.docs;
@@ -90,13 +96,21 @@ class _ScanScreenState extends State<ScanScreen> {
     final all = await col.get();
     return all.docs.where((d) {
       final data = d.data();
-      return matchesSearch(norm, [
+      // Normalize candidate fields for comparison
+      final candidates = <String?>[
         data['name'] as String?,
         data['producent'] as String?,
         data['sku'] as String?,
         data['barcode'] as String?,
         data['category'] as String?,
-      ]);
+      ].map((s) => s != null ? normalize(s) : '').toList();
+
+      // For each token in search, ensure it appears in at least one candidate field
+      for (final token in tokens) {
+        final found = candidates.any((c) => c.contains(token));
+        if (!found) return false;
+      }
+      return true;
     }).toList();
   }
 
@@ -180,23 +194,38 @@ class _ScanScreenState extends State<ScanScreen> {
     final raw = capture.barcodes.first.rawValue;
     if (raw == null || raw.isEmpty) return;
     _controller.stop();
+
+    if (widget.returnCode && widget.onScanned != null) {
+      widget.onScanned!(raw);
+      Navigator.of(context).pop();
+      return;
+    }
+
     _lookupAndHandle(raw);
   }
 
   void _onManualEntry(String input) {
     final code = input.trim();
-    if (code.isNotEmpty) {
-      _controller.stop();
-      _lookupAndHandle(code);
+    if (code.isEmpty) return;
+    _controller.stop();
+
+    if (widget.onScanned != null) {
+      widget.onScanned!(code);
+      Navigator.of(context).pop();
+      return;
     }
+
+    _lookupAndHandle(code);
   }
 
   @override
   Widget build(BuildContext context) {
     final isSearch = widget.purpose == ScanPurpose.search;
+    final title =
+        widget.titleText ?? (isSearch ? 'Wyszukaj produkt' : 'Dodaj produkt');
 
     return AppScaffold(
-      title: isSearch ? 'Wyszukaj produkt' : 'Dodaj produkt',
+      title: title,
       body: SafeArea(
         child: Column(
           children: [
@@ -215,7 +244,7 @@ class _ScanScreenState extends State<ScanScreen> {
               Padding(
                 padding: const EdgeInsets.all(12),
                 child: Text(
-                  'Nie ma produktu “$_scannedCode”',
+                  'Nie ma produktu “${_scannedCode ?? ''}”',
                   style: const TextStyle(fontSize: 16, color: Colors.red),
                   textAlign: TextAlign.center,
                 ),
@@ -224,7 +253,7 @@ class _ScanScreenState extends State<ScanScreen> {
               Padding(
                 padding: const EdgeInsets.all(12),
                 child: Text(
-                  'Szukam: $_scannedCode',
+                  'Szukam: ${_scannedCode!}',
                   style: const TextStyle(
                     fontSize: 16,
                     fontWeight: FontWeight.bold,
@@ -235,7 +264,7 @@ class _ScanScreenState extends State<ScanScreen> {
               padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
               child: TextField(
                 decoration: InputDecoration(
-                  labelText: _isSearch
+                  labelText: isSearch
                       ? 'Ręcznie szukać po nazwie lub kod…'
                       : 'Wpisz kod lub nazwę, aby dodać…',
                   border: const OutlineInputBorder(),
@@ -243,7 +272,6 @@ class _ScanScreenState extends State<ScanScreen> {
                 onSubmitted: _onManualEntry,
               ),
             ),
-
             if (_found == false && !isSearch)
               Padding(
                 padding: EdgeInsets.fromLTRB(

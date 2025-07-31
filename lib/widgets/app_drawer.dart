@@ -34,31 +34,44 @@ class _AppDrawerState extends State<AppDrawer> {
 
     final userRef = FirebaseFirestore.instance.collection('users').doc(uid);
 
-    final favCustSnapshot = await userRef
-        .collection(AppDrawer.favCustomer)
-        .get();
-    for (var doc in favCustSnapshot.docs) {
-      final exists =
-          (await FirebaseFirestore.instance
-                  .collection('customers')
-                  .doc(doc.id)
-                  .get())
-              .exists;
-      if (!exists) await doc.reference.delete();
+    try {
+      final favCustSnapshot = await userRef
+          .collection(AppDrawer.favCustomer)
+          .get();
+      for (var doc in favCustSnapshot.docs) {
+        final exists =
+            (await FirebaseFirestore.instance
+                    .collection('customers')
+                    .doc(doc.id)
+                    .get())
+                .exists;
+        if (!exists) await doc.reference.delete();
+      }
+    } catch (e) {
+      debugPrint('Failed cleaning favourite customers: $e');
     }
 
-    final favProjSnapshot = await userRef
-        .collection(AppDrawer.favProject)
-        .get();
-    for (var doc in favProjSnapshot.docs) {
-      final exists =
-          (await FirebaseFirestore.instance
-                  .collectionGroup('projects')
-                  .where(FieldPath.documentId, isEqualTo: doc.id)
-                  .get())
-              .docs
-              .isNotEmpty;
-      if (!exists) await doc.reference.delete();
+    try {
+      final favProjSnapshot = await userRef
+          .collection(AppDrawer.favProject)
+          .get();
+      for (var doc in favProjSnapshot.docs) {
+        final data = doc.data();
+        final customerId = data['customerId'] as String?;
+        bool exists = false;
+        if (customerId != null && customerId.isNotEmpty) {
+          final projectDoc = await FirebaseFirestore.instance
+              .collection('customers')
+              .doc(customerId)
+              .collection('projects')
+              .doc(doc.id)
+              .get();
+          exists = projectDoc.exists;
+        }
+        if (!exists) await doc.reference.delete();
+      }
+    } catch (e) {
+      debugPrint('Failed cleaning favourite projects: $e');
     }
   }
 
@@ -406,7 +419,7 @@ class _AppDrawerState extends State<AppDrawer> {
                               stream: FirebaseFirestore.instance
                                   .collection('users')
                                   .doc(uid)
-                                  .collection(AppDrawer.favCustomer)
+                                  .collection(AppDrawer.favProject)
                                   .orderBy('title')
                                   .snapshots(),
                               builder: (ctx, favSnap) {
