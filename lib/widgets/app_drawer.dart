@@ -297,8 +297,9 @@ class _AppDrawerState extends State<AppDrawer> {
                                   );
                                 }
                                 final favDocs = snap.data?.docs ?? [];
-                                if (favDocs.isEmpty)
+                                if (favDocs.isEmpty) {
                                   return const SizedBox.shrink();
+                                }
 
                                 return ExpansionTile(
                                   leading: const Icon(
@@ -433,8 +434,9 @@ class _AppDrawerState extends State<AppDrawer> {
                                   );
                                 }
                                 final docs = favSnap.data?.docs ?? [];
-                                if (docs.isEmpty)
+                                if (docs.isEmpty) {
                                   return const SizedBox.shrink();
+                                }
 
                                 return ExpansionTile(
                                   leading: const Icon(

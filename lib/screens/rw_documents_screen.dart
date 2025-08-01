@@ -7,10 +7,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:intl/intl.dart';
 import 'package:open_file/open_file.dart';
-import 'package:strefa_ciszy/screens/customer_list_screen.dart';
-import 'package:strefa_ciszy/screens/inventory_list_screen.dart';
 import 'package:strefa_ciszy/screens/project_editor_screen.dart';
-import 'package:strefa_ciszy/screens/scan_screen.dart';
 import 'package:strefa_ciszy/screens/swap_workflow_screen.dart';
 import 'package:strefa_ciszy/services/audit_service.dart';
 import 'package:strefa_ciszy/services/file_saver.dart';
@@ -154,23 +151,21 @@ class _RWDocumentsScreenState extends State<RWDocumentsScreen> {
           );
 
     return AppScaffold(
-      floatingActionButton: !kIsWeb
-          ? FloatingActionButton(
-              tooltip: 'Swap',
-              onPressed: () {
-                Navigator.of(context).push(
-                  MaterialPageRoute(
-                    builder: (_) => SwapWorkflowScreen(
-                      customerId: widget.customerId!,
-                      projectId: widget.projectId!,
-                      isAdmin: widget.isAdmin,
-                    ),
-                  ),
-                );
-              },
-              child: const Icon(Icons.swap_horiz, size: 32),
-            )
-          : null,
+      floatingActionButton: FloatingActionButton(
+        tooltip: 'Swap',
+        onPressed: () {
+          Navigator.of(context).push(
+            MaterialPageRoute(
+              builder: (_) => SwapWorkflowScreen(
+                customerId: widget.customerId!,
+                projectId: widget.projectId!,
+                isAdmin: widget.isAdmin,
+              ),
+            ),
+          );
+        },
+        child: const Icon(Icons.swap_horiz, size: 32),
+      ),
 
       floatingActionButtonLocation: FloatingActionButtonLocation.centerDocked,
 

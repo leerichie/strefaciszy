@@ -1,8 +1,6 @@
 // lib/screens/add_contact_screen.dart
 import 'dart:async';
-import 'dart:typed_data';
 import 'package:auto_size_text/auto_size_text.dart';
-import 'package:excel/excel.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
@@ -10,10 +8,7 @@ import 'package:firebase_storage/firebase_storage.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:intl/intl.dart';
-import 'package:strefa_ciszy/screens/contact_detail_screen.dart';
 import 'package:strefa_ciszy/screens/customer_detail_screen.dart';
-import 'package:strefa_ciszy/screens/customer_list_screen.dart';
-import 'package:strefa_ciszy/screens/scan_screen.dart';
 import 'package:strefa_ciszy/widgets/app_scaffold.dart';
 import 'project_editor_screen.dart';
 
