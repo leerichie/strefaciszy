@@ -68,17 +68,35 @@ class AuditLogList extends StatelessWidget {
       );
     }
 
-    // merge Produkt + Zmiana into single line if both exist
-    if (details.containsKey('Produkt') && details.containsKey('Zmiana')) {
-      final prodVal = details['Produkt'].toString();
-      final zmVal = details['Zmiana'].toString();
-      addLineText('$prodVal    $zmVal');
-      details.remove('Produkt');
-      details.remove('Zmiana');
+    final workingDetails = Map<String, dynamic>.from(details);
+
+    if (action.startsWith('Zamieniono')) {
+      final prodVal = workingDetails['Produkt']?.toString() ?? '';
+      final zmVal = workingDetails['Zmiana']?.toString() ?? '';
+      addLineText('ZAMIANA: $prodVal → $zmVal');
+      workingDetails.remove('Produkt');
+      workingDetails.remove('Zmiana');
+    } else if (action.startsWith('Zwrócono')) {
+      final prodVal = workingDetails['Produkt']?.toString() ?? '';
+      addLineText('ZWROT: $prodVal');
+      workingDetails.remove('Produkt');
+      workingDetails.remove('Zmiana');
+    } else {
+      if (workingDetails.containsKey('Produkt') &&
+          workingDetails.containsKey('Zmiana')) {
+        final prodVal = workingDetails['Produkt'].toString();
+        final zmVal = workingDetails['Zmiana'].toString();
+        addLineText('$prodVal    $zmVal');
+        workingDetails.remove('Produkt');
+        workingDetails.remove('Zmiana');
+      } else if (workingDetails.containsKey('Produkt')) {
+        final prodVal = workingDetails['Produkt'].toString();
+        addLineText(prodVal);
+        workingDetails.remove('Produkt');
+      }
     }
 
-    // render remaining detail entries
-    details.forEach((k, v) {
+    workingDetails.forEach((k, v) {
       if (!showContextLabels && (k == 'Klient' || k == 'Projekt')) return;
       addLineText('$k: ${v.toString()}');
     });

@@ -374,20 +374,20 @@ Future<ProjectLine?> showProjectLineDialog(
                           ),
 
                           SizedBox(height: 12),
-                          DropdownButtonFormField<String>(
-                            value: unit,
-                            decoration: InputDecoration(labelText: 'jm.'),
-                            items: ['szt', 'm', 'kg', 'kpl']
-                                .map(
-                                  (u) => DropdownMenuItem(
-                                    value: u,
-                                    child: Text(u),
-                                  ),
-                                )
-                                .toList(),
-                            onChanged: (v) => setState(() => unit = v ?? unit),
-                          ),
 
+                          // DropdownButtonFormField<String>(
+                          //   value: unit,
+                          //   decoration: InputDecoration(labelText: 'jm.'),
+                          //   items: ['szt', 'm', 'kg', 'kpl']
+                          //       .map(
+                          //         (u) => DropdownMenuItem(
+                          //           value: u,
+                          //           child: Text(u),
+                          //         ),
+                          //       )
+                          //       .toList(),
+                          //   onChanged: (v) => setState(() => unit = v ?? unit),
+                          // ),
                           SizedBox(height: 24),
                           Row(
                             mainAxisAlignment: MainAxisAlignment.spaceEvenly,
