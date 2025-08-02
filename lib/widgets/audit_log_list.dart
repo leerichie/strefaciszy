@@ -70,13 +70,13 @@ class AuditLogList extends StatelessWidget {
 
     final workingDetails = Map<String, dynamic>.from(details);
 
-    if (action.startsWith('Zamieniono')) {
+    if (action.startsWith('Zamiana')) {
       final prodVal = workingDetails['Produkt']?.toString() ?? '';
       final zmVal = workingDetails['Zmiana']?.toString() ?? '';
       addLineText('ZAMIANA: $prodVal → $zmVal');
       workingDetails.remove('Produkt');
       workingDetails.remove('Zmiana');
-    } else if (action.startsWith('Zwrócono')) {
+    } else if (action.startsWith('Zwrot')) {
       final prodVal = workingDetails['Produkt']?.toString() ?? '';
       addLineText('ZWROT: $prodVal');
       workingDetails.remove('Produkt');

@@ -1,6 +1,6 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
-import 'package:flutter/foundation.dart'; // for debugPrint
+import 'package:flutter/foundation.dart';
 import 'package:strefa_ciszy/models/stock_item.dart';
 import 'package:strefa_ciszy/utils/search_utils.dart';
 import '../models/project_line.dart';
@@ -95,8 +95,6 @@ class StockService {
     });
   }
 
-  // --- search / resolve helpers ---
-
   static Future<List<QueryDocumentSnapshot<Map<String, dynamic>>>>
   searchStockItems(String query) async {
     final col = FirebaseFirestore.instance.collection('stock_items');
@@ -150,13 +148,10 @@ class StockService {
     return results.first.id;
   }
 
-  // --- RW lookup with fallback fuzzy matching ---
-
-  /// Returns a map containing 'rwDoc' and 'matchedLine' if found, else null.
   static Future<Map<String, dynamic>?> findLatestRwEntryForInput(
     String customerId,
     String projectId,
-    String input, // could be itemId or free-text
+    String input,
   ) async {
     final col = FirebaseFirestore.instance
         .collection('customers')
@@ -166,7 +161,6 @@ class StockService {
         .collection('rw_documents');
     final snap = await col.orderBy('createdAt', descending: true).get();
 
-    // Direct itemId match first
     for (final doc in snap.docs) {
       final items = (doc.data()['items'] as List).cast<Map<String, dynamic>>();
       if (items.any((m) => m['itemId'] == input)) {
@@ -180,7 +174,6 @@ class StockService {
       }
     }
 
-    // Fuzzy match against name/producent/description
     final norm = normalize(input);
     for (final doc in snap.docs) {
       final items = (doc.data()['items'] as List).cast<Map<String, dynamic>>();
@@ -201,7 +194,6 @@ class StockService {
     return null;
   }
 
-  // Legacy wrapper (kept for compatibility)
   static Future<DocumentSnapshot<Map<String, dynamic>>?> findLatestRwWithItemId(
     String customerId,
     String projectId,
@@ -233,7 +225,8 @@ class StockService {
     };
   }
 
-  static Future<void> applySwap({
+  static Future<void> applySwapOnExistingRw({
+    required DocumentReference<Map<String, dynamic>> sourceRwRef,
     required String customerId,
     required String projectId,
     required String oldItemId,
@@ -247,142 +240,156 @@ class StockService {
         .doc(customerId)
         .collection('projects')
         .doc(projectId);
-
     final batch = db.batch();
 
-    // --- old RW adjustment + restore ---
-    final oldRwEntry = await findLatestRwEntryForInput(
-      customerId,
-      projectId,
-      oldItemId,
+    final rwSnap = await sourceRwRef.get();
+    if (!rwSnap.exists) throw Exception('Source RW missing');
+    final rwData = Map<String, dynamic>.from(rwSnap.data()!);
+    final items = (rwData['items'] as List).cast<Map<String, dynamic>>();
+
+    final currentUserId = FirebaseAuth.instance.currentUser?.uid ?? '';
+
+    // Resolve display names for old/new items for note formatting
+    String oldItemName = oldItemId;
+    String newItemName = newItemId;
+
+    final oldMatch = items.firstWhere(
+      (m) => m['itemId'] == oldItemId,
+      orElse: () => {},
     );
-    if (oldRwEntry != null) {
-      final oldRwDoc =
-          oldRwEntry['rwDoc'] as DocumentSnapshot<Map<String, dynamic>>;
-      final items = (oldRwDoc.data()!['items'] as List)
-          .cast<Map<String, dynamic>>();
-      final idx = items.indexWhere((m) => m['itemId'] == oldItemId);
-      if (idx != -1) {
-        final existing = Map<String, dynamic>.from(items[idx]);
-        final existingQty = (existing['quantity'] as num).toInt();
-        if (existingQty > oldQty) {
-          existing['quantity'] = existingQty - oldQty;
-          final newItems = List<Map<String, dynamic>>.from(items);
-          newItems[idx] = existing;
-          batch.update(oldRwDoc.reference, {'items': newItems});
-        } else {
-          batch.update(oldRwDoc.reference, {
-            'items': FieldValue.arrayRemove([items[idx]]),
-          });
-        }
-        batch.update(db.collection('stock_items').doc(oldItemId), {
-          'quantity': FieldValue.increment(oldQty),
-          'updatedAt': FieldValue.serverTimestamp(),
-        });
+    if (oldMatch.isNotEmpty) {
+      final prod = (oldMatch['producent'] ?? '').toString();
+      final name = (oldMatch['name'] ?? '').toString();
+      oldItemName = prod.isNotEmpty ? '$prod $name' : name;
+    } else {
+      final oldDoc = await db.collection('stock_items').doc(oldItemId).get();
+      if (oldDoc.exists) {
+        final d = oldDoc.data()!;
+        final prod = (d['producent'] ?? '').toString();
+        final name = (d['name'] ?? '').toString();
+        oldItemName = prod.isNotEmpty ? '$prod $name' : name;
       }
     }
 
-    // --- today's RW creation/update ---
-    final now = DateTime.now();
-    final startOfDay = DateTime(now.year, now.month, now.day);
-    final tomorrow = startOfDay.add(const Duration(days: 1));
-    final rwCol = projRef.collection('rw_documents');
-
-    final todaySnap = await rwCol
-        .where('type', isEqualTo: 'RW')
-        .where('createdAt', isGreaterThanOrEqualTo: startOfDay)
-        .where('createdAt', isLessThan: tomorrow)
-        .limit(1)
-        .get();
-
-    late DocumentReference<Map<String, dynamic>> todayRwRef;
-    Map<String, dynamic> todayRwData = {};
-    final currentUserId = FirebaseAuth.instance.currentUser?.uid ?? '';
-
-    if (todaySnap.docs.isEmpty) {
-      final custDoc = await db.collection('customers').doc(customerId).get();
-      final projDoc = await db
-          .collection('customers')
-          .doc(customerId)
-          .collection('projects')
-          .doc(projectId)
-          .get();
-      final customerName = custDoc.data()?['name'] ?? '';
-      final projectName = projDoc.data()?['title'] ?? '';
-
-      todayRwRef = rwCol.doc();
-      todayRwData = {
-        'id': todayRwRef.id,
-        'type': 'RW',
-        'createdAt': FieldValue.serverTimestamp(),
-        'createdBy': currentUserId,
-        'createdDay': Timestamp.fromDate(
-          DateTime.utc(now.year, now.month, now.day),
-        ),
-        'customerId': customerId,
-        'customerName': customerName,
-        'projectId': projectId,
-        'projectName': projectName,
-        'items': <Map<String, dynamic>>[],
-      };
+    final newMatch = items.firstWhere(
+      (m) => m['itemId'] == newItemId,
+      orElse: () => {},
+    );
+    if (newMatch.isNotEmpty) {
+      final prod = (newMatch['producent'] ?? '').toString();
+      final name = (newMatch['name'] ?? '').toString();
+      newItemName = prod.isNotEmpty ? '$prod $name' : name;
     } else {
-      todayRwRef = todaySnap.docs.first.reference;
-      todayRwData = Map<String, dynamic>.from(todaySnap.docs.first.data());
+      final newDoc = await db.collection('stock_items').doc(newItemId).get();
+      if (newDoc.exists) {
+        final d = newDoc.data()!;
+        final prod = (d['producent'] ?? '').toString();
+        final name = (d['name'] ?? '').toString();
+        newItemName = prod.isNotEmpty ? '$prod $name' : name;
+      }
     }
 
-    // --- add new item into today's RW ---
-    final newItemDoc = await db.collection('stock_items').doc(newItemId).get();
-    if (!newItemDoc.exists) {
-      throw Exception('Produkt $newItemId nie istnieje');
-    }
-    final newItemData = newItemDoc.data()!;
-    final existingItems = (todayRwData['items'] as List<dynamic>? ?? [])
-        .cast<Map<String, dynamic>>();
-
-    final newIdx = existingItems.indexWhere((m) => m['itemId'] == newItemId);
-    if (newIdx != -1) {
-      final existing = Map<String, dynamic>.from(existingItems[newIdx]);
-      final existingQty = (existing['quantity'] as num).toInt();
-      existing['quantity'] = existingQty + newQty;
-      final updatedItems = List<Map<String, dynamic>>.from(existingItems);
-      updatedItems[newIdx] = existing;
-      todayRwData['items'] = updatedItems;
-    } else {
-      final entry = {
-        'itemId': newItemId,
-        'name': newItemData['name'] ?? '',
-        'description': newItemData['description'] ?? '',
-        'quantity': newQty,
-        'unit': newItemData['unit'] ?? '',
-        'producent': newItemData['producent'] ?? '',
-      };
-      todayRwData['items'] = [...existingItems, entry];
+    // NO-OP guard: if nothing changed (same item, same quantity), do nothing.
+    if (oldItemId == newItemId && oldQty == newQty) {
+      return;
     }
 
-    if (todaySnap.docs.isEmpty) {
-      batch.set(todayRwRef, todayRwData);
-    } else {
-      batch.update(todayRwRef, {
-        'items': todayRwData['items'],
-        'lastUpdatedAt': FieldValue.serverTimestamp(),
-        'lastUpdatedBy': currentUserId,
+    // 1. Adjust old item (return)
+    if (oldQty > 0) {
+      final oldIdx = items.indexWhere((m) => m['itemId'] == oldItemId);
+      if (oldIdx != -1) {
+        final existing = Map<String, dynamic>.from(items[oldIdx]);
+        final existingQty = (existing['quantity'] as num).toInt();
+        if (existingQty > oldQty) {
+          existing['quantity'] = existingQty - oldQty;
+          items[oldIdx] = existing;
+        } else {
+          items.removeAt(oldIdx);
+        }
+      }
+      batch.update(db.collection('stock_items').doc(oldItemId), {
+        'quantity': FieldValue.increment(oldQty),
+        'updatedAt': FieldValue.serverTimestamp(),
       });
     }
 
-    // Deduct new
-    batch.update(db.collection('stock_items').doc(newItemId), {
-      'quantity': FieldValue.increment(-newQty),
-      'updatedAt': FieldValue.serverTimestamp(),
+    // 2. Handle new item (swap/install)
+    if (newQty > 0) {
+      final newItemDoc = await db
+          .collection('stock_items')
+          .doc(newItemId)
+          .get();
+      if (!newItemDoc.exists)
+        throw Exception('Produkt $newItemId nie istnieje');
+      final newItemData = newItemDoc.data()!;
+      final newIdx = items.indexWhere((m) => m['itemId'] == newItemId);
+      if (newIdx != -1) {
+        final existing = Map<String, dynamic>.from(items[newIdx]);
+        final existingQty = (existing['quantity'] as num).toInt();
+        existing['quantity'] = existingQty + newQty;
+        items[newIdx] = existing;
+      } else {
+        items.add({
+          'itemId': newItemId,
+          'name': newItemData['name'] ?? '',
+          'description': newItemData['description'] ?? '',
+          'quantity': newQty,
+          'unit': newItemData['unit'] ?? '',
+          'producent': newItemData['producent'] ?? '',
+        });
+      }
+      batch.update(db.collection('stock_items').doc(newItemId), {
+        'quantity': FieldValue.increment(-newQty),
+        'updatedAt': FieldValue.serverTimestamp(),
+      });
+    }
+
+    // Build note summary/action
+    String action;
+    String noteText;
+    if (oldQty > 0 && newQty > 0) {
+      action = 'Zamiana';
+      noteText = '$oldQty x $oldItemName → $newQty x $newItemName';
+    } else if (oldQty > 0 && newQty == 0) {
+      action = 'Zwrot';
+      noteText = '$oldQty x $oldItemName';
+    } else if (oldQty == 0 && newQty > 0) {
+      action = 'Zainstalowano';
+      noteText = '$newQty x $newItemName';
+    } else {
+      action = 'Aktualizacja';
+      noteText = '';
+    }
+
+    final userId = FirebaseAuth.instance.currentUser?.uid ?? '';
+    String userDisplayName = userId;
+    try {
+      final userSnap = await db.collection('users').doc(userId).get();
+      final userData = userSnap.data();
+      userDisplayName = userData?['name'] ?? userData?['email'] ?? userId;
+    } catch (_) {}
+
+    final noteEntry = {
+      'createdAt': Timestamp.now(),
+      'userName': userDisplayName,
+      'text': noteText,
+      'action': action,
+    };
+
+    // 3. Update the RW document with merged notes and items
+    final existingNotes = (rwData['notesList'] as List<dynamic>?) ?? [];
+    final updatedNotes = [...existingNotes, noteEntry];
+
+    batch.update(sourceRwRef, {
+      'items': items,
+      'lastUpdatedAt': FieldValue.serverTimestamp(),
+      'lastUpdatedBy': currentUserId,
+      'notesList': updatedNotes,
     });
 
-    // Sync project document
-    final projSnapshot = await projRef.get();
-    if (projSnapshot.exists) {
-      final rwTypeItems =
-          (todayRwData['items'] as List<dynamic>?)
-              ?.cast<Map<String, dynamic>>() ??
-          [];
-      final remaining = rwTypeItems
+    // 4. Sync project’s items
+    batch.update(projRef, {
+      'items': items
           .where((it) => (it['quantity'] as num).toInt() > 0)
           .map(
             (it) => {
@@ -392,12 +399,9 @@ class StockService {
               'name': it['name'] ?? '',
             },
           )
-          .toList();
-      batch.update(projRef, {
-        'items': remaining,
-        'lastRwDate': FieldValue.serverTimestamp(),
-      });
-    }
+          .toList(),
+      'lastRwDate': FieldValue.serverTimestamp(),
+    });
 
     await batch.commit();
   }

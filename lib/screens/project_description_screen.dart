@@ -203,6 +203,25 @@ class _ProjectDescriptionScreenState extends State<ProjectDescriptionScreen> {
   }
 
   Future<void> _deletePhoto(String url) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Usuń zdjęcie?'),
+        content: const Text('Na pewno chcesz usunąć to zdjęcie?'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Anuluj'),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('Usuń'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true) return;
+
     setState(() => _uploading = true);
     final docRef = FirebaseFirestore.instance
         .collection('customers')
@@ -492,6 +511,25 @@ class _ProjectDescriptionScreenState extends State<ProjectDescriptionScreen> {
     final url = file['url']!;
     final name = file['name']!;
 
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Usuń plik?'),
+        content: Text('Na pewno chcesz usunąć plik "$name"?'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Anuluj'),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('Usuń'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true) return;
+
     setState(() => _fileUploading = true);
 
     final storage = FirebaseStorage.instanceFor(
@@ -554,27 +592,7 @@ class _ProjectDescriptionScreenState extends State<ProjectDescriptionScreen> {
       titleWidget: titleCol,
       centreTitle: true,
 
-      actions: [
-        Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 8.0),
-          // child: CircleAvatar(
-          //   backgroundColor: Colors.black,
-          //   child: IconButton(
-          //     icon: const Icon(Icons.home),
-          //     color: Colors.white,
-          //     tooltip: 'Home',
-          //     onPressed: () {
-          //       Navigator.of(context).pushAndRemoveUntil(
-          //         MaterialPageRoute(
-          //           builder: (_) => const MainMenuScreen(role: 'admin'),
-          //         ),
-          //         (route) => false,
-          //       );
-          //     },
-          //   ),
-          // ),
-        ),
-      ],
+      actions: [Padding(padding: const EdgeInsets.symmetric(horizontal: 8.0))],
 
       body: _loading
           ? const Center(child: CircularProgressIndicator())
@@ -604,75 +622,8 @@ class _ProjectDescriptionScreenState extends State<ProjectDescriptionScreen> {
                       },
                     ),
 
-                    // gap for images
+                    // gap for files
                     const SizedBox(height: 8),
-
-                    // images
-                    _uploading
-                        ? const Center(child: CircularProgressIndicator())
-                        : _photoUrls.isEmpty
-                        ? Container(
-                            height: 80,
-                            alignment: Alignment.center,
-                            decoration: BoxDecoration(
-                              border: Border.all(color: Colors.grey),
-                              borderRadius: BorderRadius.circular(6),
-                            ),
-                            child: const Text('Brak fotek'),
-                          )
-                        : GridView.builder(
-                            shrinkWrap: true,
-                            physics: const NeverScrollableScrollPhysics(),
-                            gridDelegate:
-                                const SliverGridDelegateWithFixedCrossAxisCount(
-                                  crossAxisCount: 3,
-                                  crossAxisSpacing: 6,
-                                  mainAxisSpacing: 6,
-                                  childAspectRatio: 2,
-                                ),
-                            itemCount: _photoUrls.length,
-                            itemBuilder: (ctx, i) {
-                              final url = _photoUrls[i];
-                              return GestureDetector(
-                                onTap: () => _openGallery(i),
-                                child: Stack(
-                                  clipBehavior: Clip.none,
-                                  children: [
-                                    ClipRRect(
-                                      borderRadius: BorderRadius.circular(8),
-                                      child: Image.network(
-                                        url,
-                                        width: double.infinity,
-                                        height: double.infinity,
-                                        fit: BoxFit.cover,
-                                      ),
-                                    ),
-                                    if (widget.isAdmin)
-                                      Positioned(
-                                        top: 4,
-                                        right: 4,
-                                        child: GestureDetector(
-                                          onTap: () => _deletePhoto(url),
-                                          child: Container(
-                                            decoration: const BoxDecoration(
-                                              color: Colors.red,
-                                              shape: BoxShape.circle,
-                                            ),
-                                            padding: const EdgeInsets.all(4),
-                                            child: const Icon(
-                                              Icons.close,
-                                              size: 12,
-                                              color: Colors.white,
-                                            ),
-                                          ),
-                                        ),
-                                      ),
-                                  ],
-                                ),
-                              );
-                            },
-                          ),
-                    const Divider(),
 
                     // files
                     _fileUploading
@@ -742,6 +693,73 @@ class _ProjectDescriptionScreenState extends State<ProjectDescriptionScreen> {
                                         right: 4,
                                         child: GestureDetector(
                                           onTap: () => _deleteFile(i),
+                                          child: Container(
+                                            decoration: const BoxDecoration(
+                                              color: Colors.red,
+                                              shape: BoxShape.circle,
+                                            ),
+                                            padding: const EdgeInsets.all(4),
+                                            child: const Icon(
+                                              Icons.close,
+                                              size: 12,
+                                              color: Colors.white,
+                                            ),
+                                          ),
+                                        ),
+                                      ),
+                                  ],
+                                ),
+                              );
+                            },
+                          ),
+
+                    const SizedBox(height: 6),
+                    // images
+                    _uploading
+                        ? const Center(child: CircularProgressIndicator())
+                        : _photoUrls.isEmpty
+                        ? Container(
+                            height: 80,
+                            alignment: Alignment.center,
+                            decoration: BoxDecoration(
+                              border: Border.all(color: Colors.grey),
+                              borderRadius: BorderRadius.circular(6),
+                            ),
+                            child: const Text('Brak fotek'),
+                          )
+                        : GridView.builder(
+                            shrinkWrap: true,
+                            physics: const NeverScrollableScrollPhysics(),
+                            gridDelegate:
+                                const SliverGridDelegateWithFixedCrossAxisCount(
+                                  crossAxisCount: 3,
+                                  crossAxisSpacing: 6,
+                                  mainAxisSpacing: 6,
+                                  childAspectRatio: 2,
+                                ),
+                            itemCount: _photoUrls.length,
+                            itemBuilder: (ctx, i) {
+                              final url = _photoUrls[i];
+                              return GestureDetector(
+                                onTap: () => _openGallery(i),
+                                child: Stack(
+                                  clipBehavior: Clip.none,
+                                  children: [
+                                    ClipRRect(
+                                      borderRadius: BorderRadius.circular(8),
+                                      child: Image.network(
+                                        url,
+                                        width: double.infinity,
+                                        height: double.infinity,
+                                        fit: BoxFit.cover,
+                                      ),
+                                    ),
+                                    if (widget.isAdmin)
+                                      Positioned(
+                                        top: 4,
+                                        right: 4,
+                                        child: GestureDetector(
+                                          onTap: () => _deletePhoto(url),
                                           child: Container(
                                             decoration: const BoxDecoration(
                                               color: Colors.red,
@@ -1016,6 +1034,25 @@ class __ImageGalleryScreenState extends State<_ImageGalleryScreen> {
             icon: const Icon(Icons.delete_outline),
             onPressed: () async {
               final url = widget.images[_currentIndex];
+              final confirmed = await showDialog<bool>(
+                context: context,
+                builder: (ctx) => AlertDialog(
+                  title: const Text('Usuń zdjęcie?'),
+                  content: const Text('Na pewno chcesz usunąć to zdjęcie?'),
+                  actions: [
+                    TextButton(
+                      onPressed: () => Navigator.pop(ctx, false),
+                      child: const Text('Anuluj'),
+                    ),
+                    ElevatedButton(
+                      onPressed: () => Navigator.pop(ctx, true),
+                      child: const Text('Usuń'),
+                    ),
+                  ],
+                ),
+              );
+              if (confirmed != true) return;
+
               await widget.onDelete(url);
               widget.images.removeAt(_currentIndex);
               if (widget.images.isEmpty) {

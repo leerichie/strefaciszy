@@ -263,7 +263,7 @@ class _ProjectEditorScreenState extends State<ProjectEditorScreen> {
 
     final now = DateTime.now();
     final startOfDay = DateTime(now.year, now.month, now.day);
-    final startOfTomorrow = startOfDay.add(Duration(days: 1));
+    final startOfTomorrow = startOfDay.add(const Duration(days: 1));
 
     final todaySnap = await projRef
         .collection('rw_documents')
@@ -280,10 +280,10 @@ class _ProjectEditorScreenState extends State<ProjectEditorScreen> {
 
       _lines = rawItems.map((e) {
         final m = e as Map<String, dynamic>;
-        final itemId = m['itemId'] as String;
-        final qty = (m['quantity'] as num).toInt();
-        final unit = m['unit'] as String;
-        final name = m['name'] as String;
+        final itemId = m['itemId'] as String? ?? '';
+        final qty = (m['quantity'] as num?)?.toInt() ?? 0;
+        final unit = m['unit'] as String? ?? '';
+        final name = m['name'] as String? ?? '';
         final isStock = _stockItems.any((s) => s.id == itemId);
 
         final originalStock = isStock
@@ -311,7 +311,19 @@ class _ProjectEditorScreenState extends State<ProjectEditorScreen> {
     }
 
     final snap = await projRef.get();
-    final data = snap.data()!;
+    if (!snap.exists) {
+      setState(() {
+        _lines = [];
+        _title = '';
+        _status = 'draft';
+        _images = [];
+        _loading = false;
+        _initialized = true;
+      });
+      return;
+    }
+
+    final data = snap.data() ?? <String, dynamic>{};
     final lastRwRaw = data['lastRwDate'];
     DateTime? lastRwDate = lastRwRaw is Timestamp ? lastRwRaw.toDate() : null;
 
@@ -329,7 +341,7 @@ class _ProjectEditorScreenState extends State<ProjectEditorScreen> {
 
     _title = data['title'] as String? ?? '';
     _status = data['status'] as String? ?? 'draft';
-    _images = (data['images'] as List<dynamic>? ?? [])
+    _images = ((data['images'] as List<dynamic>?) ?? [])
         .cast<String>()
         .map((u) => XFile(u))
         .toList();
@@ -1048,52 +1060,52 @@ class _ProjectEditorScreenState extends State<ProjectEditorScreen> {
                                             color: Colors.green,
                                           ),
                                         ),
-                                      IconButton(
-                                        icon: Icon(
-                                          Icons.edit,
-                                          color: isLineLocked
-                                              ? Colors.grey
-                                              : Colors.blue,
-                                        ),
-                                        onPressed: isLineLocked
-                                            ? () {
-                                                ScaffoldMessenger.of(
-                                                  context,
-                                                ).showSnackBar(
-                                                  const SnackBar(
-                                                    content: Text(
-                                                      'Tylko administrator może edytować',
-                                                    ),
-                                                  ),
-                                                );
-                                              }
-                                            : () async {
-                                                final updated =
-                                                    await showProjectLineDialog(
-                                                      context,
-                                                      _stockItems,
-                                                      existing: ln,
-                                                    );
-                                                if (updated != null) {
-                                                  setState(
-                                                    () => _lines[i] = updated,
-                                                  );
-                                                  try {
-                                                    await _saveRWDocument('RW');
-                                                  } catch (e) {
-                                                    ScaffoldMessenger.of(
-                                                      context,
-                                                    ).showSnackBar(
-                                                      SnackBar(
-                                                        content: Text(
-                                                          'Update Raport - nie udało się: $e',
-                                                        ),
-                                                      ),
-                                                    );
-                                                  }
-                                                }
-                                              },
-                                      ),
+                                      // IconButton(
+                                      //   icon: Icon(
+                                      //     Icons.edit,
+                                      //     color: isLineLocked
+                                      //         ? Colors.grey
+                                      //         : Colors.blue,
+                                      //   ),
+                                      //   onPressed: isLineLocked
+                                      //       ? () {
+                                      //           ScaffoldMessenger.of(
+                                      //             context,
+                                      //           ).showSnackBar(
+                                      //             const SnackBar(
+                                      //               content: Text(
+                                      //                 'Tylko administrator może edytować',
+                                      //               ),
+                                      //             ),
+                                      //           );
+                                      //         }
+                                      //       : () async {
+                                      //           final updated =
+                                      //               await showProjectLineDialog(
+                                      //                 context,
+                                      //                 _stockItems,
+                                      //                 existing: ln,
+                                      //               );
+                                      //           if (updated != null) {
+                                      //             setState(
+                                      //               () => _lines[i] = updated,
+                                      //             );
+                                      //             try {
+                                      //               await _saveRWDocument('RW');
+                                      //             } catch (e) {
+                                      //               ScaffoldMessenger.of(
+                                      //                 context,
+                                      //               ).showSnackBar(
+                                      //                 SnackBar(
+                                      //                   content: Text(
+                                      //                     'Update Raport - nie udało się: $e',
+                                      //                   ),
+                                      //                 ),
+                                      //               );
+                                      //             }
+                                      //           }
+                                      //         },
+                                      // ),
                                       IconButton(
                                         icon: Icon(
                                           Icons.delete,
@@ -1122,7 +1134,7 @@ class _ProjectEditorScreenState extends State<ProjectEditorScreen> {
                                                           'Usuń produkt?',
                                                         ),
                                                         content: Text(
-                                                          '${ln.requestedQty}x $name',
+                                                          '${ln.requestedQty}x $producent $name',
                                                         ),
                                                         actions: [
                                                           TextButton(
@@ -1176,157 +1188,198 @@ class _ProjectEditorScreenState extends State<ProjectEditorScreen> {
                             );
                           }
 
-                          return ListTile(
-                            dense: true,
-                            contentPadding: const EdgeInsets.symmetric(
-                              horizontal: 0,
-                              vertical: 2,
-                            ),
-                            title: Text(name),
-                            subtitle: Text.rich(
-                              TextSpan(
-                                style: Theme.of(context).textTheme.bodySmall,
-                                children: [
-                                  TextSpan(
-                                    text: '${ln.requestedQty} ${ln.unit} ',
-                                  ),
-                                  TextSpan(
-                                    text: '(stan: $previewQty)',
-                                    style: TextStyle(color: qtyColor),
-                                  ),
-                                ],
-                              ),
-                            ),
-                            trailing: Row(
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                if (isSynced)
-                                  Container(
-                                    padding: const EdgeInsets.symmetric(
-                                      horizontal: 8,
-                                      vertical: 4,
+                          return Container(
+                            margin: const EdgeInsets.symmetric(vertical: 0),
+
+                            child: ClipRRect(
+                              borderRadius: BorderRadius.circular(4),
+                              child: ListTile(
+                                dense: true,
+                                contentPadding: const EdgeInsets.symmetric(
+                                  horizontal: 0,
+                                  vertical: 0,
+                                ),
+                                title: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    if (producent.isNotEmpty)
+                                      Text(
+                                        producent,
+                                        style: const TextStyle(
+                                          fontWeight: FontWeight.bold,
+                                          fontSize: 14,
+                                        ),
+                                      ),
+                                    Text(
+                                      name,
+                                      style: const TextStyle(fontSize: 14),
                                     ),
-                                    margin: const EdgeInsets.only(right: 8),
-                                    child: Icon(
-                                      Icons.check_box,
-                                      color: Colors.green,
-                                    ),
+                                    if (description.isNotEmpty)
+                                      Text(
+                                        description,
+                                        style: TextStyle(
+                                          fontSize: 13,
+                                          color: Colors.grey[700],
+                                          fontStyle: FontStyle.italic,
+                                        ),
+                                      ),
+                                  ],
+                                ),
+                                subtitle: Text.rich(
+                                  TextSpan(
+                                    style: Theme.of(
+                                      context,
+                                    ).textTheme.bodySmall,
+                                    children: [
+                                      TextSpan(
+                                        text: '${ln.requestedQty} ${ln.unit} ',
+                                      ),
+                                      TextSpan(
+                                        text: '(stan: $previewQty)',
+                                        style: TextStyle(color: qtyColor),
+                                      ),
+                                    ],
                                   ),
-                                IconButton(
-                                  icon: Icon(
-                                    Icons.edit,
-                                    color: isLineLocked
-                                        ? Colors.grey
-                                        : Colors.blue,
-                                  ),
-                                  onPressed: isLineLocked
-                                      ? () {
-                                          ScaffoldMessenger.of(
-                                            context,
-                                          ).showSnackBar(
-                                            const SnackBar(
-                                              content: Text(
-                                                'Tylko administrator może edytować',
-                                              ),
-                                            ),
-                                          );
-                                        }
-                                      : () async {
-                                          final updated =
-                                              await showProjectLineDialog(
-                                                context,
-                                                _stockItems,
-                                                existing: ln,
-                                              );
-                                          if (updated != null) {
-                                            setState(() => _lines[i] = updated);
-                                            try {
-                                              await _saveRWDocument('RW');
-                                            } catch (e) {
+                                ),
+                                trailing: Row(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    if (isSynced)
+                                      Container(
+                                        padding: const EdgeInsets.symmetric(
+                                          horizontal: 0,
+                                          vertical: 0,
+                                        ),
+                                        margin: const EdgeInsets.only(right: 8),
+                                        child: const Icon(
+                                          Icons.check_box,
+                                          color: Colors.green,
+                                        ),
+                                      ),
+                                    // IconButton(
+                                    //   icon: Icon(
+                                    //     Icons.edit,
+                                    //     color: isLineLocked
+                                    //         ? Colors.grey
+                                    //         : Colors.blue,
+                                    //   ),
+                                    //   onPressed: isLineLocked
+                                    //       ? () {
+                                    //           ScaffoldMessenger.of(
+                                    //             context,
+                                    //           ).showSnackBar(
+                                    //             const SnackBar(
+                                    //               content: Text(
+                                    //                 'Tylko administrator może edytować',
+                                    //               ),
+                                    //             ),
+                                    //           );
+                                    //         }
+                                    //       : () async {
+                                    //           final updated =
+                                    //               await showProjectLineDialog(
+                                    //                 context,
+                                    //                 _stockItems,
+                                    //                 existing: ln,
+                                    //               );
+                                    //           if (updated != null) {
+                                    //             setState(
+                                    //               () => _lines[i] = updated,
+                                    //             );
+                                    //             try {
+                                    //               await _saveRWDocument('RW');
+                                    //             } catch (e) {
+                                    //               ScaffoldMessenger.of(
+                                    //                 context,
+                                    //               ).showSnackBar(
+                                    //                 SnackBar(
+                                    //                   content: Text(
+                                    //                     'Update RW - nie udało się: $e',
+                                    //                   ),
+                                    //                 ),
+                                    //               );
+                                    //             }
+                                    //           }
+                                    //         },
+                                    // ),
+                                    IconButton(
+                                      icon: Icon(
+                                        Icons.delete,
+                                        color: isLineLocked
+                                            ? Colors.grey
+                                            : Colors.red,
+                                      ),
+                                      onPressed: isLineLocked
+                                          ? () {
                                               ScaffoldMessenger.of(
                                                 context,
                                               ).showSnackBar(
-                                                SnackBar(
+                                                const SnackBar(
                                                   content: Text(
-                                                    'Update RW - nie udało się: $e',
+                                                    'Tylko administrator może usuwać',
                                                   ),
                                                 ),
                                               );
                                             }
-                                          }
-                                        },
-                                ),
-                                IconButton(
-                                  icon: Icon(
-                                    Icons.delete,
-                                    color: isLineLocked
-                                        ? Colors.grey
-                                        : Colors.red,
-                                  ),
-                                  onPressed: isLineLocked
-                                      ? () {
-                                          ScaffoldMessenger.of(
-                                            context,
-                                          ).showSnackBar(
-                                            const SnackBar(
-                                              content: Text(
-                                                'Tylko administrator może usuwać',
-                                              ),
-                                            ),
-                                          );
-                                        }
-                                      : () async {
-                                          final shouldDelete =
-                                              await showDialog<bool>(
-                                                context: context,
-                                                builder: (ctx) => AlertDialog(
-                                                  title: Text('Usuń produkt?'),
-                                                  content: Text(
-                                                    '${ln.requestedQty}x $name',
+                                          : () async {
+                                              final shouldDelete =
+                                                  await showDialog<bool>(
+                                                    context: context,
+                                                    builder: (ctx) => AlertDialog(
+                                                      title: const Text(
+                                                        'Usuń produkt?',
+                                                      ),
+                                                      content: Text(
+                                                        '${ln.requestedQty}x $producent $name',
+                                                      ),
+                                                      actions: [
+                                                        TextButton(
+                                                          onPressed: () =>
+                                                              Navigator.pop(
+                                                                ctx,
+                                                                false,
+                                                              ),
+                                                          child: const Text(
+                                                            'Anuluj',
+                                                          ),
+                                                        ),
+                                                        ElevatedButton(
+                                                          onPressed: () =>
+                                                              Navigator.pop(
+                                                                ctx,
+                                                                true,
+                                                              ),
+                                                          child: const Text(
+                                                            'Usuń',
+                                                          ),
+                                                        ),
+                                                      ],
+                                                    ),
+                                                  );
+                                              if (shouldDelete != true) return;
+                                              final removedLine = _lines
+                                                  .removeAt(i);
+                                              setState(() {});
+                                              try {
+                                                await _deleteLineFromRW(
+                                                  removedLine,
+                                                );
+                                              } catch (e) {
+                                                ScaffoldMessenger.of(
+                                                  context,
+                                                ).showSnackBar(
+                                                  SnackBar(
+                                                    content: Text(
+                                                      'Błąd usuwania: $e',
+                                                    ),
                                                   ),
-                                                  actions: [
-                                                    TextButton(
-                                                      onPressed: () =>
-                                                          Navigator.pop(
-                                                            ctx,
-                                                            false,
-                                                          ),
-                                                      child: Text('Anuluj'),
-                                                    ),
-                                                    ElevatedButton(
-                                                      onPressed: () =>
-                                                          Navigator.pop(
-                                                            ctx,
-                                                            true,
-                                                          ),
-                                                      child: Text('Usuń'),
-                                                    ),
-                                                  ],
-                                                ),
-                                              );
-                                          if (shouldDelete != true) return;
-                                          final removedLine = _lines.removeAt(
-                                            i,
-                                          );
-                                          setState(() {});
-                                          try {
-                                            await _deleteLineFromRW(
-                                              removedLine,
-                                            );
-                                          } catch (e) {
-                                            ScaffoldMessenger.of(
-                                              context,
-                                            ).showSnackBar(
-                                              SnackBar(
-                                                content: Text(
-                                                  'Błąd usuwania: $e',
-                                                ),
-                                              ),
-                                            );
-                                          }
-                                        },
+                                                );
+                                              }
+                                            },
+                                    ),
+                                  ],
                                 ),
-                              ],
+                              ),
                             ),
                           );
                         },

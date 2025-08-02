@@ -37,6 +37,7 @@ class _SwapWorkflowScreenState extends State<SwapWorkflowScreen>
   int _newAvailableStock = 0;
 
   late final TabController _tabController;
+  DocumentReference<Map<String, dynamic>>? _sourceRwRef;
 
   _Mode get _mode => _tabController.index == 0 ? _Mode.swap : _Mode.returnOnly;
 
@@ -127,6 +128,9 @@ class _SwapWorkflowScreenState extends State<SwapWorkflowScreen>
       _oldInstalledQty = (line['quantity'] as num?)?.toInt() ?? 1;
       _oldQty = _oldInstalledQty;
       _tabController.index = 1;
+
+      _sourceRwRef =
+          (entry['rwDoc'] as DocumentSnapshot<Map<String, dynamic>>).reference;
     });
   }
 
@@ -310,6 +314,14 @@ class _SwapWorkflowScreenState extends State<SwapWorkflowScreen>
   Future<void> _onConfirmPressed() async {
     await _refreshOldLine();
 
+    if (_sourceRwRef == null) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Brak źródłowego dokumentu RW')),
+      );
+      return;
+    }
+
     if (_mode == _Mode.swap) {
       if (_newAvailableStock <= 0) {
         if (!mounted) return;
@@ -320,7 +332,6 @@ class _SwapWorkflowScreenState extends State<SwapWorkflowScreen>
         );
         return;
       }
-
       if (_oldItemId == null || _newItemId == null) return;
 
       final proceed = await showDialog<bool>(
@@ -367,69 +378,60 @@ class _SwapWorkflowScreenState extends State<SwapWorkflowScreen>
 
       if (proceed != true) return;
 
-      if (_oldItemId == _newItemId) {
-        final diff = _newQty - _oldQty;
-        if (diff == 0) {
-          if (!mounted) return;
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('Brak zmian do wymiany')),
-          );
-          return;
-        }
-        if (diff > 0) {
-          await StockService.applySwap(
-            customerId: widget.customerId,
-            projectId: widget.projectId,
-            oldItemId: _oldItemId!,
-            oldQty: 0,
-            newItemId: _newItemId!,
-            newQty: diff,
-          );
+      // perform swap with error handling
+      try {
+        if (_oldItemId == _newItemId) {
+          final diff = _newQty - _oldQty;
+          if (diff == 0) {
+            if (!mounted) return;
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(content: Text('Brak zmian do wymiany')),
+            );
+            return;
+          }
+          if (diff > 0) {
+            await StockService.applySwapOnExistingRw(
+              sourceRwRef: _sourceRwRef!,
+              customerId: widget.customerId,
+              projectId: widget.projectId,
+              oldItemId: _oldItemId!,
+              oldQty: 0,
+              newItemId: _newItemId!,
+              newQty: diff,
+            );
+          } else {
+            await StockService.applySwapOnExistingRw(
+              sourceRwRef: _sourceRwRef!,
+              customerId: widget.customerId,
+              projectId: widget.projectId,
+              oldItemId: _oldItemId!,
+              oldQty: -diff,
+              newItemId: _newItemId!,
+              newQty: 0,
+            );
+          }
         } else {
-          await StockService.applySwap(
+          await StockService.applySwapOnExistingRw(
+            sourceRwRef: _sourceRwRef!,
             customerId: widget.customerId,
             projectId: widget.projectId,
             oldItemId: _oldItemId!,
-            oldQty: -diff,
+            oldQty: _oldQty,
             newItemId: _newItemId!,
-            newQty: 0,
+            newQty: _newQty,
           );
         }
-      } else {
-        await StockService.applySwap(
-          customerId: widget.customerId,
-          projectId: widget.projectId,
-          oldItemId: _oldItemId!,
-          oldQty: _oldQty,
-          newItemId: _newItemId!,
-          newQty: _newQty,
-        );
+      } catch (e) {
+        if (!mounted) return;
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('Błąd wykonania zamiany: $e')));
+        return;
       }
-
-      if (!mounted) return;
-
-      // Audit swap
-      final oldName =
-          '${_oldLine?['producent'] ?? ''} ${_oldLine?['name'] ?? _oldItemId}';
-      final newName =
-          '${_newLine?['producent'] ?? ''} ${_newLine?['name'] ?? _newItemId}';
-      final oldSummary = '$_oldQty x $oldName';
-      final newSummary = '$_newQty x $newName';
-
-      await AuditService.logAction(
-        action: 'Zamieniono',
-        customerId: widget.customerId,
-        projectId: widget.projectId,
-        details: {
-          // 'Klient': '',
-          // 'Projekt': '',
-          'Produkt': oldSummary,
-          'Zmiana': newSummary,
-        },
-      );
     } else {
       // return only
       if (_oldItemId == null) return;
+
       final proceed = await showDialog<bool>(
         context: context,
         builder: (ctx) => AlertDialog(
@@ -460,23 +462,45 @@ class _SwapWorkflowScreenState extends State<SwapWorkflowScreen>
       );
       if (proceed != true) return;
 
-      await StockService.applySwap(
+      try {
+        await StockService.applySwapOnExistingRw(
+          sourceRwRef: _sourceRwRef!,
+          customerId: widget.customerId,
+          projectId: widget.projectId,
+          oldItemId: _oldItemId!,
+          oldQty: _oldQty,
+          newItemId: _oldItemId!,
+          newQty: 0,
+        );
+      } catch (e) {
+        if (!mounted) return;
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('Błąd wykonania zwrotu: $e')));
+        return;
+      }
+    }
+
+    if (!mounted) return;
+
+    // Audit logging (mode-aware, avoids null newLine on return)
+    final oldName =
+        '${_oldLine?['producent'] ?? ''} ${_oldLine?['name'] ?? _oldItemId}';
+    final oldSummary = '$_oldQty x $oldName';
+
+    if (_mode == _Mode.swap) {
+      final newName =
+          '${_newLine?['producent'] ?? ''} ${_newLine?['name'] ?? _newItemId}';
+      final newSummary = '$_newQty x $newName';
+      await AuditService.logAction(
+        action: 'Zamiana',
         customerId: widget.customerId,
         projectId: widget.projectId,
-        oldItemId: _oldItemId!,
-        oldQty: _oldQty,
-        newItemId: _oldItemId!,
-        newQty: 0,
+        details: {'Produkt': oldSummary, 'Zmiana': newSummary},
       );
-
-      if (!mounted) return;
-
-      // Audit log
-      final oldName =
-          '${_oldLine?['producent'] ?? ''} ${_oldLine?['name'] ?? _oldItemId}';
-      final oldSummary = '$_oldQty x $oldName';
+    } else {
       await AuditService.logAction(
-        action: 'Zwrócono',
+        action: 'Zwrot',
         customerId: widget.customerId,
         projectId: widget.projectId,
         details: {
@@ -488,8 +512,7 @@ class _SwapWorkflowScreenState extends State<SwapWorkflowScreen>
       );
     }
 
-    if (!mounted) return;
-    Navigator.of(context).pop();
+    Navigator.of(context).pop(true);
     ScaffoldMessenger.of(
       context,
     ).showSnackBar(const SnackBar(content: Text('Akcja wykonana')));

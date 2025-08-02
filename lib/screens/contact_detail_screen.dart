@@ -269,6 +269,16 @@ class _ContactDetailScreenState extends State<ContactDetailScreen> {
     );
   }
 
+  String formatTimestamp(dynamic ts) {
+    if (ts is Timestamp) {
+      return DateFormat(
+        'dd.MM.yyyy • HH:mm',
+        'pl_PL',
+      ).format(ts.toDate().toLocal());
+    }
+    return 'Brak daty';
+  }
+
   @override
   Widget build(BuildContext context) {
     final messenger = ScaffoldMessenger.of(context);
@@ -309,6 +319,9 @@ class _ContactDetailScreenState extends State<ContactDetailScreen> {
         final data = snapshot.data!.data()!;
         final custId = data['linkedCustomerId'] as String?;
         final name = data['name'] ?? 'Brak imienia';
+        final extraNumbers = (data['extraNumbers'] is List)
+            ? List<String>.from(data['extraNumbers'])
+            : <String>[];
 
         return DefaultTabController(
           length: 2,
@@ -478,16 +491,13 @@ class _ContactDetailScreenState extends State<ContactDetailScreen> {
                                   ),
                                 ],
                                 // Drugi numer
-                                if ((data['extraNumbers'] as List)
-                                    .isNotEmpty) ...[
+                                if (extraNumbers.isNotEmpty) ...[
                                   const SizedBox(height: 12),
                                   Padding(
                                     padding: const EdgeInsets.only(left: 20),
                                     child: InkWell(
                                       onTap: () => openUri(
-                                        Uri.parse(
-                                          'tel:${(data['extraNumbers'] as List).first}',
-                                        ),
+                                        Uri.parse('tel:${extraNumbers.first}'),
                                       ),
                                       child: Row(
                                         children: [
@@ -498,8 +508,7 @@ class _ContactDetailScreenState extends State<ContactDetailScreen> {
                                           ),
                                           const SizedBox(width: 10),
                                           Text(
-                                            (data['extraNumbers'] as List)
-                                                .first,
+                                            extraNumbers.first,
                                             style: const TextStyle(
                                               fontSize: 18,
                                             ),
@@ -611,12 +620,9 @@ class _ContactDetailScreenState extends State<ContactDetailScreen> {
                                       final pm = d.data();
                                       final title =
                                           pm['title'] as String? ?? '—';
-                                      final ts = (pm['createdAt'] as Timestamp)
-                                          .toDate();
-                                      final date = DateFormat(
-                                        'dd.MM.yyyy • HH:mm',
-                                        'pl_PL',
-                                      ).format(ts.toLocal());
+                                      final dateText = formatTimestamp(
+                                        pm['createdAt'],
+                                      );
                                       final isFav = _favProjectIds.contains(
                                         d.id,
                                       );
@@ -630,7 +636,7 @@ class _ContactDetailScreenState extends State<ContactDetailScreen> {
                                           title,
                                           overflow: TextOverflow.ellipsis,
                                         ),
-                                        subtitle: Text(date),
+                                        subtitle: Text(dateText),
                                         onTap: () => Navigator.of(context).push(
                                           MaterialPageRoute(
                                             builder: (_) => ProjectEditorScreen(
