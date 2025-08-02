@@ -1037,7 +1037,7 @@ class __ImageGalleryScreenState extends State<_ImageGalleryScreen> {
               final confirmed = await showDialog<bool>(
                 context: context,
                 builder: (ctx) => AlertDialog(
-                  title: const Text('Usuń zdjęcie?'),
+                  title: const Text('Usuń fota?'),
                   content: const Text('Na pewno chcesz usunąć to zdjęcie?'),
                   actions: [
                     TextButton(
