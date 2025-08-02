@@ -369,20 +369,31 @@ class _ProjectDescriptionScreenState extends State<ProjectDescriptionScreen> {
   Future<void> _showPhotoSourceDialog() async {
     final source = await showModalBottomSheet<_PhotoSource>(
       context: context,
-      builder: (ctx) => Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          ListTile(
-            leading: const Icon(Icons.camera_alt),
-            title: const Text('Zrób fota'),
-            onTap: () => Navigator.pop(ctx, _PhotoSource.camera),
+      isScrollControlled: true,
+      useSafeArea: true,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(12)),
+      ),
+      builder: (ctx) => Padding(
+        padding: EdgeInsets.only(bottom: MediaQuery.of(ctx).viewInsets.bottom),
+        child: SafeArea(
+          top: false,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              ListTile(
+                leading: const Icon(Icons.camera_alt),
+                title: const Text('Zrób fota'),
+                onTap: () => Navigator.pop(ctx, _PhotoSource.camera),
+              ),
+              ListTile(
+                leading: const Icon(Icons.photo_library),
+                title: const Text('Wybierz z galerii'),
+                onTap: () => Navigator.pop(ctx, _PhotoSource.gallery),
+              ),
+            ],
           ),
-          ListTile(
-            leading: const Icon(Icons.photo_library),
-            title: const Text('Wybierz z galerii'),
-            onTap: () => Navigator.pop(ctx, _PhotoSource.gallery),
-          ),
-        ],
+        ),
       ),
     );
 
@@ -611,7 +622,7 @@ class _ProjectDescriptionScreenState extends State<ProjectDescriptionScreen> {
                         border: OutlineInputBorder(),
                       ),
                       keyboardType: TextInputType.multiline,
-                      minLines: 2,
+                      minLines: 8,
                       maxLines: null,
                       readOnly: !widget.isAdmin,
                       validator: (v) {
@@ -629,88 +640,131 @@ class _ProjectDescriptionScreenState extends State<ProjectDescriptionScreen> {
                     _fileUploading
                         ? const Center(child: CircularProgressIndicator())
                         : _files.isEmpty
-                        ? Container(
-                            height: 80,
-                            alignment: Alignment.center,
-                            decoration: BoxDecoration(
-                              border: Border.all(color: Colors.grey),
-                              borderRadius: BorderRadius.circular(6),
+                        ? GestureDetector(
+                            onTap: _pickAndUploadFiles,
+                            child: Container(
+                              height: 80,
+                              alignment: Alignment.center,
+                              decoration: BoxDecoration(
+                                border: Border.all(color: Colors.grey),
+                                borderRadius: BorderRadius.circular(6),
+                              ),
+                              child: const Text('Dodaj plik'),
                             ),
-                            child: const Text('Brak plików'),
                           )
-                        : GridView.builder(
-                            shrinkWrap: true,
-                            physics: const NeverScrollableScrollPhysics(),
-                            gridDelegate:
-                                const SliverGridDelegateWithFixedCrossAxisCount(
-                                  crossAxisCount: 3,
-                                  crossAxisSpacing: 6,
-                                  mainAxisSpacing: 6,
-                                  childAspectRatio: 2,
+                        : Column(
+                            crossAxisAlignment: CrossAxisAlignment.stretch,
+                            children: [
+                              Container(
+                                // limit height so it doesn’t grow unbounded on mobile
+                                constraints: const BoxConstraints(
+                                  maxHeight: 220,
                                 ),
-                            itemCount: _files.length,
-                            itemBuilder: (ctx, i) {
-                              final file = _files[i];
-                              final isPdf = file['name']!
-                                  .toLowerCase()
-                                  .endsWith('.pdf');
-                              return GestureDetector(
-                                onTap: () => OpenFile.open(file['url']!),
-                                child: Stack(
-                                  clipBehavior: Clip.none,
-                                  children: [
-                                    Column(
-                                      children: [
-                                        Container(
-                                          height: 28,
-                                          decoration: BoxDecoration(
-                                            color: Colors.grey[200],
-                                            borderRadius: BorderRadius.circular(
-                                              6,
-                                            ),
-                                          ),
-                                          child: Icon(
-                                            isPdf
-                                                ? Icons.picture_as_pdf
-                                                : Icons.insert_drive_file,
-                                            size: 32,
-                                            color: Colors.grey[600],
-                                          ),
+                                decoration: BoxDecoration(
+                                  border: Border.all(
+                                    color: Colors.grey.shade300,
+                                  ),
+                                  borderRadius: BorderRadius.circular(6),
+                                ),
+                                child: ListView.separated(
+                                  shrinkWrap: true,
+                                  physics: const ClampingScrollPhysics(),
+                                  itemCount: _files.length,
+                                  separatorBuilder: (_, __) =>
+                                      const Divider(height: 1),
+                                  itemBuilder: (ctx, i) {
+                                    final file = _files[i];
+                                    final name = file['name'] ?? '';
+                                    return InkWell(
+                                      onTap: () => OpenFile.open(file['url']!),
+                                      child: Padding(
+                                        padding: const EdgeInsets.symmetric(
+                                          horizontal: 12,
+                                          vertical: 10,
                                         ),
-                                        const SizedBox(height: 4),
-                                        Expanded(
-                                          child: AutoSizeText(
-                                            file['name']!,
-                                            maxLines: 2,
-                                            minFontSize: 8,
-                                          ),
-                                        ),
-                                      ],
-                                    ),
-                                    if (widget.isAdmin)
-                                      Positioned(
-                                        top: 4,
-                                        right: 4,
-                                        child: GestureDetector(
-                                          onTap: () => _deleteFile(i),
-                                          child: Container(
-                                            decoration: const BoxDecoration(
-                                              color: Colors.red,
-                                              shape: BoxShape.circle,
+                                        child: Row(
+                                          children: [
+                                            Expanded(
+                                              child: Tooltip(
+                                                message: name,
+                                                waitDuration: const Duration(
+                                                  milliseconds: 500,
+                                                ),
+                                                child: Text(
+                                                  name,
+                                                  style: const TextStyle(
+                                                    fontSize: 14,
+                                                    fontWeight: FontWeight.w600,
+                                                  ),
+                                                  maxLines: 2,
+                                                  overflow:
+                                                      TextOverflow.ellipsis,
+                                                ),
+                                              ),
                                             ),
-                                            padding: const EdgeInsets.all(4),
-                                            child: const Icon(
-                                              Icons.close,
-                                              size: 12,
-                                              color: Colors.white,
-                                            ),
-                                          ),
+                                            if (widget.isAdmin)
+                                              GestureDetector(
+                                                onTap: () => _deleteFile(i),
+                                                child: Padding(
+                                                  padding:
+                                                      const EdgeInsets.symmetric(
+                                                        horizontal: 8.0,
+                                                      ),
+                                                  child: Container(
+                                                    decoration:
+                                                        const BoxDecoration(
+                                                          color: Colors.red,
+                                                          shape:
+                                                              BoxShape.circle,
+                                                        ),
+                                                    padding:
+                                                        const EdgeInsets.all(6),
+                                                    child: const Icon(
+                                                      Icons.close,
+                                                      size: 14,
+                                                      color: Colors.white,
+                                                    ),
+                                                  ),
+                                                ),
+                                              ),
+                                          ],
                                         ),
                                       ),
-                                  ],
+                                    );
+                                  },
                                 ),
-                              );
-                            },
+                              ),
+                              const SizedBox(height: 4),
+                              GestureDetector(
+                                onTap: _pickAndUploadFiles,
+                                child: Container(
+                                  padding: const EdgeInsets.symmetric(
+                                    vertical: 8,
+                                    horizontal: 12,
+                                  ),
+                                  decoration: BoxDecoration(
+                                    border: Border.all(
+                                      color: Colors.blueAccent,
+                                    ),
+                                    borderRadius: BorderRadius.circular(6),
+                                    color: Colors.blue.withOpacity(0.05),
+                                  ),
+                                  child: Row(
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: const [
+                                      Icon(Icons.add, size: 16),
+                                      SizedBox(width: 6),
+                                      Text(
+                                        'dodaj pliki',
+                                        style: TextStyle(
+                                          fontWeight: FontWeight.w600,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              ),
+                            ],
                           ),
 
                     const SizedBox(height: 6),
@@ -718,66 +772,106 @@ class _ProjectDescriptionScreenState extends State<ProjectDescriptionScreen> {
                     _uploading
                         ? const Center(child: CircularProgressIndicator())
                         : _photoUrls.isEmpty
-                        ? Container(
-                            height: 80,
-                            alignment: Alignment.center,
-                            decoration: BoxDecoration(
-                              border: Border.all(color: Colors.grey),
-                              borderRadius: BorderRadius.circular(6),
+                        ? GestureDetector(
+                            onTap: _showPhotoSourceDialog,
+                            child: Container(
+                              height: 80,
+                              alignment: Alignment.center,
+                              decoration: BoxDecoration(
+                                border: Border.all(color: Colors.grey),
+                                borderRadius: BorderRadius.circular(6),
+                              ),
+                              child: const Text('Dodaj fotka'),
                             ),
-                            child: const Text('Brak fotek'),
                           )
-                        : GridView.builder(
-                            shrinkWrap: true,
-                            physics: const NeverScrollableScrollPhysics(),
-                            gridDelegate:
-                                const SliverGridDelegateWithFixedCrossAxisCount(
-                                  crossAxisCount: 3,
-                                  crossAxisSpacing: 6,
-                                  mainAxisSpacing: 6,
-                                  childAspectRatio: 2,
-                                ),
-                            itemCount: _photoUrls.length,
-                            itemBuilder: (ctx, i) {
-                              final url = _photoUrls[i];
-                              return GestureDetector(
-                                onTap: () => _openGallery(i),
-                                child: Stack(
-                                  clipBehavior: Clip.none,
-                                  children: [
-                                    ClipRRect(
-                                      borderRadius: BorderRadius.circular(8),
-                                      child: Image.network(
-                                        url,
-                                        width: double.infinity,
-                                        height: double.infinity,
-                                        fit: BoxFit.cover,
-                                      ),
+                        : Column(
+                            crossAxisAlignment: CrossAxisAlignment.stretch,
+                            children: [
+                              GridView.builder(
+                                shrinkWrap: true,
+                                physics: const NeverScrollableScrollPhysics(),
+                                gridDelegate:
+                                    const SliverGridDelegateWithFixedCrossAxisCount(
+                                      crossAxisCount: 3,
+                                      crossAxisSpacing: 6,
+                                      mainAxisSpacing: 6,
+                                      childAspectRatio: 2,
                                     ),
-                                    if (widget.isAdmin)
-                                      Positioned(
-                                        top: 4,
-                                        right: 4,
-                                        child: GestureDetector(
-                                          onTap: () => _deletePhoto(url),
-                                          child: Container(
-                                            decoration: const BoxDecoration(
-                                              color: Colors.red,
-                                              shape: BoxShape.circle,
-                                            ),
-                                            padding: const EdgeInsets.all(4),
-                                            child: const Icon(
-                                              Icons.close,
-                                              size: 12,
-                                              color: Colors.white,
-                                            ),
+                                itemCount: _photoUrls.length,
+                                itemBuilder: (ctx, i) {
+                                  final url = _photoUrls[i];
+                                  return GestureDetector(
+                                    onTap: () => _openGallery(i),
+                                    child: Stack(
+                                      clipBehavior: Clip.none,
+                                      children: [
+                                        ClipRRect(
+                                          borderRadius: BorderRadius.circular(
+                                            8,
+                                          ),
+                                          child: Image.network(
+                                            url,
+                                            width: double.infinity,
+                                            height: double.infinity,
+                                            fit: BoxFit.cover,
                                           ),
                                         ),
+                                        if (widget.isAdmin)
+                                          Positioned(
+                                            top: 4,
+                                            right: 4,
+                                            child: GestureDetector(
+                                              onTap: () => _deletePhoto(url),
+                                              child: Container(
+                                                decoration: const BoxDecoration(
+                                                  color: Colors.red,
+                                                  shape: BoxShape.circle,
+                                                ),
+                                                padding: const EdgeInsets.all(
+                                                  4,
+                                                ),
+                                                child: const Icon(
+                                                  Icons.close,
+                                                  size: 12,
+                                                  color: Colors.white,
+                                                ),
+                                              ),
+                                            ),
+                                          ),
+                                      ],
+                                    ),
+                                  );
+                                },
+                              ),
+                              const SizedBox(height: 4),
+                              GestureDetector(
+                                onTap: _showPhotoSourceDialog,
+                                child: Container(
+                                  padding: const EdgeInsets.symmetric(
+                                    vertical: 8,
+                                    horizontal: 12,
+                                  ),
+                                  decoration: BoxDecoration(
+                                    border: Border.all(color: Colors.green),
+                                    borderRadius: BorderRadius.circular(6),
+                                    color: Colors.green.withOpacity(0.05),
+                                  ),
+                                  child: Row(
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: const [
+                                      Icon(Icons.add_a_photo, size: 16),
+                                      SizedBox(width: 6),
+                                      Text(
+                                        'dodaj fotki',
+                                        style: TextStyle(
+                                          fontWeight: FontWeight.w600,
+                                        ),
                                       ),
-                                  ],
+                                    ],
+                                  ),
                                 ),
-                              );
-                            },
+                              ),
+                            ],
                           ),
 
                     const SizedBox(height: 8),
@@ -925,69 +1019,69 @@ class _ProjectDescriptionScreenState extends State<ProjectDescriptionScreen> {
               ),
             ),
 
-      floatingActionButton: FloatingActionButton(
-        tooltip: 'Dodaj…',
-        onPressed: () {
-          showModalBottomSheet<void>(
-            context: context,
-            builder: (ctx) => Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                ListTile(
-                  leading: const Icon(Icons.add_a_photo),
-                  title: const Text('Dodaj fota'),
-                  onTap: () {
-                    Navigator.pop(ctx);
-                    _showPhotoSourceDialog();
-                  },
-                ),
-                ListTile(
-                  leading: const Icon(Icons.attach_file),
-                  title: const Text('Dodaj plik'),
-                  onTap: () {
-                    Navigator.pop(ctx);
-                    _pickAndUploadFiles();
-                  },
-                ),
-              ],
-            ),
-          );
-        },
-        child: const Icon(Icons.add),
-      ),
+      // floatingActionButton: FloatingActionButton(
+      //   tooltip: 'Dodaj…',
+      //   onPressed: () {
+      //     showModalBottomSheet<void>(
+      //       context: context,
+      //       builder: (ctx) => Column(
+      //         mainAxisSize: MainAxisSize.min,
+      //         children: [
+      //           ListTile(
+      //             leading: const Icon(Icons.add_a_photo),
+      //             title: const Text('Dodaj fota'),
+      //             onTap: () {
+      //               Navigator.pop(ctx);
+      //               _showPhotoSourceDialog();
+      //             },
+      //           ),
+      //           ListTile(
+      //             leading: const Icon(Icons.attach_file),
+      //             title: const Text('Dodaj plik'),
+      //             onTap: () {
+      //               Navigator.pop(ctx);
+      //               _pickAndUploadFiles();
+      //             },
+      //           ),
+      //         ],
+      //       ),
+      //     );
+      //   },
+      //   child: const Icon(Icons.add),
+      // ),
 
-      floatingActionButtonLocation: FloatingActionButtonLocation.centerDocked,
-      bottomNavigationBar: SafeArea(
-        child: BottomAppBar(
-          shape: const CircularNotchedRectangle(),
-          notchMargin: 6,
-          child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 32),
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                IconButton(
-                  tooltip: 'Kontakty',
-                  icon: const Icon(Icons.contact_mail_outlined),
-                  onPressed: () => Navigator.of(context).push(
-                    MaterialPageRoute(builder: (_) => ContactsListScreen()),
-                  ),
-                ),
-                IconButton(
-                  tooltip: 'Klienci',
-                  icon: const Icon(Icons.people),
-                  onPressed: () => Navigator.of(context).push(
-                    MaterialPageRoute(
-                      builder: (_) =>
-                          CustomerListScreen(isAdmin: widget.isAdmin),
-                    ),
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ),
-      ),
+      // floatingActionButtonLocation: FloatingActionButtonLocation.centerDocked,
+      // bottomNavigationBar: SafeArea(
+      //   child: BottomAppBar(
+      //     shape: const CircularNotchedRectangle(),
+      //     notchMargin: 6,
+      //     child: Padding(
+      //       padding: const EdgeInsets.symmetric(horizontal: 32),
+      //       child: Row(
+      //         mainAxisAlignment: MainAxisAlignment.spaceBetween,
+      //         children: [
+      //           IconButton(
+      //             tooltip: 'Kontakty',
+      //             icon: const Icon(Icons.contact_mail_outlined),
+      //             onPressed: () => Navigator.of(context).push(
+      //               MaterialPageRoute(builder: (_) => ContactsListScreen()),
+      //             ),
+      //           ),
+      //           IconButton(
+      //             tooltip: 'Klienci',
+      //             icon: const Icon(Icons.people),
+      //             onPressed: () => Navigator.of(context).push(
+      //               MaterialPageRoute(
+      //                 builder: (_) =>
+      //                     CustomerListScreen(isAdmin: widget.isAdmin),
+      //               ),
+      //             ),
+      //           ),
+      //         ],
+      //       ),
+      //     ),
+      //   ),
+      // ),
     );
   }
 }

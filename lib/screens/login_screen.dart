@@ -14,7 +14,7 @@ class _LoginScreenState extends State<LoginScreen> {
   final _emailCtrl = TextEditingController();
   final _passCtrl = TextEditingController();
   String? _error;
-  final bool _isLoading = false;
+  bool _isLoading = false;
 
   @override
   void dispose() {
@@ -23,8 +23,25 @@ class _LoginScreenState extends State<LoginScreen> {
     super.dispose();
   }
 
+  String _friendlyMessageForCode(String code) {
+    return switch (code) {
+      'invalid-email' => 'Email nieprawidłowy.',
+      'user-disabled' => 'Konto zablokowany.',
+      'user-not-found' => 'Nie znaleziono user.',
+      'wrong-password' => 'Hasło nieprawidłowo.',
+      'too-many-requests' => 'Za dużo prób. Spróbuj później.',
+      'invalid-credential' => 'Login nieprawidłowy.',
+      'credential-already-in-use' => 'Używany przez inne konto.',
+      'expired-action-code' => 'Link wygasł. Wygeneruj go ponownie.',
+      _ => 'Wystąpił błąd logowania: $code',
+    };
+  }
+
   Future<void> _signIn() async {
-    setState(() => _error = null);
+    setState(() {
+      _error = null;
+      _isLoading = true;
+    });
     try {
       final cred = await FirebaseAuth.instance.signInWithEmailAndPassword(
         email: _emailCtrl.text.trim(),
@@ -33,11 +50,19 @@ class _LoginScreenState extends State<LoginScreen> {
 
       await cred.user!.getIdToken(true);
 
+      if (!mounted) return;
       Navigator.of(context).pushReplacement(
         MaterialPageRoute(builder: (_) => MainMenuScreen(role: 'admin')),
       );
     } on FirebaseAuthException catch (e) {
-      setState(() => _error = e.message);
+      final friendly = _friendlyMessageForCode(e.code);
+      setState(() => _error = friendly);
+    } catch (e) {
+      setState(() => _error = 'Nieoczekiwany błąd. Spróbuj ponownie.');
+    } finally {
+      if (mounted) {
+        setState(() => _isLoading = false);
+      }
     }
   }
 
