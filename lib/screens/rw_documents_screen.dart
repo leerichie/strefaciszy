@@ -75,6 +75,68 @@ class _RWDocumentsScreenState extends State<RWDocumentsScreen> {
         .snapshots();
   }
 
+  Future<void> _evaluateHasItemsIncludingHistory() async {
+    if (widget.customerId == null || widget.projectId == null) return;
+
+    bool hasAny = false;
+
+    // 1. Check live project items
+    try {
+      final projSnap = await FirebaseFirestore.instance
+          .collection('customers')
+          .doc(widget.customerId!)
+          .collection('projects')
+          .doc(widget.projectId!)
+          .get();
+      final projData = projSnap.data() ?? <String, dynamic>{};
+      final projectItems = (projData['items'] as List<dynamic>? ?? [])
+          .cast<Map<String, dynamic>>();
+      hasAny = projectItems.any((it) {
+        final parsedQty = _parseQty(it['quantity']);
+        return parsedQty > 0;
+      });
+      debugPrint('Live project items hasAny: $hasAny');
+    } catch (e) {
+      debugPrint('Error reading project items for swap/return check: $e');
+    }
+
+    // 2. Fallback to any item present in any RW document if live is empty
+    if (!hasAny) {
+      try {
+        final docsSnap = await FirebaseFirestore.instance
+            .collection('customers')
+            .doc(widget.customerId!)
+            .collection('projects')
+            .doc(widget.projectId!)
+            .collection('rw_documents')
+            .get();
+
+        for (final doc in docsSnap.docs) {
+          final data = doc.data() as Map<String, dynamic>;
+          final docItems = (data['items'] as List<dynamic>? ?? [])
+              .cast<Map<String, dynamic>>();
+          final docHas = docItems.any((it) {
+            final parsedQty = _parseQty(it['quantity']);
+            return parsedQty > 0;
+          });
+          if (docHas) {
+            hasAny = true;
+            break;
+          }
+        }
+        debugPrint('Historic RW documents fallback hasAny: $hasAny');
+      } catch (e) {
+        debugPrint('Error reading RW documents for swap/return fallback: $e');
+      }
+    }
+
+    if (mounted && _hasItemsInProject != hasAny) {
+      setState(() {
+        _hasItemsInProject = hasAny;
+      });
+    }
+  }
+
   @override
   void initState() {
     super.initState();
@@ -91,29 +153,33 @@ class _RWDocumentsScreenState extends State<RWDocumentsScreen> {
             toFirestore: (m, _) => m,
           );
 
-      _projectSub = projectRef.snapshots().listen((snap) {
-        final data = snap.data() ?? {};
-        final items = (data['items'] as List<dynamic>? ?? [])
-            .cast<Map<String, dynamic>>();
-        final hasAny = items.any((it) {
-          final qty = it['quantity'];
-          if (qty is num) {
-            return qty.toInt() > 0;
-          }
-          if (qty is String) {
-            final parsed = int.tryParse(qty) ?? 0;
-            return parsed > 0;
-          }
-          return false;
-        });
-
-        if (mounted && _hasItemsInProject != hasAny) {
-          setState(() {
-            _hasItemsInProject = hasAny;
+      _projectSub = FirebaseFirestore.instance
+          .collection('customers')
+          .doc(widget.customerId!)
+          .collection('projects')
+          .doc(widget.projectId!)
+          .withConverter<Map<String, dynamic>>(
+            fromFirestore: (snap, _) => snap.data() ?? <String, dynamic>{},
+            toFirestore: (m, _) => m,
+          )
+          .snapshots()
+          .listen((snap) {
+            // Whenever project doc changes, reevaluate whether ANY items exist (live or in history).
+            _evaluateHasItemsIncludingHistory();
           });
-        }
-      });
     }
+  }
+
+  // detect any old project item
+  int _parseQty(dynamic qty) {
+    if (qty is num) return qty.toInt();
+    if (qty is String) {
+      final cleaned = qty.replaceAll(',', '.').trim();
+      final doubleVal = double.tryParse(cleaned);
+      if (doubleVal != null) return doubleVal.round();
+      return int.tryParse(cleaned) ?? 0;
+    }
+    return 0;
   }
 
   @override

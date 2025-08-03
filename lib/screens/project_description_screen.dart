@@ -622,7 +622,7 @@ class _ProjectDescriptionScreenState extends State<ProjectDescriptionScreen> {
                         border: OutlineInputBorder(),
                       ),
                       keyboardType: TextInputType.multiline,
-                      minLines: 8,
+                      minLines: 4,
                       maxLines: null,
                       readOnly: !widget.isAdmin,
                       validator: (v) {
@@ -649,16 +649,15 @@ class _ProjectDescriptionScreenState extends State<ProjectDescriptionScreen> {
                                 border: Border.all(color: Colors.grey),
                                 borderRadius: BorderRadius.circular(6),
                               ),
-                              child: const Text('Dodaj plik'),
+                              child: const Text('Dotnij aby dodać plik'),
                             ),
                           )
                         : Column(
                             crossAxisAlignment: CrossAxisAlignment.stretch,
                             children: [
                               Container(
-                                // limit height so it doesn’t grow unbounded on mobile
                                 constraints: const BoxConstraints(
-                                  maxHeight: 220,
+                                  maxHeight: 140,
                                 ),
                                 decoration: BoxDecoration(
                                   border: Border.all(
@@ -696,7 +695,7 @@ class _ProjectDescriptionScreenState extends State<ProjectDescriptionScreen> {
                                                     fontSize: 14,
                                                     fontWeight: FontWeight.w600,
                                                   ),
-                                                  maxLines: 2,
+                                                  maxLines: 1,
                                                   overflow:
                                                       TextOverflow.ellipsis,
                                                 ),
@@ -747,10 +746,11 @@ class _ProjectDescriptionScreenState extends State<ProjectDescriptionScreen> {
                                       color: Colors.blueAccent,
                                     ),
                                     borderRadius: BorderRadius.circular(6),
-                                    color: Colors.blue.withOpacity(0.05),
+                                    color: Colors.blue.withValues(alpha: 0.05),
                                   ),
                                   child: Row(
                                     mainAxisSize: MainAxisSize.min,
+                                    mainAxisAlignment: MainAxisAlignment.center,
                                     children: const [
                                       Icon(Icons.add, size: 16),
                                       SizedBox(width: 6),
@@ -781,59 +781,129 @@ class _ProjectDescriptionScreenState extends State<ProjectDescriptionScreen> {
                                 border: Border.all(color: Colors.grey),
                                 borderRadius: BorderRadius.circular(6),
                               ),
-                              child: const Text('Dodaj fotka'),
+                              child: const Text('Dotknij aby dodać fotka'),
                             ),
                           )
                         : Column(
                             crossAxisAlignment: CrossAxisAlignment.stretch,
                             children: [
-                              GridView.builder(
-                                shrinkWrap: true,
-                                physics: const NeverScrollableScrollPhysics(),
-                                gridDelegate:
-                                    const SliverGridDelegateWithFixedCrossAxisCount(
-                                      crossAxisCount: 3,
-                                      crossAxisSpacing: 6,
-                                      mainAxisSpacing: 6,
-                                      childAspectRatio: 2,
-                                    ),
-                                itemCount: _photoUrls.length,
-                                itemBuilder: (ctx, i) {
-                                  final url = _photoUrls[i];
-                                  return GestureDetector(
-                                    onTap: () => _openGallery(i),
+                              LayoutBuilder(
+                                builder: (context, constraints) {
+                                  const int perRow = 3;
+                                  const int visibleRows =
+                                      2; // show 2 rows (6 thumbnails) before scroll
+                                  const double spacing = 6;
+
+                                  // Compute thumbnail dimensions: rectangular with aspect ratio 2 (width = 2 * height)
+                                  // We want three across, so solve for height: total width = 3 * (2 * h) + 2 * spacing
+                                  // => h = (constraints.maxWidth - 2 * spacing) / (3 * 2)
+                                  final double thumbnailHeight =
+                                      (constraints.maxWidth -
+                                          (perRow - 1) * spacing) /
+                                      (perRow * 2);
+                                  final double thumbnailWidth =
+                                      thumbnailHeight * 2;
+
+                                  // Container height to fit exactly visibleRows of thumbnails plus vertical spacing
+                                  final double containerHeight =
+                                      thumbnailHeight * visibleRows +
+                                      (visibleRows - 1) * spacing;
+
+                                  final bool hasOverflow =
+                                      _photoUrls.length > perRow * visibleRows;
+
+                                  return SizedBox(
+                                    height: containerHeight,
                                     child: Stack(
-                                      clipBehavior: Clip.none,
                                       children: [
-                                        ClipRRect(
-                                          borderRadius: BorderRadius.circular(
-                                            8,
-                                          ),
-                                          child: Image.network(
-                                            url,
-                                            width: double.infinity,
-                                            height: double.infinity,
-                                            fit: BoxFit.cover,
-                                          ),
+                                        // Scrollable grid
+                                        GridView.builder(
+                                          padding: EdgeInsets.zero,
+                                          gridDelegate:
+                                              SliverGridDelegateWithFixedCrossAxisCount(
+                                                crossAxisCount: perRow,
+                                                crossAxisSpacing: spacing,
+                                                mainAxisSpacing: spacing,
+                                                childAspectRatio:
+                                                    2, // rectangular (width is twice height)
+                                              ),
+                                          itemCount: _photoUrls.length,
+                                          itemBuilder: (ctx, i) {
+                                            final url = _photoUrls[i];
+                                            return GestureDetector(
+                                              onTap: () => _openGallery(i),
+                                              child: Stack(
+                                                clipBehavior: Clip.none,
+                                                children: [
+                                                  ClipRRect(
+                                                    borderRadius:
+                                                        BorderRadius.circular(
+                                                          8,
+                                                        ),
+                                                    child: Image.network(
+                                                      url,
+                                                      width: double.infinity,
+                                                      height: double.infinity,
+                                                      fit: BoxFit.cover,
+                                                    ),
+                                                  ),
+                                                  if (widget.isAdmin)
+                                                    Positioned(
+                                                      top: 4,
+                                                      right: 4,
+                                                      child: GestureDetector(
+                                                        onTap: () =>
+                                                            _deletePhoto(url),
+                                                        child: Container(
+                                                          decoration:
+                                                              const BoxDecoration(
+                                                                color:
+                                                                    Colors.red,
+                                                                shape: BoxShape
+                                                                    .circle,
+                                                              ),
+                                                          padding:
+                                                              const EdgeInsets.all(
+                                                                4,
+                                                              ),
+                                                          child: const Icon(
+                                                            Icons.close,
+                                                            size: 12,
+                                                            color: Colors.white,
+                                                          ),
+                                                        ),
+                                                      ),
+                                                    ),
+                                                ],
+                                              ),
+                                            );
+                                          },
                                         ),
-                                        if (widget.isAdmin)
+
+                                        // Fade hint when there's more to scroll
+                                        if (hasOverflow)
                                           Positioned(
-                                            top: 4,
-                                            right: 4,
-                                            child: GestureDetector(
-                                              onTap: () => _deletePhoto(url),
-                                              child: Container(
-                                                decoration: const BoxDecoration(
-                                                  color: Colors.red,
-                                                  shape: BoxShape.circle,
-                                                ),
-                                                padding: const EdgeInsets.all(
-                                                  4,
-                                                ),
-                                                child: const Icon(
-                                                  Icons.close,
-                                                  size: 12,
-                                                  color: Colors.white,
+                                            bottom: 0,
+                                            left: 0,
+                                            right: 0,
+                                            height:
+                                                thumbnailHeight, // fade over bottom row
+                                            child: IgnorePointer(
+                                              child: DecoratedBox(
+                                                decoration: BoxDecoration(
+                                                  gradient: LinearGradient(
+                                                    begin:
+                                                        Alignment.bottomCenter,
+                                                    end: Alignment.topCenter,
+                                                    colors: [
+                                                      Colors.white.withValues(
+                                                        alpha: 0.85,
+                                                      ),
+                                                      Colors.white.withValues(
+                                                        alpha: 0.0,
+                                                      ),
+                                                    ],
+                                                  ),
                                                 ),
                                               ),
                                             ),
@@ -843,6 +913,7 @@ class _ProjectDescriptionScreenState extends State<ProjectDescriptionScreen> {
                                   );
                                 },
                               ),
+
                               const SizedBox(height: 4),
                               GestureDetector(
                                 onTap: _showPhotoSourceDialog,
@@ -854,10 +925,11 @@ class _ProjectDescriptionScreenState extends State<ProjectDescriptionScreen> {
                                   decoration: BoxDecoration(
                                     border: Border.all(color: Colors.green),
                                     borderRadius: BorderRadius.circular(6),
-                                    color: Colors.green.withOpacity(0.05),
+                                    color: Colors.green.withValues(alpha: 0.05),
                                   ),
                                   child: Row(
                                     mainAxisSize: MainAxisSize.min,
+                                    mainAxisAlignment: MainAxisAlignment.center,
                                     children: const [
                                       Icon(Icons.add_a_photo, size: 16),
                                       SizedBox(width: 6),
@@ -874,7 +946,6 @@ class _ProjectDescriptionScreenState extends State<ProjectDescriptionScreen> {
                             ],
                           ),
 
-                    const SizedBox(height: 8),
                     const Divider(),
 
                     // — MAP PREVIEW
