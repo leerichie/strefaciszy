@@ -6,6 +6,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:strefa_ciszy/models/stock_item.dart';
 import 'package:strefa_ciszy/screens/add_item_screen.dart';
 import 'package:strefa_ciszy/screens/item_detail_screen.dart';
+import 'package:strefa_ciszy/utils/keyboard_utils.dart';
 import 'package:strefa_ciszy/utils/search_utils.dart';
 import 'package:strefa_ciszy/widgets/app_scaffold.dart';
 
@@ -127,6 +128,8 @@ class _InventoryListScreenState extends State<InventoryListScreen> {
                     isDense: true,
                   ),
                   onChanged: (v) => setState(() => _search = v.trim()),
+                  textInputAction: TextInputAction.search,
+                  onSubmitted: (_) => FocusScope.of(context).unfocus(),
                 ),
               ),
               const SizedBox(width: 8),
@@ -141,166 +144,185 @@ class _InventoryListScreenState extends State<InventoryListScreen> {
       ),
       actions: [Padding(padding: const EdgeInsets.symmetric(horizontal: 8.0))],
 
-      body: Column(
-        children: [
-          const SizedBox(height: 8),
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 12),
-            child: DropdownButtonFormField<String>(
-              decoration: InputDecoration(
-                labelText: 'Kategoria',
-                border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(8),
+      body: DismissKeyboard(
+        child: Column(
+          children: [
+            const SizedBox(height: 8),
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 12),
+              child: DropdownButtonFormField<String>(
+                decoration: InputDecoration(
+                  labelText: 'Kategoria',
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  isDense: true,
                 ),
-                isDense: true,
-              ),
-              value: _category.isEmpty ? null : _category,
-              items: [
-                const DropdownMenuItem(value: '', child: Text('Wszystko')),
-                ..._categories.map((cat) {
-                  final label = cat[0].toUpperCase() + cat.substring(1);
-                  return DropdownMenuItem(value: cat, child: Text(label));
+                value: _category.isEmpty ? null : _category,
+                items: [
+                  const DropdownMenuItem(value: '', child: Text('Wszystko')),
+                  ..._categories.map((cat) {
+                    final label = cat[0].toUpperCase() + cat.substring(1);
+                    return DropdownMenuItem(value: cat, child: Text(label));
+                  }),
+                ],
+                onChanged: (v) => setState(() {
+                  _category = v ?? '';
                 }),
-              ],
-              onChanged: (v) => setState(() {
-                _category = v ?? '';
-              }),
+              ),
             ),
-          ),
-          const SizedBox(height: 8),
+            const SizedBox(height: 8),
 
-          Expanded(
-            child: StreamBuilder<QuerySnapshot<StockItem>>(
-              stream: _stockQuery.snapshots(),
-              builder: (ctx, snap) {
-                if (snap.connectionState == ConnectionState.waiting) {
-                  return const Center(child: CircularProgressIndicator());
-                }
-                if (snap.hasError) {
-                  return Center(child: Text('Error: ${snap.error}'));
-                }
+            Expanded(
+              child: StreamBuilder<QuerySnapshot<StockItem>>(
+                stream: _stockQuery.snapshots(),
+                builder: (ctx, snap) {
+                  if (snap.connectionState == ConnectionState.waiting) {
+                    return const Center(child: CircularProgressIndicator());
+                  }
+                  if (snap.hasError) {
+                    return Center(child: Text('Error: ${snap.error}'));
+                  }
 
-                final allItems = snap.data!.docs.map((d) => d.data()).toList();
+                  final allItems = snap.data!.docs
+                      .map((d) => d.data())
+                      .toList();
 
-                final preFiltered = widget.onlyIds == null
-                    ? allItems
-                    : allItems
-                          .where((i) => widget.onlyIds!.contains(i.id))
-                          .toList();
+                  final preFiltered = widget.onlyIds == null
+                      ? allItems
+                      : allItems
+                            .where((i) => widget.onlyIds!.contains(i.id))
+                            .toList();
 
-                final filtered = _search.isEmpty
-                    ? preFiltered
-                    : preFiltered.where((item) {
-                        return matchesSearch(_search, [
-                          item.name,
-                          item.producent,
-                          item.description,
-                          item.sku,
-                          item.barcode,
-                        ]);
-                      }).toList();
-
-                if (filtered.isEmpty) {
-                  return const Center(child: Text('Nie znaleziono produktów.'));
-                }
-
-                return ListView.separated(
-                  itemCount: filtered.length,
-                  separatorBuilder: (_, __) => const Divider(height: 1),
-                  itemBuilder: (ctx, i) {
-                    final item = filtered[i];
-                    return ListTile(
-                      isThreeLine: true,
-                      title: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            item.producent ?? '',
-                            style: const TextStyle(
-                              fontSize: 14,
-                              fontWeight: FontWeight.bold,
-                            ),
-                          ),
-                          Text(item.name, style: const TextStyle(fontSize: 14)),
-                          Text(
+                  final filtered = _search.isEmpty
+                      ? preFiltered
+                      : preFiltered.where((item) {
+                          return matchesSearch(_search, [
+                            item.name,
+                            item.producent,
                             item.description,
-                            style: TextStyle(
-                              fontSize: 13,
-                              color: Colors.grey[700],
-                              fontStyle: FontStyle.italic,
-                            ),
-                          ),
-                        ],
-                      ),
+                            item.sku,
+                            item.barcode,
+                          ]);
+                        }).toList();
 
-                      subtitle: Text(
-                        '${item.quantity}${item.unit != null ? ' ${item.unit}' : ''}',
-                        style: TextStyle(
-                          fontSize: 14,
-                          fontWeight: FontWeight.bold,
-                          color: item.quantity <= 0
-                              ? Colors.red
-                              : item.quantity <= 3
-                              ? Colors.orange
-                              : Colors.green,
-                        ),
-                      ),
-                      trailing: item.imageUrl != null
-                          ? SizedBox(
-                              width: 48,
-                              height: 48,
-                              child: ClipRRect(
-                                borderRadius: BorderRadius.circular(4),
-                                child: Image.network(
-                                  item.imageUrl!,
-                                  fit: BoxFit.cover,
-                                  loadingBuilder: (ctx, child, progress) {
-                                    if (progress == null) return child;
-                                    return Center(
-                                      child: SizedBox(
-                                        width: 24,
-                                        height: 24,
-                                        child: CircularProgressIndicator(
-                                          value:
-                                              progress.expectedTotalBytes !=
-                                                  null
-                                              ? progress.cumulativeBytesLoaded /
-                                                    progress.expectedTotalBytes!
-                                              : null,
-                                          strokeWidth: 2,
-                                        ),
-                                      ),
-                                    );
-                                  },
-                                  errorBuilder: (_, __, ___) {
-                                    return Container(
-                                      color: Colors.grey[200],
-                                      child: const Icon(
-                                        Icons.broken_image,
-                                        size: 24,
-                                        color: Colors.grey,
-                                      ),
-                                    );
-                                  },
+                  if (filtered.isEmpty) {
+                    return const Center(
+                      child: Text('Nie znaleziono produktów.'),
+                    );
+                  }
+
+                  return NotificationListener<ScrollNotification>(
+                    onNotification: (notif) {
+                      if (notif is ScrollStartNotification) {
+                        FocusScope.of(context).unfocus();
+                      }
+                      return false;
+                    },
+                    child: ListView.separated(
+                      keyboardDismissBehavior:
+                          ScrollViewKeyboardDismissBehavior.onDrag,
+                      itemCount: filtered.length,
+                      separatorBuilder: (_, __) => const Divider(height: 1),
+                      itemBuilder: (ctx, i) {
+                        final item = filtered[i];
+                        return ListTile(
+                          isThreeLine: true,
+                          title: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                item.producent ?? '',
+                                style: const TextStyle(
+                                  fontSize: 14,
+                                  fontWeight: FontWeight.bold,
                                 ),
                               ),
-                            )
-                          : null,
-                      onTap: () => Navigator.of(context).push(
-                        MaterialPageRoute(
-                          builder: (_) => ItemDetailScreen(
-                            itemId: item.id,
-                            isAdmin: isAdmin,
+                              Text(
+                                item.name,
+                                style: const TextStyle(fontSize: 14),
+                              ),
+                              Text(
+                                item.description,
+                                style: TextStyle(
+                                  fontSize: 13,
+                                  color: Colors.grey[700],
+                                  fontStyle: FontStyle.italic,
+                                ),
+                              ),
+                            ],
                           ),
-                        ),
-                      ),
-                    );
-                  },
-                );
-              },
+                          subtitle: Text(
+                            '${item.quantity}${item.unit != null ? ' ${item.unit}' : ''}',
+                            style: TextStyle(
+                              fontSize: 14,
+                              fontWeight: FontWeight.bold,
+                              color: item.quantity <= 0
+                                  ? Colors.red
+                                  : item.quantity <= 3
+                                  ? Colors.orange
+                                  : Colors.green,
+                            ),
+                          ),
+                          trailing: item.imageUrl != null
+                              ? SizedBox(
+                                  width: 48,
+                                  height: 48,
+                                  child: ClipRRect(
+                                    borderRadius: BorderRadius.circular(4),
+                                    child: Image.network(
+                                      item.imageUrl!,
+                                      fit: BoxFit.cover,
+                                      loadingBuilder: (ctx, child, progress) {
+                                        if (progress == null) return child;
+                                        return Center(
+                                          child: SizedBox(
+                                            width: 24,
+                                            height: 24,
+                                            child: CircularProgressIndicator(
+                                              value:
+                                                  progress.expectedTotalBytes !=
+                                                      null
+                                                  ? progress.cumulativeBytesLoaded /
+                                                        progress
+                                                            .expectedTotalBytes!
+                                                  : null,
+                                              strokeWidth: 2,
+                                            ),
+                                          ),
+                                        );
+                                      },
+                                      errorBuilder: (_, __, ___) {
+                                        return Container(
+                                          color: Colors.grey[200],
+                                          child: const Icon(
+                                            Icons.broken_image,
+                                            size: 24,
+                                            color: Colors.grey,
+                                          ),
+                                        );
+                                      },
+                                    ),
+                                  ),
+                                )
+                              : null,
+                          onTap: () => Navigator.of(context).push(
+                            MaterialPageRoute(
+                              builder: (_) => ItemDetailScreen(
+                                itemId: item.id,
+                                isAdmin: isAdmin,
+                              ),
+                            ),
+                          ),
+                        );
+                      },
+                    ),
+                  );
+                },
+              ),
             ),
-          ),
-        ],
+          ],
+        ),
       ),
       // floatingActionButton: isAdmin
       //     ? FloatingActionButton(

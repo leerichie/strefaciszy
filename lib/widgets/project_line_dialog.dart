@@ -2,6 +2,7 @@
 
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:flutter/services.dart';
 import 'package:strefa_ciszy/models/project_line.dart';
 import 'package:strefa_ciszy/models/stock_item.dart';
 import 'package:strefa_ciszy/screens/scan_screen.dart';
@@ -217,86 +218,103 @@ Future<ProjectLine?> showProjectLineDialog(
                                             constraints: BoxConstraints(
                                               maxHeight: maxHeight,
                                             ),
-                                            child: ListView.builder(
-                                              padding: EdgeInsets.zero,
-                                              itemCount: options.length,
-                                              itemBuilder: (BuildContext ctx2, int index) {
-                                                final StockItem s = options
-                                                    .elementAt(index);
-
-                                                final tile = ListTile(
-                                                  dense: true,
-                                                  minVerticalPadding: 0,
-                                                  visualDensity: VisualDensity(
-                                                    vertical: -2,
-                                                  ),
-                                                  contentPadding:
-                                                      const EdgeInsets.symmetric(
-                                                        horizontal: 8,
-                                                        vertical: 4,
-                                                      ),
-                                                  tileColor: Colors.transparent,
-                                                  selectedTileColor:
-                                                      Colors.transparent,
-                                                  title: Text(
-                                                    '${s.name}, ${s.producent}',
-                                                    style: TextStyle(
-                                                      fontSize: 14,
-                                                    ),
-                                                  ),
-                                                  trailing: Text(
-                                                    'Stan: ${s.quantity}',
-                                                    style: TextStyle(
-                                                      fontWeight:
-                                                          FontWeight.w600,
-                                                      color: s.quantity <= 0
-                                                          ? Colors.red
-                                                          : Colors.blueGrey,
-                                                    ),
-                                                  ),
-                                                  onTap: () {
-                                                    FocusScope.of(
-                                                      ctx,
-                                                    ).unfocus();
-                                                    onSelected(s);
-                                                  },
-                                                );
-
-                                                if (index.isEven) {
-                                                  return Container(
-                                                    margin:
-                                                        const EdgeInsets.symmetric(
-                                                          vertical: 2,
-                                                          horizontal: 4,
-                                                        ),
-                                                    decoration: BoxDecoration(
-                                                      color: Colors.white,
-                                                      boxShadow: [
-                                                        BoxShadow(
-                                                          color: Colors.black
-                                                              .withValues(
-                                                                alpha: 0.05,
-                                                              ),
-                                                          blurRadius: 2,
-                                                          offset: Offset(0, 1),
-                                                        ),
-                                                      ],
-                                                      borderRadius:
-                                                          BorderRadius.circular(
-                                                            4,
-                                                          ),
-                                                    ),
-                                                    child: ClipRRect(
-                                                      borderRadius:
-                                                          BorderRadius.circular(
-                                                            4,
-                                                          ),
-                                                      child: tile,
-                                                    ),
-                                                  );
+                                            child: NotificationListener<ScrollNotification>(
+                                              onNotification: (notification) {
+                                                if (notification
+                                                    is ScrollStartNotification) {
+                                                  SystemChannels.textInput
+                                                      .invokeMethod(
+                                                        'TextInput.hide',
+                                                      );
                                                 }
-                                                return tile;
+                                                return false;
                                               },
+                                              child: ListView.builder(
+                                                padding: EdgeInsets.zero,
+                                                itemCount: options.length,
+                                                itemBuilder: (BuildContext ctx2, int index) {
+                                                  final StockItem s = options
+                                                      .elementAt(index);
+
+                                                  final tile = ListTile(
+                                                    dense: true,
+                                                    minVerticalPadding: 0,
+                                                    visualDensity:
+                                                        VisualDensity(
+                                                          vertical: -2,
+                                                        ),
+                                                    contentPadding:
+                                                        const EdgeInsets.symmetric(
+                                                          horizontal: 8,
+                                                          vertical: 4,
+                                                        ),
+                                                    tileColor:
+                                                        Colors.transparent,
+                                                    selectedTileColor:
+                                                        Colors.transparent,
+                                                    title: Text(
+                                                      '${s.name}, ${s.producent}',
+                                                      style: TextStyle(
+                                                        fontSize: 14,
+                                                      ),
+                                                    ),
+                                                    trailing: Text(
+                                                      'Stan: ${s.quantity}',
+                                                      style: TextStyle(
+                                                        fontWeight:
+                                                            FontWeight.w600,
+                                                        color: s.quantity <= 0
+                                                            ? Colors.red
+                                                            : Colors.blueGrey,
+                                                      ),
+                                                    ),
+                                                    onTap: () {
+                                                      FocusScope.of(
+                                                        ctx,
+                                                      ).unfocus();
+                                                      onSelected(s);
+                                                    },
+                                                  );
+
+                                                  if (index.isEven) {
+                                                    return Container(
+                                                      margin:
+                                                          const EdgeInsets.symmetric(
+                                                            vertical: 2,
+                                                            horizontal: 4,
+                                                          ),
+                                                      decoration: BoxDecoration(
+                                                        color: Colors.white,
+                                                        boxShadow: [
+                                                          BoxShadow(
+                                                            color: Colors.black
+                                                                .withValues(
+                                                                  alpha: 0.05,
+                                                                ),
+                                                            blurRadius: 2,
+                                                            offset: Offset(
+                                                              0,
+                                                              1,
+                                                            ),
+                                                          ),
+                                                        ],
+                                                        borderRadius:
+                                                            BorderRadius.circular(
+                                                              4,
+                                                            ),
+                                                      ),
+                                                      child: ClipRRect(
+                                                        borderRadius:
+                                                            BorderRadius.circular(
+                                                              4,
+                                                            ),
+                                                        child: tile,
+                                                      ),
+                                                    );
+                                                  }
+                                                  return tile;
+                                                },
+                                              ),
                                             ),
                                           ),
                                         ),

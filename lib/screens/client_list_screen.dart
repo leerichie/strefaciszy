@@ -7,9 +7,12 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:strefa_ciszy/screens/add_contact_screen.dart';
+import 'package:strefa_ciszy/screens/contact_detail_screen.dart';
+import 'package:strefa_ciszy/screens/customer_detail_screen.dart';
 import 'package:strefa_ciszy/screens/scan_screen.dart';
+import 'package:strefa_ciszy/utils/keyboard_utils.dart';
 import 'package:strefa_ciszy/widgets/app_scaffold.dart';
-import 'client_detail_screen.dart';
+import 'client_detail_screen.dart.txt';
 
 enum SortMode { nameAZ, nameZA, newest, oldest }
 
@@ -285,45 +288,49 @@ class _CustomerListScreenState extends State<CustomerListScreen> {
         preferredSize: const Size.fromHeight(56),
         child: Padding(
           padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-          child: Row(
-            children: [
-              Expanded(
-                child: TextField(
-                  controller: _searchController,
-                  decoration: InputDecoration(
-                    hintText: 'Szukaj...',
-                    prefixIcon: const Icon(Icons.search),
-                    border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(8),
+          child: DismissKeyboard(
+            child: Row(
+              children: [
+                Expanded(
+                  child: TextField(
+                    controller: _searchController,
+                    decoration: InputDecoration(
+                      hintText: 'Szukaj...',
+                      prefixIcon: const Icon(Icons.search),
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      isDense: true,
                     ),
-                    isDense: true,
+                    onChanged: (v) => setState(() => _search = v.trim()),
+                    textInputAction: TextInputAction.search,
+                    onSubmitted: (_) => FocusScope.of(context).unfocus(),
                   ),
-                  onChanged: (v) => setState(() => _search = v.trim()),
                 ),
-              ),
-              const SizedBox(width: 8),
-              IconButton(
-                tooltip: 'Resetuj filtr',
-                icon: const Icon(Icons.refresh),
-                onPressed: _resetSearch,
-              ),
-              PopupMenuButton<SortMode>(
-                icon: const Icon(Icons.sort),
-                onSelected: _saveSortMode,
-                itemBuilder: (_) => const [
-                  PopupMenuItem(value: SortMode.nameAZ, child: Text('A → Z')),
-                  PopupMenuItem(value: SortMode.nameZA, child: Text('Z → A')),
-                  PopupMenuItem(
-                    value: SortMode.newest,
-                    child: Text('Najnowszy'),
-                  ),
-                  PopupMenuItem(
-                    value: SortMode.oldest,
-                    child: Text('Najstarszy'),
-                  ),
-                ],
-              ),
-            ],
+                const SizedBox(width: 8),
+                IconButton(
+                  tooltip: 'Resetuj filtr',
+                  icon: const Icon(Icons.refresh),
+                  onPressed: _resetSearch,
+                ),
+                PopupMenuButton<SortMode>(
+                  icon: const Icon(Icons.sort),
+                  onSelected: _saveSortMode,
+                  itemBuilder: (_) => const [
+                    PopupMenuItem(value: SortMode.nameAZ, child: Text('A → Z')),
+                    PopupMenuItem(value: SortMode.nameZA, child: Text('Z → A')),
+                    PopupMenuItem(
+                      value: SortMode.newest,
+                      child: Text('Najnowszy'),
+                    ),
+                    PopupMenuItem(
+                      value: SortMode.oldest,
+                      child: Text('Najstarszy'),
+                    ),
+                  ],
+                ),
+              ],
+            ),
           ),
         ),
       ),
@@ -349,232 +356,264 @@ class _CustomerListScreenState extends State<CustomerListScreen> {
       //     ),
       //   ),
       // ],
-      body: StreamBuilder<QuerySnapshot>(
-        stream: _col.orderBy('createdAt', descending: true).snapshots(),
-        builder: (ctx, snap) {
-          if (snap.connectionState == ConnectionState.waiting) {
-            return const Center(child: CircularProgressIndicator());
-          }
-          if (snap.hasError) {
-            return Center(child: Text('Error: ${snap.error}'));
-          }
+      body: DismissKeyboard(
+        child: StreamBuilder<QuerySnapshot>(
+          stream: _col.orderBy('createdAt', descending: true).snapshots(),
+          builder: (ctx, snap) {
+            if (snap.connectionState == ConnectionState.waiting) {
+              return const Center(child: CircularProgressIndicator());
+            }
+            if (snap.hasError) {
+              return Center(child: Text('Error: ${snap.error}'));
+            }
 
-          final docs = snap.data!.docs;
-          final filtered = _search.isEmpty
-              ? docs.toList()
-              : docs.where((d) {
-                  final name = (d['name'] ?? '').toString().toLowerCase();
-                  return name.contains(_search.toLowerCase());
-                }).toList();
+            final docs = snap.data!.docs;
+            final filtered = _search.isEmpty
+                ? docs.toList()
+                : docs.where((d) {
+                    final name = (d['name'] ?? '').toString().toLowerCase();
+                    return name.contains(_search.toLowerCase());
+                  }).toList();
 
-          int cmpName(Map<String, dynamic> a, Map<String, dynamic> b) =>
-              (a['name'] ?? '').toString().toLowerCase().compareTo(
-                (b['name'] ?? '').toString().toLowerCase(),
-              );
+            int cmpName(Map<String, dynamic> a, Map<String, dynamic> b) =>
+                (a['name'] ?? '').toString().toLowerCase().compareTo(
+                  (b['name'] ?? '').toString().toLowerCase(),
+                );
 
-          int cmpDate(Map<String, dynamic> a, Map<String, dynamic> b) {
-            final ta =
-                (a['createdAt'] as Timestamp?)?.toDate() ?? DateTime(1970);
-            final tb =
-                (b['createdAt'] as Timestamp?)?.toDate() ?? DateTime(1970);
-            return ta.compareTo(tb);
-          }
+            int cmpDate(Map<String, dynamic> a, Map<String, dynamic> b) {
+              final ta =
+                  (a['createdAt'] as Timestamp?)?.toDate() ?? DateTime(1970);
+              final tb =
+                  (b['createdAt'] as Timestamp?)?.toDate() ?? DateTime(1970);
+              return ta.compareTo(tb);
+            }
 
-          switch (_sortMode) {
-            case SortMode.nameAZ:
-              filtered.sort(
-                (x, y) => cmpName(
-                  x.data()! as Map<String, dynamic>,
-                  y.data()! as Map<String, dynamic>,
-                ),
-              );
-              break;
-            case SortMode.nameZA:
-              filtered.sort(
-                (x, y) => cmpName(
-                  y.data()! as Map<String, dynamic>,
-                  x.data()! as Map<String, dynamic>,
-                ),
-              );
-              break;
-            case SortMode.oldest:
-              filtered.sort(
-                (x, y) => cmpDate(
-                  x.data()! as Map<String, dynamic>,
-                  y.data()! as Map<String, dynamic>,
-                ),
-              );
-              break;
-            case SortMode.newest:
-              filtered.sort(
-                (x, y) => cmpDate(
-                  y.data()! as Map<String, dynamic>,
-                  x.data()! as Map<String, dynamic>,
-                ),
-              );
-              break;
-          }
-
-          return ListView.separated(
-            itemCount: filtered.length,
-            separatorBuilder: (_, __) => const Divider(height: 1),
-            itemBuilder: (ctx, i) {
-              final doc = filtered[i];
-              final data = doc.data()! as Map<String, dynamic>;
-              final ts = data['createdAt'] as Timestamp?;
-              final dateStr = ts != null
-                  ? DateFormat(
-                      'dd.MM.yyyy • HH:mm',
-                      'pl_PL',
-                    ).format(ts.toDate().toLocal())
-                  : '';
-
-              return ListTile(
-                title: Text(data['name'] ?? '—'),
-                subtitle: ts != null ? Text(dateStr) : null,
-                onTap: () => Navigator.of(context).push(
-                  MaterialPageRoute(
-                    builder: (_) => CustomerDetailScreen(
-                      customerId: doc.id,
-                      isAdmin: widget.isAdmin,
-                    ),
+            switch (_sortMode) {
+              case SortMode.nameAZ:
+                filtered.sort(
+                  (x, y) => cmpName(
+                    x.data()! as Map<String, dynamic>,
+                    y.data()! as Map<String, dynamic>,
                   ),
-                ),
+                );
+                break;
+              case SortMode.nameZA:
+                filtered.sort(
+                  (x, y) => cmpName(
+                    y.data()! as Map<String, dynamic>,
+                    x.data()! as Map<String, dynamic>,
+                  ),
+                );
+                break;
+              case SortMode.oldest:
+                filtered.sort(
+                  (x, y) => cmpDate(
+                    x.data()! as Map<String, dynamic>,
+                    y.data()! as Map<String, dynamic>,
+                  ),
+                );
+                break;
+              case SortMode.newest:
+                filtered.sort(
+                  (x, y) => cmpDate(
+                    y.data()! as Map<String, dynamic>,
+                    x.data()! as Map<String, dynamic>,
+                  ),
+                );
+                break;
+            }
 
-                trailing: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    IconButton(
-                      icon: Icon(
-                        _favCustomerIds.contains(doc.id)
-                            ? Icons.star
-                            : Icons.star_border,
-                        color: Colors.amber,
-                      ),
-                      tooltip: _favCustomerIds.contains(doc.id)
-                          ? 'Usuń z ulubionych'
-                          : 'Dodaj do ulubionych',
-                      onPressed: () =>
-                          _toggleFavouriteCustomer(doc.id, data['name'] ?? ''),
-                    ),
-                    FutureBuilder<QuerySnapshot>(
-                      future: _col.doc(doc.id).collection('projects').get(),
-                      builder: (ctx2, snap2) {
-                        if (snap2.connectionState == ConnectionState.waiting) {
-                          return const SizedBox(
-                            width: 24,
-                            height: 24,
-                            child: CircularProgressIndicator(strokeWidth: 2),
-                          );
-                        }
-                        final count = snap2.data?.docs.length ?? 0;
-                        return Container(
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 8,
-                            vertical: 4,
-                          ),
-                          decoration: BoxDecoration(
-                            color: Colors.grey,
-                            borderRadius: BorderRadius.circular(12),
-                          ),
-                          child: Text(
-                            'P: $count',
-                            style: const TextStyle(
-                              fontSize: 12,
-                              color: Colors.white,
+            return NotificationListener<ScrollNotification>(
+              onNotification: (notif) {
+                if (notif is ScrollStartNotification) {
+                  FocusScope.of(context).unfocus();
+                }
+                return false;
+              },
+              child: ListView.separated(
+                keyboardDismissBehavior:
+                    ScrollViewKeyboardDismissBehavior.onDrag,
+                itemCount: filtered.length,
+                separatorBuilder: (_, __) => const Divider(height: 1),
+                itemBuilder: (ctx, i) {
+                  final doc = filtered[i];
+                  final data = doc.data()! as Map<String, dynamic>;
+                  final ts = data['createdAt'] as Timestamp?;
+                  final dateStr = ts != null
+                      ? DateFormat(
+                          'dd.MM.yyyy • HH:mm',
+                          'pl_PL',
+                        ).format(ts.toDate().toLocal())
+                      : '';
+                  final contactId = (data['contactId'] as String?)?.trim();
+
+                  return ListTile(
+                    title: Text(data['name'] ?? '—'),
+                    subtitle: ts != null ? Text(dateStr) : null,
+                    onTap: () {
+                      if (contactId != null && contactId.isNotEmpty) {
+                        Navigator.of(context).push(
+                          MaterialPageRoute(
+                            builder: (_) => ContactDetailScreen(
+                              contactId: contactId,
+                              isAdmin: widget.isAdmin,
                             ),
                           ),
                         );
-                      },
-                    ),
-                    if (isAdmin) ...[
-                      const SizedBox(width: 8),
-                      IconButton(
-                        icon: const Icon(Icons.delete, color: Colors.red),
-                        tooltip: 'Usuń klienta',
-                        onPressed: () async {
-                          final ok = await showDialog<bool>(
-                            context: context,
-                            builder: (ctx) => AlertDialog(
-                              title: const Text('Usuń klienta?'),
-                              content: Text(
-                                'Na pewno usunąć klienta "${data['name']}" i związany projekty?',
-                              ),
-                              actions: [
-                                TextButton(
-                                  onPressed: () => Navigator.pop(ctx, false),
-                                  child: const Text('Anuluj'),
-                                ),
-                                ElevatedButton(
-                                  style: ElevatedButton.styleFrom(
-                                    backgroundColor: Colors.red,
-                                  ),
-                                  onPressed: () => Navigator.pop(ctx, true),
-                                  child: const Text('Usuń'),
-                                ),
-                              ],
+                      } else {
+                        Navigator.of(context).push(
+                          MaterialPageRoute(
+                            builder: (_) => CustomerDetailScreen(
+                              customerId: doc.id,
+                              isAdmin: widget.isAdmin,
                             ),
-                          );
-                          if (ok == true) {
-                            await _col.doc(doc.id).delete();
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              SnackBar(
-                                content: Text(
-                                  'Klient "${data['name']}" usunięty',
+                          ),
+                        );
+                      }
+                    },
+
+                    trailing: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        IconButton(
+                          icon: Icon(
+                            _favCustomerIds.contains(doc.id)
+                                ? Icons.star
+                                : Icons.star_border,
+                            color: Colors.amber,
+                          ),
+                          tooltip: _favCustomerIds.contains(doc.id)
+                              ? 'Usuń z ulubionych'
+                              : 'Dodaj do ulubionych',
+                          onPressed: () => _toggleFavouriteCustomer(
+                            doc.id,
+                            data['name'] ?? '',
+                          ),
+                        ),
+                        FutureBuilder<QuerySnapshot>(
+                          future: _col.doc(doc.id).collection('projects').get(),
+                          builder: (ctx2, snap2) {
+                            if (snap2.connectionState ==
+                                ConnectionState.waiting) {
+                              return const SizedBox(
+                                width: 24,
+                                height: 24,
+                                child: CircularProgressIndicator(
+                                  strokeWidth: 2,
+                                ),
+                              );
+                            }
+                            final count = snap2.data?.docs.length ?? 0;
+                            return Container(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 8,
+                                vertical: 4,
+                              ),
+                              decoration: BoxDecoration(
+                                color: Colors.grey,
+                                borderRadius: BorderRadius.circular(12),
+                              ),
+                              child: Text(
+                                'P: $count',
+                                style: const TextStyle(
+                                  fontSize: 12,
+                                  color: Colors.white,
                                 ),
                               ),
                             );
-                          }
-                        },
-                      ),
-                    ],
-                  ],
-                ),
-              );
-            },
-          );
-        },
-      ),
-      // floatingActionButton: FloatingActionButton(
-      //   tooltip: 'Dodaj Klienta',
-      //   onPressed: _addCustomer,
-      //   child: const Icon(Icons.person_add),
-      // ),
-      // floatingActionButtonLocation: FloatingActionButtonLocation.centerDocked,
-      // bottomNavigationBar: SafeArea(
-      //   child: BottomAppBar(
-      //     shape: const CircularNotchedRectangle(),
-      //     notchMargin: 6,
-      //     child: Padding(
-      //       padding: const EdgeInsets.symmetric(horizontal: 32),
-      //       child: Row(
-      //         mainAxisAlignment: MainAxisAlignment.spaceBetween,
-      //         children: [
-      //           IconButton(
-      //             tooltip: 'Kontakty',
-      //             icon: const Icon(Icons.contact_mail_outlined),
-      //             onPressed: () => Navigator.of(context).push(
-      //               MaterialPageRoute(builder: (_) => ContactsListScreen()),
-      //             ),
-      //           ),
+                          },
+                        ),
+                        if (isAdmin) ...[
+                          const SizedBox(width: 8),
+                          IconButton(
+                            icon: const Icon(Icons.delete, color: Colors.red),
+                            tooltip: 'Usuń klienta',
+                            onPressed: () async {
+                              final ok = await showDialog<bool>(
+                                context: context,
+                                builder: (ctx) => AlertDialog(
+                                  title: const Text('Usuń klienta?'),
+                                  content: Text(
+                                    'Na pewno usunąć klienta "${data['name']}" i związany projekty?',
+                                  ),
+                                  actions: [
+                                    TextButton(
+                                      onPressed: () =>
+                                          Navigator.pop(ctx, false),
+                                      child: const Text('Anuluj'),
+                                    ),
+                                    ElevatedButton(
+                                      style: ElevatedButton.styleFrom(
+                                        backgroundColor: Colors.red,
+                                      ),
+                                      onPressed: () => Navigator.pop(ctx, true),
+                                      child: const Text('Usuń'),
+                                    ),
+                                  ],
+                                ),
+                              );
+                              if (ok == true) {
+                                await _col.doc(doc.id).delete();
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  SnackBar(
+                                    content: Text(
+                                      'Klient "${data['name']}" usunięty',
+                                    ),
+                                  ),
+                                );
+                              }
+                            },
+                          ),
+                        ],
+                      ],
+                    ),
+                  );
+                },
+              ),
+            );
+          },
+        ),
+        // floatingActionButton: FloatingActionButton(
+        //   tooltip: 'Dodaj Klienta',
+        //   onPressed: _addCustomer,
+        //   child: const Icon(Icons.person_add),
+        // ),
+        // floatingActionButtonLocation: FloatingActionButtonLocation.centerDocked,
+        // bottomNavigationBar: SafeArea(
+        //   child: BottomAppBar(
+        //     shape: const CircularNotchedRectangle(),
+        //     notchMargin: 6,
+        //     child: Padding(
+        //       padding: const EdgeInsets.symmetric(horizontal: 32),
+        //       child: Row(
+        //         mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        //         children: [
+        //           IconButton(
+        //             tooltip: 'Kontakty',
+        //             icon: const Icon(Icons.contact_mail_outlined),
+        //             onPressed: () => Navigator.of(context).push(
+        //               MaterialPageRoute(builder: (_) => ContactsListScreen()),
+        //             ),
+        //           ),
 
-      //           // IconButton(
-      //           //   tooltip: 'Edytuj klientów',
-      //           //   icon: const Icon(Icons.edit),
-      //           //   onPressed: _editCustomers,
-      //           // ),
-      //           IconButton(
-      //             tooltip: 'Skanuj',
-      //             icon: const Icon(Icons.qr_code_scanner),
-      //             onPressed: () => Navigator.of(
-      //               context,
-      //             ).push(MaterialPageRoute(builder: (_) => const ScanScreen())),
-      //           ),
-      //         ],
-      //       ),
-      //     ),
-      //   ),
-      // ),
+        //           // IconButton(
+        //           //   tooltip: 'Edytuj klientów',
+        //           //   icon: const Icon(Icons.edit),
+        //           //   onPressed: _editCustomers,
+        //           // ),
+        //           IconButton(
+        //             tooltip: 'Skanuj',
+        //             icon: const Icon(Icons.qr_code_scanner),
+        //             onPressed: () => Navigator.of(
+        //               context,
+        //             ).push(MaterialPageRoute(builder: (_) => const ScanScreen())),
+        //           ),
+        //         ],
+        //       ),
+        //     ),
+        //   ),
+        // ),
+      ),
     );
   }
 }

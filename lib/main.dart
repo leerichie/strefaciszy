@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_core/firebase_core.dart';
-// import 'package:firebase_app_check/firebase_app_check.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'widgets/web_scroll_behaviour.dart';
@@ -8,22 +7,35 @@ import 'firebase_options.dart';
 import 'screens/login_screen.dart';
 import 'screens/main_menu_screen.dart';
 
-Future<void> main() async {
+void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
-
-  // await FirebaseAppCheck.instance.activate(
-  //   androidProvider: AndroidProvider.debug,
-  //   appleProvider: AppleProvider.debug,
-  //   webProvider: ReCaptchaV3Provider(
-  //     '6LeBX2QrAAAAAKfgNEf1JLC7QO6fXdrLSbl2GsB3',
-  //   ),
-  // );
-
-  // final appCheckToken = await FirebaseAppCheck.instance.getToken(true);
-  // debugPrint('🔑 AppCheck debug token → $appCheckToken');
-
   runApp(const StrefaCiszyApp());
+}
+
+/// NavigatorObserver that hides the keyboard on route pushes/pops.
+class KeyboardHidingNavigatorObserver extends NavigatorObserver {
+  void _hideKeyboard() {
+    FocusManager.instance.primaryFocus?.unfocus();
+  }
+
+  @override
+  void didPush(Route<dynamic> route, Route<dynamic>? previousRoute) {
+    WidgetsBinding.instance.addPostFrameCallback((_) => _hideKeyboard());
+    super.didPush(route, previousRoute);
+  }
+
+  @override
+  void didPop(Route<dynamic> route, Route<dynamic>? previousRoute) {
+    WidgetsBinding.instance.addPostFrameCallback((_) => _hideKeyboard());
+    super.didPop(route, previousRoute);
+  }
+
+  @override
+  void didReplace({Route<dynamic>? newRoute, Route<dynamic>? oldRoute}) {
+    WidgetsBinding.instance.addPostFrameCallback((_) => _hideKeyboard());
+    super.didReplace(newRoute: newRoute, oldRoute: oldRoute);
+  }
 }
 
 class StrefaCiszyApp extends StatelessWidget {
@@ -42,6 +54,15 @@ class StrefaCiszyApp extends StatelessWidget {
         GlobalWidgetsLocalizations.delegate,
         GlobalCupertinoLocalizations.delegate,
       ],
+      navigatorObservers: [KeyboardHidingNavigatorObserver()],
+      builder: (context, child) {
+        // Global tap handler to unfocus text fields when tapping outside.
+        return GestureDetector(
+          behavior: HitTestBehavior.translucent,
+          onTap: () => FocusScope.of(context).unfocus(),
+          child: child,
+        );
+      },
       home: const AuthGate(),
     );
   }

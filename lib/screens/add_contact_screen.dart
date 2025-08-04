@@ -9,6 +9,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:intl/intl.dart';
 import 'package:strefa_ciszy/screens/customer_detail_screen.dart';
+import 'package:strefa_ciszy/utils/keyboard_utils.dart';
 import 'package:strefa_ciszy/widgets/app_scaffold.dart';
 import 'project_editor_screen.dart';
 
@@ -700,340 +701,351 @@ class _AddContactScreenState extends State<AddContactScreen> {
 
         body: _loading
             ? const Center(child: CircularProgressIndicator())
-            : SingleChildScrollView(
-                child: Padding(
-                  padding: const EdgeInsets.all(16),
-                  child: Form(
-                    key: _formKey,
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.stretch,
-                      children: [
-                        // === Avatar Picker (always) ===
-                        GestureDetector(
-                          onTap: _pickImage,
-                          child: CircleAvatar(
-                            radius: 48,
-                            backgroundImage: _imageData != null
-                                ? MemoryImage(_imageData!)
-                                : (_existingPhotoUrl != null
-                                          ? NetworkImage(_existingPhotoUrl!)
-                                          : null)
-                                      as ImageProvider?,
-                            child:
-                                _imageData == null && _existingPhotoUrl == null
-                                ? const Icon(Icons.camera_alt, size: 48)
-                                : null,
+            : DismissKeyboard(
+                child: SingleChildScrollView(
+                  keyboardDismissBehavior:
+                      ScrollViewKeyboardDismissBehavior.onDrag,
+                  child: Padding(
+                    padding: const EdgeInsets.all(16),
+                    child: Form(
+                      key: _formKey,
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: [
+                          // === Avatar Picker (always) ===
+                          GestureDetector(
+                            onTap: _pickImage,
+                            child: CircleAvatar(
+                              radius: 48,
+                              backgroundImage: _imageData != null
+                                  ? MemoryImage(_imageData!)
+                                  : (_existingPhotoUrl != null
+                                            ? NetworkImage(_existingPhotoUrl!)
+                                            : null)
+                                        as ImageProvider?,
+                              child:
+                                  _imageData == null &&
+                                      _existingPhotoUrl == null
+                                  ? const Icon(Icons.camera_alt, size: 48)
+                                  : null,
+                            ),
                           ),
-                        ),
-                        const SizedBox(height: 16),
+                          const SizedBox(height: 16),
 
-                        // === Typ Kontaktu (hide on add client) ===
-                        if (!_isPrimaryContact && !_isNewClient) ...[
-                          Row(
-                            children: [
-                              Expanded(
-                                child: DropdownButtonFormField<String>(
-                                  value: _categories.contains(_category)
-                                      ? _category
-                                      : null,
-                                  decoration: const InputDecoration(
-                                    labelText: 'Typ kontaktu',
-                                  ),
-                                  items: _categories
-                                      .map(
-                                        (c) => DropdownMenuItem(
-                                          value: c,
-                                          child: Text(c),
-                                        ),
-                                      )
-                                      .toList(),
-                                  onChanged: (v) {
-                                    setState(() => _category = v);
-                                    _scheduleAutoSave();
-                                  },
-                                  validator: (v) => v == null || v.isEmpty
-                                      ? 'Wybierz...'
-                                      : null,
-                                ),
-                              ),
-                              IconButton(
-                                icon: const Icon(Icons.add_circle_outline),
-                                tooltip: 'Dodaj typ',
-                                onPressed: _addCategory,
-                              ),
-                            ],
-                          ),
-                          const SizedBox(height: 12),
-                        ],
-
-                        // === Assign to project
-                        if (widget.linkedCustomerId == null) ...[
-                          _projectsLoading
-                              ? const Center(child: CircularProgressIndicator())
-                              : DropdownButtonFormField<String>(
-                                  decoration: const InputDecoration(
-                                    labelText: 'Przypisz do projektu',
-                                  ),
-                                  value: _selectedProjectId,
-                                  items: [
-                                    const DropdownMenuItem(
-                                      value: null,
-                                      child: Text('Nie'),
-                                    ),
-                                    ..._allProjects.map((doc) {
-                                      final data = doc.data();
-                                      final title =
-                                          data['title'] as String? ?? '';
-                                      return DropdownMenuItem(
-                                        value: doc.id,
-                                        child: Text(title),
-                                      );
-                                    }),
-                                  ],
-                                  onChanged: (projId) {
-                                    setState(() {
-                                      _selectedProjectId = projId;
-                                      if (projId != null) {
-                                        final projData = _allProjects
-                                            .firstWhere((d) => d.id == projId)
-                                            .data();
-                                        _customerId =
-                                            projData['customerId'] as String?;
-                                      }
-                                    });
-                                  },
-                                ),
-                          const SizedBox(height: 12),
-                        ],
-
-                        // === Name Field (always) ===
-                        if (widget.contactId == null) ...[
-                          Autocomplete<String>(
-                            optionsBuilder: (TextEditingValue txt) {
-                              if (txt.text.isEmpty) return const [];
-                              return _customerNames.where(
-                                (name) => name.toLowerCase().contains(
-                                  txt.text.toLowerCase(),
-                                ),
-                              );
-                            },
-                            onSelected: (selection) {
-                              _nameCtrl.text = selection;
-                              final doc = _customerDocs.firstWhere(
-                                (d) => (d.data())['name'] == selection,
-                              );
-                              _selectedCustomerId = doc.id;
-                              _scheduleAutoSave();
-                            },
-                            fieldViewBuilder:
-                                (context, controller, focusNode, _) {
-                                  controller.text = _nameCtrl.text;
-                                  controller.selection =
-                                      TextSelection.fromPosition(
-                                        TextPosition(
-                                          offset: controller.text.length,
-                                        ),
-                                      );
-                                  controller.addListener(() {
-                                    _nameCtrl.text = controller.text;
-                                    _scheduleAutoSave();
-                                  });
-                                  return TextFormField(
-                                    controller: controller,
-                                    focusNode: focusNode,
-                                    decoration: const InputDecoration(
-                                      labelText: 'Imię i Nazwisko',
-                                    ),
-                                    validator: (v) =>
-                                        v == null || v.trim().isEmpty
-                                        ? 'Wpisz nazwa'
+                          // === Typ Kontaktu (hide on add client) ===
+                          if (!_isPrimaryContact && !_isNewClient) ...[
+                            Row(
+                              children: [
+                                Expanded(
+                                  child: DropdownButtonFormField<String>(
+                                    value: _categories.contains(_category)
+                                        ? _category
                                         : null,
-                                  );
-                                },
-                          ),
-                        ] else ...[
-                          TextFormField(
-                            controller: _nameCtrl,
-                            decoration: const InputDecoration(
-                              labelText: 'Imię i Nazwisko',
-                            ),
-                            validator: (v) => v == null || v.trim().isEmpty
-                                ? 'Wpisz nazwa'
-                                : null,
-                            onChanged: (_) => _scheduleAutoSave(),
-                          ),
-                        ],
-                        const SizedBox(height: 12),
-
-                        // === Telefon (always) ===
-                        TextFormField(
-                          controller: _phoneCtrl,
-                          decoration: const InputDecoration(
-                            labelText: 'Telefon',
-                          ),
-                          keyboardType: TextInputType.phone,
-                          validator: (v) => v == null || v.trim().isEmpty
-                              ? 'Wpisz numer'
-                              : null,
-                          onChanged: (_) => _scheduleAutoSave(),
-                        ),
-                        const SizedBox(height: 12),
-
-                        // === Email (always) ===
-                        TextFormField(
-                          controller: _emailCtrl,
-                          decoration: const InputDecoration(labelText: 'Email'),
-                          keyboardType: TextInputType.emailAddress,
-                          validator: (v) => v == null || v.trim().isEmpty
-                              ? 'Wpisz email'
-                              : null,
-                          onChanged: (_) => _scheduleAutoSave(),
-                        ),
-                        const SizedBox(height: 12),
-
-                        // === Dropdown extras ===
-                        DropdownButtonFormField<String>(
-                          key: ValueKey(_availableExtraFields.length),
-                          value: null,
-                          decoration: const InputDecoration(
-                            labelText: 'Dodaj pole...',
-                          ),
-                          items: _availableExtraFields
-                              .map(
-                                (f) =>
-                                    DropdownMenuItem(value: f, child: Text(f)),
-                              )
-                              .toList(),
-                          onChanged: (f) {
-                            if (f == null) return;
-                            setState(() {
-                              _addedExtraFields.add(f);
-                              _availableExtraFields.remove(f);
-                            });
-                          },
-                        ),
-
-                        // === Render any extra fields the user added ===
-                        for (var field in _addedExtraFields) ...[
-                          if (field == 'Drugi numer') ...[
-                            TextFormField(
-                              controller: _secondPhoneCtrl,
-                              decoration: const InputDecoration(
-                                labelText: 'Drugi numer',
-                              ),
-                              keyboardType: TextInputType.phone,
-                              onChanged: (_) => _scheduleAutoSave(),
-                            ),
-                            const SizedBox(height: 12),
-                          ] else if (field == 'Adres') ...[
-                            TextFormField(
-                              controller: _addressCtrl,
-                              decoration: const InputDecoration(
-                                labelText: 'Adres',
-                              ),
-                              onChanged: (_) => _scheduleAutoSave(),
-                            ),
-                            const SizedBox(height: 12),
-                          ] else if (field == 'WWW') ...[
-                            TextFormField(
-                              controller: _websiteCtrl,
-                              decoration: const InputDecoration(
-                                labelText: 'WWW',
-                              ),
-                              keyboardType: TextInputType.url,
-                              onChanged: (_) => _scheduleAutoSave(),
-                            ),
-                            const SizedBox(height: 12),
-                          ] else if (field == 'Notatka') ...[
-                            TextFormField(
-                              controller: _noteCtrl,
-                              decoration: const InputDecoration(
-                                labelText: 'Notatka',
-                                alignLabelWithHint: true,
-                              ),
-                              minLines: 1,
-                              maxLines: 4,
-                              onChanged: (_) => _scheduleAutoSave(),
+                                    decoration: const InputDecoration(
+                                      labelText: 'Typ kontaktu',
+                                    ),
+                                    items: _categories
+                                        .map(
+                                          (c) => DropdownMenuItem(
+                                            value: c,
+                                            child: Text(c),
+                                          ),
+                                        )
+                                        .toList(),
+                                    onChanged: (v) {
+                                      setState(() => _category = v);
+                                      _scheduleAutoSave();
+                                    },
+                                    validator: (v) => v == null || v.isEmpty
+                                        ? 'Wybierz...'
+                                        : null,
+                                  ),
+                                ),
+                                IconButton(
+                                  icon: const Icon(Icons.add_circle_outline),
+                                  tooltip: 'Dodaj typ',
+                                  onPressed: _addCategory,
+                                ),
+                              ],
                             ),
                             const SizedBox(height: 12),
                           ],
-                        ],
 
-                        const SizedBox(height: 24),
-
-                        if (!_isEditing && _customerId != null) ...[
-                          AutoSizeText(
-                            'Projekty',
-                            style: TextStyle(fontWeight: FontWeight.bold),
-                            minFontSize: 15,
-                            maxLines: 1,
-                          ),
-
-                          Divider(),
-                          StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
-                            stream: FirebaseFirestore.instance
-                                .collection('customers')
-                                .doc(_customerId)
-                                .collection('projects')
-                                .orderBy('createdAt', descending: true)
-                                .snapshots(),
-                            builder: (ctx, snap) {
-                              if (snap.connectionState ==
-                                  ConnectionState.waiting) {
-                                return const Padding(
-                                  padding: EdgeInsets.all(12),
-                                  child: Center(
-                                    child: CircularProgressIndicator(
-                                      strokeWidth: 2,
+                          // === Assign to project
+                          if (widget.linkedCustomerId == null) ...[
+                            _projectsLoading
+                                ? const Center(
+                                    child: CircularProgressIndicator(),
+                                  )
+                                : DropdownButtonFormField<String>(
+                                    decoration: const InputDecoration(
+                                      labelText: 'Przypisz do projektu',
                                     ),
+                                    value: _selectedProjectId,
+                                    items: [
+                                      const DropdownMenuItem(
+                                        value: null,
+                                        child: Text('Nie'),
+                                      ),
+                                      ..._allProjects.map((doc) {
+                                        final data = doc.data();
+                                        final title =
+                                            data['title'] as String? ?? '';
+                                        return DropdownMenuItem(
+                                          value: doc.id,
+                                          child: Text(title),
+                                        );
+                                      }),
+                                    ],
+                                    onChanged: (projId) {
+                                      setState(() {
+                                        _selectedProjectId = projId;
+                                        if (projId != null) {
+                                          final projData = _allProjects
+                                              .firstWhere((d) => d.id == projId)
+                                              .data();
+                                          _customerId =
+                                              projData['customerId'] as String?;
+                                        }
+                                      });
+                                    },
+                                  ),
+                            const SizedBox(height: 12),
+                          ],
+
+                          // === Name Field (always) ===
+                          if (widget.contactId == null) ...[
+                            Autocomplete<String>(
+                              optionsBuilder: (TextEditingValue txt) {
+                                if (txt.text.isEmpty) return const [];
+                                return _customerNames.where(
+                                  (name) => name.toLowerCase().contains(
+                                    txt.text.toLowerCase(),
                                   ),
                                 );
-                              }
-                              if (snap.hasError) {
-                                return Text('Error: ${snap.error}');
-                              }
-                              final docs = snap.data?.docs ?? [];
-                              if (docs.isEmpty) {
-                                return const Text('Brak projektów.');
-                              }
-                              return ListView.separated(
-                                shrinkWrap: true,
-                                physics: const NeverScrollableScrollPhysics(),
-                                itemCount: docs.length,
-                                separatorBuilder: (_, __) =>
-                                    const Divider(height: 1),
-                                itemBuilder: (_, i) {
-                                  final d = docs[i];
-                                  final data = d.data();
-                                  return ListTile(
-                                    title: Text(data['title'] ?? '—'),
-                                    subtitle: Text(
-                                      DateFormat(
-                                        'dd.MM.yyyy • HH:mm',
-                                        'pl_PL',
-                                      ).format(
-                                        (data['createdAt'] as Timestamp)
-                                            .toDate()
-                                            .toLocal(),
+                              },
+                              onSelected: (selection) {
+                                _nameCtrl.text = selection;
+                                final doc = _customerDocs.firstWhere(
+                                  (d) => (d.data())['name'] == selection,
+                                );
+                                _selectedCustomerId = doc.id;
+                                _scheduleAutoSave();
+                              },
+                              fieldViewBuilder:
+                                  (context, controller, focusNode, _) {
+                                    controller.text = _nameCtrl.text;
+                                    controller.selection =
+                                        TextSelection.fromPosition(
+                                          TextPosition(
+                                            offset: controller.text.length,
+                                          ),
+                                        );
+                                    controller.addListener(() {
+                                      _nameCtrl.text = controller.text;
+                                      _scheduleAutoSave();
+                                    });
+                                    return TextFormField(
+                                      controller: controller,
+                                      focusNode: focusNode,
+                                      decoration: const InputDecoration(
+                                        labelText: 'Imię i Nazwisko',
                                       ),
-                                    ),
-                                    onTap: () => Navigator.of(context).push(
-                                      MaterialPageRoute(
-                                        builder: (_) => ProjectEditorScreen(
-                                          customerId: _customerId!,
-                                          projectId: d.id,
-                                          isAdmin: widget.isAdmin,
-                                        ),
+                                      validator: (v) =>
+                                          v == null || v.trim().isEmpty
+                                          ? 'Wpisz nazwa'
+                                          : null,
+                                    );
+                                  },
+                            ),
+                          ] else ...[
+                            TextFormField(
+                              controller: _nameCtrl,
+                              decoration: const InputDecoration(
+                                labelText: 'Imię i Nazwisko',
+                              ),
+                              validator: (v) => v == null || v.trim().isEmpty
+                                  ? 'Wpisz nazwa'
+                                  : null,
+                              onChanged: (_) => _scheduleAutoSave(),
+                            ),
+                          ],
+                          const SizedBox(height: 12),
+
+                          // === Telefon (always) ===
+                          TextFormField(
+                            controller: _phoneCtrl,
+                            decoration: const InputDecoration(
+                              labelText: 'Telefon',
+                            ),
+                            keyboardType: TextInputType.phone,
+                            validator: (v) => v == null || v.trim().isEmpty
+                                ? 'Wpisz numer'
+                                : null,
+                            onChanged: (_) => _scheduleAutoSave(),
+                          ),
+                          const SizedBox(height: 12),
+
+                          // === Email (always) ===
+                          TextFormField(
+                            controller: _emailCtrl,
+                            decoration: const InputDecoration(
+                              labelText: 'Email',
+                            ),
+                            keyboardType: TextInputType.emailAddress,
+                            validator: (v) => v == null || v.trim().isEmpty
+                                ? 'Wpisz email'
+                                : null,
+                            onChanged: (_) => _scheduleAutoSave(),
+                          ),
+                          const SizedBox(height: 12),
+
+                          // === Dropdown extras ===
+                          DropdownButtonFormField<String>(
+                            key: ValueKey(_availableExtraFields.length),
+                            value: null,
+                            decoration: const InputDecoration(
+                              labelText: 'Dodaj pole...',
+                            ),
+                            items: _availableExtraFields
+                                .map(
+                                  (f) => DropdownMenuItem(
+                                    value: f,
+                                    child: Text(f),
+                                  ),
+                                )
+                                .toList(),
+                            onChanged: (f) {
+                              if (f == null) return;
+                              setState(() {
+                                _addedExtraFields.add(f);
+                                _availableExtraFields.remove(f);
+                              });
+                            },
+                          ),
+
+                          // === Render any extra fields the user added ===
+                          for (var field in _addedExtraFields) ...[
+                            if (field == 'Drugi numer') ...[
+                              TextFormField(
+                                controller: _secondPhoneCtrl,
+                                decoration: const InputDecoration(
+                                  labelText: 'Drugi numer',
+                                ),
+                                keyboardType: TextInputType.phone,
+                                onChanged: (_) => _scheduleAutoSave(),
+                              ),
+                              const SizedBox(height: 12),
+                            ] else if (field == 'Adres') ...[
+                              TextFormField(
+                                controller: _addressCtrl,
+                                decoration: const InputDecoration(
+                                  labelText: 'Adres',
+                                ),
+                                onChanged: (_) => _scheduleAutoSave(),
+                              ),
+                              const SizedBox(height: 12),
+                            ] else if (field == 'WWW') ...[
+                              TextFormField(
+                                controller: _websiteCtrl,
+                                decoration: const InputDecoration(
+                                  labelText: 'WWW',
+                                ),
+                                keyboardType: TextInputType.url,
+                                onChanged: (_) => _scheduleAutoSave(),
+                              ),
+                              const SizedBox(height: 12),
+                            ] else if (field == 'Notatka') ...[
+                              TextFormField(
+                                controller: _noteCtrl,
+                                decoration: const InputDecoration(
+                                  labelText: 'Notatka',
+                                  alignLabelWithHint: true,
+                                ),
+                                minLines: 1,
+                                maxLines: 4,
+                                onChanged: (_) => _scheduleAutoSave(),
+                              ),
+                              const SizedBox(height: 12),
+                            ],
+                          ],
+
+                          const SizedBox(height: 24),
+
+                          if (!_isEditing && _customerId != null) ...[
+                            AutoSizeText(
+                              'Projekty',
+                              style: TextStyle(fontWeight: FontWeight.bold),
+                              minFontSize: 15,
+                              maxLines: 1,
+                            ),
+
+                            Divider(),
+                            StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
+                              stream: FirebaseFirestore.instance
+                                  .collection('customers')
+                                  .doc(_customerId)
+                                  .collection('projects')
+                                  .orderBy('createdAt', descending: true)
+                                  .snapshots(),
+                              builder: (ctx, snap) {
+                                if (snap.connectionState ==
+                                    ConnectionState.waiting) {
+                                  return const Padding(
+                                    padding: EdgeInsets.all(12),
+                                    child: Center(
+                                      child: CircularProgressIndicator(
+                                        strokeWidth: 2,
                                       ),
                                     ),
                                   );
-                                },
-                              );
-                            },
-                          ),
-                          const SizedBox(height: 80),
+                                }
+                                if (snap.hasError) {
+                                  return Text('Error: ${snap.error}');
+                                }
+                                final docs = snap.data?.docs ?? [];
+                                if (docs.isEmpty) {
+                                  return const Text('Brak projektów.');
+                                }
+                                return ListView.separated(
+                                  shrinkWrap: true,
+                                  physics: const NeverScrollableScrollPhysics(),
+                                  itemCount: docs.length,
+                                  separatorBuilder: (_, __) =>
+                                      const Divider(height: 1),
+                                  itemBuilder: (_, i) {
+                                    final d = docs[i];
+                                    final data = d.data();
+                                    return ListTile(
+                                      title: Text(data['title'] ?? '—'),
+                                      subtitle: Text(
+                                        DateFormat(
+                                          'dd.MM.yyyy • HH:mm',
+                                          'pl_PL',
+                                        ).format(
+                                          (data['createdAt'] as Timestamp)
+                                              .toDate()
+                                              .toLocal(),
+                                        ),
+                                      ),
+                                      onTap: () => Navigator.of(context).push(
+                                        MaterialPageRoute(
+                                          builder: (_) => ProjectEditorScreen(
+                                            customerId: _customerId!,
+                                            projectId: d.id,
+                                            isAdmin: widget.isAdmin,
+                                          ),
+                                        ),
+                                      ),
+                                    );
+                                  },
+                                );
+                              },
+                            ),
+                            const SizedBox(height: 80),
+                          ],
                         ],
-                      ],
+                      ),
                     ),
                   ),
                 ),

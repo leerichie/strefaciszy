@@ -5,6 +5,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
+import 'package:strefa_ciszy/utils/keyboard_utils.dart';
 import 'package:strefa_ciszy/widgets/app_scaffold.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:strefa_ciszy/screens/add_contact_screen.dart';
@@ -81,76 +82,79 @@ class _ContactDetailScreenState extends State<ContactDetailScreen> {
       builder: (ctx) => StatefulBuilder(
         builder: (ctx, setState) => AlertDialog(
           title: Text(projectId == null ? 'Nowy Projekt' : 'Edytuj Projekt'),
-          content: SingleChildScrollView(
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                TextField(
-                  controller: titleCtrl,
-                  decoration: const InputDecoration(
-                    labelText: 'Nazwa projektu',
+          content: DismissKeyboard(
+            child: SingleChildScrollView(
+              padding: const EdgeInsets.all(16.0),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  TextField(
+                    controller: titleCtrl,
+                    decoration: const InputDecoration(
+                      labelText: 'Nazwa projektu',
+                    ),
                   ),
-                ),
-                const SizedBox(height: 8),
-                Row(
-                  children: [
-                    Expanded(
-                      child: Text(
-                        startDate == null
-                            ? 'Data rozpoczęcia'
-                            : DateFormat('dd.MM.yyyy').format(startDate!),
+                  const SizedBox(height: 8),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: Text(
+                          startDate == null
+                              ? 'Data rozpoczęcia'
+                              : DateFormat('dd.MM.yyyy').format(startDate!),
+                        ),
                       ),
-                    ),
-                    TextButton(
-                      onPressed: () async {
-                        final dt = await showDatePicker(
-                          context: ctx,
-                          initialDate: startDate ?? DateTime.now(),
-                          firstDate: DateTime(2000),
-                          lastDate: DateTime(2100),
-                          locale: const Locale('pl', 'PL'),
-                        );
-                        if (dt != null) setState(() => startDate = dt);
-                      },
-                      child: const Text('Wybierz'),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 8),
-                Row(
-                  children: [
-                    Expanded(
-                      child: Text(
-                        endDate == null
-                            ? 'Data zakończenie'
-                            : DateFormat('dd.MM.yyyy').format(endDate!),
+                      TextButton(
+                        onPressed: () async {
+                          final dt = await showDatePicker(
+                            context: ctx,
+                            initialDate: startDate ?? DateTime.now(),
+                            firstDate: DateTime(2000),
+                            lastDate: DateTime(2100),
+                            locale: const Locale('pl', 'PL'),
+                          );
+                          if (dt != null) setState(() => startDate = dt);
+                        },
+                        child: const Text('Wybierz'),
                       ),
-                    ),
-                    TextButton(
-                      onPressed: () async {
-                        final dt = await showDatePicker(
-                          context: ctx,
-                          initialDate: endDate ?? DateTime.now(),
-                          firstDate: DateTime(2000),
-                          lastDate: DateTime(2100),
-                          locale: const Locale('pl', 'PL'),
-                        );
-                        if (dt != null) setState(() => endDate = dt);
-                      },
-                      child: const Text('Wybierz'),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 8),
-                TextField(
-                  controller: costCtrl,
-                  decoration: const InputDecoration(
-                    labelText: 'Oszacowany koszt',
-                    prefixText: 'PLN ',
+                    ],
                   ),
-                  keyboardType: TextInputType.number,
-                ),
-              ],
+                  const SizedBox(height: 8),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: Text(
+                          endDate == null
+                              ? 'Data zakończenie'
+                              : DateFormat('dd.MM.yyyy').format(endDate!),
+                        ),
+                      ),
+                      TextButton(
+                        onPressed: () async {
+                          final dt = await showDatePicker(
+                            context: ctx,
+                            initialDate: endDate ?? DateTime.now(),
+                            firstDate: DateTime(2000),
+                            lastDate: DateTime(2100),
+                            locale: const Locale('pl', 'PL'),
+                          );
+                          if (dt != null) setState(() => endDate = dt);
+                        },
+                        child: const Text('Wybierz'),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 8),
+                  TextField(
+                    controller: costCtrl,
+                    decoration: const InputDecoration(
+                      labelText: 'Oszacowany koszt',
+                      prefixText: 'PLN ',
+                    ),
+                    keyboardType: TextInputType.number,
+                  ),
+                ],
+              ),
             ),
           ),
           actions: [
@@ -608,178 +612,193 @@ class _ContactDetailScreenState extends State<ContactDetailScreen> {
                                     return const Text('Brak projektów.');
                                   }
 
-                                  return ListView.separated(
-                                    shrinkWrap: true,
-                                    physics:
-                                        const NeverScrollableScrollPhysics(),
-                                    separatorBuilder: (_, __) =>
-                                        const Divider(),
-                                    itemCount: docs.length,
-                                    itemBuilder: (_, i) {
-                                      final d = docs[i];
-                                      final pm = d.data();
-                                      final title =
-                                          pm['title'] as String? ?? '—';
-                                      final dateText = formatTimestamp(
-                                        pm['createdAt'],
-                                      );
-                                      final isFav = _favProjectIds.contains(
-                                        d.id,
-                                      );
+                                  return NotificationListener<
+                                    ScrollNotification
+                                  >(
+                                    onNotification: (notif) {
+                                      if (notif is ScrollStartNotification) {
+                                        FocusScope.of(context).unfocus();
+                                      }
+                                      return false;
+                                    },
+                                    child: ListView.separated(
+                                      shrinkWrap: true,
+                                      physics:
+                                          const NeverScrollableScrollPhysics(),
+                                      keyboardDismissBehavior:
+                                          ScrollViewKeyboardDismissBehavior
+                                              .onDrag,
+                                      itemCount: docs.length,
+                                      separatorBuilder: (_, __) =>
+                                          const Divider(height: 1),
+                                      itemBuilder: (_, i) {
+                                        final d = docs[i];
+                                        final pm = d.data();
+                                        final title =
+                                            pm['title'] as String? ?? '—';
+                                        final dateText = formatTimestamp(
+                                          pm['createdAt'],
+                                        );
+                                        final isFav = _favProjectIds.contains(
+                                          d.id,
+                                        );
 
-                                      return ListTile(
-                                        contentPadding:
-                                            const EdgeInsets.symmetric(
-                                              horizontal: 16.0,
-                                            ),
-                                        title: Text(
-                                          title,
-                                          overflow: TextOverflow.ellipsis,
-                                        ),
-                                        subtitle: Text(dateText),
-                                        onTap: () => Navigator.of(context).push(
-                                          MaterialPageRoute(
-                                            builder: (_) => ProjectEditorScreen(
-                                              customerId: custId,
-                                              projectId: d.id,
-                                              isAdmin: widget.isAdmin,
-                                            ),
-                                          ),
-                                        ),
-                                        onLongPress: widget.isAdmin
-                                            ? () => _showProjectDialog(
-                                                context: context,
-                                                customerId: custId,
-                                                projectId: d.id,
-                                                existingData: pm,
-                                              )
-                                            : null,
-                                        trailing: Row(
-                                          mainAxisSize: MainAxisSize.min,
-                                          children: [
-                                            // ★ / ☆
-                                            IconButton(
-                                              icon: Icon(
-                                                isFav
-                                                    ? Icons.star
-                                                    : Icons.star_border,
-                                                color: Colors.amber,
+                                        return ListTile(
+                                          contentPadding:
+                                              const EdgeInsets.symmetric(
+                                                horizontal: 16.0,
                                               ),
-                                              onPressed: () =>
-                                                  _toggleFavouriteProjects(
-                                                    d.id,
-                                                    title,
-                                                    custId,
-                                                  ),
-                                            ),
-
-                                            // RW count badge
-                                            FutureBuilder<QuerySnapshot>(
-                                              future: d.reference
-                                                  .collection('rw_documents')
-                                                  .get(),
-                                              builder: (ctx2, s2) {
-                                                if (s2.connectionState ==
-                                                    ConnectionState.waiting) {
-                                                  return const SizedBox(
-                                                    width: 24,
-                                                    height: 24,
-                                                    child:
-                                                        CircularProgressIndicator(
-                                                          strokeWidth: 2,
-                                                        ),
-                                                  );
-                                                }
-                                                final cnt =
-                                                    s2.data?.docs.length ?? 0;
-                                                return Container(
-                                                  padding:
-                                                      const EdgeInsets.symmetric(
-                                                        horizontal: 8,
-                                                        vertical: 4,
+                                          title: Text(
+                                            title,
+                                            overflow: TextOverflow.ellipsis,
+                                          ),
+                                          subtitle: Text(dateText),
+                                          onTap: () =>
+                                              Navigator.of(context).push(
+                                                MaterialPageRoute(
+                                                  builder: (_) =>
+                                                      ProjectEditorScreen(
+                                                        customerId: custId,
+                                                        projectId: d.id,
+                                                        isAdmin: widget.isAdmin,
                                                       ),
-                                                  decoration: BoxDecoration(
-                                                    color: Colors.grey,
-                                                    borderRadius:
-                                                        BorderRadius.circular(
-                                                          12,
-                                                        ),
-                                                  ),
-                                                  child: Text(
-                                                    'RW: $cnt',
-                                                    style: const TextStyle(
-                                                      fontSize: 14,
-                                                      color: Colors.white,
-                                                    ),
-                                                  ),
-                                                );
-                                              },
-                                            ),
-
-                                            // delete
-                                            if (widget.isAdmin) ...[
-                                              const SizedBox(width: 8),
-                                              IconButton(
-                                                icon: const Icon(
-                                                  Icons.delete,
-                                                  color: Colors.red,
                                                 ),
-                                                onPressed: () async {
-                                                  final ok = await showDialog<bool>(
-                                                    context: context,
-                                                    builder: (ctx3) =>
-                                                        AlertDialog(
-                                                          title: const Text(
-                                                            'Usuń projekt?',
+                                              ),
+                                          onLongPress: widget.isAdmin
+                                              ? () => _showProjectDialog(
+                                                  context: context,
+                                                  customerId: custId,
+                                                  projectId: d.id,
+                                                  existingData: pm,
+                                                )
+                                              : null,
+                                          trailing: Row(
+                                            mainAxisSize: MainAxisSize.min,
+                                            children: [
+                                              // ★ / ☆
+                                              IconButton(
+                                                icon: Icon(
+                                                  isFav
+                                                      ? Icons.star
+                                                      : Icons.star_border,
+                                                  color: Colors.amber,
+                                                ),
+                                                onPressed: () =>
+                                                    _toggleFavouriteProjects(
+                                                      d.id,
+                                                      title,
+                                                      custId,
+                                                    ),
+                                              ),
+
+                                              // RW count badge
+                                              FutureBuilder<QuerySnapshot>(
+                                                future: d.reference
+                                                    .collection('rw_documents')
+                                                    .get(),
+                                                builder: (ctx2, s2) {
+                                                  if (s2.connectionState ==
+                                                      ConnectionState.waiting) {
+                                                    return const SizedBox(
+                                                      width: 24,
+                                                      height: 24,
+                                                      child:
+                                                          CircularProgressIndicator(
+                                                            strokeWidth: 2,
                                                           ),
-                                                          content: Text(title),
-                                                          actions: [
-                                                            TextButton(
-                                                              onPressed: () =>
-                                                                  Navigator.pop(
-                                                                    ctx3,
-                                                                    false,
-                                                                  ),
-                                                              child: const Text(
-                                                                'Anuluj',
-                                                              ),
-                                                            ),
-                                                            ElevatedButton(
-                                                              onPressed: () =>
-                                                                  Navigator.pop(
-                                                                    ctx3,
-                                                                    true,
-                                                                  ),
-                                                              child: const Text(
-                                                                'Usuń',
-                                                                style: TextStyle(
-                                                                  color: Colors
-                                                                      .red,
-                                                                ),
-                                                              ),
-                                                            ),
-                                                          ],
-                                                        ),
-                                                  );
-                                                  if (ok == true) {
-                                                    await d.reference.delete();
-                                                    ScaffoldMessenger.of(
-                                                      context,
-                                                    ).showSnackBar(
-                                                      const SnackBar(
-                                                        content: Text(
-                                                          'Projekt usunięty',
-                                                        ),
-                                                      ),
                                                     );
                                                   }
+                                                  final cnt =
+                                                      s2.data?.docs.length ?? 0;
+                                                  return Container(
+                                                    padding:
+                                                        const EdgeInsets.symmetric(
+                                                          horizontal: 8,
+                                                          vertical: 4,
+                                                        ),
+                                                    decoration: BoxDecoration(
+                                                      color: Colors.grey,
+                                                      borderRadius:
+                                                          BorderRadius.circular(
+                                                            12,
+                                                          ),
+                                                    ),
+                                                    child: Text(
+                                                      'RW: $cnt',
+                                                      style: const TextStyle(
+                                                        fontSize: 14,
+                                                        color: Colors.white,
+                                                      ),
+                                                    ),
+                                                  );
                                                 },
                                               ),
+
+                                              // delete
+                                              if (widget.isAdmin) ...[
+                                                const SizedBox(width: 8),
+                                                IconButton(
+                                                  icon: const Icon(
+                                                    Icons.delete,
+                                                    color: Colors.red,
+                                                  ),
+                                                  onPressed: () async {
+                                                    final ok = await showDialog<bool>(
+                                                      context: context,
+                                                      builder: (ctx3) => AlertDialog(
+                                                        title: const Text(
+                                                          'Usuń projekt?',
+                                                        ),
+                                                        content: Text(title),
+                                                        actions: [
+                                                          TextButton(
+                                                            onPressed: () =>
+                                                                Navigator.pop(
+                                                                  ctx3,
+                                                                  false,
+                                                                ),
+                                                            child: const Text(
+                                                              'Anuluj',
+                                                            ),
+                                                          ),
+                                                          ElevatedButton(
+                                                            onPressed: () =>
+                                                                Navigator.pop(
+                                                                  ctx3,
+                                                                  true,
+                                                                ),
+                                                            child: const Text(
+                                                              'Usuń',
+                                                              style: TextStyle(
+                                                                color:
+                                                                    Colors.red,
+                                                              ),
+                                                            ),
+                                                          ),
+                                                        ],
+                                                      ),
+                                                    );
+                                                    if (ok == true) {
+                                                      await d.reference
+                                                          .delete();
+                                                      ScaffoldMessenger.of(
+                                                        context,
+                                                      ).showSnackBar(
+                                                        const SnackBar(
+                                                          content: Text(
+                                                            'Projekt usunięty',
+                                                          ),
+                                                        ),
+                                                      );
+                                                    }
+                                                  },
+                                                ),
+                                              ],
                                             ],
-                                          ],
-                                        ),
-                                      );
-                                    },
+                                          ),
+                                        );
+                                      },
+                                    ),
                                   );
                                 },
                               ),

@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:http/http.dart' as http;
+import 'package:strefa_ciszy/utils/keyboard_utils.dart';
 import 'package:strefa_ciszy/widgets/app_scaffold.dart';
 import 'package:url_launcher/url_launcher.dart';
 
@@ -87,53 +88,54 @@ class _LocationPickerScreenState extends State<LocationPickerScreen> {
     return AppScaffold(
       title: title,
       centreTitle: true,
-
-      body: SafeArea(
-        child: Column(
-          children: [
-            Expanded(
-              child: GoogleMap(
-                initialCameraPosition: CameraPosition(
-                  target: _picked,
-                  zoom: 14,
-                ),
-                markers: {
-                  Marker(
-                    markerId: const MarkerId('picked'),
-                    position: _picked,
-                    draggable: true,
-                    onDragEnd: (pos) {
-                      setState(() => _picked = pos);
-                      _saveLocationAndAddress(pos);
-                    },
+      body: DismissKeyboard(
+        child: SafeArea(
+          child: Column(
+            children: [
+              Expanded(
+                child: GoogleMap(
+                  initialCameraPosition: CameraPosition(
+                    target: _picked,
+                    zoom: 14,
                   ),
-                },
-                onTap: (pos) {
-                  setState(() => _picked = pos);
-                  _saveLocationAndAddress(pos);
-                },
-                myLocationEnabled: true,
-                myLocationButtonEnabled: true,
+                  markers: {
+                    Marker(
+                      markerId: const MarkerId('picked'),
+                      position: _picked,
+                      draggable: true,
+                      onDragEnd: (pos) {
+                        setState(() => _picked = pos);
+                        _saveLocationAndAddress(pos);
+                      },
+                    ),
+                  },
+                  onTap: (pos) {
+                    setState(() => _picked = pos);
+                    _saveLocationAndAddress(pos);
+                  },
+                  myLocationEnabled: true,
+                  myLocationButtonEnabled: true,
+                ),
               ),
-            ),
-            Padding(
-              padding: const EdgeInsets.all(8.0),
-              child: ElevatedButton.icon(
-                icon: const Icon(Icons.directions, color: Colors.red),
-                label: const Text(
-                  'Jedziemy!',
-                  style: TextStyle(
-                    fontWeight: FontWeight.bold,
-                    color: Colors.red,
+              Padding(
+                padding: const EdgeInsets.all(8.0),
+                child: ElevatedButton.icon(
+                  icon: const Icon(Icons.directions, color: Colors.red),
+                  label: const Text(
+                    'Jedziemy!',
+                    style: TextStyle(
+                      fontWeight: FontWeight.bold,
+                      color: Colors.red,
+                    ),
                   ),
+                  style: ElevatedButton.styleFrom(
+                    minimumSize: Size.fromHeight(48),
+                  ),
+                  onPressed: _launchNavigation,
                 ),
-                style: ElevatedButton.styleFrom(
-                  minimumSize: Size.fromHeight(48),
-                ),
-                onPressed: _launchNavigation,
               ),
-            ),
-          ],
+            ],
+          ),
         ),
       ),
     );

@@ -6,6 +6,7 @@ import 'package:flutter/material.dart';
 import 'package:strefa_ciszy/screens/customer_list_screen.dart';
 import 'package:strefa_ciszy/screens/inventory_list_screen.dart';
 import 'package:strefa_ciszy/screens/scan_screen.dart';
+import 'package:strefa_ciszy/utils/keyboard_utils.dart';
 import 'package:strefa_ciszy/widgets/app_scaffold.dart';
 import 'package:strefa_ciszy/widgets/audit_log_list.dart';
 
@@ -34,7 +35,17 @@ class AuditLogScreen extends StatelessWidget {
       ),
       actions: [Padding(padding: const EdgeInsets.symmetric(horizontal: 8.0))],
 
-      body: AuditLogList(stream: logsStream, showContextLabels: true),
+      body: DismissKeyboard(
+        child: NotificationListener<ScrollNotification>(
+          onNotification: (notif) {
+            if (notif is ScrollStartNotification) {
+              FocusScope.of(context).unfocus();
+            }
+            return false;
+          },
+          child: AuditLogList(stream: logsStream, showContextLabels: true),
+        ),
+      ),
       floatingActionButton: !kIsWeb
           ? FloatingActionButton(
               tooltip: 'Skanuj',

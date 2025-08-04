@@ -7,6 +7,8 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
+import 'package:strefa_ciszy/screens/scan_screen.dart';
+import 'package:strefa_ciszy/utils/keyboard_utils.dart';
 import 'package:strefa_ciszy/widgets/app_scaffold.dart';
 import 'project_editor_screen.dart';
 
@@ -62,141 +64,60 @@ class _CustomerDetailScreenState extends State<CustomerDetailScreen> {
     );
   }
 
-  Future<void> _showProjectDialog({
-    required BuildContext context,
-    required String customerId,
-    String? projectId,
-    Map<String, dynamic>? existingData,
-  }) async {
-    final titleCtrl = TextEditingController(text: existingData?['title'] ?? '');
-    final costCtrl = TextEditingController(
-      text: existingData?['estimatedCost']?.toString() ?? '',
-    );
-    DateTime? startDate = existingData?['startDate']?.toDate();
-    DateTime? endDate = existingData?['estimatedEndDate']?.toDate();
+  Future<void> _editProjects() async {
+    final snap = await _projectsCol.orderBy('createdAt').get();
+    final docs = snap.docs;
+
+    final edits = {
+      for (var d in docs)
+        d.id: (d.data() as Map<String, dynamic>)['title'] as String,
+    };
 
     await showDialog<void>(
       context: context,
-      builder: (ctx) => StatefulBuilder(
-        builder: (ctx, setState) => AlertDialog(
-          title: Text(projectId == null ? 'Nowy Projekt' : 'Edytuj Projekt'),
-          content: SingleChildScrollView(
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                TextField(
-                  controller: titleCtrl,
-                  decoration: const InputDecoration(
-                    labelText: 'Nazwa projektu',
-                  ),
-                ),
-                const SizedBox(height: 8),
-                Row(
-                  children: [
-                    Expanded(
-                      child: Text(
-                        startDate == null
-                            ? 'Data rozpoczęcia'
-                            : DateFormat('dd.MM.yyyy').format(startDate!),
-                      ),
-                    ),
-                    TextButton(
-                      onPressed: () async {
-                        final dt = await showDatePicker(
-                          context: ctx,
-                          initialDate: startDate ?? DateTime.now(),
-                          firstDate: DateTime(2000),
-                          lastDate: DateTime(2100),
-                          locale: const Locale('pl', 'PL'),
-                        );
-                        if (dt != null) setState(() => startDate = dt);
-                      },
-                      child: const Text('Wybierz'),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 8),
-                Row(
-                  children: [
-                    Expanded(
-                      child: Text(
-                        endDate == null
-                            ? 'Data zakończenie'
-                            : DateFormat('dd.MM.yyyy').format(endDate!),
-                      ),
-                    ),
-                    TextButton(
-                      onPressed: () async {
-                        final dt = await showDatePicker(
-                          context: ctx,
-                          initialDate: endDate ?? DateTime.now(),
-                          firstDate: DateTime(2000),
-                          lastDate: DateTime(2100),
-                          locale: const Locale('pl', 'PL'),
-                        );
-                        if (dt != null) setState(() => endDate = dt);
-                      },
-                      child: const Text('Wybierz'),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 8),
-                TextField(
-                  controller: costCtrl,
-                  decoration: const InputDecoration(
-                    labelText: 'Oszacowany koszt',
-                    prefixText: 'PLN ',
-                  ),
-                  keyboardType: TextInputType.number,
-                ),
-              ],
-            ),
+      builder: (ctx) => AlertDialog(
+        title: const Text('Edytuj projekty'),
+        content: SizedBox(
+          width: double.maxFinite,
+          height: MediaQuery.of(ctx).size.height * 0.4,
+          child: StatefulBuilder(
+            builder: (ctx2, setState) {
+              return ListView.separated(
+                itemCount: docs.length,
+                separatorBuilder: (_, __) => const Divider(),
+                itemBuilder: (_, i) {
+                  final doc = docs[i];
+                  return TextFormField(
+                    initialValue: edits[doc.id],
+                    decoration: InputDecoration(labelText: 'Projekt:'),
+                    onChanged: (v) => setState(() => edits[doc.id] = v.trim()),
+                  );
+                },
+              );
+            },
           ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(ctx),
-              child: const Text('Anuluj'),
-            ),
-            ElevatedButton(
-              onPressed: () async {
-                final title = titleCtrl.text.trim();
-                if (title.isEmpty) return;
-                final data = <String, dynamic>{
-                  'title': title,
-                  'status': existingData?['status'] ?? 'draft',
-                  'customerId': customerId,
-                  'createdAt':
-                      existingData?['createdAt'] ??
-                      FieldValue.serverTimestamp(),
-                  'createdBy': FirebaseAuth.instance.currentUser!.uid,
-                  if (startDate != null)
-                    'startDate': Timestamp.fromDate(startDate!),
-                  if (endDate != null)
-                    'estimatedEndDate': Timestamp.fromDate(endDate!),
-                  if (double.tryParse(costCtrl.text.replaceAll(',', '.')) !=
-                      null)
-                    'estimatedCost': double.parse(
-                      costCtrl.text.replaceAll(',', '.'),
-                    ),
-                };
-
-                final col = FirebaseFirestore.instance
-                    .collection('customers')
-                    .doc(customerId)
-                    .collection('projects');
-
-                if (projectId == null) {
-                  await col.add(data);
-                } else {
-                  await col.doc(projectId).set(data, SetOptions(merge: true));
-                }
-
-                if (ctx.mounted) Navigator.pop(ctx);
-              },
-              child: Text(projectId == null ? 'Utwórz' : 'Zapisz'),
-            ),
-          ],
         ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('Anuluj'),
+          ),
+          ElevatedButton(
+            onPressed: () async {
+              for (var doc in docs) {
+                final data = doc.data() as Map<String, dynamic>;
+                final oldTitle = data['title'] as String;
+                final newTitle = edits[doc.id]!;
+                if (newTitle.isNotEmpty && newTitle != oldTitle) {
+                  await _projectsCol.doc(doc.id).update({'title': newTitle});
+                }
+              }
+              Navigator.pop(ctx);
+              setState(() {});
+            },
+            child: const Text('Zapisz'),
+          ),
+        ],
       ),
     );
   }
@@ -247,11 +168,165 @@ class _CustomerDetailScreenState extends State<CustomerDetailScreen> {
 
     if (_favProjectIds.contains(projectId)) {
       await favDoc.delete();
-      setState(() => _favProjectIds.remove(projectId));
     } else {
       await favDoc.set({'customerId': widget.customerId, 'title': title});
-      setState(() => _favProjectIds.add(projectId));
     }
+  }
+
+  Future<void> _renameProject(String id, String currentTitle) async {
+    String newTitle = currentTitle;
+    await showDialog<void>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Zmień nazwę projektu'),
+        content: TextField(
+          autofocus: true,
+          controller: TextEditingController(text: currentTitle),
+          decoration: const InputDecoration(hintText: 'Nowa nazwa'),
+          onChanged: (v) => newTitle = v.trim(),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('Anuluj'),
+          ),
+          ElevatedButton(
+            onPressed: () {
+              if (newTitle.isNotEmpty && newTitle != currentTitle) {
+                _projectsCol.doc(id).update({'title': newTitle});
+              }
+              Navigator.pop(ctx);
+            },
+            child: const Text('Zapisz'),
+          ),
+        ],
+      ),
+    );
+    setState(() {});
+  }
+
+  Future<void> _addProject() async {
+    String title = '';
+    DateTime? startDate;
+    DateTime? estimatedEndDate;
+    String costStr = '';
+
+    final custSnap = await _customerRef.get();
+    final realContactId =
+        (custSnap.data()! as Map<String, dynamic>)['contactId'] as String?;
+
+    await showDialog<void>(
+      context: context,
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setState) => AlertDialog(
+          title: const Text('Nowy Projekt'),
+          content: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                TextField(
+                  decoration: const InputDecoration(
+                    labelText: 'Nazwa projektu',
+                  ),
+                  onChanged: (v) => title = v.trim(),
+                ),
+                const SizedBox(height: 8),
+                Row(
+                  children: [
+                    Expanded(
+                      child: Text(
+                        startDate == null
+                            ? 'Start'
+                            : DateFormat(
+                                'dd.MM.yyyy',
+                                'pl_PL',
+                              ).format(startDate!),
+                      ),
+                    ),
+                    TextButton(
+                      child: const Text('Wybieraj'),
+                      onPressed: () async {
+                        final dt = await showDatePicker(
+                          context: ctx,
+                          initialDate: startDate ?? DateTime.now(),
+                          firstDate: DateTime(2000),
+                          lastDate: DateTime(2100),
+                          locale: const Locale('pl', 'PL'),
+                        );
+                        if (dt != null) setState(() => startDate = dt);
+                      },
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 8),
+                Row(
+                  children: [
+                    Expanded(
+                      child: Text(
+                        estimatedEndDate == null
+                            ? 'Oczek. Koniec'
+                            : DateFormat(
+                                'dd.MM.yyyy',
+                                'pl_PL',
+                              ).format(estimatedEndDate!),
+                      ),
+                    ),
+                    TextButton(
+                      child: const Text('Wybieraj'),
+                      onPressed: () async {
+                        final dt = await showDatePicker(
+                          context: ctx,
+                          initialDate: estimatedEndDate ?? DateTime.now(),
+                          firstDate: DateTime(2000),
+                          lastDate: DateTime(2100),
+                          locale: const Locale('pl', 'PL'),
+                        );
+                        if (dt != null) setState(() => estimatedEndDate = dt);
+                      },
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 8),
+                TextField(
+                  decoration: const InputDecoration(labelText: 'Oszac. koszt'),
+                  keyboardType: TextInputType.number,
+                  onChanged: (v) => costStr = v.trim(),
+                ),
+              ],
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(ctx),
+              child: const Text('Anuluj'),
+            ),
+            ElevatedButton(
+              onPressed: () {
+                if (title.isEmpty) return;
+                final data = <String, dynamic>{
+                  'title': title,
+                  'status': 'draft',
+                  'contactId': realContactId,
+                  'customerId': widget.customerId,
+                  'createdAt': FieldValue.serverTimestamp(),
+                  'createdBy': DateTime.now().millisecondsSinceEpoch.toString(),
+                  'items': <Map<String, dynamic>>[],
+                  if (startDate != null)
+                    'startDate': Timestamp.fromDate(startDate!),
+                  if (estimatedEndDate != null)
+                    'estimatedEndDate': Timestamp.fromDate(estimatedEndDate!),
+                };
+                final cost = double.tryParse(costStr.replaceAll(',', '.'));
+                if (cost != null) data['estimatedCost'] = cost;
+                _projectsCol.add(data);
+                Navigator.pop(ctx);
+              },
+              child: const Text('Create'),
+            ),
+          ],
+        ),
+      ),
+    );
   }
 
   @override
@@ -275,8 +350,7 @@ class _CustomerDetailScreenState extends State<CustomerDetailScreen> {
 
     return AppScaffold(
       floatingActionButton: FloatingActionButton(
-        onPressed: () =>
-            _showProjectDialog(context: context, customerId: widget.customerId),
+        onPressed: _addProject,
         child: const Icon(Icons.playlist_add),
       ),
       floatingActionButtonLocation: FloatingActionButtonLocation.centerDocked,
@@ -288,29 +362,33 @@ class _CustomerDetailScreenState extends State<CustomerDetailScreen> {
         preferredSize: const Size.fromHeight(56),
         child: Padding(
           padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-          child: Row(
-            children: [
-              Expanded(
-                child: TextField(
-                  controller: _searchController,
-                  decoration: InputDecoration(
-                    hintText: 'Szukaj projektu…',
-                    prefixIcon: const Icon(Icons.search),
-                    border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(8),
+          child: DismissKeyboard(
+            child: Row(
+              children: [
+                Expanded(
+                  child: TextField(
+                    controller: _searchController,
+                    decoration: InputDecoration(
+                      hintText: 'Szukaj projektu…',
+                      prefixIcon: const Icon(Icons.search),
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      isDense: true,
                     ),
-                    isDense: true,
+                    onChanged: (v) => setState(() => _search = v.trim()),
+                    textInputAction: TextInputAction.search,
+                    onSubmitted: (_) => FocusScope.of(context).unfocus(),
                   ),
-                  onChanged: (v) => setState(() => _search = v.trim()),
                 ),
-              ),
-              const SizedBox(width: 8),
-              IconButton(
-                tooltip: 'Resetuj filtr',
-                icon: const Icon(Icons.refresh),
-                onPressed: _resetFilters,
-              ),
-            ],
+                const SizedBox(width: 8),
+                IconButton(
+                  tooltip: 'Resetuj filtr',
+                  icon: const Icon(Icons.refresh),
+                  onPressed: _resetFilters,
+                ),
+              ],
+            ),
           ),
         ),
       ),
@@ -349,56 +427,57 @@ class _CustomerDetailScreenState extends State<CustomerDetailScreen> {
                   itemBuilder: (ctx, i) {
                     final d = filtered[i];
                     final data = d.data()! as Map<String, dynamic>;
-                    final title = data['title'] as String? ?? '—';
-                    final createdAt = (data['createdAt'] as Timestamp)
-                        .toDate()
-                        .toLocal();
-                    final dateStr = DateFormat(
-                      'dd.MM.yyyy • HH:mm',
-                      'pl_PL',
-                    ).format(createdAt);
-                    final isFav = _favProjectIds.contains(d.id);
-
                     return ListTile(
-                      // Tap IN
+                      title: InkWell(
+                        onTap: () => Navigator.of(context).push(
+                          MaterialPageRoute(
+                            builder: (_) => ProjectEditorScreen(
+                              customerId: widget.customerId,
+                              projectId: d.id,
+                              isAdmin: widget.isAdmin,
+                            ),
+                          ),
+                        ),
+                        // long tap rename project
+                        onLongPress: widget.isAdmin
+                            ? () => _renameProject(
+                                d.id,
+                                data['title'] as String? ?? '',
+                              )
+                            : null,
+                        child: Text(data['title'] ?? '—'),
+                      ),
+
+                      // subtitle: Text('Status: ${data['status']}'),
                       onTap: () => Navigator.of(context).push(
                         MaterialPageRoute(
                           builder: (_) => ProjectEditorScreen(
                             customerId: widget.customerId,
                             projectId: d.id,
-                            isAdmin: widget.isAdmin,
+                            isAdmin: isAdmin,
                           ),
                         ),
                       ),
-                      // Long‑press EDIT
-                      onLongPress: widget.isAdmin
-                          ? () => _showProjectDialog(
-                              context: context,
-                              customerId: widget.customerId,
-                              projectId: d.id,
-                              existingData: data,
-                            )
-                          : null,
-
-                      title: Text(title),
-                      subtitle: Text(dateStr),
-
                       trailing: Row(
                         mainAxisSize: MainAxisSize.min,
                         children: [
+                          // faves
                           IconButton(
                             icon: Icon(
-                              isFav ? Icons.star : Icons.star_border,
+                              _favProjectIds.contains(d.id)
+                                  ? Icons.star
+                                  : Icons.star_border,
                               color: Colors.amber,
                             ),
-                            tooltip: isFav
+                            tooltip: _favProjectIds.contains(d.id)
                                 ? 'Usuń z ulubionych'
                                 : 'Dodaj do ulubionych',
-                            onPressed: () =>
-                                _toggleFavouriteProjects(d.id, title),
+                            onPressed: () => _toggleFavouriteProjects(
+                              d.id,
+                              data['title'] as String? ?? '',
+                            ),
                           ),
-
-                          // RW badge
+                          // badge
                           FutureBuilder<QuerySnapshot>(
                             future: _projectsCol
                                 .doc(d.id)
@@ -436,7 +515,6 @@ class _CustomerDetailScreenState extends State<CustomerDetailScreen> {
                             },
                           ),
 
-                          // delete for admins
                           if (widget.isAdmin) ...[
                             const SizedBox(width: 8),
                             IconButton(
@@ -445,20 +523,20 @@ class _CustomerDetailScreenState extends State<CustomerDetailScreen> {
                               onPressed: () async {
                                 final ok = await showDialog<bool>(
                                   context: context,
-                                  builder: (ctx3) => AlertDialog(
+                                  builder: (ctx2) => AlertDialog(
                                     title: const Text('Usuń projekt?'),
                                     content: Text(
-                                      'Na pewno usunąć projekt "$title"?',
+                                      'Na pewno usunąć projekt "${data['title']}"?',
                                     ),
                                     actions: [
                                       TextButton(
                                         onPressed: () =>
-                                            Navigator.pop(ctx3, false),
+                                            Navigator.pop(ctx2, false),
                                         child: const Text('Anuluj'),
                                       ),
                                       ElevatedButton(
                                         onPressed: () =>
-                                            Navigator.pop(ctx3, true),
+                                            Navigator.pop(ctx2, true),
                                         child: const Text('Usuń'),
                                       ),
                                     ],

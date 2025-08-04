@@ -508,18 +508,18 @@ class _AppDrawerState extends State<AppDrawer> {
                 padding: const EdgeInsets.only(right: 16, bottom: 16),
                 child: Align(
                   alignment: Alignment.bottomRight,
-                  // child: Image.asset(
-                  //   'assets/images/Lee_logo_app_dev.png',
-                  //   width: 80,
-                  //   fit: BoxFit.contain,
-                  // ),
-                  child: Text(
-                    'developed by LEE',
-                    style: TextStyle(
-                      color: Colors.blueGrey,
-                      fontWeight: FontWeight.bold,
-                    ),
+                  child: Image.asset(
+                    'assets/images/Lee_logo_app_dev.png',
+                    width: 80,
+                    fit: BoxFit.contain,
                   ),
+                  // child: Text(
+                  //   'developed by LEE',
+                  //   style: TextStyle(
+                  //     color: Colors.blueGrey,
+                  //     fontWeight: FontWeight.bold,
+                  //   ),
+                  // ),
                 ),
               ),
             ],

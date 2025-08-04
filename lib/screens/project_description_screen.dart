@@ -21,6 +21,7 @@ import 'package:strefa_ciszy/screens/contacts_list_screen.dart';
 import 'package:strefa_ciszy/screens/customer_list_screen.dart';
 import 'package:strefa_ciszy/screens/location_picker_screen.dart';
 import 'package:strefa_ciszy/services/storage_service.dart';
+import 'package:strefa_ciszy/utils/keyboard_utils.dart';
 import 'package:strefa_ciszy/widgets/app_scaffold.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:strefa_ciszy/widgets/app_drawer.dart';
@@ -607,552 +608,504 @@ class _ProjectDescriptionScreenState extends State<ProjectDescriptionScreen> {
 
       body: _loading
           ? const Center(child: CircularProgressIndicator())
-          : SingleChildScrollView(
-              padding: const EdgeInsets.all(16),
-              child: Form(
-                key: _formKey,
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: [
-                    TextFormField(
-                      controller: _descCtrl,
-                      decoration: const InputDecoration(
-                        labelText: 'Opis projektu',
-                        alignLabelWithHint: true,
-                        border: OutlineInputBorder(),
+          : DismissKeyboard(
+              child: SingleChildScrollView(
+                keyboardDismissBehavior:
+                    ScrollViewKeyboardDismissBehavior.onDrag,
+                padding: const EdgeInsets.all(16),
+                child: Form(
+                  key: _formKey,
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      TextFormField(
+                        controller: _descCtrl,
+                        decoration: const InputDecoration(
+                          labelText: 'Opis projektu',
+                          alignLabelWithHint: true,
+                          border: OutlineInputBorder(),
+                        ),
+                        keyboardType: TextInputType.multiline,
+                        minLines: 4,
+                        maxLines: null,
+                        readOnly: !widget.isAdmin,
+                        validator: (v) {
+                          if (widget.isAdmin &&
+                              (v == null || v.trim().isEmpty)) {
+                            return 'Wpisz opis';
+                          }
+                          return null;
+                        },
                       ),
-                      keyboardType: TextInputType.multiline,
-                      minLines: 4,
-                      maxLines: null,
-                      readOnly: !widget.isAdmin,
-                      validator: (v) {
-                        if (widget.isAdmin && (v == null || v.trim().isEmpty)) {
-                          return 'Wpisz opis';
-                        }
-                        return null;
-                      },
-                    ),
 
-                    // gap for files
-                    const SizedBox(height: 8),
+                      // gap for files
+                      const SizedBox(height: 8),
 
-                    // files
-                    _fileUploading
-                        ? const Center(child: CircularProgressIndicator())
-                        : _files.isEmpty
-                        ? GestureDetector(
-                            onTap: _pickAndUploadFiles,
-                            child: Container(
-                              height: 80,
-                              alignment: Alignment.center,
-                              decoration: BoxDecoration(
-                                border: Border.all(color: Colors.grey),
-                                borderRadius: BorderRadius.circular(6),
-                              ),
-                              child: const Text('Dotnij aby dodać plik'),
-                            ),
-                          )
-                        : Column(
-                            crossAxisAlignment: CrossAxisAlignment.stretch,
-                            children: [
-                              Container(
-                                constraints: const BoxConstraints(
-                                  maxHeight: 140,
-                                ),
+                      // files
+                      _fileUploading
+                          ? const Center(child: CircularProgressIndicator())
+                          : _files.isEmpty
+                          ? GestureDetector(
+                              onTap: _pickAndUploadFiles,
+                              child: Container(
+                                height: 80,
+                                alignment: Alignment.center,
                                 decoration: BoxDecoration(
-                                  border: Border.all(
-                                    color: Colors.grey.shade300,
-                                  ),
+                                  border: Border.all(color: Colors.grey),
                                   borderRadius: BorderRadius.circular(6),
                                 ),
-                                child: ListView.separated(
-                                  shrinkWrap: true,
-                                  physics: const ClampingScrollPhysics(),
-                                  itemCount: _files.length,
-                                  separatorBuilder: (_, __) =>
-                                      const Divider(height: 1),
-                                  itemBuilder: (ctx, i) {
-                                    final file = _files[i];
-                                    final name = file['name'] ?? '';
-                                    return InkWell(
-                                      onTap: () => OpenFile.open(file['url']!),
-                                      child: Padding(
-                                        padding: const EdgeInsets.symmetric(
-                                          horizontal: 12,
-                                          vertical: 10,
-                                        ),
-                                        child: Row(
-                                          children: [
-                                            Expanded(
-                                              child: Tooltip(
-                                                message: name,
-                                                waitDuration: const Duration(
-                                                  milliseconds: 500,
-                                                ),
-                                                child: Text(
-                                                  name,
-                                                  style: const TextStyle(
-                                                    fontSize: 14,
-                                                    fontWeight: FontWeight.w600,
+                                child: const Text('Dotnij aby dodać plik'),
+                              ),
+                            )
+                          : Column(
+                              crossAxisAlignment: CrossAxisAlignment.stretch,
+                              children: [
+                                Container(
+                                  constraints: const BoxConstraints(
+                                    maxHeight: 140,
+                                  ),
+                                  decoration: BoxDecoration(
+                                    border: Border.all(
+                                      color: Colors.grey.shade300,
+                                    ),
+                                    borderRadius: BorderRadius.circular(6),
+                                  ),
+                                  child: ListView.separated(
+                                    shrinkWrap: true,
+                                    physics: const ClampingScrollPhysics(),
+                                    itemCount: _files.length,
+                                    separatorBuilder: (_, __) =>
+                                        const Divider(height: 1),
+                                    itemBuilder: (ctx, i) {
+                                      final file = _files[i];
+                                      final name = file['name'] ?? '';
+                                      return InkWell(
+                                        onTap: () =>
+                                            OpenFile.open(file['url']!),
+                                        child: Padding(
+                                          padding: const EdgeInsets.symmetric(
+                                            horizontal: 12,
+                                            vertical: 10,
+                                          ),
+                                          child: Row(
+                                            children: [
+                                              Expanded(
+                                                child: Tooltip(
+                                                  message: name,
+                                                  waitDuration: const Duration(
+                                                    milliseconds: 500,
                                                   ),
-                                                  maxLines: 1,
-                                                  overflow:
-                                                      TextOverflow.ellipsis,
+                                                  child: Text(
+                                                    name,
+                                                    style: const TextStyle(
+                                                      fontSize: 14,
+                                                      fontWeight:
+                                                          FontWeight.w600,
+                                                    ),
+                                                    maxLines: 1,
+                                                    overflow:
+                                                        TextOverflow.ellipsis,
+                                                  ),
                                                 ),
                                               ),
-                                            ),
-                                            if (widget.isAdmin)
-                                              GestureDetector(
-                                                onTap: () => _deleteFile(i),
-                                                child: Padding(
-                                                  padding:
-                                                      const EdgeInsets.symmetric(
-                                                        horizontal: 8.0,
-                                                      ),
-                                                  child: Container(
-                                                    decoration:
-                                                        const BoxDecoration(
-                                                          color: Colors.red,
-                                                          shape:
-                                                              BoxShape.circle,
-                                                        ),
+                                              if (widget.isAdmin)
+                                                GestureDetector(
+                                                  onTap: () => _deleteFile(i),
+                                                  child: Padding(
                                                     padding:
-                                                        const EdgeInsets.all(6),
-                                                    child: const Icon(
-                                                      Icons.close,
-                                                      size: 14,
-                                                      color: Colors.white,
+                                                        const EdgeInsets.symmetric(
+                                                          horizontal: 8.0,
+                                                        ),
+                                                    child: Container(
+                                                      decoration:
+                                                          const BoxDecoration(
+                                                            color: Colors.red,
+                                                            shape:
+                                                                BoxShape.circle,
+                                                          ),
+                                                      padding:
+                                                          const EdgeInsets.all(
+                                                            6,
+                                                          ),
+                                                      child: const Icon(
+                                                        Icons.close,
+                                                        size: 14,
+                                                        color: Colors.white,
+                                                      ),
                                                     ),
                                                   ),
                                                 ),
-                                              ),
-                                          ],
+                                            ],
+                                          ),
                                         ),
+                                      );
+                                    },
+                                  ),
+                                ),
+                                const SizedBox(height: 4),
+                                GestureDetector(
+                                  onTap: _pickAndUploadFiles,
+                                  child: Container(
+                                    padding: const EdgeInsets.symmetric(
+                                      vertical: 8,
+                                      horizontal: 12,
+                                    ),
+                                    decoration: BoxDecoration(
+                                      border: Border.all(
+                                        color: Colors.blueAccent,
+                                      ),
+                                      borderRadius: BorderRadius.circular(6),
+                                      color: Colors.blue.withValues(
+                                        alpha: 0.05,
+                                      ),
+                                    ),
+                                    child: Row(
+                                      mainAxisSize: MainAxisSize.min,
+                                      mainAxisAlignment:
+                                          MainAxisAlignment.center,
+                                      children: const [
+                                        Icon(Icons.add, size: 16),
+                                        SizedBox(width: 6),
+                                        Text(
+                                          'dodaj pliki',
+                                          style: TextStyle(
+                                            fontWeight: FontWeight.w600,
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ),
+
+                      const SizedBox(height: 6),
+                      // images
+                      _uploading
+                          ? const Center(child: CircularProgressIndicator())
+                          : _photoUrls.isEmpty
+                          ? GestureDetector(
+                              onTap: _showPhotoSourceDialog,
+                              child: Container(
+                                height: 80,
+                                alignment: Alignment.center,
+                                decoration: BoxDecoration(
+                                  border: Border.all(color: Colors.grey),
+                                  borderRadius: BorderRadius.circular(6),
+                                ),
+                                child: const Text('Dotknij aby dodać fotka'),
+                              ),
+                            )
+                          : Column(
+                              crossAxisAlignment: CrossAxisAlignment.stretch,
+                              children: [
+                                // unlimited grid that grows with content
+                                GridView.builder(
+                                  padding: EdgeInsets.zero,
+                                  shrinkWrap: true,
+                                  physics: const NeverScrollableScrollPhysics(),
+                                  gridDelegate:
+                                      const SliverGridDelegateWithFixedCrossAxisCount(
+                                        crossAxisCount: 3,
+                                        crossAxisSpacing: 6,
+                                        mainAxisSpacing: 6,
+                                        childAspectRatio:
+                                            2, // rectangular (width is twice height)
+                                      ),
+                                  itemCount: _photoUrls.length,
+                                  itemBuilder: (ctx, i) {
+                                    final url = _photoUrls[i];
+                                    return GestureDetector(
+                                      onTap: () => _openGallery(i),
+                                      child: Stack(
+                                        clipBehavior: Clip.none,
+                                        children: [
+                                          ClipRRect(
+                                            borderRadius: BorderRadius.circular(
+                                              8,
+                                            ),
+                                            child: Image.network(
+                                              url,
+                                              width: double.infinity,
+                                              height: double.infinity,
+                                              fit: BoxFit.cover,
+                                            ),
+                                          ),
+                                          if (widget.isAdmin)
+                                            Positioned(
+                                              top: 4,
+                                              right: 4,
+                                              child: GestureDetector(
+                                                onTap: () => _deletePhoto(url),
+                                                child: Container(
+                                                  decoration:
+                                                      const BoxDecoration(
+                                                        color: Colors.red,
+                                                        shape: BoxShape.circle,
+                                                      ),
+                                                  padding: const EdgeInsets.all(
+                                                    4,
+                                                  ),
+                                                  child: const Icon(
+                                                    Icons.close,
+                                                    size: 12,
+                                                    color: Colors.white,
+                                                  ),
+                                                ),
+                                              ),
+                                            ),
+                                        ],
                                       ),
                                     );
                                   },
                                 ),
-                              ),
-                              const SizedBox(height: 4),
-                              GestureDetector(
-                                onTap: _pickAndUploadFiles,
-                                child: Container(
-                                  padding: const EdgeInsets.symmetric(
-                                    vertical: 8,
-                                    horizontal: 12,
-                                  ),
-                                  decoration: BoxDecoration(
-                                    border: Border.all(
-                                      color: Colors.blueAccent,
+
+                                const SizedBox(height: 4),
+                                GestureDetector(
+                                  onTap: _showPhotoSourceDialog,
+                                  child: Container(
+                                    padding: const EdgeInsets.symmetric(
+                                      vertical: 8,
+                                      horizontal: 12,
                                     ),
-                                    borderRadius: BorderRadius.circular(6),
-                                    color: Colors.blue.withValues(alpha: 0.05),
-                                  ),
-                                  child: Row(
-                                    mainAxisSize: MainAxisSize.min,
-                                    mainAxisAlignment: MainAxisAlignment.center,
-                                    children: const [
-                                      Icon(Icons.add, size: 16),
-                                      SizedBox(width: 6),
-                                      Text(
-                                        'dodaj pliki',
-                                        style: TextStyle(
-                                          fontWeight: FontWeight.w600,
-                                        ),
+                                    decoration: BoxDecoration(
+                                      border: Border.all(color: Colors.green),
+                                      borderRadius: BorderRadius.circular(6),
+                                      color: Colors.green.withValues(
+                                        alpha: 0.05,
                                       ),
-                                    ],
-                                  ),
-                                ),
-                              ),
-                            ],
-                          ),
-
-                    const SizedBox(height: 6),
-                    // images
-                    _uploading
-                        ? const Center(child: CircularProgressIndicator())
-                        : _photoUrls.isEmpty
-                        ? GestureDetector(
-                            onTap: _showPhotoSourceDialog,
-                            child: Container(
-                              height: 80,
-                              alignment: Alignment.center,
-                              decoration: BoxDecoration(
-                                border: Border.all(color: Colors.grey),
-                                borderRadius: BorderRadius.circular(6),
-                              ),
-                              child: const Text('Dotknij aby dodać fotka'),
-                            ),
-                          )
-                        : Column(
-                            crossAxisAlignment: CrossAxisAlignment.stretch,
-                            children: [
-                              LayoutBuilder(
-                                builder: (context, constraints) {
-                                  const int perRow = 3;
-                                  const int visibleRows =
-                                      2; // show 2 rows (6 thumbnails) before scroll
-                                  const double spacing = 6;
-
-                                  // Compute thumbnail dimensions: rectangular with aspect ratio 2 (width = 2 * height)
-                                  // We want three across, so solve for height: total width = 3 * (2 * h) + 2 * spacing
-                                  // => h = (constraints.maxWidth - 2 * spacing) / (3 * 2)
-                                  final double thumbnailHeight =
-                                      (constraints.maxWidth -
-                                          (perRow - 1) * spacing) /
-                                      (perRow * 2);
-                                  final double thumbnailWidth =
-                                      thumbnailHeight * 2;
-
-                                  // Container height to fit exactly visibleRows of thumbnails plus vertical spacing
-                                  final double containerHeight =
-                                      thumbnailHeight * visibleRows +
-                                      (visibleRows - 1) * spacing;
-
-                                  final bool hasOverflow =
-                                      _photoUrls.length > perRow * visibleRows;
-
-                                  return SizedBox(
-                                    height: containerHeight,
-                                    child: Stack(
-                                      children: [
-                                        // Scrollable grid
-                                        GridView.builder(
-                                          padding: EdgeInsets.zero,
-                                          gridDelegate:
-                                              SliverGridDelegateWithFixedCrossAxisCount(
-                                                crossAxisCount: perRow,
-                                                crossAxisSpacing: spacing,
-                                                mainAxisSpacing: spacing,
-                                                childAspectRatio:
-                                                    2, // rectangular (width is twice height)
-                                              ),
-                                          itemCount: _photoUrls.length,
-                                          itemBuilder: (ctx, i) {
-                                            final url = _photoUrls[i];
-                                            return GestureDetector(
-                                              onTap: () => _openGallery(i),
-                                              child: Stack(
-                                                clipBehavior: Clip.none,
-                                                children: [
-                                                  ClipRRect(
-                                                    borderRadius:
-                                                        BorderRadius.circular(
-                                                          8,
-                                                        ),
-                                                    child: Image.network(
-                                                      url,
-                                                      width: double.infinity,
-                                                      height: double.infinity,
-                                                      fit: BoxFit.cover,
-                                                    ),
-                                                  ),
-                                                  if (widget.isAdmin)
-                                                    Positioned(
-                                                      top: 4,
-                                                      right: 4,
-                                                      child: GestureDetector(
-                                                        onTap: () =>
-                                                            _deletePhoto(url),
-                                                        child: Container(
-                                                          decoration:
-                                                              const BoxDecoration(
-                                                                color:
-                                                                    Colors.red,
-                                                                shape: BoxShape
-                                                                    .circle,
-                                                              ),
-                                                          padding:
-                                                              const EdgeInsets.all(
-                                                                4,
-                                                              ),
-                                                          child: const Icon(
-                                                            Icons.close,
-                                                            size: 12,
-                                                            color: Colors.white,
-                                                          ),
-                                                        ),
-                                                      ),
-                                                    ),
-                                                ],
-                                              ),
-                                            );
-                                          },
-                                        ),
-
-                                        // Fade hint when there's more to scroll
-                                        if (hasOverflow)
-                                          Positioned(
-                                            bottom: 0,
-                                            left: 0,
-                                            right: 0,
-                                            height:
-                                                thumbnailHeight, // fade over bottom row
-                                            child: IgnorePointer(
-                                              child: DecoratedBox(
-                                                decoration: BoxDecoration(
-                                                  gradient: LinearGradient(
-                                                    begin:
-                                                        Alignment.bottomCenter,
-                                                    end: Alignment.topCenter,
-                                                    colors: [
-                                                      Colors.white.withValues(
-                                                        alpha: 0.85,
-                                                      ),
-                                                      Colors.white.withValues(
-                                                        alpha: 0.0,
-                                                      ),
-                                                    ],
-                                                  ),
-                                                ),
-                                              ),
-                                            ),
+                                    ),
+                                    child: Row(
+                                      mainAxisSize: MainAxisSize.min,
+                                      mainAxisAlignment:
+                                          MainAxisAlignment.center,
+                                      children: const [
+                                        Icon(Icons.add_a_photo, size: 16),
+                                        SizedBox(width: 6),
+                                        Text(
+                                          'dodaj fotki',
+                                          style: TextStyle(
+                                            fontWeight: FontWeight.w600,
                                           ),
+                                        ),
                                       ],
                                     ),
-                                  );
-                                },
-                              ),
+                                  ),
+                                ),
+                              ],
+                            ),
 
-                              const SizedBox(height: 4),
-                              GestureDetector(
-                                onTap: _showPhotoSourceDialog,
-                                child: Container(
-                                  padding: const EdgeInsets.symmetric(
-                                    vertical: 8,
-                                    horizontal: 12,
-                                  ),
-                                  decoration: BoxDecoration(
-                                    border: Border.all(color: Colors.green),
-                                    borderRadius: BorderRadius.circular(6),
-                                    color: Colors.green.withValues(alpha: 0.05),
-                                  ),
-                                  child: Row(
-                                    mainAxisSize: MainAxisSize.min,
-                                    mainAxisAlignment: MainAxisAlignment.center,
-                                    children: const [
-                                      Icon(Icons.add_a_photo, size: 16),
-                                      SizedBox(width: 6),
-                                      Text(
-                                        'dodaj fotki',
-                                        style: TextStyle(
-                                          fontWeight: FontWeight.w600,
-                                        ),
+                      const Divider(),
+
+                      // — MAP PREVIEW
+                      SizedBox(
+                        height: 200,
+                        child: Stack(
+                          children: [
+                            GoogleMap(
+                              onMapCreated: (controller) =>
+                                  _mapController = controller,
+                              initialCameraPosition: CameraPosition(
+                                target:
+                                    _location ?? const LatLng(52.237, 21.017),
+                                zoom: 14,
+                              ),
+                              markers: _location == null
+                                  ? {}
+                                  : {
+                                      Marker(
+                                        markerId: const MarkerId('projectLoc'),
+                                        position: _location!,
                                       ),
-                                    ],
+                                    },
+                              onTap: (pos) async {
+                                _mapController?.animateCamera(
+                                  CameraUpdate.newLatLng(pos),
+                                );
+                                final docRef = FirebaseFirestore.instance
+                                    .collection('customers')
+                                    .doc(widget.customerId)
+                                    .collection('projects')
+                                    .doc(widget.projectId);
+                                await docRef.set({
+                                  'location': GeoPoint(
+                                    pos.latitude,
+                                    pos.longitude,
+                                  ),
+                                }, SetOptions(merge: true));
+                                final url = Uri.https(
+                                  'maps.googleapis.com',
+                                  '/maps/api/geocode/json',
+                                  {
+                                    'latlng':
+                                        '${pos.latitude},${pos.longitude}',
+                                    'key':
+                                        'AIzaSyDkXiS4JP9iySRXxzOiI1oN0_EmI6Tx208',
+                                  },
+                                );
+                                final resp = await http.get(url);
+                                final body =
+                                    jsonDecode(resp.body)
+                                        as Map<String, dynamic>;
+                                if (body['status'] == 'OK' &&
+                                    (body['results'] as List).isNotEmpty) {
+                                  final formatted =
+                                      body['results'][0]['formatted_address']
+                                          as String;
+                                  await docRef.set({
+                                    'address': formatted,
+                                  }, SetOptions(merge: true));
+                                  setState(() => _addressCtrl.text = formatted);
+                                }
+                              },
+                              myLocationEnabled: true,
+                              myLocationButtonEnabled: true,
+                            ),
+
+                            Positioned(
+                              top: 50,
+                              left: 1,
+                              child: ElevatedButton.icon(
+                                // icon: const Icon(
+                                //   Icons.map,
+                                //   color: Colors.lightBlue,
+                                //   size: 20,
+                                // ),
+                                label: const Text(
+                                  'Map',
+                                  style: TextStyle(
+                                    color: Colors.red,
+                                    fontWeight: FontWeight.bold,
                                   ),
                                 ),
+                                style: ElevatedButton.styleFrom(
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 12,
+                                    vertical: 8,
+                                  ),
+                                  backgroundColor: Colors.white.withValues(
+                                    alpha: 0.9,
+                                  ),
+                                  elevation: 2,
+                                ),
+                                onPressed: _pickLocation,
                               ),
-                            ],
-                          ),
-
-                    const Divider(),
-
-                    // — MAP PREVIEW
-                    SizedBox(
-                      height: 200,
-                      child: Stack(
-                        children: [
-                          GoogleMap(
-                            onMapCreated: (controller) =>
-                                _mapController = controller,
-                            initialCameraPosition: CameraPosition(
-                              target: _location ?? const LatLng(52.237, 21.017),
-                              zoom: 14,
                             ),
-                            markers: _location == null
-                                ? {}
-                                : {
-                                    Marker(
-                                      markerId: const MarkerId('projectLoc'),
-                                      position: _location!,
-                                    ),
-                                  },
-                            onTap: (pos) async {
-                              _mapController?.animateCamera(
-                                CameraUpdate.newLatLng(pos),
-                              );
-                              final docRef = FirebaseFirestore.instance
-                                  .collection('customers')
-                                  .doc(widget.customerId)
-                                  .collection('projects')
-                                  .doc(widget.projectId);
-                              await docRef.set({
-                                'location': GeoPoint(
-                                  pos.latitude,
-                                  pos.longitude,
-                                ),
-                              }, SetOptions(merge: true));
-                              final url = Uri.https(
-                                'maps.googleapis.com',
-                                '/maps/api/geocode/json',
-                                {
-                                  'latlng': '${pos.latitude},${pos.longitude}',
-                                  'key':
-                                      'AIzaSyDkXiS4JP9iySRXxzOiI1oN0_EmI6Tx208',
-                                },
-                              );
-                              final resp = await http.get(url);
-                              final body =
-                                  jsonDecode(resp.body) as Map<String, dynamic>;
-                              if (body['status'] == 'OK' &&
-                                  (body['results'] as List).isNotEmpty) {
-                                final formatted =
-                                    body['results'][0]['formatted_address']
-                                        as String;
-                                await docRef.set({
-                                  'address': formatted,
-                                }, SetOptions(merge: true));
-                                setState(() => _addressCtrl.text = formatted);
-                              }
-                            },
-                            myLocationEnabled: true,
-                            myLocationButtonEnabled: true,
-                          ),
 
-                          Positioned(
-                            top: 50,
-                            left: 1,
-                            child: ElevatedButton.icon(
-                              // icon: const Icon(
-                              //   Icons.map,
-                              //   color: Colors.lightBlue,
-                              //   size: 20,
-                              // ),
-                              label: const Text(
-                                'Map',
-                                style: TextStyle(
-                                  color: Colors.red,
-                                  fontWeight: FontWeight.bold,
+                            Positioned(
+                              top: 1,
+                              left: 1,
+                              child: ElevatedButton.icon(
+                                // icon: const Icon(
+                                //   Icons.roundabout_left,
+                                //   color: Color.fromARGB(255, 5, 190, 11),
+                                //   size: 20,
+                                // ),
+                                label: const Text(
+                                  'Jedź',
+                                  style: TextStyle(
+                                    color: Colors.green,
+                                    fontWeight: FontWeight.bold,
+                                  ),
                                 ),
+                                style: ElevatedButton.styleFrom(
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 12,
+                                    vertical: 8,
+                                  ),
+                                  backgroundColor: Colors.white.withValues(
+                                    alpha: 0.9,
+                                  ),
+                                  elevation: 2,
+                                ),
+                                onPressed: _launchNavigation,
                               ),
-                              style: ElevatedButton.styleFrom(
-                                padding: const EdgeInsets.symmetric(
-                                  horizontal: 12,
-                                  vertical: 8,
-                                ),
-                                backgroundColor: Colors.white.withValues(
-                                  alpha: 0.9,
-                                ),
-                                elevation: 2,
-                              ),
-                              onPressed: _pickLocation,
                             ),
-                          ),
-
-                          Positioned(
-                            top: 1,
-                            left: 1,
-                            child: ElevatedButton.icon(
-                              // icon: const Icon(
-                              //   Icons.roundabout_left,
-                              //   color: Color.fromARGB(255, 5, 190, 11),
-                              //   size: 20,
-                              // ),
-                              label: const Text(
-                                'Jedź',
-                                style: TextStyle(
-                                  color: Colors.green,
-                                  fontWeight: FontWeight.bold,
-                                ),
-                              ),
-                              style: ElevatedButton.styleFrom(
-                                padding: const EdgeInsets.symmetric(
-                                  horizontal: 12,
-                                  vertical: 8,
-                                ),
-                                backgroundColor: Colors.white.withValues(
-                                  alpha: 0.9,
-                                ),
-                                elevation: 2,
-                              ),
-                              onPressed: _launchNavigation,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-
-                    TextFormField(
-                      controller: _addressCtrl,
-                      decoration: InputDecoration(
-                        hintText: 'Nazwa budynku, adres, kod lub URL',
-                        suffixIcon: IconButton(
-                          icon: const Icon(Icons.search),
-                          onPressed: _searchAddress,
+                          ],
                         ),
                       ),
-                      textInputAction: TextInputAction.search,
-                      onFieldSubmitted: (_) => _searchAddress(),
-                    ),
-                  ],
+
+                      TextFormField(
+                        controller: _addressCtrl,
+                        decoration: InputDecoration(
+                          hintText: 'Nazwa budynku, adres, kod lub URL',
+                          suffixIcon: IconButton(
+                            icon: const Icon(Icons.search),
+                            onPressed: _searchAddress,
+                          ),
+                        ),
+                        textInputAction: TextInputAction.search,
+                        onFieldSubmitted: (_) => _searchAddress(),
+                      ),
+                    ],
+                  ),
                 ),
               ),
+
+              // floatingActionButton: FloatingActionButton(
+              //   tooltip: 'Dodaj…',
+              //   onPressed: () {
+              //     showModalBottomSheet<void>(
+              //       context: context,
+              //       builder: (ctx) => Column(
+              //         mainAxisSize: MainAxisSize.min,
+              //         children: [
+              //           ListTile(
+              //             leading: const Icon(Icons.add_a_photo),
+              //             title: const Text('Dodaj fota'),
+              //             onTap: () {
+              //               Navigator.pop(ctx);
+              //               _showPhotoSourceDialog();
+              //             },
+              //           ),
+              //           ListTile(
+              //             leading: const Icon(Icons.attach_file),
+              //             title: const Text('Dodaj plik'),
+              //             onTap: () {
+              //               Navigator.pop(ctx);
+              //               _pickAndUploadFiles();
+              //             },
+              //           ),
+              //         ],
+              //       ),
+              //     );
+              //   },
+              //   child: const Icon(Icons.add),
+              // ),
+
+              // floatingActionButtonLocation: FloatingActionButtonLocation.centerDocked,
+              // bottomNavigationBar: SafeArea(
+              //   child: BottomAppBar(
+              //     shape: const CircularNotchedRectangle(),
+              //     notchMargin: 6,
+              //     child: Padding(
+              //       padding: const EdgeInsets.symmetric(horizontal: 32),
+              //       child: Row(
+              //         mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              //         children: [
+              //           IconButton(
+              //             tooltip: 'Kontakty',
+              //             icon: const Icon(Icons.contact_mail_outlined),
+              //             onPressed: () => Navigator.of(context).push(
+              //               MaterialPageRoute(builder: (_) => ContactsListScreen()),
+              //             ),
+              //           ),
+              //           IconButton(
+              //             tooltip: 'Klienci',
+              //             icon: const Icon(Icons.people),
+              //             onPressed: () => Navigator.of(context).push(
+              //               MaterialPageRoute(
+              //                 builder: (_) =>
+              //                     CustomerListScreen(isAdmin: widget.isAdmin),
+              //               ),
+              //             ),
+              //           ),
+              //         ],
+              //       ),
+              //     ),
+              //   ),
+              // ),
             ),
-
-      // floatingActionButton: FloatingActionButton(
-      //   tooltip: 'Dodaj…',
-      //   onPressed: () {
-      //     showModalBottomSheet<void>(
-      //       context: context,
-      //       builder: (ctx) => Column(
-      //         mainAxisSize: MainAxisSize.min,
-      //         children: [
-      //           ListTile(
-      //             leading: const Icon(Icons.add_a_photo),
-      //             title: const Text('Dodaj fota'),
-      //             onTap: () {
-      //               Navigator.pop(ctx);
-      //               _showPhotoSourceDialog();
-      //             },
-      //           ),
-      //           ListTile(
-      //             leading: const Icon(Icons.attach_file),
-      //             title: const Text('Dodaj plik'),
-      //             onTap: () {
-      //               Navigator.pop(ctx);
-      //               _pickAndUploadFiles();
-      //             },
-      //           ),
-      //         ],
-      //       ),
-      //     );
-      //   },
-      //   child: const Icon(Icons.add),
-      // ),
-
-      // floatingActionButtonLocation: FloatingActionButtonLocation.centerDocked,
-      // bottomNavigationBar: SafeArea(
-      //   child: BottomAppBar(
-      //     shape: const CircularNotchedRectangle(),
-      //     notchMargin: 6,
-      //     child: Padding(
-      //       padding: const EdgeInsets.symmetric(horizontal: 32),
-      //       child: Row(
-      //         mainAxisAlignment: MainAxisAlignment.spaceBetween,
-      //         children: [
-      //           IconButton(
-      //             tooltip: 'Kontakty',
-      //             icon: const Icon(Icons.contact_mail_outlined),
-      //             onPressed: () => Navigator.of(context).push(
-      //               MaterialPageRoute(builder: (_) => ContactsListScreen()),
-      //             ),
-      //           ),
-      //           IconButton(
-      //             tooltip: 'Klienci',
-      //             icon: const Icon(Icons.people),
-      //             onPressed: () => Navigator.of(context).push(
-      //               MaterialPageRoute(
-      //                 builder: (_) =>
-      //                     CustomerListScreen(isAdmin: widget.isAdmin),
-      //               ),
-      //             ),
-      //           ),
-      //         ],
-      //       ),
-      //     ),
-      //   ),
-      // ),
     );
   }
 }

@@ -3,6 +3,7 @@ import 'package:strefa_ciszy/widgets/app_scaffold.dart';
 import 'package:strefa_ciszy/screens/inventory_list_screen.dart';
 import 'package:strefa_ciszy/widgets/stock_item_form.dart';
 import '../services/stock_item_service.dart';
+import '../utils/keyboard_utils.dart';
 
 class EditItemScreen extends StatelessWidget {
   final String docId;
@@ -41,24 +42,42 @@ class EditItemScreen extends StatelessWidget {
     return AppScaffold(
       title: 'Edytuj produkt',
       centreTitle: true,
-      body: Padding(
-        padding: const EdgeInsets.all(16),
-        child: StockItemForm(
-          initial: initial,
-          onSubmit: (v) async {
-            await service.updateItem(
-              docId: docId,
-              name: v.name,
-              sku: v.sku,
-              barcode: v.barcode,
-              producent: v.producent,
-              category: v.category,
-              quantity: v.quantity,
-              unit: v.unit,
-              location: v.location,
-              imageFile: v.imageFile,
+      body: DismissKeyboard(
+        child: LayoutBuilder(
+          builder: (context, constraints) {
+            return SingleChildScrollView(
+              padding: const EdgeInsets.all(16),
+              keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
+              child: ConstrainedBox(
+                constraints: BoxConstraints(minHeight: constraints.maxHeight),
+                child: IntrinsicHeight(
+                  child: Column(
+                    children: [
+                      Expanded(
+                        child: StockItemForm(
+                          initial: initial,
+                          onSubmit: (v) async {
+                            await service.updateItem(
+                              docId: docId,
+                              name: v.name,
+                              sku: v.sku,
+                              barcode: v.barcode,
+                              producent: v.producent,
+                              category: v.category,
+                              quantity: v.quantity,
+                              unit: v.unit,
+                              location: v.location,
+                              imageFile: v.imageFile,
+                            );
+                            _goToInventory(context);
+                          },
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
             );
-            _goToInventory(context);
           },
         ),
       ),

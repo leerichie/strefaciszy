@@ -6,6 +6,7 @@ import 'package:flutter/material.dart';
 import 'package:strefa_ciszy/screens/add_contact_screen.dart';
 import 'package:strefa_ciszy/screens/contact_detail_screen.dart';
 import 'package:strefa_ciszy/screens/customer_detail_screen.dart';
+import 'package:strefa_ciszy/utils/keyboard_utils.dart';
 import 'package:strefa_ciszy/widgets/app_scaffold.dart';
 import 'package:url_launcher/url_launcher.dart';
 
@@ -219,168 +220,210 @@ class _ContactsListScreenState extends State<ContactsListScreen> {
               isDense: true,
             ),
             onChanged: (v) => setState(() => _search = v.trim()),
+            textInputAction: TextInputAction.search,
+            onSubmitted: (_) => FocusScope.of(context).unfocus(),
           ),
         ),
       ),
 
-      body: Column(
-        children: [
-          const SizedBox(height: 8),
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 16),
-            child: DropdownButtonFormField<String>(
-              decoration: InputDecoration(
-                labelText: 'Typ kontaktu',
-                border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(8),
+      body: DismissKeyboard(
+        child: Column(
+          children: [
+            const SizedBox(height: 8),
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 16),
+              child: DropdownButtonFormField<String>(
+                decoration: InputDecoration(
+                  labelText: 'Typ kontaktu',
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  isDense: true,
                 ),
-                isDense: true,
-              ),
-              value: _category == 'Wszyscy' ? null : _category,
-              items: _categories.map((cat) {
-                return DropdownMenuItem(
-                  value: cat == 'Wszyscy' ? '' : cat,
-                  child: Text(cat),
-                );
-              }).toList(),
-              onChanged: (v) => setState(() {
-                _category = (v == null || v.isEmpty) ? 'Wszyscy' : v;
-                _updateStream();
-              }),
-            ),
-          ),
-          const SizedBox(height: 8),
-
-          Expanded(
-            child: StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
-              stream: (() {
-                Query<Map<String, dynamic>> ref = FirebaseFirestore.instance
-                    .collection('contacts');
-                if (_category != 'Wszyscy') {
-                  ref = ref.where('contactType', isEqualTo: _category);
-                }
-                if (widget.customerId != null) {
-                  ref = ref.where(
-                    'linkedCustomerId',
-                    isEqualTo: widget.customerId,
+                value: _category == 'Wszyscy' ? null : _category,
+                items: _categories.map((cat) {
+                  return DropdownMenuItem(
+                    value: cat == 'Wszyscy' ? '' : cat,
+                    child: Text(cat),
                   );
-                }
-                return ref.orderBy('name').snapshots();
-              })(),
-              builder: (context, snapshot) {
-                if (snapshot.connectionState == ConnectionState.waiting) {
-                  return const Center(child: CircularProgressIndicator());
-                }
-                if (snapshot.hasError) {
-                  return Center(child: Text('Error: ${snapshot.error}'));
-                }
-                final docs = snapshot.data!.docs.where((doc) {
-                  final name =
-                      doc.data()['name']?.toString().toLowerCase() ?? '';
-                  return name.contains(_search.toLowerCase());
-                }).toList();
-                if (docs.isEmpty) {
-                  return const Center(child: Text('Brak kontaktów.'));
-                }
-                return ListView.separated(
-                  itemCount: docs.length,
-                  separatorBuilder: (_, __) => const Divider(height: 1),
-                  itemBuilder: (context, i) {
-                    final doc = docs[i];
-                    final data = doc.data();
-                    final contactType = (data['contactType'] as String?) ?? '';
+                }).toList(),
+                onChanged: (v) => setState(() {
+                  _category = (v == null || v.isEmpty) ? 'Wszyscy' : v;
+                  _updateStream();
+                }),
+              ),
+            ),
+            const SizedBox(height: 8),
 
-                    return ListTile(
-                      title: Text(
-                        data['name'] ?? '',
-                        style: const TextStyle(fontWeight: FontWeight.bold),
-                      ),
-                      subtitle: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          if ((data['phone'] ?? '').isNotEmpty) ...[
-                            InkWell(
-                              onTap: () {
-                                if (contactType.toLowerCase() == 'klient') {
-                                  Navigator.of(context).push(
-                                    MaterialPageRoute(
-                                      builder: (_) => CustomerDetailScreen(
-                                        customerId: doc.id,
-                                        isAdmin: widget.isAdmin,
+            Expanded(
+              child: StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
+                stream: (() {
+                  Query<Map<String, dynamic>> ref = FirebaseFirestore.instance
+                      .collection('contacts');
+                  if (_category != 'Wszyscy') {
+                    ref = ref.where('contactType', isEqualTo: _category);
+                  }
+                  if (widget.customerId != null) {
+                    ref = ref.where(
+                      'linkedCustomerId',
+                      isEqualTo: widget.customerId,
+                    );
+                  }
+                  return ref.orderBy('name').snapshots();
+                })(),
+                builder: (context, snapshot) {
+                  if (snapshot.connectionState == ConnectionState.waiting) {
+                    return const Center(child: CircularProgressIndicator());
+                  }
+                  if (snapshot.hasError) {
+                    return Center(child: Text('Error: ${snapshot.error}'));
+                  }
+                  final docs = snapshot.data!.docs.where((doc) {
+                    final name =
+                        doc.data()['name']?.toString().toLowerCase() ?? '';
+                    return name.contains(_search.toLowerCase());
+                  }).toList();
+                  if (docs.isEmpty) {
+                    return const Center(child: Text('Brak kontaktów.'));
+                  }
+                  return NotificationListener<ScrollNotification>(
+                    onNotification: (notif) {
+                      if (notif is ScrollStartNotification) {
+                        FocusScope.of(context).unfocus();
+                      }
+                      return false;
+                    },
+                    child: ListView.separated(
+                      keyboardDismissBehavior:
+                          ScrollViewKeyboardDismissBehavior.onDrag,
+                      itemCount: docs.length,
+                      separatorBuilder: (_, __) => const Divider(height: 1),
+                      itemBuilder: (context, i) {
+                        final doc = docs[i];
+                        final data = doc.data();
+                        final contactType =
+                            (data['contactType'] as String?) ?? '';
+
+                        return GestureDetector(
+                          behavior: HitTestBehavior.translucent,
+                          onTapDown: (details) {
+                            // No-op, needed to make translucent behavior trigger taps
+                          },
+                          onTap: () {
+                            // Only navigate if not tapping phone or email (handled below)
+                            if (contactType.toLowerCase() == 'klient') {
+                              Navigator.of(context).push(
+                                MaterialPageRoute(
+                                  builder: (_) => ContactDetailScreen(
+                                    contactId: doc.id,
+                                    isAdmin: widget.isAdmin,
+                                  ),
+                                ),
+                              );
+                            } else {
+                              _showEditContactDialog(context, doc);
+                            }
+                          },
+                          child: ListTile(
+                            title: Text(
+                              data['name'] ?? '',
+                              style: const TextStyle(
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                            subtitle: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                if ((data['phone'] ?? '').isNotEmpty) ...[
+                                  GestureDetector(
+                                    behavior: HitTestBehavior.opaque,
+                                    onTap: () => _openUri(
+                                      Uri.parse('tel:${data['phone']}'),
+                                    ),
+                                    child: Padding(
+                                      padding: const EdgeInsets.symmetric(
+                                        vertical: 2,
+                                      ),
+                                      child: Row(
+                                        mainAxisSize: MainAxisSize.min,
+                                        children: [
+                                          const Icon(
+                                            Icons.phone,
+                                            size: 15,
+                                            color: Colors.green,
+                                          ),
+                                          const SizedBox(width: 4),
+                                          Text(
+                                            data['phone']!,
+                                            style: const TextStyle(
+                                              fontSize: 15,
+                                            ),
+                                          ),
+                                        ],
                                       ),
                                     ),
-                                  );
-                                } else {
-                                  _showEditContactDialog(context, doc);
-                                }
-                              },
-                              child: Row(
-                                mainAxisSize: MainAxisSize.min,
-                                children: [
-                                  const Icon(
-                                    Icons.phone,
-                                    size: 15,
-                                    color: Colors.green,
-                                  ),
-                                  const SizedBox(width: 4),
-                                  Text(
-                                    data['phone']!,
-                                    style: const TextStyle(fontSize: 15),
                                   ),
                                 ],
-                              ),
-                            ),
-                          ],
-                          if ((data['phone'] ?? '').isNotEmpty &&
-                              (data['email'] ?? '').isNotEmpty) ...[
-                            const SizedBox(height: 4),
-                          ],
-                          if ((data['email'] ?? '').isNotEmpty) ...[
-                            InkWell(
-                              onTap: () => _openUri(
-                                Uri.parse('mailto:${data['email']}'),
-                              ),
-                              child: Row(
-                                mainAxisSize: MainAxisSize.min,
-                                children: [
-                                  const Icon(
-                                    Icons.email,
-                                    size: 15,
-                                    color: Colors.blue,
-                                  ),
-                                  const SizedBox(width: 4),
-                                  Text(
-                                    data['email']!,
-                                    style: const TextStyle(fontSize: 15),
+                                if ((data['phone'] ?? '').isNotEmpty &&
+                                    (data['email'] ?? '').isNotEmpty)
+                                  const SizedBox(height: 4),
+                                if ((data['email'] ?? '').isNotEmpty) ...[
+                                  GestureDetector(
+                                    behavior: HitTestBehavior.opaque,
+                                    onTap: () => _openUri(
+                                      Uri.parse('mailto:${data['email']}'),
+                                    ),
+                                    child: Padding(
+                                      padding: const EdgeInsets.symmetric(
+                                        vertical: 2,
+                                      ),
+                                      child: Row(
+                                        mainAxisSize: MainAxisSize.min,
+                                        children: [
+                                          const Icon(
+                                            Icons.email,
+                                            size: 15,
+                                            color: Colors.blue,
+                                          ),
+                                          const SizedBox(width: 4),
+                                          Text(
+                                            data['email']!,
+                                            style: const TextStyle(
+                                              fontSize: 15,
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                    ),
                                   ),
                                 ],
-                              ),
+                              ],
                             ),
-                          ],
-                        ],
-                      ),
-                      trailing: Text(contactType),
-                      onTap: () {
-                        if (contactType.toLowerCase() == 'klient') {
-                          Navigator.of(context).push(
-                            MaterialPageRoute(
-                              builder: (_) => ContactDetailScreen(
-                                contactId: doc.id,
-                                isAdmin: widget.isAdmin,
-                              ),
-                            ),
-                          );
-                        } else {
-                          _showEditContactDialog(context, doc);
-                        }
+                            trailing: Text(contactType),
+                            onTap: () {
+                              if (contactType.toLowerCase() == 'klient') {
+                                Navigator.of(context).push(
+                                  MaterialPageRoute(
+                                    builder: (_) => ContactDetailScreen(
+                                      contactId: doc.id,
+                                      isAdmin: widget.isAdmin,
+                                    ),
+                                  ),
+                                );
+                              } else {
+                                _showEditContactDialog(context, doc);
+                              }
+                            },
+                          ),
+                        );
                       },
-                    );
-                  },
-                );
-              },
+                    ),
+                  );
+                },
+              ),
             ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }

@@ -8,6 +8,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:strefa_ciszy/screens/scan_screen.dart';
+import 'package:strefa_ciszy/utils/keyboard_utils.dart';
 import 'package:strefa_ciszy/widgets/app_scaffold.dart';
 import 'project_editor_screen.dart';
 
@@ -361,29 +362,33 @@ class _CustomerDetailScreenState extends State<CustomerDetailScreen> {
         preferredSize: const Size.fromHeight(56),
         child: Padding(
           padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-          child: Row(
-            children: [
-              Expanded(
-                child: TextField(
-                  controller: _searchController,
-                  decoration: InputDecoration(
-                    hintText: 'Szukaj projektu…',
-                    prefixIcon: const Icon(Icons.search),
-                    border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(8),
+          child: DismissKeyboard(
+            child: Row(
+              children: [
+                Expanded(
+                  child: TextField(
+                    controller: _searchController,
+                    decoration: InputDecoration(
+                      hintText: 'Szukaj projektu…',
+                      prefixIcon: const Icon(Icons.search),
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      isDense: true,
                     ),
-                    isDense: true,
+                    onChanged: (v) => setState(() => _search = v.trim()),
+                    textInputAction: TextInputAction.search,
+                    onSubmitted: (_) => FocusScope.of(context).unfocus(),
                   ),
-                  onChanged: (v) => setState(() => _search = v.trim()),
                 ),
-              ),
-              const SizedBox(width: 8),
-              IconButton(
-                tooltip: 'Resetuj filtr',
-                icon: const Icon(Icons.refresh),
-                onPressed: _resetFilters,
-              ),
-            ],
+                const SizedBox(width: 8),
+                IconButton(
+                  tooltip: 'Resetuj filtr',
+                  icon: const Icon(Icons.refresh),
+                  onPressed: _resetFilters,
+                ),
+              ],
+            ),
           ),
         ),
       ),

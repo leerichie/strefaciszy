@@ -227,72 +227,85 @@ class _ScanScreenState extends State<ScanScreen> {
     return AppScaffold(
       title: title,
       body: SafeArea(
-        child: Column(
-          children: [
-            Expanded(
-              child: MobileScanner(
-                controller: _controller,
-                onDetect: _onDetect,
-              ),
-            ),
-            if (_isSearch && _isLoading)
-              const Padding(
-                padding: EdgeInsets.all(12),
-                child: CircularProgressIndicator(),
-              ),
-            if (_isSearch && _found == false)
-              Padding(
-                padding: const EdgeInsets.all(12),
-                child: Text(
-                  'Nie ma produktu “${_scannedCode ?? ''}”',
-                  style: const TextStyle(fontSize: 16, color: Colors.red),
-                  textAlign: TextAlign.center,
+        child: GestureDetector(
+          behavior: HitTestBehavior.translucent,
+          onTap: () => FocusScope.of(context).unfocus(),
+          child: Column(
+            children: [
+              Expanded(
+                child: MobileScanner(
+                  controller: _controller,
+                  onDetect: _onDetect,
                 ),
               ),
-            if (_isSearch && _scannedCode != null)
-              Padding(
-                padding: const EdgeInsets.all(12),
-                child: Text(
-                  'Szukam: ${_scannedCode!}',
-                  style: const TextStyle(
-                    fontSize: 16,
-                    fontWeight: FontWeight.bold,
+              if (_isSearch && _isLoading)
+                const Padding(
+                  padding: EdgeInsets.all(12),
+                  child: CircularProgressIndicator(),
+                ),
+              if (_isSearch && _found == false)
+                Padding(
+                  padding: const EdgeInsets.all(12),
+                  child: Text(
+                    'Nie ma produktu “${_scannedCode ?? ''}”',
+                    style: const TextStyle(fontSize: 16, color: Colors.red),
+                    textAlign: TextAlign.center,
                   ),
                 ),
-              ),
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-              child: TextField(
-                decoration: InputDecoration(
-                  labelText: isSearch
-                      ? 'Ręcznie szukać po nazwie lub kod…'
-                      : 'Wpisz kod lub nazwę, aby dodać…',
-                  border: const OutlineInputBorder(),
+              if (_isSearch && _scannedCode != null)
+                Padding(
+                  padding: const EdgeInsets.all(12),
+                  child: Text(
+                    'Szukam: ${_scannedCode!}',
+                    style: const TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
                 ),
-                onSubmitted: _onManualEntry,
-              ),
-            ),
-            if (_found == false && !isSearch)
               Padding(
-                padding: EdgeInsets.fromLTRB(
-                  16,
-                  8,
-                  16,
-                  MediaQuery.of(context).viewPadding.bottom + 16,
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 16,
+                  vertical: 8,
                 ),
-                child: ElevatedButton(
-                  onPressed: () {
-                    Navigator.of(context).push(
-                      MaterialPageRoute(
-                        builder: (_) =>
-                            AddItemScreen(initialBarcode: _scannedCode),
-                      ),
-                    );
+                child: TextField(
+                  textInputAction: TextInputAction.search,
+                  decoration: InputDecoration(
+                    labelText: isSearch
+                        ? 'Ręcznie szukać po nazwie lub kod…'
+                        : 'Wpisz kod lub nazwa...',
+                    border: const OutlineInputBorder(),
+                  ),
+                  onSubmitted: (v) {
+                    FocusScope.of(context).unfocus();
+                    _onManualEntry(v);
                   },
-                  child: const Text('Dodaj Nowy Produkt'),
+                  onTapOutside: (_) => FocusScope.of(context).unfocus(),
                 ),
               ),
-          ],
+
+              if (_found == false && !isSearch)
+                Padding(
+                  padding: EdgeInsets.fromLTRB(
+                    16,
+                    8,
+                    16,
+                    MediaQuery.of(context).viewPadding.bottom + 16,
+                  ),
+                  child: ElevatedButton(
+                    onPressed: () {
+                      Navigator.of(context).push(
+                        MaterialPageRoute(
+                          builder: (_) =>
+                              AddItemScreen(initialBarcode: _scannedCode),
+                        ),
+                      );
+                    },
+                    child: const Text('Dodaj Nowy Produkt'),
+                  ),
+                ),
+            ],
+          ),
         ),
       ),
     );
