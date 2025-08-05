@@ -78,6 +78,8 @@ class _AddContactScreenState extends State<AddContactScreen> {
   bool _projectsLoading = false;
   String? _selectedProjectId;
 
+  List<String> _selectedProjectIds = [];
+
   @override
   void initState() {
     super.initState();
@@ -108,6 +110,7 @@ class _AddContactScreenState extends State<AddContactScreen> {
 
   Future<void> _loadAllProjects() async {
     setState(() => _projectsLoading = true);
+
     final snap = await FirebaseFirestore.instance
         .collectionGroup('projects')
         .orderBy('title')
@@ -167,17 +170,29 @@ class _AddContactScreenState extends State<AddContactScreen> {
       'contactType': (_isPrimaryContact || _isNewClient) ? 'Klient' : _category,
       if (_customerId != null) 'linkedCustomerId': _customerId,
       'updatedAt': FieldValue.serverTimestamp(),
-      if (_selectedProjectId != null) 'linkedProjectId': _selectedProjectId,
+      // if (_selectedProjectId != null) 'linkedProjectId': _selectedProjectId,
+      'linkedProjectIds': _selectedProjectIds,
+
       if (_customerId != null) 'linkedCustomerId': _customerId,
     };
 
-    final contactsCol = FirebaseFirestore.instance.collection('contacts');
+    if (_customerId == null && _selectedProjectIds.isNotEmpty) {
+      // find that project in our in‐memory list
+      final projId = _selectedProjectIds.first;
+      final projDoc = _allProjects.firstWhere((d) => d.id == projId);
+      // its parent is customers/{custId}/projects
+      _customerId = projDoc.reference.parent.parent!.id;
+      data['linkedCustomerId'] = _customerId;
+    } else if (_customerId != null) {
+      data['linkedCustomerId'] = _customerId;
+    }
 
+    data['updatedAt'] = FieldValue.serverTimestamp();
+    final contactsCol = FirebaseFirestore.instance.collection('contacts');
     if (_contactId == null) {
       data['createdAt'] = FieldValue.serverTimestamp();
       final docRef = await contactsCol.add(data);
       _contactId = docRef.id;
-      _createdEmptyDraft = true;
     } else {
       await contactsCol.doc(_contactId!).set(data, SetOptions(merge: true));
     }
@@ -335,6 +350,8 @@ class _AddContactScreenState extends State<AddContactScreen> {
           _extraNumbers.isNotEmpty) {
         _secondPhoneCtrl.text = _extraNumbers.removeAt(0);
       }
+      final projectIds = List<String>.from(data['linkedProjectIds'] ?? []);
+      setState(() => _selectedProjectIds = projectIds);
     }
     setState(() => _loading = false);
 
@@ -669,6 +686,99 @@ class _AddContactScreenState extends State<AddContactScreen> {
     Navigator.pop(context);
   }
 
+  Future<void> _showProjectMultiSelectDialog() async {
+    final tempSet = Set<String>.from(_selectedProjectIds);
+
+    await showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      builder: (ctx) {
+        return StatefulBuilder(
+          builder: (ctx, setModalState) {
+            return DraggableScrollableSheet(
+              expand: false,
+              initialChildSize: 0.8,
+              minChildSize: 0.4,
+              maxChildSize: 0.95,
+              builder: (context, scrollController) {
+                return Column(
+                  children: [
+                    AppBar(
+                      title: const Text('Przypisz do projekty:'),
+                      automaticallyImplyLeading: true,
+                      elevation: 1,
+                    ),
+
+                    Expanded(
+                      child: ListView.builder(
+                        controller: scrollController,
+                        itemCount: _allProjects.length,
+                        itemBuilder: (context, index) {
+                          final doc = _allProjects[index];
+                          final title = (doc.data()['title'] as String);
+                          final checked = tempSet.contains(doc.id);
+
+                          return CheckboxListTile(
+                            title: Text(title),
+                            value: checked,
+                            activeColor: Colors.white,
+                            checkColor: Colors.green,
+                            tileColor: index.isEven
+                                ? Colors.grey.shade200
+                                : null,
+                            onChanged: (on) {
+                              setModalState(() {
+                                if (on == true)
+                                  tempSet.add(doc.id);
+                                else
+                                  tempSet.remove(doc.id);
+                              });
+                            },
+                          );
+                        },
+                      ),
+                    ),
+
+                    Padding(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 30,
+                        vertical: 40,
+                      ),
+                      child: Row(
+                        mainAxisAlignment: MainAxisAlignment.center,
+
+                        children: [
+                          TextButton(
+                            onPressed: () => Navigator.pop(ctx),
+                            child: const Text('Anuluj'),
+                          ),
+                          const SizedBox(width: 8),
+                          ElevatedButton(
+                            onPressed: () {
+                              setState(() {
+                                _selectedProjectIds = tempSet.toList();
+                              });
+                              _scheduleAutoSave();
+                              Navigator.pop(ctx);
+                            },
+                            child: const Text(
+                              'OK',
+                              style: TextStyle(color: Colors.green),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                );
+              },
+            );
+          },
+        );
+      },
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return WillPopScope(
@@ -691,12 +801,6 @@ class _AddContactScreenState extends State<AddContactScreen> {
                 onPressed: _deleteContact,
                 child: const Icon(Icons.delete, color: Colors.red),
               )
-            // : (!_isEditing && _customerId != null)
-            // ? FloatingActionButton(
-            //     tooltip: 'Dodaj Projekt',
-            //     onPressed: _addProject,
-            //     child: const Icon(Icons.playlist_add),
-            //   )
             : null,
 
         body: _loading
@@ -734,6 +838,81 @@ class _AddContactScreenState extends State<AddContactScreen> {
 
                           // === Typ Kontaktu (hide on add client) ===
                           if (!_isPrimaryContact && !_isNewClient) ...[
+                            // === Assign to project ===
+                            if (widget.linkedCustomerId == null) ...[
+                              _projectsLoading
+                                  ? const Center(
+                                      child: CircularProgressIndicator(),
+                                    )
+                                  : Padding(
+                                      padding: const EdgeInsets.symmetric(
+                                        vertical: 5,
+                                      ),
+                                      child: Column(
+                                        crossAxisAlignment:
+                                            CrossAxisAlignment.start,
+                                        children: [
+                                          Row(
+                                            children: [
+                                              Expanded(
+                                                child: const Text(
+                                                  'Przypisz do projekt?',
+                                                  style: TextStyle(
+                                                    fontWeight: FontWeight.bold,
+                                                  ),
+                                                ),
+                                              ),
+                                              IconButton(
+                                                icon: const Icon(
+                                                  Icons.add_circle_outline,
+                                                ),
+                                                tooltip: 'Wybierz projekty',
+                                                onPressed:
+                                                    _showProjectMultiSelectDialog,
+                                              ),
+                                            ],
+                                          ),
+
+                                          const SizedBox(height: 1),
+
+                                          // ─── Vertical list  ───
+                                          Column(
+                                            crossAxisAlignment:
+                                                CrossAxisAlignment.start,
+                                            children: _selectedProjectIds.map((
+                                              projId,
+                                            ) {
+                                              final title =
+                                                  _allProjects
+                                                          .firstWhere(
+                                                            (d) =>
+                                                                d.id == projId,
+                                                          )
+                                                          .data()['title']
+                                                      as String;
+                                              return Padding(
+                                                padding: const EdgeInsets.only(
+                                                  bottom: 1,
+                                                ),
+                                                child: InputChip(
+                                                  label: Text(title),
+                                                  onDeleted: () {
+                                                    setState(
+                                                      () => _selectedProjectIds
+                                                          .remove(projId),
+                                                    );
+                                                    _scheduleAutoSave();
+                                                  },
+                                                ),
+                                              );
+                                            }).toList(),
+                                          ),
+                                        ],
+                                      ),
+                                    ),
+
+                              const SizedBox(height: 6),
+                            ],
                             Row(
                               children: [
                                 Expanded(
@@ -768,48 +947,6 @@ class _AddContactScreenState extends State<AddContactScreen> {
                                 ),
                               ],
                             ),
-                            const SizedBox(height: 12),
-                          ],
-
-                          // === Assign to project
-                          if (widget.linkedCustomerId == null) ...[
-                            _projectsLoading
-                                ? const Center(
-                                    child: CircularProgressIndicator(),
-                                  )
-                                : DropdownButtonFormField<String>(
-                                    decoration: const InputDecoration(
-                                      labelText: 'Przypisz do projektu',
-                                    ),
-                                    value: _selectedProjectId,
-                                    items: [
-                                      const DropdownMenuItem(
-                                        value: null,
-                                        child: Text('Nie'),
-                                      ),
-                                      ..._allProjects.map((doc) {
-                                        final data = doc.data();
-                                        final title =
-                                            data['title'] as String? ?? '';
-                                        return DropdownMenuItem(
-                                          value: doc.id,
-                                          child: Text(title),
-                                        );
-                                      }),
-                                    ],
-                                    onChanged: (projId) {
-                                      setState(() {
-                                        _selectedProjectId = projId;
-                                        if (projId != null) {
-                                          final projData = _allProjects
-                                              .firstWhere((d) => d.id == projId)
-                                              .data();
-                                          _customerId =
-                                              projData['customerId'] as String?;
-                                        }
-                                      });
-                                    },
-                                  ),
                             const SizedBox(height: 12),
                           ],
 

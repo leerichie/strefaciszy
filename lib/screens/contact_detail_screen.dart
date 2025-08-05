@@ -206,69 +206,252 @@ class _ContactDetailScreenState extends State<ContactDetailScreen> {
     );
   }
 
+  Future<void> _deleteContact() async {
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Usuń kontakt?'),
+        content: const Text('Na pewno skasować?'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Anuluj'),
+          ),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('Usuń'),
+          ),
+        ],
+      ),
+    );
+    if (ok != true) return;
+
+    await FirebaseFirestore.instance
+        .collection('contacts')
+        .doc(widget.contactId)
+        .delete();
+
+    if (Navigator.canPop(context)) Navigator.pop(context);
+  }
+
   Future<void> _showEditContactDialog(
     BuildContext context,
     QueryDocumentSnapshot<Map<String, dynamic>> docSnap,
   ) async {
     final data = docSnap.data();
+    final custId = data['linkedCustomerId'] as String?;
 
-    String name = data['name'] as String? ?? '';
-    String phone = data['phone'] as String? ?? '';
-    String email = data['email'] as String? ?? '';
-    String type = data['contactType'] as String? ?? '';
+    final projQuery = FirebaseFirestore.instance.collectionGroup('projects');
+    final projSnap = await projQuery.orderBy('title').get();
+    final allProjects = projSnap.docs;
+
+    final tempSet = Set<String>.from(
+      List<String>.from(data['linkedProjectIds'] ?? <String>[]),
+    );
+
+    var name = data['name'] as String? ?? '';
+    var phone = data['phone'] as String? ?? '';
+    var email = data['email'] as String? ?? '';
+    var type = data['contactType'] as String? ?? '';
 
     await showDialog<void>(
       context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Text('Edytuj kontakt'),
-        content: SingleChildScrollView(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              TextFormField(
-                initialValue: name,
-                decoration: const InputDecoration(labelText: 'Imię i nazwisko'),
-                onChanged: (v) => name = v.trim(),
-              ),
-              TextFormField(
-                initialValue: phone,
-                decoration: const InputDecoration(labelText: 'Telefon'),
-                keyboardType: TextInputType.phone,
-                onChanged: (v) => phone = v.trim(),
-              ),
-              TextFormField(
-                initialValue: email,
-                decoration: const InputDecoration(labelText: 'Email'),
-                keyboardType: TextInputType.emailAddress,
-                onChanged: (v) => email = v.trim(),
-              ),
-              TextFormField(
-                initialValue: type,
-                decoration: const InputDecoration(labelText: 'Typ kontaktu'),
-                onChanged: (v) => type = v.trim(),
-              ),
-            ],
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setModalState) => AlertDialog(
+          title: const Text('Edytuj kontakt'),
+          content: SingleChildScrollView(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                TextFormField(
+                  initialValue: name,
+                  decoration: const InputDecoration(
+                    labelText: 'Imię i nazwisko',
+                  ),
+                  onChanged: (v) => name = v.trim(),
+                ),
+                TextFormField(
+                  initialValue: phone,
+                  decoration: const InputDecoration(labelText: 'Telefon'),
+                  keyboardType: TextInputType.phone,
+                  onChanged: (v) => phone = v.trim(),
+                ),
+                TextFormField(
+                  initialValue: email,
+                  decoration: const InputDecoration(labelText: 'Email'),
+                  keyboardType: TextInputType.emailAddress,
+                  onChanged: (v) => email = v.trim(),
+                ),
+                TextFormField(
+                  initialValue: type,
+                  decoration: const InputDecoration(labelText: 'Typ kontaktu'),
+                  onChanged: (v) => type = v.trim(),
+                ),
+
+                const SizedBox(height: 12),
+                Row(
+                  children: [
+                    const Expanded(
+                      child: Text(
+                        'Przypisz do projekty?',
+                        style: TextStyle(fontWeight: FontWeight.bold),
+                      ),
+                    ),
+                    IconButton(
+                      icon: const Icon(Icons.add_circle_outline),
+                      tooltip: 'Wybierz projekty',
+                      onPressed: () {
+                        showModalBottomSheet<void>(
+                          context: ctx,
+                          isScrollControlled: true,
+                          builder: (_) => StatefulBuilder(
+                            builder: (_, sheetSetState) =>
+                                DraggableScrollableSheet(
+                                  expand: false,
+                                  initialChildSize: 0.7,
+                                  builder: (_, controller) => Column(
+                                    children: [
+                                      AppBar(
+                                        title: const Text('Wybierz projekty:'),
+                                        automaticallyImplyLeading: true,
+                                        elevation: 1,
+                                      ),
+                                      Expanded(
+                                        child: ListView.builder(
+                                          controller: controller,
+                                          itemCount: allProjects.length,
+                                          itemBuilder: (_, i) {
+                                            final p = allProjects[i];
+                                            final title =
+                                                p.data()['title'] as String;
+                                            final checked = tempSet.contains(
+                                              p.id,
+                                            );
+
+                                            return CheckboxListTile(
+                                              title: Text(title),
+                                              value: checked,
+                                              tileColor: i.isEven
+                                                  ? Colors.grey.shade200
+                                                  : null,
+                                              activeColor: Theme.of(
+                                                context,
+                                              ).colorScheme.primary,
+                                              checkColor: Theme.of(
+                                                context,
+                                              ).colorScheme.onPrimary,
+                                              onChanged: (on) {
+                                                sheetSetState(() {
+                                                  if (on == true)
+                                                    tempSet.add(p.id);
+                                                  else
+                                                    tempSet.remove(p.id);
+                                                });
+                                                setModalState(() {});
+                                              },
+                                            );
+                                          },
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                          ),
+                        );
+                      },
+                    ),
+                  ],
+                ),
+
+                ...tempSet.map((projId) {
+                  final title =
+                      allProjects
+                              .firstWhere((d) => d.id == projId)
+                              .data()['title']
+                          as String;
+                  return InputChip(
+                    label: Text(title),
+                    onDeleted: () =>
+                        setModalState(() => tempSet.remove(projId)),
+                  );
+                }),
+              ],
+            ),
           ),
+          actions: [
+            if (widget.isAdmin)
+              TextButton(
+                style: TextButton.styleFrom(foregroundColor: Colors.red),
+                onPressed: () async {
+                  final confirm = await showDialog<bool>(
+                    context: ctx,
+                    builder: (ctx2) => AlertDialog(
+                      title: const Text('Na pewno usunac kontakt?'),
+                      content: Text(data['name'] ?? ''),
+                      actions: [
+                        TextButton(
+                          onPressed: () => Navigator.pop(ctx2, false),
+                          child: const Text('Anuluj'),
+                        ),
+                        ElevatedButton(
+                          style: TextButton.styleFrom(
+                            foregroundColor: Colors.red,
+                          ),
+                          onPressed: () => Navigator.pop(ctx2, true),
+                          child: const Text('Usuń'),
+                        ),
+                      ],
+                    ),
+                  );
+                  if (confirm == true) {
+                    await docSnap.reference.delete();
+                    Navigator.of(ctx).pop();
+                  }
+                },
+                child: const Text('Usuń'),
+              ),
+
+            TextButton(
+              onPressed: () => Navigator.of(ctx).pop(),
+              child: const Text('Anuluj'),
+            ),
+
+            ElevatedButton(
+              onPressed: () async {
+                final updatePayload = <String, dynamic>{
+                  'name': name,
+                  'phone': phone,
+                  'email': email,
+                  'contactType': type,
+                  'linkedProjectIds': tempSet.toList(),
+                  'updatedAt': FieldValue.serverTimestamp(),
+                };
+
+                if (tempSet.isEmpty) {
+                  updatePayload['linkedCustomerId'] = FieldValue.delete();
+                } else {
+                  if (custId != null) {
+                    updatePayload['linkedCustomerId'] = custId;
+                  } else {
+                    final firstProj = allProjects.firstWhere(
+                      (p) => p.id == tempSet.first,
+                    );
+                    final parentCustomerDoc = firstProj.reference.parent.parent;
+                    if (parentCustomerDoc != null) {
+                      updatePayload['linkedCustomerId'] = parentCustomerDoc.id;
+                    }
+                  }
+                }
+
+                await docSnap.reference.update(updatePayload);
+                Navigator.of(ctx).pop();
+              },
+              child: const Text('Zapisz'),
+            ),
+          ],
         ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(ctx).pop(),
-            child: const Text('Anuluj'),
-          ),
-          ElevatedButton(
-            onPressed: () async {
-              await docSnap.reference.update({
-                'name': name,
-                'phone': phone,
-                'email': email,
-                'contactType': type,
-                'updatedAt': FieldValue.serverTimestamp(),
-              });
-              Navigator.of(ctx).pop();
-            },
-            child: const Text('Zapisz'),
-          ),
-        ],
       ),
     );
   }
@@ -336,6 +519,14 @@ class _ContactDetailScreenState extends State<ContactDetailScreen> {
                 animation: tabController,
                 builder: (context, _) => AppScaffold(
                   title: '',
+                  // actions: [
+                  //   if (widget.isAdmin)
+                  //     IconButton(
+                  //       icon: const Icon(Icons.delete, color: Colors.red),
+                  //       tooltip: 'Usuń kontakt',
+                  //       onPressed: _deleteContact,
+                  //     ),
+                  // ],
                   titleWidget: GestureDetector(
                     onLongPress: () {
                       Navigator.of(context).push(
@@ -348,9 +539,11 @@ class _ContactDetailScreenState extends State<ContactDetailScreen> {
                         ),
                       );
                     },
-                    child: Text(
+                    child: AutoSizeText(
                       name,
                       style: Theme.of(context).textTheme.headlineSmall,
+                      maxLines: 1,
+                      minFontSize: 9,
                     ),
                   ),
                   centreTitle: true,
@@ -412,12 +605,13 @@ class _ContactDetailScreenState extends State<ContactDetailScreen> {
                             Row(
                               children: [
                                 Expanded(
-                                  child: Text(
+                                  child: AutoSizeText(
                                     data['name'] ?? '',
                                     style: const TextStyle(
-                                      fontSize: 17,
                                       fontWeight: FontWeight.bold,
                                     ),
+                                    maxLines: 1,
+                                    minFontSize: 11,
                                   ),
                                 ),
                                 Text(
@@ -646,11 +840,13 @@ class _ContactDetailScreenState extends State<ContactDetailScreen> {
                                         return ListTile(
                                           contentPadding:
                                               const EdgeInsets.symmetric(
-                                                horizontal: 16.0,
+                                                horizontal: 1.0,
                                               ),
-                                          title: Text(
+                                          title: AutoSizeText(
                                             title,
                                             overflow: TextOverflow.ellipsis,
+                                            minFontSize: 9,
+                                            maxLines: 1,
                                           ),
                                           subtitle: Text(dateText),
                                           onTap: () =>
@@ -672,10 +868,12 @@ class _ContactDetailScreenState extends State<ContactDetailScreen> {
                                                   existingData: pm,
                                                 )
                                               : null,
+
                                           trailing: Row(
                                             mainAxisSize: MainAxisSize.min,
                                             children: [
                                               // ★ / ☆
+                                              const SizedBox(width: 1),
                                               IconButton(
                                                 icon: Icon(
                                                   isFav
@@ -689,8 +887,14 @@ class _ContactDetailScreenState extends State<ContactDetailScreen> {
                                                       title,
                                                       custId,
                                                     ),
+                                                padding: EdgeInsets.zero,
+                                                constraints: BoxConstraints(),
+                                                iconSize: 20,
+                                                visualDensity:
+                                                    VisualDensity.compact,
                                               ),
 
+                                              const SizedBox(width: 1),
                                               // RW count badge
                                               FutureBuilder<QuerySnapshot>(
                                                 future: d.reference
@@ -700,8 +904,8 @@ class _ContactDetailScreenState extends State<ContactDetailScreen> {
                                                   if (s2.connectionState ==
                                                       ConnectionState.waiting) {
                                                     return const SizedBox(
-                                                      width: 24,
-                                                      height: 24,
+                                                      width: 10,
+                                                      height: 10,
                                                       child:
                                                           CircularProgressIndicator(
                                                             strokeWidth: 2,
@@ -713,8 +917,8 @@ class _ContactDetailScreenState extends State<ContactDetailScreen> {
                                                   return Container(
                                                     padding:
                                                         const EdgeInsets.symmetric(
-                                                          horizontal: 8,
-                                                          vertical: 4,
+                                                          horizontal: 4,
+                                                          vertical: 2,
                                                         ),
                                                     decoration: BoxDecoration(
                                                       color: Colors.grey,
@@ -724,19 +928,20 @@ class _ContactDetailScreenState extends State<ContactDetailScreen> {
                                                           ),
                                                     ),
                                                     child: Text(
-                                                      'RW: $cnt',
+                                                      'R:$cnt',
                                                       style: const TextStyle(
                                                         fontSize: 14,
+
                                                         color: Colors.white,
                                                       ),
                                                     ),
                                                   );
                                                 },
                                               ),
-
+                                              const SizedBox(width: 1),
                                               // delete
                                               if (widget.isAdmin) ...[
-                                                const SizedBox(width: 8),
+                                                const SizedBox(width: 1),
                                                 IconButton(
                                                   icon: const Icon(
                                                     Icons.delete,
@@ -749,6 +954,7 @@ class _ContactDetailScreenState extends State<ContactDetailScreen> {
                                                         title: const Text(
                                                           'Usuń projekt?',
                                                         ),
+
                                                         content: Text(title),
                                                         actions: [
                                                           TextButton(
@@ -761,6 +967,7 @@ class _ContactDetailScreenState extends State<ContactDetailScreen> {
                                                               'Anuluj',
                                                             ),
                                                           ),
+
                                                           ElevatedButton(
                                                             onPressed: () =>
                                                                 Navigator.pop(
@@ -792,6 +999,11 @@ class _ContactDetailScreenState extends State<ContactDetailScreen> {
                                                       );
                                                     }
                                                   },
+                                                  padding: EdgeInsets.zero,
+                                                  constraints: BoxConstraints(),
+                                                  iconSize: 25,
+                                                  visualDensity:
+                                                      VisualDensity.compact,
                                                 ),
                                               ],
                                             ],

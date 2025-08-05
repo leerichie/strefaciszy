@@ -2,6 +2,7 @@
 
 import 'dart:async';
 
+import 'package:auto_size_text/auto_size_text.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
@@ -334,27 +335,6 @@ class _CustomerListScreenState extends State<CustomerListScreen> {
         ),
       ),
 
-      // actions: [
-      //   Padding(
-      //     padding: const EdgeInsets.symmetric(horizontal: 8.0),
-      //     child: CircleAvatar(
-      //       backgroundColor: Colors.black,
-      //       child: IconButton(
-      //         icon: const Icon(Icons.home),
-      //         color: Colors.white,
-      //         tooltip: 'Home',
-      //         onPressed: () {
-      //           Navigator.of(context).pushAndRemoveUntil(
-      //             MaterialPageRoute(
-      //               builder: (_) => const MainMenuScreen(role: 'admin'),
-      //             ),
-      //             (route) => false,
-      //           );
-      //         },
-      //       ),
-      //     ),
-      //   ),
-      // ],
       body: DismissKeyboard(
         child: StreamBuilder<QuerySnapshot>(
           stream: _col.orderBy('createdAt', descending: true).snapshots(),
@@ -447,7 +427,11 @@ class _CustomerListScreenState extends State<CustomerListScreen> {
                   final contactId = (data['contactId'] as String?)?.trim();
 
                   return ListTile(
-                    title: Text(data['name'] ?? '—'),
+                    title: AutoSizeText(
+                      data['name'] ?? '—',
+                      maxLines: 1,
+                      minFontSize: 9,
+                    ),
                     subtitle: ts != null ? Text(dateStr) : null,
                     onTap: () {
                       if (contactId != null && contactId.isNotEmpty) {
@@ -489,13 +473,14 @@ class _CustomerListScreenState extends State<CustomerListScreen> {
                             data['name'] ?? '',
                           ),
                         ),
+                        const SizedBox(width: 1),
                         FutureBuilder<QuerySnapshot>(
                           future: _col.doc(doc.id).collection('projects').get(),
                           builder: (ctx2, snap2) {
                             if (snap2.connectionState ==
                                 ConnectionState.waiting) {
                               return const SizedBox(
-                                width: 24,
+                                width: 10,
                                 height: 24,
                                 child: CircularProgressIndicator(
                                   strokeWidth: 2,
@@ -505,8 +490,8 @@ class _CustomerListScreenState extends State<CustomerListScreen> {
                             final count = snap2.data?.docs.length ?? 0;
                             return Container(
                               padding: const EdgeInsets.symmetric(
-                                horizontal: 8,
-                                vertical: 4,
+                                horizontal: 4,
+                                vertical: 2,
                               ),
                               decoration: BoxDecoration(
                                 color: Colors.grey,
@@ -522,8 +507,9 @@ class _CustomerListScreenState extends State<CustomerListScreen> {
                             );
                           },
                         ),
+                        const SizedBox(width: 1),
                         if (isAdmin) ...[
-                          const SizedBox(width: 8),
+                          const SizedBox(width: 2),
                           IconButton(
                             icon: const Icon(Icons.delete, color: Colors.red),
                             tooltip: 'Usuń klienta',
@@ -562,6 +548,10 @@ class _CustomerListScreenState extends State<CustomerListScreen> {
                                 );
                               }
                             },
+                            padding: EdgeInsets.zero,
+                            constraints: BoxConstraints(),
+                            iconSize: 25,
+                            visualDensity: VisualDensity.compact,
                           ),
                         ],
                       ],

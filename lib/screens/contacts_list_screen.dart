@@ -26,13 +26,29 @@ class _ContactsListScreenState extends State<ContactsListScreen> {
 
   late final TextEditingController _searchController;
   late Stream<QuerySnapshot<Map<String, dynamic>>> _stream;
+  List<QueryDocumentSnapshot<Map<String, dynamic>>> _allProjects = [];
 
   @override
   void initState() {
     super.initState();
     _loadCategories();
+    if (widget.customerId != null) {
+      _loadProjectsUnderCustomer();
+    }
     _searchController = TextEditingController();
     _updateStream();
+  }
+
+  Future<void> _loadProjectsUnderCustomer() async {
+    final snap = await FirebaseFirestore.instance
+        .collection('customers')
+        .doc(widget.customerId!)
+        .collection('projects')
+        .orderBy('title')
+        .get();
+    setState(() {
+      _allProjects = snap.docs;
+    });
   }
 
   Future<void> _loadCategories() async {
@@ -63,6 +79,16 @@ class _ContactsListScreenState extends State<ContactsListScreen> {
     QueryDocumentSnapshot<Map<String, dynamic>> docSnap,
   ) async {
     final data = docSnap.data();
+    final custId = data['linkedCustomerId'] as String?;
+    final projQuery = FirebaseFirestore.instance.collectionGroup('projects');
+
+    final projSnap = await projQuery.orderBy('title').get();
+    final allProjects = projSnap.docs;
+
+    final tempSet = Set<String>.from(
+      List<String>.from(data['linkedProjectIds'] ?? <String>[]),
+    );
+
     var name = data['name'] as String? ?? '';
     var phone = data['phone'] as String? ?? '';
     var email = data['email'] as String? ?? '';
@@ -70,54 +96,208 @@ class _ContactsListScreenState extends State<ContactsListScreen> {
 
     await showDialog<void>(
       context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Text('Edytuj kontakt'),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            TextFormField(
-              initialValue: name,
-              decoration: const InputDecoration(labelText: 'Imię i nazwisko'),
-              onChanged: (v) => name = v.trim(),
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setModalState) => AlertDialog(
+          title: const Text('Edytuj kontakt'),
+          content: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                TextFormField(
+                  initialValue: name,
+                  decoration: const InputDecoration(
+                    labelText: 'Imię i nazwisko',
+                  ),
+                  onChanged: (v) => name = v.trim(),
+                ),
+                TextFormField(
+                  initialValue: phone,
+                  decoration: const InputDecoration(labelText: 'Telefon'),
+                  keyboardType: TextInputType.phone,
+                  onChanged: (v) => phone = v.trim(),
+                ),
+                TextFormField(
+                  initialValue: email,
+                  decoration: const InputDecoration(labelText: 'Email'),
+                  keyboardType: TextInputType.emailAddress,
+                  onChanged: (v) => email = v.trim(),
+                ),
+                TextFormField(
+                  initialValue: type,
+                  decoration: const InputDecoration(labelText: 'Typ kontaktu'),
+                  onChanged: (v) => type = v.trim(),
+                ),
+
+                // ─── ONLY show  iFFFFFF
+                // if (custId != null) ...[
+                const SizedBox(height: 5),
+
+                Row(
+                  children: [
+                    const Expanded(
+                      child: Text(
+                        'Przypisz do projekty?',
+                        style: TextStyle(fontWeight: FontWeight.bold),
+                      ),
+                    ),
+                    IconButton(
+                      icon: const Icon(Icons.add_circle_outline),
+                      tooltip: 'Wybierz projekty',
+                      onPressed: () {
+                        showModalBottomSheet<void>(
+                          context: ctx,
+                          isScrollControlled: true,
+                          builder: (_) => StatefulBuilder(
+                            builder: (_, sheetSetState) =>
+                                DraggableScrollableSheet(
+                                  expand: false,
+                                  initialChildSize: 0.7,
+                                  builder: (_, controller) => Column(
+                                    children: [
+                                      AppBar(
+                                        title: const Text('Wybierz projekty:'),
+                                        automaticallyImplyLeading: true,
+                                        elevation: 1,
+                                      ),
+                                      Expanded(
+                                        child: ListView.builder(
+                                          controller: controller,
+                                          itemCount: allProjects.length,
+                                          itemBuilder: (_, i) {
+                                            final p = allProjects[i];
+                                            final title =
+                                                (p.data()['title'] as String);
+                                            final checked = tempSet.contains(
+                                              p.id,
+                                            );
+
+                                            return CheckboxListTile(
+                                              tileColor: i.isEven
+                                                  ? Colors.grey.shade200
+                                                  : null,
+                                              title: Text(title),
+                                              value: checked,
+                                              activeColor: Theme.of(
+                                                context,
+                                              ).colorScheme.primary,
+                                              checkColor: Theme.of(
+                                                context,
+                                              ).colorScheme.onPrimary,
+                                              onChanged: (on) {
+                                                sheetSetState(() {
+                                                  if (on == true)
+                                                    tempSet.add(p.id);
+                                                  else
+                                                    tempSet.remove(p.id);
+                                                });
+                                                setModalState(() {});
+                                              },
+                                            );
+                                          },
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                          ),
+                        );
+                      },
+                    ),
+                  ],
+                ),
+
+                const SizedBox(height: 2),
+
+                ...tempSet.map((projId) {
+                  final title =
+                      allProjects
+                              .firstWhere((d) => d.id == projId)
+                              .data()['title']
+                          as String;
+                  return Padding(
+                    padding: const EdgeInsets.only(bottom: 1),
+                    child: InputChip(
+                      label: Text(title),
+                      onDeleted: () => setModalState(() {
+                        tempSet.remove(projId);
+                      }),
+                    ),
+                  );
+                }).toList(),
+              ],
             ),
-            TextFormField(
-              initialValue: phone,
-              decoration: const InputDecoration(labelText: 'Telefon'),
-              keyboardType: TextInputType.phone,
-              onChanged: (v) => phone = v.trim(),
+          ),
+          actions: [
+            if (widget.isAdmin)
+              TextButton(
+                style: TextButton.styleFrom(foregroundColor: Colors.red),
+                onPressed: () async {
+                  final confirm = await showDialog<bool>(
+                    context: ctx,
+                    builder: (ctx2) => AlertDialog(
+                      title: const Text('Na pewno usunac kontakt?'),
+                      content: Text(data['name'] ?? ''),
+                      actions: [
+                        TextButton(
+                          onPressed: () => Navigator.pop(ctx2, false),
+                          child: const Text('Anuluj'),
+                        ),
+                        ElevatedButton(
+                          style: TextButton.styleFrom(
+                            foregroundColor: Colors.red,
+                          ),
+                          onPressed: () => Navigator.pop(ctx2, true),
+                          child: const Text('Usuń'),
+                        ),
+                      ],
+                    ),
+                  );
+                  if (confirm != true) return;
+
+                  await docSnap.reference.delete();
+                  Navigator.of(ctx).pop();
+                },
+                child: const Text('Usuń'),
+              ),
+            TextButton(
+              onPressed: () => Navigator.of(ctx).pop(),
+              child: const Text('Anuluj'),
             ),
-            TextFormField(
-              initialValue: email,
-              decoration: const InputDecoration(labelText: 'Email'),
-              keyboardType: TextInputType.emailAddress,
-              onChanged: (v) => email = v.trim(),
-            ),
-            TextFormField(
-              initialValue: type,
-              decoration: const InputDecoration(labelText: 'Typ kontaktu'),
-              onChanged: (v) => type = v.trim(),
+            ElevatedButton(
+              onPressed: () async {
+                final updatePayload = <String, dynamic>{
+                  'name': name,
+                  'phone': phone,
+                  'email': email,
+                  'contactType': type,
+                  'linkedProjectIds': tempSet.toList(),
+                  'updatedAt': FieldValue.serverTimestamp(),
+                };
+
+                if (tempSet.isEmpty) {
+                  updatePayload['linkedCustomerId'] = FieldValue.delete();
+                } else {
+                  if (custId != null) {
+                    updatePayload['linkedCustomerId'] = custId;
+                  } else {
+                    final firstProj = allProjects.firstWhere(
+                      (p) => p.id == tempSet.first,
+                    );
+                    final parentCustomerDoc = firstProj.reference.parent.parent;
+                    if (parentCustomerDoc != null) {
+                      updatePayload['linkedCustomerId'] = parentCustomerDoc.id;
+                    }
+                  }
+                }
+
+                await docSnap.reference.update(updatePayload);
+                Navigator.of(ctx).pop();
+              },
+              child: const Text('Zapisz'),
             ),
           ],
         ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(ctx).pop(),
-            child: const Text('Anuluj'),
-          ),
-          ElevatedButton(
-            onPressed: () async {
-              await docSnap.reference.update({
-                'name': name,
-                'phone': phone,
-                'email': email,
-                'contactType': type,
-                'updatedAt': FieldValue.serverTimestamp(),
-              });
-              Navigator.of(ctx).pop();
-            },
-            child: const Text('Zapisz'),
-          ),
-        ],
       ),
     );
   }
@@ -134,7 +314,6 @@ class _ContactsListScreenState extends State<ContactsListScreen> {
         builder: (_) => AddContactScreen(
           isAdmin: widget.isAdmin,
           linkedCustomerId: widget.customerId,
-          // forceAsContact: true,
         ),
       ),
     );
@@ -306,16 +485,13 @@ class _ContactsListScreenState extends State<ContactsListScreen> {
 
                         return GestureDetector(
                           behavior: HitTestBehavior.translucent,
-                          onTapDown: (details) {
-                            // No-op, needed to make translucent behavior trigger taps
-                          },
+                          onTapDown: (details) {},
                           onTap: () {
-                            // Only navigate if not tapping phone or email (handled below)
                             if (contactType.toLowerCase() == 'klient') {
                               Navigator.of(context).push(
                                 MaterialPageRoute(
-                                  builder: (_) => ContactDetailScreen(
-                                    contactId: doc.id,
+                                  builder: (_) => CustomerDetailScreen(
+                                    customerId: doc.id,
                                     isAdmin: widget.isAdmin,
                                   ),
                                 ),

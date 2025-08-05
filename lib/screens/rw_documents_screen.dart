@@ -453,6 +453,15 @@ class _RWDocumentsScreenState extends State<RWDocumentsScreen> {
                                 ),
                               ],
                             ),
+                            if ((d['items'] as List).isEmpty &&
+                                (d['notesList'] as List).isNotEmpty)
+                              Padding(
+                                padding: const EdgeInsets.only(top: 4),
+                                child: Text(
+                                  'Notatki: ${(d['notesList'] as List).map((n) => n['text'] as String).join('; ')}',
+                                  style: Theme.of(context).textTheme.bodySmall,
+                                ),
+                              ),
                           ],
                         ),
                         // isThreeLine: true,

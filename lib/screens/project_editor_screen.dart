@@ -251,6 +251,7 @@ class _ProjectEditorScreenState extends State<ProjectEditorScreen> {
         .where('createdAt', isLessThan: endOfDay)
         .limit(1)
         .get();
+    if (snap.docs.isEmpty) return null;
     return snap.docs.first.reference;
   }
 
@@ -822,7 +823,30 @@ class _ProjectEditorScreenState extends State<ProjectEditorScreen> {
                         await rwRef.update({
                           'notesList': FieldValue.arrayUnion([noteMap]),
                         });
+                      } else {
+                        final now = DateTime.now();
+                        final newRwRef = projRef
+                            .collection('rw_documents')
+                            .doc();
+                        await newRwRef.set({
+                          'type': 'RW',
+                          'customerId': widget.customerId,
+                          'projectId': widget.projectId,
+                          'projectName': _title,
+                          'createdDay': DateTime(now.year, now.month, now.day),
+                          'createdAt': FieldValue.serverTimestamp(),
+                          'createdBy': authUser.uid,
+                          'items': <Map<String, dynamic>>[],
+                          'notesList': [noteMap],
+                        });
                       }
+                      await AuditService.logAction(
+                        action: 'Zapisana notatka',
+                        customerId: widget.customerId,
+                        projectId: widget.projectId,
+                        details: {'Notatka': result.trim()},
+                      );
+
                       return null;
                     },
 
