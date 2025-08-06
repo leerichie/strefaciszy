@@ -103,7 +103,7 @@ class _RWDocumentsScreenState extends State<RWDocumentsScreen> {
             builder: (ctx, snap) {
               if (snap.connectionState != ConnectionState.done ||
                   !snap.hasData) {
-                return const Text("Raport");
+                return const Text('Raport');
               }
               final List<DocumentSnapshot<Map<String, dynamic>>> docs =
                   snap.data!;
@@ -349,9 +349,9 @@ class _RWDocumentsScreenState extends State<RWDocumentsScreen> {
                                 context: context,
                                 builder: (ctx2) => AlertDialog(
                                   title: Text('Usuń dokument?'),
-                                  content: Text(
-                                    'Na pewno usunąć dokument ${d['type']}?',
-                                  ),
+                                  // content: Text(
+                                  //   'Na pewno usunąć dokument ${d['type']}?',
+                                  // ),
                                   actions: [
                                     TextButton(
                                       onPressed: () =>
@@ -409,8 +409,11 @@ class _RWDocumentsScreenState extends State<RWDocumentsScreen> {
 
                               await doc.reference.delete();
 
+                              final rwNotes = (data['notesList'] as List)
+                                  .cast<Map<String, dynamic>>();
                               await projectRef.update({
                                 'items': <Map<String, dynamic>>[],
+                                'notesList': FieldValue.arrayRemove(rwNotes),
                               });
 
                               ScaffoldMessenger.of(context).showSnackBar(
@@ -424,13 +427,17 @@ class _RWDocumentsScreenState extends State<RWDocumentsScreen> {
                       }
 
                       return ListTile(
-                        title: Text(
+                        title: AutoSizeText(
                           '${d['type']}: ${d['customerName'] ?? ''} • ${d['projectName'] ?? ''}',
+                          // '${d['customerName'] ?? ''} • ${d['projectName'] ?? ''}',
+                          maxLines: 2,
+                          maxFontSize: 13,
                         ),
                         subtitle: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
                             Row(
+                              crossAxisAlignment: CrossAxisAlignment.center,
                               children: [
                                 const Icon(
                                   Icons.calendar_today,
@@ -438,21 +445,39 @@ class _RWDocumentsScreenState extends State<RWDocumentsScreen> {
                                   color: Colors.grey,
                                 ),
                                 const SizedBox(width: 4),
-                                Text('$date    '),
+
+                                Expanded(
+                                  child: AutoSizeText(
+                                    date,
+                                    maxLines: 1,
+                                    minFontSize: 9,
+                                    overflow: TextOverflow.ellipsis,
+                                  ),
+                                ),
+
+                                const SizedBox(width: 12),
+
                                 const Icon(
                                   Icons.person,
                                   size: 16,
                                   color: Colors.blueGrey,
                                 ),
                                 const SizedBox(width: 4),
-                                Text(
-                                  displayName,
-                                  style: TextStyle(
-                                    color: colourFromString(displayName),
+
+                                Expanded(
+                                  child: AutoSizeText(
+                                    displayName,
+                                    style: TextStyle(
+                                      color: colourFromString(displayName),
+                                    ),
+                                    maxLines: 1,
+                                    minFontSize: 9,
+                                    overflow: TextOverflow.ellipsis,
                                   ),
                                 ),
                               ],
                             ),
+
                             if ((d['items'] as List).isEmpty &&
                                 (d['notesList'] as List).isNotEmpty)
                               Padding(

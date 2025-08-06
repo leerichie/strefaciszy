@@ -829,9 +829,10 @@ class _ProjectEditorScreenState extends State<ProjectEditorScreen> {
                             .collection('rw_documents')
                             .doc();
                         await newRwRef.set({
-                          'type': 'RW',
+                          'type': 'Raport',
                           'customerId': widget.customerId,
                           'projectId': widget.projectId,
+                          'customerName': _customerName,
                           'projectName': _title,
                           'createdDay': DateTime(now.year, now.month, now.day),
                           'createdAt': FieldValue.serverTimestamp(),
@@ -907,12 +908,13 @@ class _ProjectEditorScreenState extends State<ProjectEditorScreen> {
 
                     onDelete: (i) async {
                       final note = _notes[i];
+
+                      // Remove note from arrays
                       final map = {
                         'text': note.text,
                         'userName': note.userName,
                         'createdAt': Timestamp.fromDate(note.createdAt),
                       };
-
                       await projRef.update({
                         'notesList': FieldValue.arrayRemove([map]),
                       });
@@ -922,7 +924,13 @@ class _ProjectEditorScreenState extends State<ProjectEditorScreen> {
                           'notesList': FieldValue.arrayRemove([map]),
                         });
                       }
-                      return;
+
+                      await AuditService.logAction(
+                        action: 'Usunięto notatka',
+                        customerId: widget.customerId,
+                        projectId: widget.projectId,
+                        details: {'Notatka': note.text},
+                      );
                     },
                   ),
                   Divider(),

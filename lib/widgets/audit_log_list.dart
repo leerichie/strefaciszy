@@ -70,6 +70,12 @@ class AuditLogList extends StatelessWidget {
 
     final workingDetails = Map<String, dynamic>.from(details);
 
+    if (action.startsWith('Usunięto notat')) {
+      final noteText = workingDetails['Notatka']?.toString() ?? '';
+      addLineText('Notatka: $noteText');
+      workingDetails.clear();
+    }
+
     if (action.startsWith('Zamiana')) {
       final prodVal = workingDetails['Produkt']?.toString() ?? '';
       final zmVal = workingDetails['Zmiana']?.toString() ?? '';
