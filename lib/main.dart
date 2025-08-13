@@ -13,7 +13,6 @@ void main() async {
   runApp(const StrefaCiszyApp());
 }
 
-/// NavigatorObserver that hides the keyboard on route pushes/pops.
 class KeyboardHidingNavigatorObserver extends NavigatorObserver {
   void _hideKeyboard() {
     FocusManager.instance.primaryFocus?.unfocus();
@@ -56,7 +55,6 @@ class StrefaCiszyApp extends StatelessWidget {
       ],
       navigatorObservers: [KeyboardHidingNavigatorObserver()],
       builder: (context, child) {
-        // Global tap handler to unfocus text fields when tapping outside.
         return GestureDetector(
           behavior: HitTestBehavior.translucent,
           onTap: () => FocusScope.of(context).unfocus(),

@@ -62,7 +62,9 @@
     "predeploy": [
       "flutter build web --release",
       "flutter build apk --release",
-      "cp build/app/outputs/flutter-apk/app-release.apk build/web/app-release.apk"
+      "cp build/app/outputs/flutter-apk/app-release.apk build/web/app-release.apk",
+      "cp build/web/version.json version.json"
+
     ],
     "rewrites": [
       {

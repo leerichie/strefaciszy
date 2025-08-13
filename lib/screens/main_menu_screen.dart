@@ -1,6 +1,9 @@
+import 'dart:convert';
+
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:flutter/services.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 import 'package:qr_flutter/qr_flutter.dart';
 import 'package:strefa_ciszy/screens/contacts_list_screen.dart';
@@ -33,6 +36,21 @@ class _MainMenuScreenState extends State<MainMenuScreen> {
   }
 
   Future<void> _loadVersion() async {
+    if (kIsWeb) {
+      try {
+        final jsonStr = await rootBundle.loadString('version.json');
+        final data = json.decode(jsonStr);
+        setState(() {
+          _version = 'v.${data["version"]} _${data["build_number"]}';
+        });
+        return;
+      } catch (e) {
+        setState(() => _version = 'v.unknown');
+        return;
+      }
+    }
+
+    // Mobile/Desktop fallback
     final info = await PackageInfo.fromPlatform();
     setState(() {
       _version = 'v.${info.version} _${info.buildNumber}';
