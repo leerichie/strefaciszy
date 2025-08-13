@@ -435,168 +435,398 @@ class _ContactsListScreenState extends State<ContactsListScreen> {
             const SizedBox(height: 8),
 
             Expanded(
-              child: StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
-                stream: (() {
-                  Query<Map<String, dynamic>> ref = FirebaseFirestore.instance
-                      .collection('contacts');
-                  if (_category != 'Wszyscy') {
-                    ref = ref.where('contactType', isEqualTo: _category);
-                  }
-                  if (widget.customerId != null) {
-                    ref = ref.where(
-                      'linkedCustomerId',
-                      isEqualTo: widget.customerId,
-                    );
-                  }
-                  return ref.orderBy('name').snapshots();
-                })(),
-                builder: (context, snapshot) {
-                  if (snapshot.connectionState == ConnectionState.waiting) {
-                    return const Center(child: CircularProgressIndicator());
-                  }
-                  if (snapshot.hasError) {
-                    return Center(child: Text('Error: ${snapshot.error}'));
-                  }
-                  final docs = snapshot.data!.docs.where((doc) {
-                    final name =
-                        doc.data()['name']?.toString().toLowerCase() ?? '';
-                    return name.contains(_search.toLowerCase());
-                  }).toList();
-                  if (docs.isEmpty) {
-                    return const Center(child: Text('Brak kontaktów.'));
-                  }
-                  return NotificationListener<ScrollNotification>(
-                    onNotification: (notif) {
-                      if (notif is ScrollStartNotification) {
-                        FocusScope.of(context).unfocus();
-                      }
-                      return false;
-                    },
-                    child: ListView.separated(
-                      keyboardDismissBehavior:
-                          ScrollViewKeyboardDismissBehavior.onDrag,
-                      itemCount: docs.length,
-                      separatorBuilder: (_, __) => const Divider(height: 1),
-                      itemBuilder: (context, i) {
-                        final doc = docs[i];
-                        final data = doc.data();
-                        final contactType =
-                            (data['contactType'] as String?) ?? '';
+              child: widget.customerId != null
+                  ? FutureBuilder<QuerySnapshot<Map<String, dynamic>>>(
+                      future: FirebaseFirestore.instance
+                          .collection('customers')
+                          .doc(widget.customerId!)
+                          .collection('projects')
+                          .get(),
+                      builder: (ctx, projSnap) {
+                        if (!projSnap.hasData) {
+                          return const Center(
+                            child: CircularProgressIndicator(),
+                          );
+                        }
 
-                        return GestureDetector(
-                          behavior: HitTestBehavior.translucent,
-                          onTapDown: (details) {},
-                          onTap: () {
-                            if (contactType.toLowerCase() == 'klient') {
-                              Navigator.of(context).push(
-                                MaterialPageRoute(
-                                  builder: (_) => CustomerDetailScreen(
-                                    customerId: doc.id,
-                                    isAdmin: widget.isAdmin,
-                                  ),
-                                ),
-                              );
-                            } else {
-                              _showEditContactDialog(context, doc);
-                            }
-                          },
-                          child: ListTile(
-                            title: Text(
-                              data['name'] ?? '',
-                              style: const TextStyle(
-                                fontWeight: FontWeight.bold,
+                        final projectIds = projSnap.data!.docs
+                            .map((d) => d.id)
+                            .toList();
+
+                        Query<Map<String, dynamic>> ref = FirebaseFirestore
+                            .instance
+                            .collection('contacts');
+
+                        if (_category != 'Wszyscy') {
+                          ref = ref.where('contactType', isEqualTo: _category);
+                        }
+
+                        if (projectIds.isEmpty) {
+                          ref = ref.where(
+                            'linkedCustomerId',
+                            isEqualTo: widget.customerId,
+                          );
+                        } else {
+                          ref = ref.where(
+                            Filter.or(
+                              Filter(
+                                'linkedCustomerId',
+                                isEqualTo: widget.customerId,
+                              ),
+                              Filter(
+                                'linkedProjectIds',
+                                arrayContainsAny: projectIds,
                               ),
                             ),
-                            subtitle: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                if ((data['phone'] ?? '').isNotEmpty) ...[
-                                  GestureDetector(
-                                    behavior: HitTestBehavior.opaque,
-                                    onTap: () => _openUri(
-                                      Uri.parse('tel:${data['phone']}'),
-                                    ),
-                                    child: Padding(
-                                      padding: const EdgeInsets.symmetric(
-                                        vertical: 2,
+                          );
+                        }
+
+                        return StreamBuilder<
+                          QuerySnapshot<Map<String, dynamic>>
+                        >(
+                          stream: ref.orderBy('name').snapshots(),
+                          builder: (context, snapshot) {
+                            if (snapshot.connectionState ==
+                                ConnectionState.waiting) {
+                              return const Center(
+                                child: CircularProgressIndicator(),
+                              );
+                            }
+                            if (snapshot.hasError) {
+                              return Center(
+                                child: Text('Error: ${snapshot.error}'),
+                              );
+                            }
+                            final docs = snapshot.data!.docs.where((doc) {
+                              final name =
+                                  doc
+                                      .data()['name']
+                                      ?.toString()
+                                      .toLowerCase() ??
+                                  '';
+                              return name.contains(_search.toLowerCase());
+                            }).toList();
+                            if (docs.isEmpty) {
+                              return const Center(
+                                child: Text('Brak kontaktów.'),
+                              );
+                            }
+                            return NotificationListener<ScrollNotification>(
+                              onNotification: (notif) {
+                                if (notif is ScrollStartNotification) {
+                                  FocusScope.of(context).unfocus();
+                                }
+                                return false;
+                              },
+                              child: ListView.separated(
+                                keyboardDismissBehavior:
+                                    ScrollViewKeyboardDismissBehavior.onDrag,
+                                itemCount: docs.length,
+                                separatorBuilder: (_, __) =>
+                                    const Divider(height: 1),
+                                itemBuilder: (context, i) {
+                                  final doc = docs[i];
+                                  final data = doc.data();
+                                  final contactType =
+                                      (data['contactType'] as String?) ?? '';
+
+                                  return GestureDetector(
+                                    behavior: HitTestBehavior.translucent,
+                                    onTap: () {
+                                      if (contactType.toLowerCase() ==
+                                          'klient') {
+                                        Navigator.of(context).push(
+                                          MaterialPageRoute(
+                                            builder: (_) =>
+                                                CustomerDetailScreen(
+                                                  customerId: doc.id,
+                                                  isAdmin: widget.isAdmin,
+                                                ),
+                                          ),
+                                        );
+                                      } else {
+                                        _showEditContactDialog(context, doc);
+                                      }
+                                    },
+                                    child: ListTile(
+                                      title: Text(
+                                        data['name'] ?? '',
+                                        style: const TextStyle(
+                                          fontWeight: FontWeight.bold,
+                                        ),
                                       ),
-                                      child: Row(
-                                        mainAxisSize: MainAxisSize.min,
+                                      subtitle: Column(
+                                        crossAxisAlignment:
+                                            CrossAxisAlignment.start,
                                         children: [
-                                          const Icon(
-                                            Icons.phone,
-                                            size: 15,
-                                            color: Colors.green,
-                                          ),
-                                          const SizedBox(width: 4),
-                                          Text(
-                                            data['phone']!,
-                                            style: const TextStyle(
-                                              fontSize: 15,
+                                          if ((data['phone'] ?? '')
+                                              .isNotEmpty) ...[
+                                            GestureDetector(
+                                              behavior: HitTestBehavior.opaque,
+                                              onTap: () => _openUri(
+                                                Uri.parse(
+                                                  'tel:${data['phone']}',
+                                                ),
+                                              ),
+                                              child: Padding(
+                                                padding:
+                                                    const EdgeInsets.symmetric(
+                                                      vertical: 2,
+                                                    ),
+                                                child: Row(
+                                                  mainAxisSize:
+                                                      MainAxisSize.min,
+                                                  children: [
+                                                    const Icon(
+                                                      Icons.phone,
+                                                      size: 15,
+                                                      color: Colors.green,
+                                                    ),
+                                                    const SizedBox(width: 4),
+                                                    Text(
+                                                      data['phone']!,
+                                                      style: const TextStyle(
+                                                        fontSize: 15,
+                                                      ),
+                                                    ),
+                                                  ],
+                                                ),
+                                              ),
                                             ),
-                                          ),
+                                          ],
+                                          if ((data['phone'] ?? '')
+                                                  .isNotEmpty &&
+                                              (data['email'] ?? '').isNotEmpty)
+                                            const SizedBox(height: 4),
+                                          if ((data['email'] ?? '')
+                                              .isNotEmpty) ...[
+                                            GestureDetector(
+                                              behavior: HitTestBehavior.opaque,
+                                              onTap: () => _openUri(
+                                                Uri.parse(
+                                                  'mailto:${data['email']}',
+                                                ),
+                                              ),
+                                              child: Padding(
+                                                padding:
+                                                    const EdgeInsets.symmetric(
+                                                      vertical: 2,
+                                                    ),
+                                                child: Row(
+                                                  mainAxisSize:
+                                                      MainAxisSize.min,
+                                                  children: [
+                                                    const Icon(
+                                                      Icons.email,
+                                                      size: 15,
+                                                      color: Colors.blue,
+                                                    ),
+                                                    const SizedBox(width: 4),
+                                                    Text(
+                                                      data['email']!,
+                                                      style: const TextStyle(
+                                                        fontSize: 15,
+                                                      ),
+                                                    ),
+                                                  ],
+                                                ),
+                                              ),
+                                            ),
+                                          ],
                                         ],
                                       ),
+                                      trailing: Text(contactType),
+                                      onTap: () {
+                                        if (contactType.toLowerCase() ==
+                                            'klient') {
+                                          Navigator.of(context).push(
+                                            MaterialPageRoute(
+                                              builder: (_) =>
+                                                  ContactDetailScreen(
+                                                    contactId: doc.id,
+                                                    isAdmin: widget.isAdmin,
+                                                  ),
+                                            ),
+                                          );
+                                        } else {
+                                          _showEditContactDialog(context, doc);
+                                        }
+                                      },
+                                    ),
+                                  );
+                                },
+                              ),
+                            );
+                          },
+                        );
+                      },
+                    )
+                  : StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
+                      stream: (() {
+                        Query<Map<String, dynamic>> ref = FirebaseFirestore
+                            .instance
+                            .collection('contacts');
+                        if (_category != 'Wszyscy') {
+                          ref = ref.where('contactType', isEqualTo: _category);
+                        }
+                        return ref.orderBy('name').snapshots();
+                      })(),
+                      builder: (context, snapshot) {
+                        if (snapshot.connectionState ==
+                            ConnectionState.waiting) {
+                          return const Center(
+                            child: CircularProgressIndicator(),
+                          );
+                        }
+                        if (snapshot.hasError) {
+                          return Center(
+                            child: Text('Error: ${snapshot.error}'),
+                          );
+                        }
+                        final docs = snapshot.data!.docs.where((doc) {
+                          final name =
+                              doc.data()['name']?.toString().toLowerCase() ??
+                              '';
+                          return name.contains(_search.toLowerCase());
+                        }).toList();
+                        if (docs.isEmpty) {
+                          return const Center(child: Text('Brak kontaktów.'));
+                        }
+                        return NotificationListener<ScrollNotification>(
+                          onNotification: (notif) {
+                            if (notif is ScrollStartNotification) {
+                              FocusScope.of(context).unfocus();
+                            }
+                            return false;
+                          },
+                          child: ListView.separated(
+                            keyboardDismissBehavior:
+                                ScrollViewKeyboardDismissBehavior.onDrag,
+                            itemCount: docs.length,
+                            separatorBuilder: (_, __) =>
+                                const Divider(height: 1),
+                            itemBuilder: (context, i) {
+                              final doc = docs[i];
+                              final data = doc.data();
+                              final contactType =
+                                  (data['contactType'] as String?) ?? '';
+
+                              return GestureDetector(
+                                behavior: HitTestBehavior.translucent,
+                                onTap: () {
+                                  if (contactType.toLowerCase() == 'klient') {
+                                    Navigator.of(context).push(
+                                      MaterialPageRoute(
+                                        builder: (_) => CustomerDetailScreen(
+                                          customerId: doc.id,
+                                          isAdmin: widget.isAdmin,
+                                        ),
+                                      ),
+                                    );
+                                  } else {
+                                    _showEditContactDialog(context, doc);
+                                  }
+                                },
+                                child: ListTile(
+                                  title: Text(
+                                    data['name'] ?? '',
+                                    style: const TextStyle(
+                                      fontWeight: FontWeight.bold,
                                     ),
                                   ),
-                                ],
-                                if ((data['phone'] ?? '').isNotEmpty &&
-                                    (data['email'] ?? '').isNotEmpty)
-                                  const SizedBox(height: 4),
-                                if ((data['email'] ?? '').isNotEmpty) ...[
-                                  GestureDetector(
-                                    behavior: HitTestBehavior.opaque,
-                                    onTap: () => _openUri(
-                                      Uri.parse('mailto:${data['email']}'),
-                                    ),
-                                    child: Padding(
-                                      padding: const EdgeInsets.symmetric(
-                                        vertical: 2,
-                                      ),
-                                      child: Row(
-                                        mainAxisSize: MainAxisSize.min,
-                                        children: [
-                                          const Icon(
-                                            Icons.email,
-                                            size: 15,
-                                            color: Colors.blue,
+                                  subtitle: Column(
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
+                                    children: [
+                                      if ((data['phone'] ?? '').isNotEmpty) ...[
+                                        GestureDetector(
+                                          behavior: HitTestBehavior.opaque,
+                                          onTap: () => _openUri(
+                                            Uri.parse('tel:${data['phone']}'),
                                           ),
-                                          const SizedBox(width: 4),
-                                          Text(
-                                            data['email']!,
-                                            style: const TextStyle(
-                                              fontSize: 15,
+                                          child: Padding(
+                                            padding: const EdgeInsets.symmetric(
+                                              vertical: 2,
+                                            ),
+                                            child: Row(
+                                              mainAxisSize: MainAxisSize.min,
+                                              children: [
+                                                const Icon(
+                                                  Icons.phone,
+                                                  size: 15,
+                                                  color: Colors.green,
+                                                ),
+                                                const SizedBox(width: 4),
+                                                Text(
+                                                  data['phone']!,
+                                                  style: const TextStyle(
+                                                    fontSize: 15,
+                                                  ),
+                                                ),
+                                              ],
                                             ),
                                           ),
-                                        ],
-                                      ),
-                                    ),
+                                        ),
+                                      ],
+                                      if ((data['phone'] ?? '').isNotEmpty &&
+                                          (data['email'] ?? '').isNotEmpty)
+                                        const SizedBox(height: 4),
+                                      if ((data['email'] ?? '').isNotEmpty) ...[
+                                        GestureDetector(
+                                          behavior: HitTestBehavior.opaque,
+                                          onTap: () => _openUri(
+                                            Uri.parse(
+                                              'mailto:${data['email']}',
+                                            ),
+                                          ),
+                                          child: Padding(
+                                            padding: const EdgeInsets.symmetric(
+                                              vertical: 2,
+                                            ),
+                                            child: Row(
+                                              mainAxisSize: MainAxisSize.min,
+                                              children: [
+                                                const Icon(
+                                                  Icons.email,
+                                                  size: 15,
+                                                  color: Colors.blue,
+                                                ),
+                                                const SizedBox(width: 4),
+                                                Text(
+                                                  data['email']!,
+                                                  style: const TextStyle(
+                                                    fontSize: 15,
+                                                  ),
+                                                ),
+                                              ],
+                                            ),
+                                          ),
+                                        ),
+                                      ],
+                                    ],
                                   ),
-                                ],
-                              ],
-                            ),
-                            trailing: Text(contactType),
-                            onTap: () {
-                              if (contactType.toLowerCase() == 'klient') {
-                                Navigator.of(context).push(
-                                  MaterialPageRoute(
-                                    builder: (_) => ContactDetailScreen(
-                                      contactId: doc.id,
-                                      isAdmin: widget.isAdmin,
-                                    ),
-                                  ),
-                                );
-                              } else {
-                                _showEditContactDialog(context, doc);
-                              }
+                                  trailing: Text(contactType),
+                                  onTap: () {
+                                    if (contactType.toLowerCase() == 'klient') {
+                                      Navigator.of(context).push(
+                                        MaterialPageRoute(
+                                          builder: (_) => ContactDetailScreen(
+                                            contactId: doc.id,
+                                            isAdmin: widget.isAdmin,
+                                          ),
+                                        ),
+                                      );
+                                    } else {
+                                      _showEditContactDialog(context, doc);
+                                    }
+                                  },
+                                ),
+                              );
                             },
                           ),
                         );
                       },
                     ),
-                  );
-                },
-              ),
             ),
           ],
         ),

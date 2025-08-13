@@ -1019,135 +1019,177 @@ class _ContactDetailScreenState extends State<ContactDetailScreen> {
                       ),
 
                       // === Kontakty Tab ===
+                      // === Kontakty Tab ===
                       custId == null
                           ? const Center(
                               child: Text('Brak powiązanego klienta'),
                             )
                           : StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
-                              stream: FirebaseFirestore.instance
-                                  .collection('contacts')
-                                  .where('linkedCustomerId', isEqualTo: custId)
-                                  .orderBy('name')
-                                  .snapshots(),
-                              builder: (context, snap) {
-                                if (snap.connectionState ==
+                              stream: (() {
+                                try {
+                                  return FirebaseFirestore.instance
+                                      .collectionGroup('projects')
+                                      .where('customerId', isEqualTo: custId)
+                                      .get()
+                                      .asStream();
+                                } catch (e, st) {
+                                  debugPrint('FIRESTORE ERROR: $e\n$st');
+                                  rethrow;
+                                }
+                              })(),
+                              builder: (context, projectSnap) {
+                                if (projectSnap.connectionState ==
                                     ConnectionState.waiting) {
                                   return const Center(
                                     child: CircularProgressIndicator(),
                                   );
                                 }
-                                if (snap.hasError) {
+                                if (projectSnap.hasError) {
                                   return Center(
-                                    child: Text('Error: ${snap.error}'),
+                                    child: Text('Error: ${projectSnap.error}'),
                                   );
                                 }
-                                final docs = snap.data!.docs
-                                    .where((doc) => doc.id != widget.contactId)
+                                final projectIds = projectSnap.data!.docs
+                                    .map((d) => d.id)
                                     .toList();
-                                if (docs.isEmpty) {
-                                  return const Center(
-                                    child: Text('Brak kontaktów.'),
-                                  );
-                                }
-                                return ListView.separated(
-                                  itemCount: docs.length,
-                                  separatorBuilder: (_, __) =>
-                                      const Divider(height: 1),
-                                  itemBuilder: (_, i) {
-                                    final contact = docs[i].data();
-                                    final phone =
-                                        (contact['phone'] ?? '') as String;
-                                    final email =
-                                        (contact['email'] ?? '') as String;
 
-                                    return ListTile(
-                                      title: Text(
-                                        contact['name'] ?? '',
-                                        style: const TextStyle(
-                                          fontWeight: FontWeight.bold,
-                                          fontSize: 20,
+                                return StreamBuilder<
+                                  QuerySnapshot<Map<String, dynamic>>
+                                >(
+                                  stream: FirebaseFirestore.instance
+                                      .collection('contacts')
+                                      .orderBy('name')
+                                      .snapshots(),
+                                  builder: (context, contactSnap) {
+                                    if (contactSnap.connectionState ==
+                                        ConnectionState.waiting) {
+                                      return const Center(
+                                        child: CircularProgressIndicator(),
+                                      );
+                                    }
+                                    if (contactSnap.hasError) {
+                                      return Center(
+                                        child: Text(
+                                          'Error: ${contactSnap.error}',
                                         ),
-                                      ),
+                                      );
+                                    }
 
-                                      subtitle: Column(
-                                        crossAxisAlignment:
-                                            CrossAxisAlignment.start,
-                                        children: [
-                                          if (phone.isNotEmpty) ...[
-                                            Padding(
-                                              padding: const EdgeInsets.only(
-                                                left: 20,
-                                              ),
-                                              child: InkWell(
-                                                onTap: () => openUri(
-                                                  Uri.parse('tel:$phone'),
-                                                ),
-                                                child: Row(
-                                                  mainAxisSize:
-                                                      MainAxisSize.min,
-                                                  children: [
-                                                    const Icon(
-                                                      Icons.phone,
-                                                      size: 18,
-                                                      color: Colors.green,
-                                                    ),
-                                                    const SizedBox(width: 10),
-                                                    Text(
-                                                      phone,
-                                                      style: const TextStyle(
-                                                        fontSize: 18,
-                                                      ),
-                                                    ),
-                                                  ],
-                                                ),
-                                              ),
+                                    final docs = contactSnap.data!.docs.where((
+                                      doc,
+                                    ) {
+                                      final data = doc.data();
+                                      if (doc.id == widget.contactId)
+                                        return false;
+                                      final linkedCustomerId =
+                                          data['linkedCustomerId'] as String?;
+                                      final linkedProjects = List<String>.from(
+                                        data['linkedProjectIds'] ?? [],
+                                      );
+                                      final directLink =
+                                          linkedCustomerId == custId;
+                                      final projectLink = linkedProjects.any(
+                                        (id) => projectIds.contains(id),
+                                      );
+                                      return directLink || projectLink;
+                                    }).toList();
+
+                                    if (docs.isEmpty) {
+                                      return const Center(
+                                        child: Text('Brak kontaktów.'),
+                                      );
+                                    }
+
+                                    return ListView.separated(
+                                      itemCount: docs.length,
+                                      separatorBuilder: (_, __) =>
+                                          const Divider(height: 1),
+                                      itemBuilder: (_, i) {
+                                        final contact = docs[i].data();
+                                        final phone =
+                                            (contact['phone'] ?? '') as String;
+                                        final email =
+                                            (contact['email'] ?? '') as String;
+
+                                        return ListTile(
+                                          title: Text(
+                                            contact['name'] ?? '',
+                                            style: const TextStyle(
+                                              fontWeight: FontWeight.bold,
+                                              fontSize: 20,
                                             ),
-                                          ],
-                                          if (phone.isNotEmpty &&
-                                              email.isNotEmpty)
-                                            const SizedBox(height: 4),
-                                          if (email.isNotEmpty) ...[
-                                            Padding(
-                                              padding: const EdgeInsets.only(
-                                                left: 20,
-                                              ),
-                                              child: InkWell(
-                                                onTap: () => openUri(
-                                                  Uri.parse('mailto:$email'),
-                                                ),
-                                                child: Row(
-                                                  mainAxisSize:
-                                                      MainAxisSize.min,
-                                                  children: [
-                                                    const Icon(
-                                                      Icons.email,
-                                                      size: 18,
-                                                      color: Colors.blue,
-                                                    ),
-                                                    const SizedBox(width: 10),
-                                                    Text(
-                                                      email,
-                                                      style: const TextStyle(
-                                                        fontSize: 18,
+                                          ),
+                                          subtitle: Column(
+                                            crossAxisAlignment:
+                                                CrossAxisAlignment.start,
+                                            children: [
+                                              if (phone.isNotEmpty)
+                                                Padding(
+                                                  padding:
+                                                      const EdgeInsets.only(
+                                                        left: 20,
                                                       ),
-                                                    ),
-                                                  ],
+                                                  child: Row(
+                                                    mainAxisSize:
+                                                        MainAxisSize.min,
+                                                    children: [
+                                                      const Icon(
+                                                        Icons.phone,
+                                                        size: 18,
+                                                        color: Colors.green,
+                                                      ),
+                                                      const SizedBox(width: 10),
+                                                      Text(
+                                                        phone,
+                                                        style: const TextStyle(
+                                                          fontSize: 18,
+                                                        ),
+                                                      ),
+                                                    ],
+                                                  ),
                                                 ),
-                                              ),
+                                              if (phone.isNotEmpty &&
+                                                  email.isNotEmpty)
+                                                const SizedBox(height: 4),
+                                              if (email.isNotEmpty)
+                                                Padding(
+                                                  padding:
+                                                      const EdgeInsets.only(
+                                                        left: 20,
+                                                      ),
+                                                  child: Row(
+                                                    mainAxisSize:
+                                                        MainAxisSize.min,
+                                                    children: [
+                                                      const Icon(
+                                                        Icons.email,
+                                                        size: 18,
+                                                        color: Colors.blue,
+                                                      ),
+                                                      const SizedBox(width: 10),
+                                                      Text(
+                                                        email,
+                                                        style: const TextStyle(
+                                                          fontSize: 18,
+                                                        ),
+                                                      ),
+                                                    ],
+                                                  ),
+                                                ),
+                                            ],
+                                          ),
+                                          trailing: Text(
+                                            contact['contactType'] ?? '-',
+                                            style: const TextStyle(
+                                              fontSize: 15,
                                             ),
-                                          ],
-                                        ],
-                                      ),
-
-                                      trailing: Text(
-                                        contact['contactType'] ?? '-',
-                                        style: const TextStyle(fontSize: 15),
-                                      ),
-
-                                      onTap: () => _showEditContactDialog(
-                                        context,
-                                        docs[i],
-                                      ),
+                                          ),
+                                          onTap: () => _showEditContactDialog(
+                                            context,
+                                            docs[i],
+                                          ),
+                                        );
+                                      },
                                     );
                                   },
                                 );
