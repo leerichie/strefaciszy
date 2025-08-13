@@ -6,11 +6,15 @@ import 'package:flutter/services.dart';
 import 'package:strefa_ciszy/models/project_line.dart';
 import 'package:strefa_ciszy/models/stock_item.dart';
 import 'package:strefa_ciszy/screens/scan_screen.dart';
+import 'package:strefa_ciszy/screens/swap_workflow_screen.dart';
 import 'package:strefa_ciszy/utils/search_utils.dart';
 
 Future<ProjectLine?> showProjectLineDialog(
   BuildContext context,
   List<StockItem> stockItems, {
+  required String customerId,
+  required String projectId,
+  required bool isAdmin,
   ProjectLine? existing,
   Map<String, int> existingLines = const {},
 }) {
@@ -49,7 +53,9 @@ Future<ProjectLine?> showProjectLineDialog(
     shape: RoundedRectangleBorder(
       borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
     ),
+
     builder: (ctx) {
+      bool hasItemInAnyRW = false;
       final bottomInset = MediaQuery.of(ctx).viewInsets.bottom;
       return AnimatedPadding(
         padding: EdgeInsets.only(bottom: bottomInset),
@@ -69,8 +75,49 @@ Future<ProjectLine?> showProjectLineDialog(
                 top: 16,
                 bottom: 16,
               ),
+
               child: StatefulBuilder(
                 builder: (ctx, setState) {
+                  Future<void> checkIfItemInRW(String ref) async {
+                    if (ref.isEmpty) {
+                      setState(() => hasItemInAnyRW = false);
+                      return;
+                    }
+
+                    final now = DateTime.now();
+                    final today = DateTime(now.year, now.month, now.day);
+
+                    final snap = await FirebaseFirestore.instance
+                        .collection('customers')
+                        .doc(customerId)
+                        .collection('projects')
+                        .doc(projectId)
+                        .collection('rw_documents')
+                        .get();
+
+                    bool found = false;
+                    for (final doc in snap.docs) {
+                      final data = doc.data();
+                      final createdAt = (data['createdAt'] as Timestamp?)
+                          ?.toDate();
+
+                      if (createdAt != null &&
+                          createdAt.isBefore(today.add(Duration(days: 1)))) {
+                        final items = (data['items'] as List<dynamic>? ?? []);
+                        if (items.any((it) => it['itemId'] == ref)) {
+                          found = true;
+                          break;
+                        }
+                      }
+                    }
+
+                    setState(() => hasItemInAnyRW = found);
+                  }
+
+                  if (itemRef.isNotEmpty) {
+                    checkIfItemInRW(itemRef);
+                  }
+
                   return SingleChildScrollView(
                     controller: scrollController,
                     child: Form(
@@ -125,75 +172,74 @@ Future<ProjectLine?> showProjectLineDialog(
                               },
                               displayStringForOption: (s) =>
                                   '${s.name}, ${s.producent}, ${s.description}',
-                              fieldViewBuilder:
-                                  (ctx, textCtrl, focusNode, onSubmit) {
-                                    if (!didInitAuto &&
-                                        initialLabel.isNotEmpty) {
-                                      textCtrl.text = initialLabel;
-                                      didInitAuto = true;
-                                    }
-                                    return TextFormField(
-                                      controller: textCtrl,
-                                      focusNode: focusNode,
-                                      decoration: InputDecoration(
-                                        labelText: 'Szukaj produkt',
-                                        suffixIcon: IconButton(
-                                          icon: Icon(Icons.qr_code_scanner),
-                                          onPressed: () async {
-                                            final code =
-                                                await Navigator.of(
-                                                  context,
-                                                ).push<String>(
-                                                  MaterialPageRoute(
-                                                    builder: (_) => ScanScreen(
+                              fieldViewBuilder: (ctx, textCtrl, focusNode, onSubmit) {
+                                if (!didInitAuto && initialLabel.isNotEmpty) {
+                                  textCtrl.text = initialLabel;
+                                  didInitAuto = true;
+                                }
+                                return TextFormField(
+                                  controller:
+                                      textCtrl, // This is the actual visible input
+                                  focusNode: focusNode,
+                                  decoration: InputDecoration(
+                                    labelText: 'Szukaj produkt',
+                                    suffixIcon: IconButton(
+                                      icon: const Icon(Icons.qr_code_scanner),
+                                      onPressed: () async {
+                                        final code = await Navigator.of(context)
+                                            .push<String>(
+                                              MaterialPageRoute(
+                                                builder: (_) =>
+                                                    const ScanScreen(
                                                       returnCode: true,
                                                     ),
-                                                    fullscreenDialog: true,
-                                                  ),
-                                                );
-                                            if (code != null &&
-                                                code.isNotEmpty) {
-                                              final snap =
-                                                  await FirebaseFirestore
-                                                      .instance
-                                                      .collection('stock_items')
-                                                      .where(
-                                                        'barcode',
-                                                        isEqualTo: code,
-                                                      )
-                                                      .limit(1)
-                                                      .get();
-                                              if (snap.docs.isNotEmpty) {
-                                                final doc = snap.docs.first;
-                                                final data = doc.data();
-                                                setState(() {
-                                                  itemRef = doc.id;
-                                                  productController.text =
-                                                      data['name'] as String;
-                                                  unit = data['unit'] as String;
-                                                });
-                                              } else {
-                                                ScaffoldMessenger.of(
-                                                  context,
-                                                ).showSnackBar(
-                                                  SnackBar(
-                                                    content: Text(
-                                                      'Nie znaleziono produktu: $code',
-                                                    ),
-                                                  ),
-                                                );
-                                              }
-                                            }
-                                          },
-                                        ),
-                                      ),
-                                      onChanged: (_) => setState(() {}),
-                                      validator: (v) =>
-                                          isStock && itemRef.isEmpty
-                                          ? 'Wybierz produkt.'
-                                          : null,
-                                    );
-                                  },
+                                              ),
+                                            );
+                                        if (code != null && code.isNotEmpty) {
+                                          // Fill visible input with scanned code result
+                                          textCtrl.text = code;
+
+                                          final snap = await FirebaseFirestore
+                                              .instance
+                                              .collection('stock_items')
+                                              .where('barcode', isEqualTo: code)
+                                              .limit(1)
+                                              .get();
+
+                                          if (snap.docs.isNotEmpty) {
+                                            final doc = snap.docs.first;
+                                            final data = doc.data();
+                                            setState(() {
+                                              itemRef = doc.id;
+                                              textCtrl.text =
+                                                  '${data['name']}, ${data['producent']}';
+                                              unit =
+                                                  data['unit'] as String? ??
+                                                  'szt';
+                                            });
+                                            await checkIfItemInRW(doc.id);
+                                          } else {
+                                            ScaffoldMessenger.of(
+                                              context,
+                                            ).showSnackBar(
+                                              SnackBar(
+                                                content: Text(
+                                                  'Nie znaleziono produktu: $code',
+                                                ),
+                                              ),
+                                            );
+                                          }
+                                        }
+                                      },
+                                    ),
+                                  ),
+                                  onChanged: (_) => setState(() {}),
+                                  validator: (v) => isStock && itemRef.isEmpty
+                                      ? 'Wybierz produkt.'
+                                      : null,
+                                );
+                              },
+
                               optionsViewBuilder:
                                   (
                                     BuildContext ctx,
@@ -322,19 +368,19 @@ Future<ProjectLine?> showProjectLineDialog(
                                     );
                                   },
 
-                              onSelected: (s) => setState(() {
-                                itemRef = s.id;
-                                unit = s.unit!;
-                                productController.text =
-                                    '${s.name}, ${s.producent}';
-                                prevQty =
-                                    existing?.previousQty ??
-                                    existingLines[s.id] ??
-                                    0;
-                                // qtyController.text = prevQty > 0
-                                //     ? prevQty.toString()
-                                //     : '';
-                              }),
+                              onSelected: (s) async {
+                                setState(() {
+                                  itemRef = s.id;
+                                  unit = s.unit!;
+                                  productController.text =
+                                      '${s.name}, ${s.producent}';
+                                  prevQty =
+                                      existing?.previousQty ??
+                                      existingLines[s.id] ??
+                                      0;
+                                });
+                                await checkIfItemInRW(s.id);
+                              },
                             ),
 
                           if (!isStock)
@@ -407,19 +453,42 @@ Future<ProjectLine?> showProjectLineDialog(
                           //   onChanged: (v) => setState(() => unit = v ?? unit),
                           // ),
                           SizedBox(height: 24),
+
                           Row(
                             mainAxisAlignment: MainAxisAlignment.spaceEvenly,
                             children: [
                               TextButton(
                                 onPressed: () => Navigator.of(ctx).pop(),
-                                child: Text('Anuluj'),
+                                child: const Text('Anuluj'),
                               ),
+
+                              if (isStock &&
+                                  itemRef.isNotEmpty &&
+                                  hasItemInAnyRW)
+                                OutlinedButton.icon(
+                                  icon: const Icon(Icons.swap_horiz),
+                                  label: const Text('Zwrot / Zamiana'),
+                                  onPressed: () async {
+                                    Navigator.of(ctx).pop(); // close POP
+                                    await Navigator.of(context).push(
+                                      MaterialPageRoute(
+                                        builder: (_) => SwapWorkflowScreen(
+                                          customerId: customerId,
+                                          projectId: projectId,
+                                          preselectedItemId: itemRef,
+                                          isAdmin: isAdmin,
+                                        ),
+                                      ),
+                                    );
+                                  },
+                                ),
+
                               ElevatedButton(
                                 onPressed: () {
                                   if (!formKey.currentState!.validate()) return;
                                   if (isStock && itemRef.isEmpty) {
                                     ScaffoldMessenger.of(context).showSnackBar(
-                                      SnackBar(
+                                      const SnackBar(
                                         content: Text('Wybierz produkt.'),
                                       ),
                                     );
@@ -437,22 +506,12 @@ Future<ProjectLine?> showProjectLineDialog(
                                               .trim(),
                                           quantity: 0,
                                         );
-                                  // final line = ProjectLine(
-                                  //   isStock: isStock,
-                                  //   itemRef: itemRef,
-                                  //   customName: isStock
-                                  //       ? ''
-                                  //       : customController.text.trim(),
-                                  //   requestedQty: qty,
-                                  //   unit: unit,
-                                  //   originalStock: chosen.quantity,
-                                  //   previousQty: existing?.previousQty ?? 0,
-                                  //   updatedAt: DateTime.now(),
-                                  // );
+
                                   final added =
                                       int.tryParse(qtyController.text.trim()) ??
                                       0;
                                   final newQty = prevQty + added;
+
                                   final line = ProjectLine(
                                     isStock: isStock,
                                     itemRef: itemRef,
@@ -462,7 +521,6 @@ Future<ProjectLine?> showProjectLineDialog(
                                     requestedQty: newQty,
                                     unit: unit,
                                     originalStock: chosen.quantity,
-                                    // previousQty: existing?.previousQty ?? 0,
                                     previousQty: prevQty,
                                     updatedAt: DateTime.now(),
                                   );

@@ -17,6 +17,7 @@ import 'package:image_picker/image_picker.dart';
 import 'package:firebase_storage/firebase_storage.dart';
 import 'package:open_file/open_file.dart';
 import 'package:path/path.dart' as p;
+import 'package:path_provider/path_provider.dart';
 import 'package:strefa_ciszy/screens/contacts_list_screen.dart';
 import 'package:strefa_ciszy/screens/customer_list_screen.dart';
 import 'package:strefa_ciszy/screens/location_picker_screen.dart';
@@ -570,6 +571,24 @@ class _ProjectDescriptionScreenState extends State<ProjectDescriptionScreen> {
     });
   }
 
+  Future<void> _openFileFromUrl(String url, String fileName) async {
+    try {
+      final tempDir = await getTemporaryDirectory();
+      final filePath = '${tempDir.path}/$fileName';
+
+      final response = await http.get(Uri.parse(url));
+      final file = io.File(filePath);
+      await file.writeAsBytes(response.bodyBytes);
+
+      await OpenFile.open(filePath);
+    } catch (e) {
+      debugPrint('Failed to open file: $e');
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('Nie można otwierać plik')));
+    }
+  }
+
   @override
   void dispose() {
     _locSub?.cancel();
@@ -680,8 +699,11 @@ class _ProjectDescriptionScreenState extends State<ProjectDescriptionScreen> {
                                       final file = _files[i];
                                       final name = file['name'] ?? '';
                                       return InkWell(
-                                        onTap: () =>
-                                            OpenFile.open(file['url']!),
+                                        onTap: () => _openFileFromUrl(
+                                          file['url']!,
+                                          file['name'] ?? 'plik',
+                                        ),
+
                                         child: Padding(
                                           padding: const EdgeInsets.symmetric(
                                             horizontal: 12,

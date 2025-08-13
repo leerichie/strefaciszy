@@ -1436,6 +1436,9 @@ class _ProjectEditorScreenState extends State<ProjectEditorScreen> {
                 final newLine = await showProjectLineDialog(
                   context,
                   _stockItems,
+                  customerId: widget.customerId!,
+                  projectId: widget.projectId!,
+                  isAdmin: widget.isAdmin,
                   existingLines: existingLines,
                 );
                 if (newLine == null) return;

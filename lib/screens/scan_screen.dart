@@ -9,7 +9,7 @@ import 'add_item_screen.dart';
 import 'item_detail_screen.dart';
 import 'package:strefa_ciszy/utils/search_utils.dart';
 
-enum ScanPurpose { add, search }
+enum ScanPurpose { add, search, projectLine }
 
 class ScanScreen extends StatefulWidget {
   const ScanScreen({
@@ -117,7 +117,7 @@ class _ScanScreenState extends State<ScanScreen> {
   Future<void> _lookupAndHandle(String value) async {
     if (value == _scannedCode && _found != null) return;
 
-    if (!_isSearch) {
+    if (!_isSearch && widget.purpose != ScanPurpose.projectLine) {
       _goToAddItem(value);
       return;
     }
@@ -130,11 +130,18 @@ class _ScanScreenState extends State<ScanScreen> {
 
     try {
       final docs = await _findItems(value);
+
       if (docs.isEmpty) {
+        if (widget.purpose == ScanPurpose.projectLine) {
+          Navigator.of(context).pop();
+          return;
+        }
+
         setState(() {
           _isLoading = false;
           _found = false;
         });
+
         final add = await showDialog<bool>(
           context: context,
           builder: (_) => AlertDialog(
@@ -162,14 +169,23 @@ class _ScanScreenState extends State<ScanScreen> {
         return;
       }
 
+      final id = docs.first.id;
+
+      if (widget.purpose == ScanPurpose.projectLine) {
+        final data = docs.first.data();
+        final label = [
+          data['name'] ?? '',
+          data['producent'] ?? '',
+        ].where((s) => s.isNotEmpty).join(', ');
+
+        Navigator.of(context).pop({'id': id, 'label': label});
+        return;
+      }
+
       if (docs.length == 1) {
-        final id = docs.first.id;
         await Navigator.of(
           context,
         ).push(MaterialPageRoute(builder: (_) => ItemDetailScreen(itemId: id)));
-        if (!mounted) return;
-        _resetIdle();
-        await _resumeScanner();
       } else {
         await Navigator.of(context).push(
           MaterialPageRoute(
@@ -177,10 +193,11 @@ class _ScanScreenState extends State<ScanScreen> {
                 InventoryListScreen(isAdmin: true, initialSearch: value),
           ),
         );
-        if (!mounted) return;
-        _resetIdle();
-        await _resumeScanner();
       }
+
+      if (!mounted) return;
+      _resetIdle();
+      await _resumeScanner();
     } catch (_) {
       setState(() {
         _isLoading = false;
@@ -195,9 +212,11 @@ class _ScanScreenState extends State<ScanScreen> {
     if (raw == null || raw.isEmpty) return;
     _controller.stop();
 
-    if (widget.returnCode && widget.onScanned != null) {
-      widget.onScanned!(raw);
-      Navigator.of(context).pop();
+    if (widget.returnCode) {
+      if (widget.onScanned != null) {
+        widget.onScanned!(raw);
+      }
+      Navigator.of(context).pop(raw);
       return;
     }
 
@@ -209,9 +228,11 @@ class _ScanScreenState extends State<ScanScreen> {
     if (code.isEmpty) return;
     _controller.stop();
 
-    if (widget.onScanned != null) {
-      widget.onScanned!(code);
-      Navigator.of(context).pop();
+    if (widget.returnCode) {
+      if (widget.onScanned != null) {
+        widget.onScanned!(code);
+      }
+      Navigator.of(context).pop(code);
       return;
     }
 

@@ -10,12 +10,16 @@ class SwapWorkflowScreen extends StatefulWidget {
   final String customerId;
   final String projectId;
   final bool isAdmin;
+  final String? preselectedItemId;
+  final String? preselectedItemName;
 
   const SwapWorkflowScreen({
     super.key,
     required this.customerId,
     required this.projectId,
     required this.isAdmin,
+    this.preselectedItemId,
+    this.preselectedItemName,
   });
 
   @override
@@ -48,9 +52,35 @@ class _SwapWorkflowScreenState extends State<SwapWorkflowScreen>
     _tabController.addListener(() {
       setState(() {});
     });
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      _startOldScan();
-    });
+
+    if (widget.preselectedItemId != null &&
+        widget.preselectedItemId!.isNotEmpty) {
+      WidgetsBinding.instance.addPostFrameCallback((_) async {
+        final entry = await StockService.findLatestRwEntryForInput(
+          widget.customerId,
+          widget.projectId,
+          widget.preselectedItemId!,
+        );
+
+        if (entry != null) {
+          final line = Map<String, dynamic>.from(entry['matchedLine'] as Map);
+          setState(() {
+            _oldItemId = line['itemId'] as String?;
+            _oldLine = line;
+            _oldInstalledQty = (line['quantity'] as num?)?.toInt() ?? 1;
+            _oldQty = _oldInstalledQty;
+            _tabController.index = 1;
+            _sourceRwRef =
+                (entry['rwDoc'] as DocumentSnapshot<Map<String, dynamic>>)
+                    .reference;
+          });
+        }
+      });
+    } else {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        _startOldScan();
+      });
+    }
   }
 
   void _startOldScan() {
