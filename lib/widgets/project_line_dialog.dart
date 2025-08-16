@@ -111,7 +111,7 @@ Future<ProjectLine?> showProjectLineDialog(
                       }
                     }
 
-                    setState(() => hasItemInAnyRW = found);
+                    if (ctx.mounted) setState(() => hasItemInAnyRW = found);
                   }
 
                   if (itemRef.isNotEmpty) {
@@ -469,7 +469,6 @@ Future<ProjectLine?> showProjectLineDialog(
                                   icon: const Icon(Icons.swap_horiz),
                                   label: const Text('Zwrot / Zamiana'),
                                   onPressed: () async {
-                                    Navigator.of(ctx).pop(); // close POP
                                     await Navigator.of(context).push(
                                       MaterialPageRoute(
                                         builder: (_) => SwapWorkflowScreen(
@@ -480,6 +479,9 @@ Future<ProjectLine?> showProjectLineDialog(
                                         ),
                                       ),
                                     );
+                                    if (ctx.mounted) {
+                                      Navigator.of(ctx).pop();
+                                    }
                                   },
                                 ),
 

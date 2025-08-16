@@ -8,7 +8,6 @@ import 'package:flutter/services.dart';
 import 'package:intl/intl.dart';
 import 'package:open_file/open_file.dart';
 import 'package:strefa_ciszy/screens/project_editor_screen.dart';
-import 'package:strefa_ciszy/screens/swap_workflow_screen.dart';
 import 'package:strefa_ciszy/services/audit_service.dart';
 import 'package:strefa_ciszy/services/file_saver.dart';
 import 'package:strefa_ciszy/services/stock_service.dart';
@@ -152,22 +151,21 @@ class _RWDocumentsScreenState extends State<RWDocumentsScreen> {
           );
 
     return AppScaffold(
-      floatingActionButton: FloatingActionButton(
-        tooltip: 'Swap',
-        onPressed: () {
-          Navigator.of(context).push(
-            MaterialPageRoute(
-              builder: (_) => SwapWorkflowScreen(
-                customerId: widget.customerId!,
-                projectId: widget.projectId!,
-                isAdmin: widget.isAdmin,
-              ),
-            ),
-          );
-        },
-        child: const Icon(Icons.swap_horiz, size: 32),
-      ),
-
+      // floatingActionButton: FloatingActionButton(
+      //   tooltip: 'Swap',
+      //   onPressed: () {
+      //     Navigator.of(context).push(
+      //       MaterialPageRoute(
+      //         builder: (_) => SwapWorkflowScreen(
+      //           customerId: widget.customerId!,
+      //           projectId: widget.projectId!,
+      //           isAdmin: widget.isAdmin,
+      //         ),
+      //       ),
+      //     );
+      //   },
+      //   child: const Icon(Icons.swap_horiz, size: 32),
+      // ),
       floatingActionButtonLocation: FloatingActionButtonLocation.centerDocked,
 
       title: '',
@@ -242,7 +240,13 @@ class _RWDocumentsScreenState extends State<RWDocumentsScreen> {
                 final filtered = docs.where((doc) {
                   final d = doc.data() as Map<String, dynamic>;
 
-                  // parse created
+                  final status = (d['status'] as String?)?.toLowerCase();
+                  final items = (d['items'] as List?) ?? const [];
+                  final notes = (d['notesList'] as List?) ?? const [];
+                  if (status == 'draft' || (items.isEmpty && notes.isEmpty)) {
+                    return false;
+                  }
+
                   DateTime created;
                   final rawCreated = d['createdAt'];
                   if (rawCreated is Timestamp) {
@@ -426,77 +430,111 @@ class _RWDocumentsScreenState extends State<RWDocumentsScreen> {
                         );
                       }
 
-                      return ListTile(
-                        title: AutoSizeText(
-                          '${d['type']}: ${d['customerName'] ?? ''} • ${d['projectName'] ?? ''}',
-                          // '${d['customerName'] ?? ''} • ${d['projectName'] ?? ''}',
-                          maxLines: 2,
-                          maxFontSize: 13,
-                        ),
-                        subtitle: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Row(
-                              crossAxisAlignment: CrossAxisAlignment.center,
-                              children: [
-                                const Icon(
-                                  Icons.calendar_today,
-                                  size: 16,
-                                  color: Colors.grey,
-                                ),
-                                const SizedBox(width: 4),
-
-                                Expanded(
-                                  child: AutoSizeText(
-                                    date,
-                                    maxLines: 1,
-                                    minFontSize: 9,
-                                    overflow: TextOverflow.ellipsis,
-                                  ),
-                                ),
-
-                                const SizedBox(width: 12),
-
-                                const Icon(
-                                  Icons.person,
-                                  size: 16,
-                                  color: Colors.blueGrey,
-                                ),
-                                const SizedBox(width: 4),
-
-                                Expanded(
-                                  child: AutoSizeText(
-                                    displayName,
-                                    style: TextStyle(
-                                      color: colourFromString(displayName),
-                                    ),
-                                    maxLines: 1,
-                                    minFontSize: 9,
-                                    overflow: TextOverflow.ellipsis,
-                                  ),
-                                ),
-                              ],
-                            ),
-
-                            if ((d['items'] as List).isEmpty &&
-                                (d['notesList'] as List).isNotEmpty)
-                              Padding(
-                                padding: const EdgeInsets.only(top: 4),
-                                child: Text(
-                                  'Notatki: ${(d['notesList'] as List).map((n) => n['text'] as String).join('; ')}',
-                                  style: Theme.of(context).textTheme.bodySmall,
-                                ),
-                              ),
-                          ],
-                        ),
-                        // isThreeLine: true,
+                      return InkWell(
                         onTap: () => _showDetailsDialog(context, d),
-                        trailing: actions.isEmpty
-                            ? null
-                            : Row(
-                                mainAxisSize: MainAxisSize.min,
-                                children: actions,
+                        child: Padding(
+                          padding: const EdgeInsets.symmetric(
+                            vertical: 6,
+                            horizontal: 16,
+                          ),
+                          child: Row(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Expanded(
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Row(
+                                      children: [
+                                        const Tooltip(
+                                          message: 'Raport',
+                                          child: Icon(
+                                            Icons.assignment,
+                                            size: 16,
+                                          ),
+                                        ),
+                                        const SizedBox(width: 8),
+
+                                        Flexible(
+                                          child: Text(
+                                            'Raport: ${d['customerName'] ?? ''} • ${d['projectName'] ?? ''}',
+                                            overflow: TextOverflow.ellipsis,
+                                            style: Theme.of(context)
+                                                .textTheme
+                                                .bodyMedium
+                                                ?.copyWith(
+                                                  fontWeight: FontWeight.w500,
+                                                ),
+                                          ),
+                                        ),
+                                        const SizedBox(width: 16),
+
+                                        const Icon(
+                                          Icons.person,
+                                          size: 16,
+                                          color: Colors.blueGrey,
+                                        ),
+                                        const SizedBox(width: 4),
+                                        Expanded(
+                                          child: Text(
+                                            displayName,
+                                            overflow: TextOverflow.ellipsis,
+                                            style: TextStyle(
+                                              color: colourFromString(
+                                                displayName,
+                                              ),
+                                              fontWeight: FontWeight.w400,
+                                            ),
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+
+                                    const SizedBox(height: 4),
+
+                                    // Row 2: date (like history)
+                                    Row(
+                                      children: [
+                                        const Icon(
+                                          Icons.calendar_today,
+                                          size: 16,
+                                          color: Colors.grey,
+                                        ),
+                                        const SizedBox(width: 4),
+                                        Expanded(
+                                          child: Text(
+                                            date,
+                                            overflow: TextOverflow.ellipsis,
+                                            style: Theme.of(
+                                              context,
+                                            ).textTheme.bodySmall,
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+
+                                    // // Optional extra lines (kept from your original, commented)
+                                    // if ((d['items'] as List).isEmpty &&
+                                    //     (d['notesList'] as List).isNotEmpty)
+                                    //   Padding(
+                                    //     padding: const EdgeInsets.only(top: 4),
+                                    //     child: Text(
+                                    //       'Notatki: ${(d['notesList'] as List).map((n) => n['text'] as String).join('; ')}',
+                                    //       style: Theme.of(context).textTheme.bodySmall,
+                                    //     ),
+                                    //   ),
+                                  ],
+                                ),
                               ),
+
+                              if (actions.isNotEmpty)
+                                Row(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: actions,
+                                ),
+                            ],
+                          ),
+                        ),
                       );
                     },
                   ),
@@ -699,10 +737,18 @@ class _RWDocumentsScreenState extends State<RWDocumentsScreen> {
               for (final m in notesList) ...[
                 Padding(
                   padding: const EdgeInsets.symmetric(vertical: 2),
-                  child: Text(
-                    '• [${DateFormat('dd.MM.yyyy HH:mm', 'pl_PL').format((m['createdAt'] as Timestamp).toDate())}] '
-                    '${m['userName']}: ${m['text']}',
-                  ),
+                  child: Text(() {
+                    final ts = (m['createdAt'] as Timestamp).toDate();
+                    final tsStr = DateFormat(
+                      'dd.MM.yyyy HH:mm',
+                      'pl_PL',
+                    ).format(ts);
+                    final user = (m['userName'] ?? '').toString();
+                    final action = (m['action'] ?? '').toString().trim();
+                    final text = (m['text'] ?? '').toString();
+                    final actionPart = action.isNotEmpty ? ': $action' : '';
+                    return '• [$tsStr] $user$actionPart: $text';
+                  }()),
                 ),
               ],
             ],
@@ -795,9 +841,11 @@ class _RWDocumentsScreenState extends State<RWDocumentsScreen> {
               ? DateFormat('dd.MM.yyyy HH:mm').format(ts.toDate())
               : '';
           final user = (m['userName'] ?? '').toString();
+          final action = (m['action'] ?? '').toString().trim();
           final text = (m['text'] ?? '').toString();
+          final actionPart = action.isNotEmpty ? ': $action' : '';
           return <String>[
-            '[$date] $user: $text',
+            '[$date] $user$actionPart: $text',
             ...List<String>.filled(headers.length - 1, ''),
           ];
         });
@@ -925,10 +973,12 @@ class _RWDocumentsScreenState extends State<RWDocumentsScreen> {
     for (final m in notesList) {
       final ts = (m['createdAt'] as Timestamp).toDate();
       final tsStr = DateFormat('dd.MM.yyyy HH:mm', 'pl_PL').format(ts);
-      final user = m['userName']?.toString() ?? '';
-      final text = m['text']?.toString() ?? '';
+      final user = (m['userName'] ?? '').toString();
+      final action = (m['action'] ?? '').toString().trim();
+      final text = (m['text'] ?? '').toString();
+      final actionPart = action.isNotEmpty ? ': $action' : '';
 
-      sheet.getRangeByName('A$row').setText('[$tsStr] $user: $text');
+      sheet.getRangeByName('A$row').setText('[$tsStr] $user$actionPart: $text');
       row++;
     }
 

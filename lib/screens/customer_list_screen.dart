@@ -10,7 +10,6 @@ import 'package:intl/intl.dart';
 import 'package:strefa_ciszy/screens/add_contact_screen.dart';
 import 'package:strefa_ciszy/screens/contact_detail_screen.dart';
 import 'package:strefa_ciszy/screens/customer_detail_screen.dart';
-import 'package:strefa_ciszy/screens/scan_screen.dart';
 import 'package:strefa_ciszy/utils/keyboard_utils.dart';
 import 'package:strefa_ciszy/widgets/app_scaffold.dart';
 
@@ -420,7 +419,7 @@ class _CustomerListScreenState extends State<CustomerListScreen> {
                   final ts = data['createdAt'] as Timestamp?;
                   final dateStr = ts != null
                       ? DateFormat(
-                          'dd.MM.yyyy • HH:mm',
+                          'dd.MM.yyyy',
                           'pl_PL',
                         ).format(ts.toDate().toLocal())
                       : '';
@@ -429,7 +428,7 @@ class _CustomerListScreenState extends State<CustomerListScreen> {
                   return ListTile(
                     title: AutoSizeText(
                       data['name'] ?? '—',
-                      maxLines: 1,
+                      maxLines: 2,
                       minFontSize: 9,
                     ),
                     subtitle: ts != null ? Text(dateStr) : null,

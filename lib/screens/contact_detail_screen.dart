@@ -344,10 +344,11 @@ class _ContactDetailScreenState extends State<ContactDetailScreen> {
                                               ).colorScheme.onPrimary,
                                               onChanged: (on) {
                                                 sheetSetState(() {
-                                                  if (on == true)
+                                                  if (on == true) {
                                                     tempSet.add(p.id);
-                                                  else
+                                                  } else {
                                                     tempSet.remove(p.id);
+                                                  }
                                                 });
                                                 setModalState(() {});
                                               },
@@ -458,10 +459,7 @@ class _ContactDetailScreenState extends State<ContactDetailScreen> {
 
   String formatTimestamp(dynamic ts) {
     if (ts is Timestamp) {
-      return DateFormat(
-        'dd.MM.yyyy • HH:mm',
-        'pl_PL',
-      ).format(ts.toDate().toLocal());
+      return DateFormat('dd.MM.yyyy', 'pl_PL').format(ts.toDate().toLocal());
     }
     return 'Brak daty';
   }
@@ -610,7 +608,7 @@ class _ContactDetailScreenState extends State<ContactDetailScreen> {
                                     style: const TextStyle(
                                       fontWeight: FontWeight.bold,
                                     ),
-                                    maxLines: 1,
+                                    maxLines: 2,
                                     minFontSize: 11,
                                   ),
                                 ),
@@ -846,7 +844,7 @@ class _ContactDetailScreenState extends State<ContactDetailScreen> {
                                             title,
                                             overflow: TextOverflow.ellipsis,
                                             minFontSize: 9,
-                                            maxLines: 1,
+                                            maxLines: 2,
                                           ),
                                           subtitle: Text(dateText),
                                           onTap: () =>
@@ -1079,8 +1077,9 @@ class _ContactDetailScreenState extends State<ContactDetailScreen> {
                                       doc,
                                     ) {
                                       final data = doc.data();
-                                      if (doc.id == widget.contactId)
+                                      if (doc.id == widget.contactId) {
                                         return false;
+                                      }
                                       final linkedCustomerId =
                                           data['linkedCustomerId'] as String?;
                                       final linkedProjects = List<String>.from(

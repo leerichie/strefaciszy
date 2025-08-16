@@ -56,23 +56,25 @@ class _SwapWorkflowScreenState extends State<SwapWorkflowScreen>
     if (widget.preselectedItemId != null &&
         widget.preselectedItemId!.isNotEmpty) {
       WidgetsBinding.instance.addPostFrameCallback((_) async {
-        final entry = await StockService.findLatestRwEntryForInput(
+        final entry = await StockService.findCurrentProjectLineForInput(
           widget.customerId,
           widget.projectId,
           widget.preselectedItemId!,
         );
 
         if (entry != null) {
-          final line = Map<String, dynamic>.from(entry['matchedLine'] as Map);
+          final raw = Map<String, dynamic>.from(entry['matchedLine'] as Map);
+          final enriched = await StockService.enrichLineWithStock(raw);
           setState(() {
-            _oldItemId = line['itemId'] as String?;
-            _oldLine = line;
-            _oldInstalledQty = (line['quantity'] as num?)?.toInt() ?? 1;
+            _oldItemId = enriched['itemId'] as String?;
+            _oldLine = enriched;
+            _oldInstalledQty = (enriched['quantity'] as num?)?.toInt() ?? 1;
             _oldQty = _oldInstalledQty;
             _tabController.index = 1;
-            _sourceRwRef =
-                (entry['rwDoc'] as DocumentSnapshot<Map<String, dynamic>>)
-                    .reference;
+
+            final doc =
+                entry['rwDoc'] as DocumentSnapshot<Map<String, dynamic>>?;
+            _sourceRwRef = doc?.reference;
           });
         }
       });
@@ -100,7 +102,7 @@ class _SwapWorkflowScreenState extends State<SwapWorkflowScreen>
   }
 
   Future<void> _onOldScanned(String code) async {
-    final entry = await StockService.findLatestRwEntryForInput(
+    final entry = await StockService.findCurrentProjectLineForInput(
       widget.customerId,
       widget.projectId,
       code,
@@ -152,15 +154,15 @@ class _SwapWorkflowScreenState extends State<SwapWorkflowScreen>
       return;
     }
 
+    final enriched = await StockService.enrichLineWithStock(line);
     setState(() {
-      _oldItemId = line['itemId'] as String?;
-      _oldLine = line;
-      _oldInstalledQty = (line['quantity'] as num?)?.toInt() ?? 1;
+      _oldItemId = enriched['itemId'] as String?;
+      _oldLine = enriched;
+      _oldInstalledQty = (enriched['quantity'] as num?)?.toInt() ?? 1;
       _oldQty = _oldInstalledQty;
       _tabController.index = 1;
-
-      _sourceRwRef =
-          (entry['rwDoc'] as DocumentSnapshot<Map<String, dynamic>>).reference;
+      final doc = entry['rwDoc'] as DocumentSnapshot<Map<String, dynamic>>?;
+      _sourceRwRef = doc?.reference;
     });
   }
 
@@ -273,17 +275,19 @@ class _SwapWorkflowScreenState extends State<SwapWorkflowScreen>
 
   Future<void> _refreshOldLine() async {
     if (_oldItemId == null) return;
-    final entry = await StockService.findLatestRwEntryForInput(
+    final qty = await StockService.getInstalledQtyFromProject(
       widget.customerId,
       widget.projectId,
       _oldItemId!,
     );
-    if (entry == null) return;
-    final line = Map<String, dynamic>.from(entry['matchedLine'] as Map);
+
+    Map<String, dynamic> line = _oldLine ?? {'itemId': _oldItemId!};
+    line = await StockService.enrichLineWithStock(line);
+
     setState(() {
       _oldLine = line;
-      _oldInstalledQty = (line['quantity'] as num?)?.toInt() ?? 1;
-      _oldQty = _oldQty.clamp(1, _oldInstalledQty);
+      _oldInstalledQty = qty > 0 ? qty : (_oldInstalledQty);
+      _oldQty = _oldQty.clamp(1, _oldInstalledQty).toInt();
     });
   }
 
@@ -420,7 +424,8 @@ class _SwapWorkflowScreenState extends State<SwapWorkflowScreen>
             return;
           }
           if (diff > 0) {
-            await StockService.applySwapOnExistingRw(
+            // doinstalowujesz ten sam produkt
+            await StockService.applySwapAsNewRw(
               sourceRwRef: _sourceRwRef!,
               customerId: widget.customerId,
               projectId: widget.projectId,
@@ -430,18 +435,20 @@ class _SwapWorkflowScreenState extends State<SwapWorkflowScreen>
               newQty: diff,
             );
           } else {
-            await StockService.applySwapOnExistingRw(
+            // zwracasz część tego samego produktu
+            await StockService.applySwapAsNewRw(
               sourceRwRef: _sourceRwRef!,
               customerId: widget.customerId,
               projectId: widget.projectId,
               oldItemId: _oldItemId!,
-              oldQty: -diff,
+              oldQty: -diff, // positive
               newItemId: _newItemId!,
               newQty: 0,
             );
           }
         } else {
-          await StockService.applySwapOnExistingRw(
+          // prawdziwa zamiana A → B
+          await StockService.applySwapAsNewRw(
             sourceRwRef: _sourceRwRef!,
             customerId: widget.customerId,
             projectId: widget.projectId,
@@ -493,7 +500,7 @@ class _SwapWorkflowScreenState extends State<SwapWorkflowScreen>
       if (proceed != true) return;
 
       try {
-        await StockService.applySwapOnExistingRw(
+        await StockService.applySwapAsNewRw(
           sourceRwRef: _sourceRwRef!,
           customerId: widget.customerId,
           projectId: widget.projectId,
@@ -513,7 +520,6 @@ class _SwapWorkflowScreenState extends State<SwapWorkflowScreen>
 
     if (!mounted) return;
 
-    // Audit logging (mode-aware, avoids null newLine on return)
     final oldName =
         '${_oldLine?['producent'] ?? ''} ${_oldLine?['name'] ?? _oldItemId}';
     final oldSummary = '$_oldQty x $oldName';
@@ -643,7 +649,7 @@ class _SwapWorkflowScreenState extends State<SwapWorkflowScreen>
                         _oldLine!,
                         _oldQty,
                         (q) {
-                          final bounded = q.clamp(1, _oldInstalledQty);
+                          final bounded = q.clamp(1, _oldInstalledQty).toInt();
                           setState(() => _oldQty = bounded);
                         },
                         extraInfoWidget: Text(
@@ -656,7 +662,9 @@ class _SwapWorkflowScreenState extends State<SwapWorkflowScreen>
                         _newLine!,
                         _newQty,
                         (q) {
-                          final bounded = q.clamp(1, _newAvailableStock);
+                          final bounded = q
+                              .clamp(1, _newAvailableStock)
+                              .toInt();
                           setState(() => _newQty = bounded);
                         },
                         extraInfoWidget: Text(

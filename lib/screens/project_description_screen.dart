@@ -18,8 +18,6 @@ import 'package:firebase_storage/firebase_storage.dart';
 import 'package:open_file/open_file.dart';
 import 'package:path/path.dart' as p;
 import 'package:path_provider/path_provider.dart';
-import 'package:strefa_ciszy/screens/contacts_list_screen.dart';
-import 'package:strefa_ciszy/screens/customer_list_screen.dart';
 import 'package:strefa_ciszy/screens/location_picker_screen.dart';
 import 'package:strefa_ciszy/services/storage_service.dart';
 import 'package:strefa_ciszy/utils/keyboard_utils.dart';

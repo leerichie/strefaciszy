@@ -120,12 +120,15 @@ class _ProjectEditorScreenState extends State<ProjectEditorScreen> {
     _notesSub = projRef.snapshots().listen((snap) {
       if (!mounted) return;
       if (!snap.exists) return;
-      final raw = snap.data()!['notesList'] as List<dynamic>? ?? [];
+
+      final data = snap.data()!;
+
+      final rawNotes = (data['notesList'] as List<dynamic>?) ?? const [];
       final now = DateTime.now();
       final startOfDay = DateTime(now.year, now.month, now.day);
-      final endOfDay = startOfDay.add(Duration(days: 1));
+      final endOfDay = startOfDay.add(const Duration(days: 1));
 
-      final todaysRaw = raw
+      final todaysRaw = rawNotes
           .where((m) {
             final ts = (m['createdAt'] as Timestamp).toDate();
             return !ts.isBefore(startOfDay) && ts.isBefore(endOfDay);
@@ -133,15 +136,47 @@ class _ProjectEditorScreenState extends State<ProjectEditorScreen> {
           .cast<Map<String, dynamic>>()
           .toList();
 
-      final todayNotes = todaysRaw.map((m) {
-        return Note(
-          text: m['text'] as String,
-          userName: m['userName'] as String,
-          createdAt: (m['createdAt'] as Timestamp).toDate(),
-        );
-      }).toList()..sort((a, b) => b.createdAt.compareTo(a.createdAt));
+      final todayNotes =
+          todaysRaw
+              .map(
+                (m) => Note(
+                  text: m['text'] as String,
+                  userName: m['userName'] as String,
+                  createdAt: (m['createdAt'] as Timestamp).toDate(),
+                ),
+              )
+              .toList()
+            ..sort((a, b) => b.createdAt.compareTo(a.createdAt));
 
-      setState(() => _notes = todayNotes);
+      final projItemsRaw = (data['items'] as List<dynamic>?) ?? const [];
+      final freshLines = projItemsRaw.map((e) {
+        final m = Map<String, dynamic>.from(e as Map);
+        final itemId = m['itemId'] as String? ?? '';
+        final qty = (m['quantity'] as num?)?.toInt() ?? 0;
+        final unit = m['unit'] as String? ?? '';
+        final name = (m['name'] as String?) ?? '';
+
+        final isStock = _stockItems.any((s) => s.id == itemId);
+        final originalStock = isStock
+            ? _stockItems.firstWhere((s) => s.id == itemId).quantity
+            : qty;
+
+        return ProjectLine(
+          isStock: isStock,
+          itemRef: itemId,
+          customName: isStock ? '' : name,
+          requestedQty: qty,
+          previousQty: qty,
+          originalStock: originalStock,
+          unit: unit,
+        );
+      }).toList();
+
+      setState(() {
+        _notes = todayNotes;
+        _lines = freshLines;
+        _title = (data['title'] as String?) ?? _title;
+      });
     });
 
     _loadAll();
@@ -573,7 +608,12 @@ class _ProjectEditorScreenState extends State<ProjectEditorScreen> {
       }
 
       if (existsToday) {
-        batch.update(rwRef, rwData);
+        final updateMap = {
+          'items': rwData['items'],
+          'lastUpdatedAt': FieldValue.serverTimestamp(),
+          'lastUpdatedBy': user.uid,
+        };
+        batch.update(rwRef, updateMap);
       } else {
         batch.set(rwRef, rwData);
       }
@@ -829,7 +869,7 @@ class _ProjectEditorScreenState extends State<ProjectEditorScreen> {
                             .collection('rw_documents')
                             .doc();
                         await newRwRef.set({
-                          'type': 'Raport',
+                          'type': 'RW',
                           'customerId': widget.customerId,
                           'projectId': widget.projectId,
                           'customerName': _customerName,
@@ -1436,12 +1476,17 @@ class _ProjectEditorScreenState extends State<ProjectEditorScreen> {
                 final newLine = await showProjectLineDialog(
                   context,
                   _stockItems,
-                  customerId: widget.customerId!,
-                  projectId: widget.projectId!,
+                  customerId: widget.customerId,
+                  projectId: widget.projectId,
                   isAdmin: widget.isAdmin,
                   existingLines: existingLines,
                 );
-                if (newLine == null) return;
+                if (newLine == null) {
+                  await _loadAll();
+                  await _checkTodayExists('RW');
+                  if (mounted) setState(() {});
+                  return;
+                }
 
                 final lineWithUnit = newLine.isStock
                     ? newLine.copyWith(

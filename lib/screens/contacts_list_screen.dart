@@ -186,10 +186,11 @@ class _ContactsListScreenState extends State<ContactsListScreen> {
                                               ).colorScheme.onPrimary,
                                               onChanged: (on) {
                                                 sheetSetState(() {
-                                                  if (on == true)
+                                                  if (on == true) {
                                                     tempSet.add(p.id);
-                                                  else
+                                                  } else {
                                                     tempSet.remove(p.id);
+                                                  }
                                                 });
                                                 setModalState(() {});
                                               },
@@ -224,7 +225,7 @@ class _ContactsListScreenState extends State<ContactsListScreen> {
                       }),
                     ),
                   );
-                }).toList(),
+                }),
               ],
             ),
           ),

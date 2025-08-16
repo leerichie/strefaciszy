@@ -7,7 +7,6 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
-import 'package:strefa_ciszy/screens/scan_screen.dart';
 import 'package:strefa_ciszy/utils/keyboard_utils.dart';
 import 'package:strefa_ciszy/widgets/app_scaffold.dart';
 import 'project_editor_screen.dart';
@@ -343,7 +342,7 @@ class _CustomerDetailScreenState extends State<CustomerDetailScreen> {
         return GestureDetector(
           onTap: widget.isAdmin ? _editCustomerName : null,
           onLongPress: widget.isAdmin ? _editCustomerName : null,
-          child: AutoSizeText(name, maxLines: 1, minFontSize: 8),
+          child: AutoSizeText(name, maxLines: 2, minFontSize: 8),
         );
       },
     );

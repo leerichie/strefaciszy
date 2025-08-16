@@ -8,6 +8,7 @@ class TwoTabDetailScaffold extends StatelessWidget {
   final List<FloatingActionButton?> fabs;
 
   const TwoTabDetailScaffold({
+    super.key,
     required this.titleWidget,
     required this.tabs,
     required this.bodies,
@@ -20,7 +21,7 @@ class TwoTabDetailScaffold extends StatelessWidget {
       length: tabs.length,
       child: Builder(
         builder: (ctx2) {
-          final tc = DefaultTabController.of(ctx2)!;
+          final tc = DefaultTabController.of(ctx2);
           return AnimatedBuilder(
             animation: tc,
             builder: (_, __) => AppScaffold(

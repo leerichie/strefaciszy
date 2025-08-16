@@ -6,9 +6,6 @@ import 'package:strefa_ciszy/utils/keyboard_utils.dart';
 import 'package:strefa_ciszy/widgets/app_scaffold.dart';
 import '../services/user_functions.dart';
 
-import 'inventory_list_screen.dart';
-import 'scan_screen.dart';
-
 class ManageUsersScreen extends StatefulWidget {
   const ManageUsersScreen({super.key});
 

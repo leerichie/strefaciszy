@@ -54,7 +54,7 @@ class _AddContactScreenState extends State<AddContactScreen> {
 
   String? _contactId;
   String? _customerId;
-  bool _createdEmptyDraft = false;
+  final bool _createdEmptyDraft = false;
 
   Timer? _debounce;
 
@@ -728,10 +728,11 @@ class _AddContactScreenState extends State<AddContactScreen> {
                                 : null,
                             onChanged: (on) {
                               setModalState(() {
-                                if (on == true)
+                                if (on == true) {
                                   tempSet.add(doc.id);
-                                else
+                                } else {
                                   tempSet.remove(doc.id);
+                                }
                               });
                             },
                           );
