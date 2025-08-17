@@ -621,16 +621,27 @@ class _ProjectEditorScreenState extends State<ProjectEditorScreen> {
       await batch.commit();
 
       await projectRef.update({
-        'items': filteredLines
-            .map(
-              (ln) => {
-                'itemId': ln.itemRef,
-                'quantity': ln.requestedQty,
-                'unit': ln.unit,
-                'name': ln.isStock ? '' : ln.customName,
-              },
-            )
-            .toList(),
+        'items': filteredLines.map((ln) {
+          if (ln.isStock) {
+            final s = _stockItems.firstWhere((x) => x.id == ln.itemRef);
+            return {
+              'itemId': ln.itemRef,
+              'quantity': ln.requestedQty,
+              'unit': ln.unit,
+              'name': s.name,
+              'producer': s.producent ?? '',
+            };
+          } else {
+            return {
+              'itemId': ln.itemRef,
+              'quantity': ln.requestedQty,
+              'unit': ln.unit,
+              'name': ln.customName,
+              'producer': '',
+            };
+          }
+        }).toList(),
+
         'lastRwDate': FieldValue.serverTimestamp(),
       });
 
@@ -647,11 +658,22 @@ class _ProjectEditorScreenState extends State<ProjectEditorScreen> {
             : ln.customName;
         final changeText = '${diff > 0 ? '+' : ''}$diff${ln.unit}';
 
+        final s = ln.isStock
+            ? _stockItems.firstWhere((x) => x.id == ln.itemRef)
+            : null;
+        final producent = ln.isStock ? (s?.producent ?? '') : '';
+        final productName = ln.isStock ? (s?.name ?? '') : ln.customName;
+        final lineText = [
+          producent,
+          productName,
+          changeText,
+        ].where((e) => e.isNotEmpty).join(' ');
+
         await AuditService.logAction(
           action: existsToday ? 'Zaktualizowano Raport' : 'Utworzono Raport',
           customerId: widget.customerId,
           projectId: widget.projectId,
-          details: {'Produkt': name, 'Zmiana': changeText},
+          details: {'•': lineText},
         );
       }
 
@@ -711,7 +733,6 @@ class _ProjectEditorScreenState extends State<ProjectEditorScreen> {
       return m['name'] != line.customName;
     }).toList();
 
-    // 3) restore stock
     if (line.isStock) {
       final stockRef = FirebaseFirestore.instance
           .collection('stock_items')
@@ -721,17 +742,22 @@ class _ProjectEditorScreenState extends State<ProjectEditorScreen> {
       });
     }
 
-    final stockName = line.isStock
-        ? _stockItems.firstWhere((s) => s.id == line.itemRef).name
-        : line.customName;
+    final s = line.isStock
+        ? _stockItems.firstWhere((x) => x.id == line.itemRef)
+        : null;
+    final producent = line.isStock ? (s?.producent ?? '') : '';
+    final productName = line.isStock ? (s?.name ?? '') : line.customName;
+    final lineText = [
+      producent,
+      productName,
+      '-${line.requestedQty}${line.unit}',
+    ].where((e) => e.isNotEmpty).join(' ');
+
     await AuditService.logAction(
       action: 'Usunięto produkt',
       customerId: widget.customerId,
       projectId: widget.projectId,
-      details: {
-        'Produkt': stockName,
-        'Zmiana': '-${line.requestedQty}${line.unit}',
-      },
+      details: {'•': lineText},
     );
 
     if (updated.isEmpty) {

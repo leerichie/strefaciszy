@@ -139,13 +139,11 @@ class StockService {
         .map((e) => Map<String, dynamic>.from(e))
         .toList();
 
-    // 1) exact match in current project lines
     Map<String, dynamic>? current = items.firstWhere(
       (m) => m['itemId'] == input,
       orElse: () => {},
     );
 
-    // 2) fuzzy match in current project lines
     if (current.isEmpty) {
       final norm = normalize(input);
       for (final m in items) {
@@ -179,9 +177,7 @@ class StockService {
         'matchedLine': Map<String, dynamic>.from(
           fallback['matchedLine'] as Map,
         ),
-        'rwDoc':
-            fallback['rwDoc']
-                as DocumentSnapshot<Map<String, dynamic>>, // not null here
+        'rwDoc': fallback['rwDoc'] as DocumentSnapshot<Map<String, dynamic>>,
       };
     }
 

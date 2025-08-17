@@ -196,7 +196,6 @@ Future<ProjectLine?> showProjectLineDialog(
                                               ),
                                             );
                                         if (code != null && code.isNotEmpty) {
-                                          // Fill visible input with scanned code result
                                           textCtrl.text = code;
 
                                           final snap = await FirebaseFirestore
