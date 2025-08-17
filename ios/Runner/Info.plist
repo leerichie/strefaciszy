@@ -24,22 +24,39 @@
 	<string>????</string>
 	<key>CFBundleVersion</key>
 	<string>$(FLUTTER_BUILD_NUMBER)</string>
+	<key>FirebaseAppCheckDebugToken</key>
+	<string>4DB145E8-1279-4E9F-B69E-25A461D53C21</string>
+	<key>LSApplicationQueriesSchemes</key>
+	<array>
+		<string>tel</string>
+		<string>mailto</string>
+		<string>geo</string>
+	</array>
 	<key>LSRequiresIPhoneOS</key>
 	<true/>
+	<key>NSBonjourServices</key>
+	<array>
+		<string>_dartobservatory._tcp</string>
+		<string>_dartobservatory_secure._tcp</string>
+	</array>
+	<key>NSCameraUsageDescription</key>
+	<string>Camera is for barcode and qr scanning and for taking photos of products for stock.</string>
+	<key>NSLocalNetworkUsageDescription</key>
+	<string>Allow local network access for Flutter debugging</string>
+	<key>NSLocationWhenInUseUsageDescription</key>
+	<string>Location access is needed to tag scanned items or for inventory location info.</string>
+	<key>NSPhotoLibraryUsageDescription</key>
+	<string>Photo library access is needed if you choose images from the gallery.</string>
 	<key>UIApplicationSupportsIndirectInputEvents</key>
 	<true/>
 	<key>UILaunchStoryboardName</key>
 	<string>LaunchScreen</string>
-	<key>FirebaseAppCheckDebugToken</key>
-	<string>4DB145E8-1279-4E9F-B69E-25A461D53C21</string>
-
 	<key>UIMainStoryboardFile</key>
 	<string>Main</string>
+
 	<key>UISupportedInterfaceOrientations</key>
 	<array>
 		<string>UIInterfaceOrientationPortrait</string>
-		<string>UIInterfaceOrientationLandscapeLeft</string>
-		<string>UIInterfaceOrientationLandscapeRight</string>
 	</array>
 	<key>UISupportedInterfaceOrientations~ipad</key>
 	<array>
@@ -48,29 +65,6 @@
 		<string>UIInterfaceOrientationLandscapeLeft</string>
 		<string>UIInterfaceOrientationLandscapeRight</string>
 	</array>
-	<key>NSCameraUsageDescription</key>
-	<string>Camera is for barcode and qr scanning and for taking photos of products for stock.</string>
-	<key>NSPhotoLibraryUsageDescription</key>
-	<string>Photo library access is needed if you choose images from the gallery.</string>
-	<key>NSLocationWhenInUseUsageDescription</key>
-	<string>Location access is needed to tag scanned items or for inventory location info.</string>
-
-	 <!-- Flutter debug service -->
-    <key>NSLocalNetworkUsageDescription</key>
-    <string>Allow local network access for Flutter debugging</string>
-    <key>NSBonjourServices</key>
-    <array>
-        <string>_dartobservatory._tcp</string>
-        <string>_dartobservatory_secure._tcp</string>
-    </array>
-
-    <!-- phone, email, map contact links allow -->
-    <key>LSApplicationQueriesSchemes</key>
-    <array>
-        <string>tel</string>
-        <string>mailto</string>
-        <string>geo</string>
-    </array>
 
 </dict>
 </plist>
