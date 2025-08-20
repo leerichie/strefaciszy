@@ -48,6 +48,7 @@ dependencies:
   file_picker: ^10.2.0
   package_info_plus: ^8.3.0
   rxdart: ^0.28.0
+  dio: ^5.9.0
 
 dev_dependencies:
   flutter_test:

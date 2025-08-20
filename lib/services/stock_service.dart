@@ -352,7 +352,6 @@ class StockService {
       }
     }
 
-    // NO-OP guard: if nothing changed (same item, same quantity), do nothing.
     if (oldItemId == newItemId && oldQty == newQty) {
       return;
     }
@@ -437,7 +436,6 @@ class StockService {
       'action': action,
     };
 
-    // 3. Update the RW document with merged notes and items
     final existingNotes = (rwData['notesList'] as List<dynamic>?) ?? [];
     final updatedNotes = [...existingNotes, noteEntry];
 
@@ -448,7 +446,6 @@ class StockService {
       'notesList': updatedNotes,
     });
 
-    // 4. Sync project’s items
     batch.update(projRef, {
       'items': items
           .where((it) => (it['quantity'] as num).toInt() > 0)
@@ -657,17 +654,30 @@ class StockService {
     );
 
     await db.runTransaction((tx) async {
+      // ---------- READS FIRST ----------
       final projSnap = await tx.get(projRef);
       final projData = projSnap.data() ?? <String, dynamic>{};
 
-      final currentItemsRaw = (projData['items'] as List?) ?? const [];
-      final List<Map<String, dynamic>> projectItems = currentItemsRaw
-          .map((e) => Map<String, dynamic>.from(e as Map))
-          .toList();
+      // If we'll need the new item details, read them now
+      final newRef = db.collection('stock_items').doc(newItemId);
+      final newSnap = newQty > 0 ? await tx.get(newRef) : null;
+      final Map<String, dynamic> newData = Map<String, dynamic>.from(
+        newSnap?.data() ?? const {},
+      );
+
+      // If today's RW exists, read it now
+      final todaysSnap = todaysExists ? await tx.get(todaysRef) : null;
+
+      // ---------- PREPARE MUTABLE COPIES ----------
+      final List<Map<String, dynamic>> projectItems =
+          ((projData['items'] as List?) ?? const [])
+              .map((e) => Map<String, dynamic>.from(e as Map))
+              .toList();
 
       int qtyOf(Map<String, dynamic> m) =>
           ((m['quantity'] as num?)?.toInt() ?? 0);
 
+      // ---------- APPLY TO PROJECT / STOCK (WRITES, no more tx.get below) ----------
       if (oldQty > 0) {
         final idxOld = projectItems.indexWhere((m) => m['itemId'] == oldItemId);
         if (idxOld != -1) {
@@ -687,11 +697,6 @@ class StockService {
       }
 
       if (newQty > 0) {
-        final newRef = db.collection('stock_items').doc(newItemId);
-        final newSnap = await tx.get(newRef);
-        if (!newSnap.exists) throw Exception('Produkt $newItemId nie istnieje');
-        final newData = Map<String, dynamic>.from(newSnap.data()!);
-
         final idxNew = projectItems.indexWhere((m) => m['itemId'] == newItemId);
         if (idxNew != -1) {
           final existing = Map<String, dynamic>.from(projectItems[idxNew]);
@@ -714,14 +719,12 @@ class StockService {
         });
       }
 
-      // ...same code above...
-
       tx.update(projRef, {
         'items': projectItems,
         'lastRwDate': FieldValue.serverTimestamp(),
       });
 
-      // Build the note for both RW and project
+      // ---------- NOTES + TODAY'S RW ----------
       final noteEntry = {
         'createdAt': Timestamp.now(),
         'userName': createdByName.isEmpty ? uid : createdByName,
@@ -729,38 +732,71 @@ class StockService {
         'action': action,
       };
 
-      /// 🔹 ADD THIS: mirror the note to the project document too
-      tx.update(projRef, {
-        'notesList': FieldValue.arrayUnion([noteEntry]),
-      });
-
       if (todaysExists) {
+        final List<Map<String, dynamic>> rwItems =
+            ((todaysSnap!.data()?['items'] as List?) ?? const [])
+                .map((e) => Map<String, dynamic>.from(e as Map))
+                .toList();
+
+        if (oldQty > 0) {
+          final i = rwItems.indexWhere((m) => m['itemId'] == oldItemId);
+          if (i != -1) {
+            final m = Map<String, dynamic>.from(rwItems[i]);
+            final after = qtyOf(m) - oldQty;
+            if (after > 0) {
+              m['quantity'] = after;
+              rwItems[i] = m;
+            } else {
+              rwItems.removeAt(i);
+            }
+          }
+        }
+
+        if (newQty > 0) {
+          final i = rwItems.indexWhere((m) => m['itemId'] == newItemId);
+          if (i != -1) {
+            final m = Map<String, dynamic>.from(rwItems[i]);
+            m['quantity'] = qtyOf(m) + newQty;
+            rwItems[i] = m;
+          } else {
+            rwItems.add({
+              'itemId': newItemId,
+              'name': newData['name'] ?? '',
+              'description': newData['description'] ?? '',
+              'quantity': newQty,
+              'unit': newData['unit'] ?? '',
+              'producent': newData['producent'] ?? '',
+            });
+          }
+        }
+
         tx.update(todaysRef, {
+          'items': rwItems.where((m) => qtyOf(m) > 0).toList(),
           'lastUpdatedAt': FieldValue.serverTimestamp(),
           'lastUpdatedBy': uid,
           'notesList': FieldValue.arrayUnion([noteEntry]),
         });
       } else {
-        String projectName =
-            (projData['projectName']?.toString() ??
-                    projData['name']?.toString() ??
-                    projData['title']?.toString() ??
-                    '')
-                .trim();
-
         tx.set(todaysRef, {
           'id': todaysRef.id,
           'customerId': customerId,
           'customerName': customerName,
           'projectId': projectId,
-          'projectName': projectName,
+          'projectName':
+              (projData['projectName']?.toString() ??
+                      projData['name']?.toString() ??
+                      projData['title']?.toString() ??
+                      '')
+                  .trim(),
           'createdAt': FieldValue.serverTimestamp(),
-          'createdDay': Timestamp.fromDate(createdDayUtc),
+          'createdDay': Timestamp.fromDate(
+            DateTime.utc(nowLocal.year, nowLocal.month, nowLocal.day),
+          ),
           'createdBy': uid,
           'createdByName': createdByName,
           'type': 'RW',
           'sourceRwId': sourceRwRef.id,
-          'items': <Map<String, dynamic>>[],
+          'items': projectItems.where((m) => qtyOf(m) > 0).toList(),
           'notesList': [noteEntry],
         });
       }

@@ -12,7 +12,6 @@ import 'package:strefa_ciszy/models/stock_item.dart';
 import 'package:strefa_ciszy/models/project_line.dart';
 import 'package:strefa_ciszy/screens/project_description_screen.dart';
 import 'package:strefa_ciszy/screens/rw_documents_screen.dart';
-import 'package:strefa_ciszy/services/api_service.dart';
 import 'package:strefa_ciszy/services/stock_service.dart';
 import 'package:strefa_ciszy/widgets/app_scaffold.dart';
 import 'package:strefa_ciszy/widgets/note_dialogue.dart';
@@ -67,21 +66,8 @@ class _ProjectEditorScreenState extends State<ProjectEditorScreen> {
   List<XFile> _images = [];
   String _customerName = '';
 
-  // late final StreamSubscription<QuerySnapshot<StockItem>> _stockSub;
-  // Toggle: false = use API for stock, true = legacy Firestore stock
-  static const bool kUseFirestoreStock = false;
-
-  // Nullable: only set when kUseFirestoreStock == true
-  StreamSubscription<QuerySnapshot<StockItem>>? _stockSub;
-
+  late final StreamSubscription<QuerySnapshot<StockItem>> _stockSub;
   List<StockItem> _stockItems = [];
-
-  // (optional) API paging state if you want to load more later
-  int _stockOffset = 0;
-  bool _stockHasMore = true;
-  ////////
-
-  // List<StockItem> _stockItems = [];
   List<ProjectLine> _lines = [];
   late final bool _rwLocked;
 
@@ -114,35 +100,16 @@ class _ProjectEditorScreenState extends State<ProjectEditorScreen> {
             created.month != today.month ||
             created.day != today.day);
 
-    // _stockSub = FirebaseFirestore.instance
-    //     .collection('stock_items')
-    //     .withConverter<StockItem>(
-    //       fromFirestore: (snap, _) => StockItem.fromMap(snap.data()!, snap.id),
-    //       toFirestore: (item, _) => item.toMap(),
-    //     )
-    //     .snapshots()
-    //     .listen((snap) {
-    //       setState(() => _stockItems = snap.docs.map((d) => d.data()).toList());
-    //     });
-    if (kUseFirestoreStock) {
-      _stockSub = FirebaseFirestore.instance
-          .collection('stock_items')
-          .withConverter<StockItem>(
-            fromFirestore: (snap, _) =>
-                StockItem.fromMap(snap.data()!, snap.id),
-            toFirestore: (item, _) => item.toMap(),
-          )
-          .snapshots()
-          .listen((snap) {
-            setState(
-              () => _stockItems = snap.docs.map((d) => d.data()).toList(),
-            );
-          });
-    } else {
-      // Initial load from API (first page)
-      _loadStockFromApi(reset: true);
-    }
-    //////////
+    _stockSub = FirebaseFirestore.instance
+        .collection('stock_items')
+        .withConverter<StockItem>(
+          fromFirestore: (snap, _) => StockItem.fromMap(snap.data()!, snap.id),
+          toFirestore: (item, _) => item.toMap(),
+        )
+        .snapshots()
+        .listen((snap) {
+          setState(() => _stockItems = snap.docs.map((d) => d.data()).toList());
+        });
 
     final projRef = FirebaseFirestore.instance
         .collection('customers')
@@ -182,31 +149,28 @@ class _ProjectEditorScreenState extends State<ProjectEditorScreen> {
             ..sort((a, b) => b.createdAt.compareTo(a.createdAt));
 
       final projItemsRaw = (data['items'] as List<dynamic>?) ?? const [];
-      final freshLines = projItemsRaw
-          .map((e) {
-            final m = Map<String, dynamic>.from(e as Map);
-            final itemId = m['itemId'] as String? ?? '';
-            final qty = (m['quantity'] as num?)?.toInt() ?? 0;
-            final unit = m['unit'] as String? ?? '';
-            final name = (m['name'] as String?) ?? '';
+      final freshLines = projItemsRaw.map((e) {
+        final m = Map<String, dynamic>.from(e as Map);
+        final itemId = m['itemId'] as String? ?? '';
+        final qty = (m['quantity'] as num?)?.toInt() ?? 0;
+        final unit = m['unit'] as String? ?? '';
+        final name = (m['name'] as String?) ?? '';
 
-            final isStock = _stockItems.any((s) => s.id == itemId);
-            final originalStock = isStock
-                ? _stockItems.firstWhere((s) => s.id == itemId).quantity
-                : qty;
+        final isStock = _stockItems.any((s) => s.id == itemId);
+        final originalStock = isStock
+            ? _stockItems.firstWhere((s) => s.id == itemId).quantity
+            : qty;
 
-            return ProjectLine(
-              isStock: isStock,
-              itemRef: itemId,
-              customName: isStock ? '' : name,
-              requestedQty: qty,
-              previousQty: qty,
-              originalStock: originalStock,
-              unit: unit,
-            );
-          })
-          .where((l) => l.requestedQty > 0)
-          .toList();
+        return ProjectLine(
+          isStock: isStock,
+          itemRef: itemId,
+          customName: isStock ? '' : name,
+          requestedQty: qty,
+          previousQty: qty,
+          originalStock: originalStock,
+          unit: unit,
+        );
+      }).toList();
 
       setState(() {
         _notes = todayNotes;
@@ -223,36 +187,10 @@ class _ProjectEditorScreenState extends State<ProjectEditorScreen> {
 
   @override
   void dispose() {
-    _stockSub?.cancel();
+    _stockSub.cancel();
     _notesSub.cancel();
     _midnightRolloverTimer?.cancel();
     super.dispose();
-  }
-
-  Future<void> _loadStockFromApi({bool reset = false}) async {
-    if (reset) {
-      _stockOffset = 0;
-      _stockHasMore = true;
-      _stockItems = [];
-    }
-    if (!_stockHasMore) return;
-
-    // pull a chunk (tune size as you like)
-    const int pageSize = 200;
-    try {
-      final page = await ApiService.fetchProductsPaged(
-        limit: pageSize,
-        offset: _stockOffset,
-      );
-      setState(() {
-        _stockItems.addAll(page.items);
-        _stockOffset = page.nextOffset;
-        _stockHasMore = page.hasMore;
-      });
-    } catch (e) {
-      debugPrint('API stock load failed: $e');
-      // fail-soft: keep whatever we already have
-    }
   }
 
   void _scheduleMidnightRollover() {
@@ -376,31 +314,28 @@ class _ProjectEditorScreenState extends State<ProjectEditorScreen> {
       final data = todaySnap.docs.first.data();
       final rawItems = (data['items'] as List<dynamic>?) ?? [];
 
-      _lines = rawItems
-          .map((e) {
-            final m = e as Map<String, dynamic>;
-            final itemId = m['itemId'] as String? ?? '';
-            final qty = (m['quantity'] as num?)?.toInt() ?? 0;
-            final unit = m['unit'] as String? ?? '';
-            final name = m['name'] as String? ?? '';
-            final isStock = _stockItems.any((s) => s.id == itemId);
+      _lines = rawItems.map((e) {
+        final m = e as Map<String, dynamic>;
+        final itemId = m['itemId'] as String? ?? '';
+        final qty = (m['quantity'] as num?)?.toInt() ?? 0;
+        final unit = m['unit'] as String? ?? '';
+        final name = m['name'] as String? ?? '';
+        final isStock = _stockItems.any((s) => s.id == itemId);
 
-            final originalStock = isStock
-                ? _stockItems.firstWhere((s) => s.id == itemId).quantity
-                : qty;
+        final originalStock = isStock
+            ? _stockItems.firstWhere((s) => s.id == itemId).quantity
+            : qty;
 
-            return ProjectLine(
-              isStock: isStock,
-              itemRef: itemId,
-              customName: isStock ? '' : name,
-              requestedQty: qty,
-              originalStock: originalStock,
-              previousQty: qty,
-              unit: unit,
-            );
-          })
-          .where((l) => l.requestedQty > 0)
-          .toList();
+        return ProjectLine(
+          isStock: isStock,
+          itemRef: itemId,
+          customName: isStock ? '' : name,
+          requestedQty: qty,
+          originalStock: originalStock,
+          previousQty: qty,
+          unit: unit,
+        );
+      }).toList();
 
       _title = data['projectName'] as String? ?? '';
 
@@ -437,7 +372,6 @@ class _ProjectEditorScreenState extends State<ProjectEditorScreen> {
     } else {
       _lines = (data['items'] as List<dynamic>? ?? [])
           .map((m) => ProjectLine.fromMap(m))
-          .where((l) => l.requestedQty > 0)
           .toList();
     }
 
@@ -502,7 +436,7 @@ class _ProjectEditorScreenState extends State<ProjectEditorScreen> {
         .doc(widget.customerId)
         .collection('projects')
         .doc(widget.projectId)
-        .get(const GetOptions(source: Source.server));
+        .get();
     final projectName =
         projSnap.data()?['title'] as String? ?? '<nieznany projekt>';
 
@@ -595,27 +529,15 @@ class _ProjectEditorScreenState extends State<ProjectEditorScreen> {
 
     // DELETE-ALL
     if (filteredLines.isEmpty && docSnap.exists) {
-      // for (final ln in fullLines.where((l) => l.previousQty > 0)) {
-      //   try {
-      //     await StockService.increaseQty(ln.itemRef, ln.previousQty);
-      //     debugPrint('🔄 Restored ${ln.previousQty} for ${ln.itemRef}');
-      //   } catch (e) {
-      //     debugPrint('⚠️ Couldn\'t restore ${ln.itemRef}: $e');
-      //   }
-      // }
-      if (kUseFirestoreStock) {
-        for (final ln in fullLines.where(
-          (l) => l.previousQty > 0 && l.isStock,
-        )) {
-          try {
-            await StockService.increaseQty(ln.itemRef, ln.previousQty);
-            debugPrint('🔄 Restored ${ln.previousQty} for ${ln.itemRef}');
-          } catch (e) {
-            debugPrint('⚠️ Couldn\'t restore ${ln.itemRef}: $e');
-          }
+      for (final ln in fullLines.where((l) => l.previousQty > 0)) {
+        try {
+          await StockService.increaseQty(ln.itemRef, ln.previousQty);
+          debugPrint('🔄 Restored ${ln.previousQty} for ${ln.itemRef}');
+        } catch (e) {
+          debugPrint('⚠️ Couldn\'t restore ${ln.itemRef}: $e');
         }
       }
-      ////
+
       final custSnap2 = await FirebaseFirestore.instance
           .collection('customers')
           .doc(widget.customerId)
@@ -674,29 +596,16 @@ class _ProjectEditorScreenState extends State<ProjectEditorScreen> {
     try {
       final batch = FirebaseFirestore.instance.batch();
 
-      // for (var ln in filteredLines) {
-      //   final prev = ln.previousQty ?? 0;
-      //   final diff = ln.requestedQty - prev;
-      //   if (diff != 0) {
-      //     final stockRef = FirebaseFirestore.instance
-      //         .collection('stock_items')
-      //         .doc(ln.itemRef);
-      //     batch.update(stockRef, {'quantity': FieldValue.increment(-diff)});
-      //   }
-      // }
-      if (kUseFirestoreStock) {
-        for (var ln in filteredLines) {
-          final prev = ln.previousQty ?? 0;
-          final diff = ln.requestedQty - prev;
-          if (diff != 0 && ln.isStock) {
-            final stockRef = FirebaseFirestore.instance
-                .collection('stock_items')
-                .doc(ln.itemRef);
-            batch.update(stockRef, {'quantity': FieldValue.increment(-diff)});
-          }
+      for (var ln in filteredLines) {
+        final prev = ln.previousQty ?? 0;
+        final diff = ln.requestedQty - prev;
+        if (diff != 0) {
+          final stockRef = FirebaseFirestore.instance
+              .collection('stock_items')
+              .doc(ln.itemRef);
+          batch.update(stockRef, {'quantity': FieldValue.increment(-diff)});
         }
       }
-      //////
 
       if (existsToday) {
         final updateMap = {
@@ -824,15 +733,7 @@ class _ProjectEditorScreenState extends State<ProjectEditorScreen> {
       return m['name'] != line.customName;
     }).toList();
 
-    // if (line.isStock) {
-    //   final stockRef = FirebaseFirestore.instance
-    //       .collection('stock_items')
-    //       .doc(line.itemRef);
-    //   await stockRef.update({
-    //     'quantity': FieldValue.increment(line.requestedQty),
-    //   });
-    // }
-    if (kUseFirestoreStock && line.isStock) {
+    if (line.isStock) {
       final stockRef = FirebaseFirestore.instance
           .collection('stock_items')
           .doc(line.itemRef);
@@ -840,7 +741,6 @@ class _ProjectEditorScreenState extends State<ProjectEditorScreen> {
         'quantity': FieldValue.increment(line.requestedQty),
       });
     }
-    /////
 
     final s = line.isStock
         ? _stockItems.firstWhere((x) => x.id == line.itemRef)
@@ -1599,7 +1499,6 @@ class _ProjectEditorScreenState extends State<ProjectEditorScreen> {
                   for (var ln in _lines)
                     if (ln.isStock) ln.itemRef: ln.requestedQty,
                 };
-
                 final newLine = await showProjectLineDialog(
                   context,
                   _stockItems,
@@ -1608,7 +1507,6 @@ class _ProjectEditorScreenState extends State<ProjectEditorScreen> {
                   isAdmin: widget.isAdmin,
                   existingLines: existingLines,
                 );
-
                 if (newLine == null) {
                   await _loadAll();
                   await _checkTodayExists('RW');
@@ -1636,24 +1534,19 @@ class _ProjectEditorScreenState extends State<ProjectEditorScreen> {
                       );
 
                 if (existingIndex != -1) {
-                  _lines[existingIndex] = lineWithUnit;
+                  setState(() => _lines[existingIndex] = lineWithUnit);
                 } else {
-                  _lines.add(lineWithUnit);
+                  setState(() => _lines.add(lineWithUnit));
                 }
-                if (mounted) setState(() {});
 
                 try {
                   await _saveRWDocument('RW');
-                  await _loadAll();
-                  await _checkTodayExists('RW');
-                  if (mounted) setState(() {});
                 } catch (e) {
                   ScaffoldMessenger.of(context).showSnackBar(
                     SnackBar(content: Text('Auto Sync RW - nie udało się: $e')),
                   );
                 }
               },
-
               child: const Icon(Icons.playlist_add, size: 28),
             ),
 

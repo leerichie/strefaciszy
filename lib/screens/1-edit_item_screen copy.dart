@@ -1,15 +1,9 @@
 import 'package:flutter/material.dart';
-import 'package:strefa_ciszy/widgets/app_scaffold.dart';
 import 'package:strefa_ciszy/screens/1-inventory_list_screen.dart';
+import 'package:strefa_ciszy/widgets/app_scaffold.dart';
 import 'package:strefa_ciszy/widgets/stock_item_form.dart';
+import '../services/stock_item_service.dart';
 import '../utils/keyboard_utils.dart';
-
-// 🔴 Firestore service (disabled for API mode)
-// import '../services/stock_item_service.dart';
-
-// ✅ API
-import 'package:strefa_ciszy/services/api_service.dart';
-import 'package:strefa_ciszy/models/stock_item.dart';
 
 class EditItemScreen extends StatelessWidget {
   final String docId;
@@ -32,8 +26,7 @@ class EditItemScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    // final service = StockItemService(); // 🔴 Firestore
-
+    final service = StockItemService();
     final initial = StockItemInitial(
       name: data['name'] ?? '',
       sku: data['sku'] ?? '',
@@ -64,13 +57,17 @@ class EditItemScreen extends StatelessWidget {
                         child: StockItemForm(
                           initial: initial,
                           onSubmit: (v) async {
-                            // Read-only backend for now – no write to WAPRO
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              const SnackBar(
-                                content: Text(
-                                  'API w trybie tylko-do-odczytu. Edycja wyłączona.',
-                                ),
-                              ),
+                            await service.updateItem(
+                              docId: docId,
+                              name: v.name,
+                              sku: v.sku,
+                              barcode: v.barcode,
+                              producent: v.producent,
+                              category: v.category,
+                              quantity: v.quantity,
+                              unit: v.unit,
+                              location: v.location,
+                              imageFile: v.imageFile,
                             );
                             _goToInventory(context);
                           },

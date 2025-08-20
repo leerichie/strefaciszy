@@ -1,13 +1,9 @@
-// lib/screens/item_detail_screen.dart
 import 'package:flutter/material.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:strefa_ciszy/utils/keyboard_utils.dart';
 import 'package:strefa_ciszy/widgets/app_scaffold.dart';
 import 'add_item_screen.dart';
-// Keep edit import if you plan to enable it later
-// import 'edit_item_screen.dart';
-
-import 'package:strefa_ciszy/services/api_service.dart';
-import 'package:strefa_ciszy/models/stock_item.dart';
+import 'edit_item_screen.dart';
 
 class ItemDetailScreen extends StatelessWidget {
   final String itemId;
@@ -18,23 +14,62 @@ class ItemDetailScreen extends StatelessWidget {
     required this.itemId,
   });
 
+  // Future<void> _changeQuantity(String docId, int delta, int currentQty) async {
+  //   final newQty = currentQty + delta;
+  //   if (newQty < 0) return;
+  //   await FirebaseFirestore.instance
+  //       .collection('stock_items')
+  //       .doc(docId)
+  //       .update({
+  //         'quantity': newQty,
+  //         'updatedAt': FieldValue.serverTimestamp(),
+  //         'updatedBy': FirebaseAuth.instance.currentUser!.uid,
+  //       });
+  // }
+
   @override
   Widget build(BuildContext context) {
-    const title = 'Szczegóły';
+    final title = 'Szczegóły';
     return AppScaffold(
       centreTitle: true,
       title: title,
-      bottom: const PreferredSize(
-        preferredSize: Size.fromHeight(56),
+      bottom: PreferredSize(
+        preferredSize: const Size.fromHeight(56),
         child: Padding(
-          padding: EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-          child: Row(children: []),
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+          child: Row(children: [
+              ],
+            ),
         ),
       ),
-      actions: const [Padding(padding: EdgeInsets.symmetric(horizontal: 8.0))],
+      actions: [
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 8.0),
+          // child: CircleAvatar(
+          //   backgroundColor: Colors.black,
+          //   child: IconButton(
+          //     icon: const Icon(Icons.home),
+          //     color: Colors.white,
+          //     tooltip: 'Home',
+          //     onPressed: () {
+          //       Navigator.of(context).pushAndRemoveUntil(
+          //         MaterialPageRoute(
+          //           builder: (_) => const MainMenuScreen(role: 'admin'),
+          //         ),
+          //         (route) => false,
+          //       );
+          //     },
+          //   ),
+          // ),
+        ),
+      ],
+
       body: DismissKeyboard(
-        child: FutureBuilder<StockItem?>(
-          future: ApiService.fetchProduct(itemId),
+        child: StreamBuilder<DocumentSnapshot>(
+          stream: FirebaseFirestore.instance
+              .collection('stock_items')
+              .doc(itemId)
+              .snapshots(),
           builder: (ctx, snapshot) {
             if (snapshot.connectionState == ConnectionState.waiting) {
               return const Center(child: CircularProgressIndicator());
@@ -42,9 +77,8 @@ class ItemDetailScreen extends StatelessWidget {
             if (snapshot.hasError) {
               return Center(child: Text('Error: ${snapshot.error}'));
             }
-
-            final item = snapshot.data;
-            if (item == null) {
+            final doc = snapshot.data;
+            if (doc == null || !doc.exists) {
               return Center(
                 child: Column(
                   mainAxisAlignment: MainAxisAlignment.center,
@@ -63,18 +97,17 @@ class ItemDetailScreen extends StatelessWidget {
                 ),
               );
             }
-
-            final qty = item.quantity;
-            final unit = item.unit; // normalized to '' in model
-            final imageUrl = item.imageUrl;
-
+            final data = doc.data()! as Map<String, dynamic>;
+            final qty = data['quantity'] ?? 0;
+            final unit = data['unit'] ?? '';
+            final imageUrl = data['imageUrl'] as String?;
             return SingleChildScrollView(
               padding: const EdgeInsets.all(16),
               keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  if (imageUrl != null && imageUrl.isNotEmpty) ...[
+                  if (imageUrl != null) ...[
                     Center(
                       child: SizedBox(
                         width: double.infinity,
@@ -108,57 +141,40 @@ class ItemDetailScreen extends StatelessWidget {
                   ],
 
                   Text(
-                    item.name,
+                    data['name'] ?? '—',
                     style: const TextStyle(
                       fontSize: 24,
                       fontWeight: FontWeight.bold,
                     ),
                   ),
                   const SizedBox(height: 8),
-
                   Table(
                     columnWidths: const {0: IntrinsicColumnWidth()},
                     defaultVerticalAlignment: TableCellVerticalAlignment.middle,
                     children: [
-                      _row('Producent', item.producent),
-                      _row('SKU', item.sku),
-                      _row(
-                        'Kategoria',
-                        // API sets category = description; keep fallback as before
-                        item.category.isNotEmpty
-                            ? item.category
-                            : item.description,
-                      ),
-                      _row('Magazyn', null), // intentionally blank (not in API)
-                      _row('Kod Kreskowy', item.barcode),
-                      _row('Ilość', '${qty}${unit.isNotEmpty ? ' $unit' : ''}'),
+                      _row('Producent', data['producent']),
+                      _row('SKU', data['sku']),
+                      _row('Kategoria', data['category']),
+                      _row('Magazyn', data['location']),
+                      _row('Kod Kreskowy', data['barcode']),
+                      _row('Ilość', data['quantity']),
                     ],
                   ),
-
-                  const SizedBox(height: 16),
 
                   Center(
                     child: ElevatedButton(
                       onPressed: isAdmin
                           ? () {
-                              // Keep disabled until you wire API editing routes.
-                              ScaffoldMessenger.of(context).showSnackBar(
-                                const SnackBar(
-                                  content: Text(
-                                    'Edytowanie przez API jeszcze nieaktywne',
+                              final data = doc.data()! as Map<String, dynamic>;
+                              Navigator.of(context).push(
+                                MaterialPageRoute(
+                                  builder: (_) => EditItemScreen(
+                                    doc.id,
+                                    data: data,
+                                    isAdmin: isAdmin,
                                   ),
                                 ),
                               );
-                              // If you later enable:
-                              // Navigator.of(context).push(
-                              //   MaterialPageRoute(
-                              //     builder: (_) => EditItemScreen(
-                              //       item.id,
-                              //       // pass any needed data
-                              //       isAdmin: isAdmin,
-                              //     ),
-                              //   ),
-                              // );
                             }
                           : null,
                       child: const Text('Edytuj szczegóły'),
@@ -185,9 +201,7 @@ TableRow _row(String label, dynamic value) => TableRow(
     ),
     Padding(
       padding: const EdgeInsets.only(bottom: 4),
-      child: Text(
-        value?.toString().isNotEmpty == true ? value.toString() : '—',
-      ),
+      child: Text(value?.toString() ?? '—'),
     ),
   ],
 );

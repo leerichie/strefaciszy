@@ -1,9 +1,15 @@
 import 'package:flutter/material.dart';
 import 'package:strefa_ciszy/utils/keyboard_utils.dart';
 import 'package:strefa_ciszy/widgets/app_scaffold.dart';
-import 'package:strefa_ciszy/screens/inventory_list_screen.dart';
+import 'package:strefa_ciszy/screens/1-inventory_list_screen.dart';
 import 'package:strefa_ciszy/widgets/stock_item_form.dart';
-import '../services/stock_item_service.dart';
+
+// 🔴 Firestore service (disabled)
+// import '../services/stock_item_service.dart';
+
+// ✅ API
+import 'package:strefa_ciszy/services/api_service.dart';
+import 'package:strefa_ciszy/models/stock_item.dart';
 
 class AddItemScreen extends StatelessWidget {
   final String? initialBarcode;
@@ -19,7 +25,8 @@ class AddItemScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final service = StockItemService();
+    // final service = StockItemService(); // 🔴 Firestore
+
     final initial = StockItemInitial(
       barcode: initialBarcode ?? '',
       name: initialName ?? '',
@@ -43,16 +50,13 @@ class AddItemScreen extends StatelessWidget {
                         child: StockItemForm(
                           initial: initial,
                           onSubmit: (v) async {
-                            await service.addItem(
-                              name: v.name,
-                              sku: v.sku,
-                              barcode: v.barcode,
-                              producent: v.producent,
-                              category: v.category,
-                              quantity: v.quantity,
-                              unit: v.unit,
-                              location: v.location,
-                              imageFile: v.imageFile,
+                            // Read-only backend for now – no write to WAPRO
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              const SnackBar(
+                                content: Text(
+                                  'API w trybie tylko-do-odczytu. Dodawanie wyłączone.',
+                                ),
+                              ),
                             );
                             _goToInventory(context);
                           },

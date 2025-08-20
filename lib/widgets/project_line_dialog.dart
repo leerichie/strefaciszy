@@ -7,6 +7,7 @@ import 'package:strefa_ciszy/models/project_line.dart';
 import 'package:strefa_ciszy/models/stock_item.dart';
 import 'package:strefa_ciszy/screens/scan_screen.dart';
 import 'package:strefa_ciszy/screens/swap_workflow_screen.dart';
+import 'package:strefa_ciszy/services/api_service.dart';
 import 'package:strefa_ciszy/utils/search_utils.dart';
 
 Future<ProjectLine?> showProjectLineDialog(
@@ -183,6 +184,21 @@ Future<ProjectLine?> showProjectLineDialog(
                                   focusNode: focusNode,
                                   decoration: InputDecoration(
                                     labelText: 'Szukaj produkt',
+
+                                    // suffixIcon: IconButton(
+                                    //   icon: const Icon(Icons.qr_code_scanner),
+                                    //   onPressed: () async {
+                                    //     final code = await Navigator.of(context)
+                                    //         .push<String>(
+                                    //           MaterialPageRoute(
+                                    //             builder: (_) =>
+                                    //                 const ScanScreen(
+                                    //                   returnCode: true,
+                                    //                 ),
+                                    //           ),
+                                    //         );
+                                    //     if (code != null && code.isNotEmpty) {
+                                    //       textCtrl.text = code;
                                     suffixIcon: IconButton(
                                       icon: const Icon(Icons.qr_code_scanner),
                                       onPressed: () async {
@@ -195,28 +211,42 @@ Future<ProjectLine?> showProjectLineDialog(
                                                     ),
                                               ),
                                             );
-                                        if (code != null && code.isNotEmpty) {
-                                          textCtrl.text = code;
+                                        if (code == null || code.isEmpty)
+                                          return;
 
-                                          final snap = await FirebaseFirestore
-                                              .instance
-                                              .collection('stock_items')
-                                              .where('barcode', isEqualTo: code)
-                                              .limit(1)
-                                              .get();
+                                        // fill the text box so user sees scanned code
+                                        textCtrl.text = code;
 
-                                          if (snap.docs.isNotEmpty) {
-                                            final doc = snap.docs.first;
-                                            final data = doc.data();
+                                        try {
+                                          final results =
+                                              await ApiService.fetchProducts(
+                                                search: code,
+                                                limit: 50,
+                                                offset: 0,
+                                              );
+
+                                          ////////
+                                          StockItem? match;
+                                          final exact = results.where(
+                                            (s) =>
+                                                s.barcode.trim() == code.trim(),
+                                          );
+                                          if (exact.isNotEmpty) {
+                                            match = exact.first;
+                                          } else if (results.isNotEmpty) {
+                                            match = results.first;
+                                          }
+
+                                          if (match != null) {
                                             setState(() {
-                                              itemRef = doc.id;
+                                              itemRef = match!.id;
                                               textCtrl.text =
-                                                  '${data['name']}, ${data['producent']}';
-                                              unit =
-                                                  data['unit'] as String? ??
-                                                  'szt';
+                                                  '${match!.name}, ${match!.producent}';
+                                              unit = match!.unit.isNotEmpty
+                                                  ? match!.unit
+                                                  : 'szt';
                                             });
-                                            await checkIfItemInRW(doc.id);
+                                            await checkIfItemInRW(match!.id);
                                           } else {
                                             ScaffoldMessenger.of(
                                               context,
@@ -228,6 +258,47 @@ Future<ProjectLine?> showProjectLineDialog(
                                               ),
                                             );
                                           }
+                                        } catch (e) {
+                                          ScaffoldMessenger.of(
+                                            context,
+                                          ).showSnackBar(
+                                            SnackBar(
+                                              content: Text(
+                                                'Skanowanie nie powiodło się: $e',
+                                              ),
+                                            ),
+                                          );
+
+                                          // final snap = await FirebaseFirestore
+                                          //     .instance
+                                          //     .collection('stock_items')
+                                          //     .where('barcode', isEqualTo: code)
+                                          //     .limit(1)
+                                          //     .get();
+
+                                          // if (snap.docs.isNotEmpty) {
+                                          //   final doc = snap.docs.first;
+                                          //   final data = doc.data();
+                                          //   setState(() {
+                                          //     itemRef = doc.id;
+                                          //     textCtrl.text =
+                                          //         '${data['name']}, ${data['producent']}';
+                                          //     unit =
+                                          //         data['unit'] as String? ??
+                                          //         'szt';
+                                          //   });
+                                          //   await checkIfItemInRW(doc.id);
+                                          // } else {
+                                          //   ScaffoldMessenger.of(
+                                          //     context,
+                                          //   ).showSnackBar(
+                                          //     SnackBar(
+                                          //       content: Text(
+                                          //         'Nie znaleziono produktu: $code',
+                                          //       ),
+                                          //     ),
+                                          //   );
+                                          // }
                                         }
                                       },
                                     ),
@@ -367,10 +438,23 @@ Future<ProjectLine?> showProjectLineDialog(
                                     );
                                   },
 
+                              // onSelected: (s) async {
+                              //   setState(() {
+                              //     itemRef = s.id;
+                              //     unit = s.unit!;
+                              //     productController.text =
+                              //         '${s.name}, ${s.producent}';
+                              //     prevQty =
+                              //         existing?.previousQty ??
+                              //         existingLines[s.id] ??
+                              //         0;
+                              //   });
+                              //   await checkIfItemInRW(s.id);
+                              // },
                               onSelected: (s) async {
                                 setState(() {
                                   itemRef = s.id;
-                                  unit = s.unit!;
+                                  unit = s.unit.isNotEmpty ? s.unit : 'szt';
                                   productController.text =
                                       '${s.name}, ${s.producent}';
                                   prevQty =
@@ -380,6 +464,7 @@ Future<ProjectLine?> showProjectLineDialog(
                                 });
                                 await checkIfItemInRW(s.id);
                               },
+                              //////
                             ),
 
                           if (!isStock)
@@ -406,6 +491,33 @@ Future<ProjectLine?> showProjectLineDialog(
                                   : null,
                             ),
                             keyboardType: TextInputType.number,
+
+                            // validator: (v) {
+                            //   final n = int.tryParse(v ?? '');
+                            //   if (n == null || n < 0) {
+                            //     return 'Nieprawidłowa ilość';
+                            //   }
+
+                            //   if (isStock) {
+                            //     final stockItem = stockItems.firstWhere(
+                            //       (s) => s.id == itemRef,
+                            //       orElse: () => StockItem(
+                            //         id: '',
+                            //         name: '',
+                            //         description: '',
+                            //         quantity: 0,
+                            //       ),
+                            //     );
+                            //     final available = stockItem.quantity;
+                            //     final takenBefore = existing?.previousQty ?? 0;
+                            //     final delta = (n - takenBefore);
+                            //     if (delta > available) {
+                            //       final maxTotal = available + takenBefore;
+                            //       return 'Za mało w magazynie (max: $maxTotal)';
+                            //     }
+                            //   }
+                            //   return null;
+                            // },
                             validator: (v) {
                               final n = int.tryParse(v ?? '');
                               if (n == null || n < 0) {
@@ -413,18 +525,14 @@ Future<ProjectLine?> showProjectLineDialog(
                               }
 
                               if (isStock) {
-                                final stockItem = stockItems.firstWhere(
+                                final idx = stockItems.indexWhere(
                                   (s) => s.id == itemRef,
-                                  orElse: () => StockItem(
-                                    id: '',
-                                    name: '',
-                                    description: '',
-                                    quantity: 0,
-                                  ),
                                 );
-                                final available = stockItem.quantity;
+                                final available = idx == -1
+                                    ? 0
+                                    : stockItems[idx].quantity;
                                 final takenBefore = existing?.previousQty ?? 0;
-                                final delta = (n - takenBefore);
+                                final delta = n - takenBefore;
                                 if (delta > available) {
                                   final maxTotal = available + takenBefore;
                                   return 'Za mało w magazynie (max: $maxTotal)';
@@ -432,8 +540,7 @@ Future<ProjectLine?> showProjectLineDialog(
                               }
                               return null;
                             },
-
-                            // onChanged: (v) => qty = int.tryParse(v) ?? qty,
+                            ////
                           ),
 
                           SizedBox(height: 12),
@@ -456,7 +563,7 @@ Future<ProjectLine?> showProjectLineDialog(
                           Row(
                             mainAxisAlignment: MainAxisAlignment.spaceEvenly,
                             children: [
-                              TextButton(
+                              ElevatedButton(
                                 onPressed: () => Navigator.of(ctx).pop(),
                                 child: const Text('Anuluj'),
                               ),
@@ -464,9 +571,7 @@ Future<ProjectLine?> showProjectLineDialog(
                               if (isStock &&
                                   itemRef.isNotEmpty &&
                                   hasItemInAnyRW)
-                                OutlinedButton.icon(
-                                  icon: const Icon(Icons.swap_horiz),
-                                  label: const Text('Zwrot / Zamiana'),
+                                ElevatedButton(
                                   onPressed: () async {
                                     await Navigator.of(context).push(
                                       MaterialPageRoute(
@@ -482,9 +587,56 @@ Future<ProjectLine?> showProjectLineDialog(
                                       Navigator.of(ctx).pop();
                                     }
                                   },
+                                  child: const Icon(
+                                    Icons.swap_horizontal_circle,
+                                    color: Color.fromARGB(255, 148, 115, 13),
+                                  ),
                                 ),
 
                               ElevatedButton(
+                                // onPressed: () {
+                                //   if (!formKey.currentState!.validate()) return;
+                                //   if (isStock && itemRef.isEmpty) {
+                                //     ScaffoldMessenger.of(context).showSnackBar(
+                                //       const SnackBar(
+                                //         content: Text('Wybierz produkt.'),
+                                //       ),
+                                //     );
+                                //     return;
+                                //   }
+
+                                //   final chosen = isStock
+                                //       ? stockItems.firstWhere(
+                                //           (s) => s.id == itemRef,
+                                //         )
+                                //       : StockItem(
+                                //           id: '',
+                                //           name: customController.text.trim(),
+                                //           description: customController.text
+                                //               .trim(),
+                                //           quantity: 0,
+                                //         );
+
+                                //   final added =
+                                //       int.tryParse(qtyController.text.trim()) ??
+                                //       0;
+                                //   final newQty = prevQty + added;
+
+                                //   final line = ProjectLine(
+                                //     isStock: isStock,
+                                //     itemRef: itemRef,
+                                //     customName: isStock
+                                //         ? ''
+                                //         : customController.text.trim(),
+                                //     requestedQty: newQty,
+                                //     unit: unit,
+                                //     originalStock: chosen.quantity,
+                                //     previousQty: prevQty,
+                                //     updatedAt: DateTime.now(),
+                                //   );
+
+                                //   Navigator.of(ctx).pop(line);
+                                // },
                                 onPressed: () {
                                   if (!formKey.currentState!.validate()) return;
                                   if (isStock && itemRef.isEmpty) {
@@ -496,22 +648,24 @@ Future<ProjectLine?> showProjectLineDialog(
                                     return;
                                   }
 
-                                  final chosen = isStock
-                                      ? stockItems.firstWhere(
-                                          (s) => s.id == itemRef,
-                                        )
-                                      : StockItem(
-                                          id: '',
-                                          name: customController.text.trim(),
-                                          description: customController.text
-                                              .trim(),
-                                          quantity: 0,
-                                        );
-
                                   final added =
                                       int.tryParse(qtyController.text.trim()) ??
                                       0;
                                   final newQty = prevQty + added;
+
+                                  // compute originalStock for preview only
+                                  int originalStock;
+                                  if (isStock) {
+                                    final idx = stockItems.indexWhere(
+                                      (s) => s.id == itemRef,
+                                    );
+                                    originalStock = idx == -1
+                                        ? 0
+                                        : stockItems[idx].quantity;
+                                  } else {
+                                    originalStock =
+                                        0; // custom line: no warehouse stock
+                                  }
 
                                   final line = ProjectLine(
                                     isStock: isStock,
@@ -521,12 +675,14 @@ Future<ProjectLine?> showProjectLineDialog(
                                         : customController.text.trim(),
                                     requestedQty: newQty,
                                     unit: unit,
-                                    originalStock: chosen.quantity,
+                                    originalStock: originalStock,
                                     previousQty: prevQty,
                                     updatedAt: DateTime.now(),
                                   );
+
                                   Navigator.of(ctx).pop(line);
                                 },
+                                /////////
                                 child: Text(
                                   existing == null ? 'Dodaj' : 'Zapisz',
                                 ),

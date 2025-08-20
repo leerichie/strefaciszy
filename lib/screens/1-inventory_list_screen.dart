@@ -2,10 +2,10 @@
 
 import 'dart:async';
 import 'package:flutter/material.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:strefa_ciszy/models/stock_item.dart';
 import 'package:strefa_ciszy/screens/add_item_screen.dart';
 import 'package:strefa_ciszy/screens/item_detail_screen.dart';
-import 'package:strefa_ciszy/services/api_service.dart';
 import 'package:strefa_ciszy/utils/keyboard_utils.dart';
 import 'package:strefa_ciszy/utils/search_utils.dart';
 import 'package:strefa_ciszy/widgets/app_scaffold.dart';
@@ -14,7 +14,6 @@ class InventoryListScreen extends StatefulWidget {
   final bool isAdmin;
   final String? initialSearch;
   final Set<String>? onlyIds;
-
   const InventoryListScreen({
     super.key,
     required this.isAdmin,
@@ -31,27 +30,27 @@ class _InventoryListScreenState extends State<InventoryListScreen> {
   String _category = '';
   List<String> _categories = [];
   late final TextEditingController _searchController;
+  late final StreamSubscription<QuerySnapshot> _catSub;
 
   @override
   void initState() {
     super.initState();
     _searchController = TextEditingController(text: widget.initialSearch ?? '');
     _search = widget.initialSearch?.trim() ?? '';
-
-    // Load categories from API (fallback to empty list if it fails)
-    ApiService.fetchCategories()
-        .then((cats) {
-          if (!mounted) return;
-          setState(() => _categories = cats);
-        })
-        .catchError((_) {
-          if (!mounted) return;
-          setState(() => _categories = []);
+    _catSub = FirebaseFirestore.instance
+        .collection('categories')
+        .orderBy('name')
+        .snapshots()
+        .listen((snap) {
+          setState(() {
+            _categories = snap.docs.map((d) => d['name'] as String).toList();
+          });
         });
   }
 
   @override
   void dispose() {
+    _catSub.cancel();
     _searchController.dispose();
     super.dispose();
   }
@@ -65,11 +64,39 @@ class _InventoryListScreenState extends State<InventoryListScreen> {
     });
   }
 
+  Query<StockItem> get _stockQuery {
+    Query<Map<String, dynamic>> base = FirebaseFirestore.instance.collection(
+      'stock_items',
+    );
+
+    if (_category.isNotEmpty) {
+      base = base.where('category', isEqualTo: _category);
+    }
+
+    base = base.orderBy('name');
+
+    return base.withConverter<StockItem>(
+      fromFirestore: (snap, _) => StockItem.fromMap(snap.data()!, snap.id),
+      toFirestore: (item, _) => item.toMap(),
+    );
+  }
+
+  Widget _buildCategoryChip(String? value, String label) {
+    final selected = (value ?? '') == _category;
+    return Padding(
+      padding: const EdgeInsets.only(right: 8),
+      child: ChoiceChip(
+        label: Text(label),
+        selected: selected,
+        onSelected: (_) => setState(() => _category = value ?? ''),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final isAdmin = widget.isAdmin;
-    const title = 'Magazyn';
-
+    final title = 'Magazyn';
     return AppScaffold(
       floatingActionButton: isAdmin
           ? FloatingActionButton(
@@ -115,7 +142,8 @@ class _InventoryListScreenState extends State<InventoryListScreen> {
           ),
         ),
       ),
-      actions: const [Padding(padding: EdgeInsets.symmetric(horizontal: 8.0))],
+      actions: [Padding(padding: const EdgeInsets.symmetric(horizontal: 8.0))],
+
       body: DismissKeyboard(
         child: Column(
           children: [
@@ -134,26 +162,20 @@ class _InventoryListScreenState extends State<InventoryListScreen> {
                 items: [
                   const DropdownMenuItem(value: '', child: Text('Wszystko')),
                   ..._categories.map((cat) {
-                    if (cat.isEmpty)
-                      return const DropdownMenuItem(value: '', child: Text(''));
                     final label = cat[0].toUpperCase() + cat.substring(1);
                     return DropdownMenuItem(value: cat, child: Text(label));
                   }),
                 ],
-                onChanged: (v) => setState(() => _category = v ?? ''),
+                onChanged: (v) => setState(() {
+                  _category = v ?? '';
+                }),
               ),
             ),
             const SizedBox(height: 8),
 
-            // --- API-only list (search + category) ---
             Expanded(
-              child: FutureBuilder<List<StockItem>>(
-                future: ApiService.fetchProducts(
-                  search: _search.isNotEmpty ? _search : null,
-                  category: _category.isNotEmpty ? _category : null,
-                  limit: 200,
-                  offset: 0,
-                ),
+              child: StreamBuilder<QuerySnapshot<StockItem>>(
+                stream: _stockQuery.snapshots(),
                 builder: (ctx, snap) {
                   if (snap.connectionState == ConnectionState.waiting) {
                     return const Center(child: CircularProgressIndicator());
@@ -162,25 +184,23 @@ class _InventoryListScreenState extends State<InventoryListScreen> {
                     return Center(child: Text('Error: ${snap.error}'));
                   }
 
-                  final allItems = snap.data ?? [];
+                  final allItems = snap.data!.docs
+                      .map((d) => d.data())
+                      .toList();
 
-                  // onlyIds (keep behaviour; most screens pass null)
-                  final afterOnlyIds = widget.onlyIds == null
+                  final preFiltered = widget.onlyIds == null
                       ? allItems
                       : allItems
                             .where((i) => widget.onlyIds!.contains(i.id))
                             .toList();
 
-                  // local fallback search (kept)
                   final filtered = _search.isEmpty
-                      ? afterOnlyIds
-                      : afterOnlyIds.where((item) {
+                      ? preFiltered
+                      : preFiltered.where((item) {
                           return matchesSearch(_search, [
                             item.name,
                             item.producent,
-                            item.category.isNotEmpty
-                                ? item.category
-                                : item.description,
+                            item.description,
                             item.sku,
                             item.barcode,
                           ]);
@@ -202,7 +222,7 @@ class _InventoryListScreenState extends State<InventoryListScreen> {
                     child: ListView.separated(
                       keyboardDismissBehavior:
                           ScrollViewKeyboardDismissBehavior.onDrag,
-                      itemCount: filtered.length, // ✅ use filtered
+                      itemCount: filtered.length,
                       separatorBuilder: (_, __) => const Divider(height: 1),
                       itemBuilder: (ctx, i) {
                         final item = filtered[i];
@@ -212,7 +232,7 @@ class _InventoryListScreenState extends State<InventoryListScreen> {
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
                               Text(
-                                item.producent,
+                                item.producent ?? '',
                                 style: const TextStyle(
                                   fontSize: 14,
                                   fontWeight: FontWeight.bold,
@@ -223,9 +243,7 @@ class _InventoryListScreenState extends State<InventoryListScreen> {
                                 style: const TextStyle(fontSize: 14),
                               ),
                               Text(
-                                item.category.isNotEmpty
-                                    ? item.category
-                                    : item.description,
+                                item.description,
                                 style: TextStyle(
                                   fontSize: 13,
                                   color: Colors.grey[700],
@@ -235,7 +253,7 @@ class _InventoryListScreenState extends State<InventoryListScreen> {
                             ],
                           ),
                           subtitle: Text(
-                            '${item.quantity}${item.unit.isNotEmpty ? ' ${item.unit}' : ''}',
+                            '${item.quantity}${item.unit != null ? ' ${item.unit}' : ''}',
                             style: TextStyle(
                               fontSize: 14,
                               fontWeight: FontWeight.bold,
@@ -255,29 +273,47 @@ class _InventoryListScreenState extends State<InventoryListScreen> {
                                     child: Image.network(
                                       item.imageUrl!,
                                       fit: BoxFit.cover,
-                                      errorBuilder: (_, __, ___) => Container(
-                                        color: Colors.grey[200],
-                                        child: const Icon(
-                                          Icons.broken_image,
-                                          size: 24,
-                                          color: Colors.grey,
-                                        ),
-                                      ),
+                                      loadingBuilder: (ctx, child, progress) {
+                                        if (progress == null) return child;
+                                        return Center(
+                                          child: SizedBox(
+                                            width: 24,
+                                            height: 24,
+                                            child: CircularProgressIndicator(
+                                              value:
+                                                  progress.expectedTotalBytes !=
+                                                      null
+                                                  ? progress.cumulativeBytesLoaded /
+                                                        progress
+                                                            .expectedTotalBytes!
+                                                  : null,
+                                              strokeWidth: 2,
+                                            ),
+                                          ),
+                                        );
+                                      },
+                                      errorBuilder: (_, __, ___) {
+                                        return Container(
+                                          color: Colors.grey[200],
+                                          child: const Icon(
+                                            Icons.broken_image,
+                                            size: 24,
+                                            color: Colors.grey,
+                                          ),
+                                        );
+                                      },
                                     ),
                                   ),
                                 )
                               : null,
-                          onTap: () {
-                            // ✅ This id now comes from the API row
-                            Navigator.of(context).push(
-                              MaterialPageRoute(
-                                builder: (_) => ItemDetailScreen(
-                                  itemId: item.id,
-                                  isAdmin: widget.isAdmin,
-                                ),
+                          onTap: () => Navigator.of(context).push(
+                            MaterialPageRoute(
+                              builder: (_) => ItemDetailScreen(
+                                itemId: item.id,
+                                isAdmin: isAdmin,
                               ),
-                            );
-                          },
+                            ),
+                          ),
                         );
                       },
                     ),
@@ -288,6 +324,46 @@ class _InventoryListScreenState extends State<InventoryListScreen> {
           ],
         ),
       ),
+      // floatingActionButton: isAdmin
+      //     ? FloatingActionButton(
+      //         onPressed: () => Navigator.of(
+      //           context,
+      //         ).push(MaterialPageRoute(builder: (_) => const AddItemScreen())),
+      //         tooltip: 'Dodaj stock',
+      //         child: const Icon(Icons.add),
+      //       )
+      //     : null,
+      // floatingActionButtonLocation: FloatingActionButtonLocation.centerDocked,
+      // bottomNavigationBar: SafeArea(
+      //   child: BottomAppBar(
+      //     shape: const CircularNotchedRectangle(),
+      //     notchMargin: 6,
+      //     child: Padding(
+      //       padding: const EdgeInsets.symmetric(horizontal: 32),
+      //       child: Row(
+      //         mainAxisAlignment: MainAxisAlignment.spaceBetween,
+      //         children: [
+      //           IconButton(
+      //             tooltip: 'Klienci',
+      //             icon: const Icon(Icons.group),
+      //             onPressed: () => Navigator.of(context).push(
+      //               MaterialPageRoute(
+      //                 builder: (_) => CustomerListScreen(isAdmin: isAdmin),
+      //               ),
+      //             ),
+      //           ),
+      //           IconButton(
+      //             tooltip: 'Skanuj',
+      //             icon: const Icon(Icons.qr_code_scanner),
+      //             onPressed: () => Navigator.of(
+      //               context,
+      //             ).push(MaterialPageRoute(builder: (_) => const ScanScreen())),
+      //           ),
+      //         ],
+      //       ),
+      //     ),
+      //   ),
+      // ),
     );
   }
 }

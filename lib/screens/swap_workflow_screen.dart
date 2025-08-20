@@ -412,7 +412,6 @@ class _SwapWorkflowScreenState extends State<SwapWorkflowScreen>
 
       if (proceed != true) return;
 
-      // perform swap with error handling
       try {
         if (_oldItemId == _newItemId) {
           final diff = _newQty - _oldQty;
@@ -425,8 +424,7 @@ class _SwapWorkflowScreenState extends State<SwapWorkflowScreen>
           }
           if (_sourceRwRef != null) {
             if (diff > 0) {
-              // doinstalowujesz ten sam produkt
-              await StockService.applySwapOnExistingRw(
+              await StockService.applySwapAsNewRw(
                 sourceRwRef: _sourceRwRef!,
                 customerId: widget.customerId,
                 projectId: widget.projectId,
@@ -436,21 +434,19 @@ class _SwapWorkflowScreenState extends State<SwapWorkflowScreen>
                 newQty: diff,
               );
             } else {
-              // zwracasz część tego samego produktu
-              await StockService.applySwapOnExistingRw(
+              await StockService.applySwapAsNewRw(
                 sourceRwRef: _sourceRwRef!,
                 customerId: widget.customerId,
                 projectId: widget.projectId,
                 oldItemId: _oldItemId!,
-                oldQty: -diff, // positive
+                oldQty: -diff,
                 newItemId: _newItemId!,
                 newQty: 0,
               );
             }
           } else {
-            // fallback if no source RW known
             await StockService.applySwapAsNewRw(
-              sourceRwRef: _sourceRwRef!, // keep as is in your signature
+              sourceRwRef: _sourceRwRef!,
               customerId: widget.customerId,
               projectId: widget.projectId,
               oldItemId: diff > 0 ? _oldItemId! : _oldItemId!,
@@ -460,9 +456,8 @@ class _SwapWorkflowScreenState extends State<SwapWorkflowScreen>
             );
           }
         } else {
-          // prawdziwa zamiana A → B
           if (_sourceRwRef != null) {
-            await StockService.applySwapOnExistingRw(
+            await StockService.applySwapAsNewRw(
               sourceRwRef: _sourceRwRef!,
               customerId: widget.customerId,
               projectId: widget.projectId,
@@ -526,7 +521,7 @@ class _SwapWorkflowScreenState extends State<SwapWorkflowScreen>
 
       try {
         if (_sourceRwRef != null) {
-          await StockService.applySwapOnExistingRw(
+          await StockService.applySwapAsNewRw(
             sourceRwRef: _sourceRwRef!,
             customerId: widget.customerId,
             projectId: widget.projectId,
