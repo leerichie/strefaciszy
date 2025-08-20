@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:strefa_ciszy/widgets/app_scaffold.dart';
-import 'package:strefa_ciszy/screens/1-inventory_list_screen.dart';
+import 'package:strefa_ciszy/screens/inventory_list_screen.dart';
 import 'package:strefa_ciszy/widgets/stock_item_form.dart';
 import '../utils/keyboard_utils.dart';
 

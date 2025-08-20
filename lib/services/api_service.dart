@@ -1,6 +1,7 @@
 // lib/services/api_service.dart
 import 'dart:convert';
 import 'package:http/http.dart' as http;
+import 'package:strefa_ciszy/utils/stock_normalizer.dart';
 import '../models/stock_item.dart';
 
 /// Simple paging wrapper that you can use for "load more" lists.
@@ -36,35 +37,70 @@ class ApiService {
     return u.replace(queryParameters: qp);
   }
 
-  // ---- PRODUCTS LIST ----
-  // Backward-compatible: you can still call fetchProducts() with no args.
-  // Now also supports search, category filter, and paging (limit/offset).
   static Future<List<StockItem>> fetchProducts({
-    String? search, // maps to ?q=
-    String? category, // maps to ?category=
+    String? search,
+    String? category,
     int limit = 50,
     int offset = 0,
   }) async {
-    final uri = _uri('/products', {
-      'q': search,
-      'category': category,
-      'limit': limit,
-      'offset': offset,
-    });
+    // -------- TEMP: flip to true to force-test your LAN IP instead of Tailscale
+    const bool _forceLan = false;
 
-    final res = await http.get(uri);
+    final uri = _forceLan
+        ? Uri.parse('http://192.168.1.103:9103/api/products').replace(
+            queryParameters: {
+              'name': search ?? '',
+              'q': search ?? '',
+              'category': category ?? '',
+              'limit': '$limit',
+              'offset': '$offset',
+            },
+          )
+        : _uri('/products', {
+            'name': search,
+            'q': search,
+            'category': category,
+            'limit': limit,
+            'offset': offset,
+          });
+
+    final res = await http.get(
+      uri,
+      headers: {'Accept': 'application/json', 'Cache-Control': 'no-cache'},
+    );
+
+    // ==== DEBUG LOGS (show up in the browser console on Flutter Web) ====
+    // ignore: avoid_print
+    print('[ApiService] GET $uri -> ${res.statusCode}');
     if (res.statusCode != 200) {
-      throw Exception('GET ${uri.path} failed: ${res.statusCode} ${res.body}');
+      // ignore: avoid_print
+      print('[ApiService] Body: ${res.body}');
+      throw Exception('GET $uri failed: ${res.statusCode}');
     }
 
     final body = json.decode(res.body);
     if (body is! List) {
+      // ignore: avoid_print
+      print('[ApiService] Unexpected body type: ${body.runtimeType}');
       throw Exception('Unexpected response for /products: not a list');
     }
 
-    return body
+    final items = body
         .map<StockItem>((e) => StockItem.fromJson(e as Map<String, dynamic>))
+        .map(StockNormalizer.normalize)
         .toList();
+
+    if (items.isNotEmpty) {
+      // ignore: avoid_print
+      print(
+        '[ApiService] First item: id=${items.first.id} name=${items.first.name}',
+      );
+    } else {
+      // ignore: avoid_print
+      print('[ApiService] Empty list from API');
+    }
+
+    return items;
   }
 
   // Optional: call this if you want paging signals (hasMore/nextOffset).
@@ -89,16 +125,16 @@ class ApiService {
     );
   }
 
-  // ---- SINGLE PRODUCT ----
   static Future<StockItem?> fetchProduct(String id) async {
     final uri = _uri('/products/$id');
     final res = await http.get(uri);
 
     if (res.statusCode == 200) {
       final Map<String, dynamic> data = json.decode(res.body);
-      return StockItem.fromJson(data);
+      final item = StockItem.fromJson(data);
+      return StockNormalizer.normalize(item); // <<<<<<<<
     } else if (res.statusCode == 404) {
-      return null; // product not found
+      return null;
     } else {
       throw Exception('GET ${uri.path} failed: ${res.statusCode} ${res.body}');
     }
@@ -108,6 +144,11 @@ class ApiService {
   static Future<List<String>> fetchCategories() async {
     final uri = _uri('/categories');
     final res = await http.get(uri);
+    assert(() {
+      // ignore: avoid_print
+      print('[ApiService] GET $uri -> ${res.statusCode}');
+      return true;
+    }());
 
     if (res.statusCode != 200) {
       throw Exception('GET ${uri.path} failed: ${res.statusCode} ${res.body}');

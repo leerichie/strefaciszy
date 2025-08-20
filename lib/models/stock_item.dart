@@ -24,6 +24,32 @@ class StockItem {
     required this.category,
   });
 
+  StockItem copyWith({
+    String? id,
+    String? name,
+    String? description,
+    int? quantity,
+    String? sku,
+    String? barcode,
+    String? unit,
+    String? producent,
+    String? imageUrl,
+    String? category,
+  }) {
+    return StockItem(
+      id: id ?? this.id,
+      name: name ?? this.name,
+      description: description ?? this.description,
+      quantity: quantity ?? this.quantity,
+      sku: sku ?? this.sku,
+      barcode: barcode ?? this.barcode,
+      unit: unit ?? this.unit,
+      producent: producent ?? this.producent,
+      imageUrl: imageUrl ?? this.imageUrl,
+      category: category ?? this.category,
+    );
+  }
+
   // ---- API JSON helpers ----
   factory StockItem.fromJson(Map<String, dynamic> j) {
     String _s(dynamic v) => (v == null) ? "" : v.toString();
@@ -33,10 +59,14 @@ class StockItem {
       return int.tryParse(v.toString()) ?? 0;
     }
 
+    // Safe category fallback: prefer category; if empty use description.
+    final _cat = (j['category'] ?? '').toString().trim();
+    final _desc = (j['description'] ?? '').toString().trim();
+
     return StockItem(
       id: _s(j['id']),
       name: _s(j['name']),
-      description: _s(j['description']),
+      description: _desc,
       quantity: _i(j['quantity']),
       sku: _s(j['sku']),
       barcode: _s(j['barcode']),
@@ -45,10 +75,7 @@ class StockItem {
       imageUrl: (j['imageUrl'] == null || j['imageUrl'].toString().isEmpty)
           ? null
           : j['imageUrl'].toString(),
-      // fall back to description if category missing
-      category: _s(
-        j['category'].toString().isEmpty ? j['description'] : j['category'],
-      ),
+      category: _cat.isNotEmpty ? _cat : _desc,
     );
   }
 
@@ -77,7 +104,8 @@ class StockItem {
     }
 
     final desc = _s(m['description']);
-    final cat = _s(m['category']).isEmpty ? desc : _s(m['category']);
+    final catRaw = _s(m['category']).trim();
+    final cat = catRaw.isNotEmpty ? catRaw : desc;
 
     return StockItem(
       id: id,
