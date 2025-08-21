@@ -9,6 +9,9 @@ import 'package:qr_flutter/qr_flutter.dart';
 import 'package:strefa_ciszy/screens/contacts_list_screen.dart';
 import 'package:strefa_ciszy/screens/inventory_list_screen.dart';
 import 'package:strefa_ciszy/screens/login_screen.dart';
+import 'package:strefa_ciszy/services/admin_api.dart';
+import 'package:strefa_ciszy/services/api_service.dart';
+import 'package:strefa_ciszy/utils/stock_normalizer.dart';
 import 'package:strefa_ciszy/widgets/app_scaffold.dart';
 import 'package:url_launcher/url_launcher.dart';
 
@@ -34,6 +37,78 @@ class _MainMenuScreenState extends State<MainMenuScreen> {
     super.initState();
     _loadVersion();
   }
+
+  bool get _isLee {
+    final email = FirebaseAuth.instance.currentUser?.email?.toLowerCase() ?? '';
+    return email == 'leerichie@wp.pl';
+  }
+
+  /// DEV:
+
+  // Future<void> _normalizeAll() async {
+  //   if (!mounted) return;
+
+  //   ScaffoldMessenger.of(context).showSnackBar(
+  //     const SnackBar(content: Text('Starting full normalization…')),
+  //   );
+
+  //   try {
+  //     const pageSize = 200;
+  //     int offset = 0;
+  //     int staged = 0;
+
+  //     while (true) {
+  //       final items = await ApiService.fetchProducts(
+  //         limit: pageSize,
+  //         offset: offset,
+  //       );
+  //       if (items.isEmpty) break;
+
+  //       for (final it in items) {
+  //         final norm = StockNormalizer.normalize(it);
+  //         await AdminApi.stageOne(normalized: norm, who: 'lee');
+  //         staged++;
+  //         await Future.delayed(const Duration(milliseconds: 5));
+  //       }
+
+  //       offset += items.length;
+  //       if (!mounted) return;
+  //       ScaffoldMessenger.of(
+  //         context,
+  //       ).showSnackBar(SnackBar(content: Text('Staged $staged so far…')));
+  //     }
+
+  //     final pending = await AdminApi.pendingIds();
+  //     int applied = 0;
+  //     const chunk = 200;
+  //     for (int i = 0; i < pending.length; i += chunk) {
+  //       final part = pending.sublist(
+  //         i,
+  //         (i + chunk > pending.length) ? pending.length : i + chunk,
+  //       );
+  //       await AdminApi.applyIds(part, who: 'lee');
+  //       applied += part.length;
+  //       if (!mounted) return;
+  //       ScaffoldMessenger.of(context).showSnackBar(
+  //         SnackBar(content: Text('Applied $applied / ${pending.length}…')),
+  //       );
+  //     }
+
+  //     if (!mounted) return;
+  //     ScaffoldMessenger.of(context).showSnackBar(
+  //       SnackBar(
+  //         content: Text(
+  //           'Normalization complete. Staged: $staged • Applied: $applied',
+  //         ),
+  //       ),
+  //     );
+  //   } catch (e) {
+  //     if (!mounted) return;
+  //     ScaffoldMessenger.of(
+  //       context,
+  //     ).showSnackBar(SnackBar(content: Text('Error: $e')));
+  //   }
+  // }
 
   Future<void> _loadVersion() async {
     if (kIsWeb) {
@@ -85,6 +160,19 @@ class _MainMenuScreenState extends State<MainMenuScreen> {
 
         const SizedBox(height: 24),
 
+        // DEV btn
+        // if (_isLee && isAdmin) ...[
+        //   const Divider(),
+        //   ListTile(
+        //     leading: const Icon(Icons.auto_fix_high),
+        //     title: const Text('Normalize (name • category • producer)'),
+        //     subtitle: const Text('Applies to all in WAPRO'),
+        //     onTap: _normalizeAll,
+        //   ),
+        //   const Divider(),
+        // ],
+
+        ///////
         if (isAdmin) ...[
           ListTile(
             leading: const Icon(Icons.admin_panel_settings),
@@ -198,13 +286,6 @@ class _MainMenuScreenState extends State<MainMenuScreen> {
               width: 80,
               fit: BoxFit.contain,
             ),
-            // child: Text(
-            //   'developed by LEE',
-            //   style: TextStyle(
-            //     color: Colors.blueGrey,
-            //     fontWeight: FontWeight.bold,
-            //   ),
-            // ),
           ),
         ],
       ),
@@ -216,49 +297,6 @@ class _MainMenuScreenState extends State<MainMenuScreen> {
           onPressed: _signOut,
         ),
       ],
-
-      // floatingActionButton: !kIsWeb
-      //     ? FloatingActionButton(
-      //         tooltip: 'Skanuj',
-      //         onPressed: () => Navigator.of(
-      //           context,
-      //         ).push(MaterialPageRoute(builder: (_) => const ScanScreen())),
-      //         child: const Icon(Icons.qr_code_scanner, size: 32),
-      //       )
-      //     : null,
-      // floatingActionButtonLocation: FloatingActionButtonLocation.centerDocked,
-      // bottomNavigationBar: SafeArea(
-      //   child: BottomAppBar(
-      //     shape: const CircularNotchedRectangle(),
-      //     notchMargin: 6,
-      //     child: Padding(
-      //       padding: const EdgeInsets.symmetric(horizontal: 32),
-      //       child: Row(
-      //         mainAxisAlignment: MainAxisAlignment.spaceBetween,
-      //         children: [
-      //           IconButton(
-      //             tooltip: 'Inwentaryzacja',
-      //             icon: const Icon(Icons.inventory_2),
-      //             onPressed: () => Navigator.of(context).push(
-      //               MaterialPageRoute(
-      //                 builder: (_) => InventoryListScreen(isAdmin: isAdmin),
-      //               ),
-      //             ),
-      //           ),
-      //           IconButton(
-      //             tooltip: 'Klienci',
-      //             icon: const Icon(Icons.group),
-      //             onPressed: () => Navigator.of(context).push(
-      //               MaterialPageRoute(
-      //                 builder: (_) => CustomerListScreen(isAdmin: isAdmin),
-      //               ),
-      //             ),
-      //           ),
-      //         ],
-      //       ),
-      //     ),
-      //   ),
-      // ),
     );
   }
 }

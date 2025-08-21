@@ -135,33 +135,33 @@ class ItemDetailScreen extends StatelessWidget {
 
                   const SizedBox(height: 16),
 
-                  Center(
-                    child: ElevatedButton(
-                      onPressed: isAdmin
-                          ? () {
-                              // Keep disabled until you wire API editing routes.
-                              ScaffoldMessenger.of(context).showSnackBar(
-                                const SnackBar(
-                                  content: Text(
-                                    'Edytowanie przez API jeszcze nieaktywne',
-                                  ),
-                                ),
-                              );
-                              // If you later enable:
-                              // Navigator.of(context).push(
-                              //   MaterialPageRoute(
-                              //     builder: (_) => EditItemScreen(
-                              //       item.id,
-                              //       // pass any needed data
-                              //       isAdmin: isAdmin,
-                              //     ),
-                              //   ),
-                              // );
-                            }
-                          : null,
-                      child: const Text('Edytuj szczegóły'),
-                    ),
-                  ),
+                  // Center(
+                  //   child: ElevatedButton(
+                  //     onPressed: isAdmin
+                  //         ? () {
+                  //             // Keep disabled until you wire API editing routes.
+                  //             ScaffoldMessenger.of(context).showSnackBar(
+                  //               const SnackBar(
+                  //                 content: Text(
+                  //                   'Edytowanie przez API jeszcze nieaktywne',
+                  //                 ),
+                  //               ),
+                  //             );
+                  //             // If you later enable:
+                  //             // Navigator.of(context).push(
+                  //             //   MaterialPageRoute(
+                  //             //     builder: (_) => EditItemScreen(
+                  //             //       item.id,
+                  //             //       // pass any needed data
+                  //             //       isAdmin: isAdmin,
+                  //             //     ),
+                  //             //   ),
+                  //             // );
+                  //           }
+                  //         : null,
+                  //     child: const Text('Edytuj szczegóły'),
+                  //   ),
+                  // ),
                 ],
               ),
             );

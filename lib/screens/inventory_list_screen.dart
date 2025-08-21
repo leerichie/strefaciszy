@@ -6,6 +6,7 @@ import 'package:strefa_ciszy/models/stock_item.dart';
 import 'package:strefa_ciszy/screens/add_item_screen.dart';
 import 'package:strefa_ciszy/screens/item_detail_screen.dart';
 import 'package:strefa_ciszy/services/api_service.dart';
+import 'package:strefa_ciszy/utils/category_filter.dart';
 import 'package:strefa_ciszy/utils/keyboard_utils.dart';
 import 'package:strefa_ciszy/utils/search_utils.dart';
 import 'package:strefa_ciszy/widgets/app_scaffold.dart';
@@ -41,7 +42,8 @@ class _InventoryListScreenState extends State<InventoryListScreen> {
     ApiService.fetchCategories()
         .then((cats) {
           if (!mounted) return;
-          setState(() => _categories = cats);
+          final clean = CategoryFilter.buildDropdownCategories(cats);
+          setState(() => _categories = clean);
         })
         .catchError((_) {
           if (!mounted) return;
@@ -70,16 +72,16 @@ class _InventoryListScreenState extends State<InventoryListScreen> {
     const title = 'Magazyn';
 
     return AppScaffold(
-      floatingActionButton: isAdmin
-          ? FloatingActionButton(
-              onPressed: () => Navigator.of(
-                context,
-              ).push(MaterialPageRoute(builder: (_) => const AddItemScreen())),
-              tooltip: 'Dodaj stock',
-              child: const Icon(Icons.add),
-            )
-          : null,
-      floatingActionButtonLocation: FloatingActionButtonLocation.centerDocked,
+      // floatingActionButton: isAdmin
+      //     ? FloatingActionButton(
+      //         onPressed: () => Navigator.of(
+      //           context,
+      //         ).push(MaterialPageRoute(builder: (_) => const AddItemScreen())),
+      //         tooltip: 'Dodaj stock',
+      //         child: const Icon(Icons.add),
+      //       )
+      //     : null,
+      // floatingActionButtonLocation: FloatingActionButtonLocation.centerDocked,
       centreTitle: true,
       title: title,
       bottom: PreferredSize(
@@ -119,32 +121,32 @@ class _InventoryListScreenState extends State<InventoryListScreen> {
         child: Column(
           children: [
             const SizedBox(height: 8),
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 12),
-              child: DropdownButtonFormField<String>(
-                decoration: InputDecoration(
-                  labelText: 'Kategoria',
-                  border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(8),
-                  ),
-                  isDense: true,
-                ),
-                value: _category.isEmpty ? null : _category,
-                items: [
-                  const DropdownMenuItem(value: '', child: Text('Wszystko')),
-                  ..._categories.map((cat) {
-                    if (cat.isEmpty) {
-                      return const DropdownMenuItem(value: '', child: Text(''));
-                    }
-                    final label = cat[0].toUpperCase() + cat.substring(1);
-                    return DropdownMenuItem(value: cat, child: Text(label));
-                  }),
-                ],
-                onChanged: (v) => setState(() => _category = v ?? ''),
-              ),
-            ),
-            const SizedBox(height: 8),
 
+            // Padding(
+            //   padding: const EdgeInsets.symmetric(horizontal: 12),
+            //   child: DropdownButtonFormField<String>(
+            //     decoration: InputDecoration(
+            //       labelText: 'Kategoria',
+            //       border: OutlineInputBorder(
+            //         borderRadius: BorderRadius.circular(8),
+            //       ),
+            //       isDense: true,
+            //     ),
+            //     value: _category.isEmpty ? null : _category,
+            //     items: [
+            //       const DropdownMenuItem(value: '', child: Text('Wszystko')),
+            //       ..._categories.map((cat) {
+            //         if (cat.isEmpty) {
+            //           return const DropdownMenuItem(value: '', child: Text(''));
+            //         }
+            //         final label = cat[0].toUpperCase() + cat.substring(1);
+            //         return DropdownMenuItem(value: cat, child: Text(label));
+            //       }),
+            //     ],
+            //     onChanged: (v) => setState(() => _category = v ?? ''),
+            //   ),
+            // ),
+            // const SizedBox(height: 8),
             Expanded(
               child: FutureBuilder<List<StockItem>>(
                 future: ApiService.fetchProducts(

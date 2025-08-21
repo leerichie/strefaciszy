@@ -3,6 +3,7 @@ import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
+import 'package:strefa_ciszy/services/admin_api.dart';
 import 'package:strefa_ciszy/services/api_service.dart';
 import 'widgets/web_scroll_behaviour.dart';
 import 'firebase_options.dart';
@@ -11,7 +12,10 @@ import 'screens/main_menu_screen.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  await ApiService.init();
+
+  //// for editing backend -----
+  // await ApiService.init();
+  // await AdminApi.init();
 
   await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
 

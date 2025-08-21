@@ -2,7 +2,7 @@
 import 'dart:convert';
 import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
-import 'package:strefa_ciszy/utils/stock_normalizer.dart';
+// import 'package:strefa_ciszy/utils/stock_normalizer.dart';
 import '../models/stock_item.dart';
 
 class PagedItems {
@@ -19,18 +19,18 @@ class PagedItems {
 }
 
 class ApiService {
-  /// HTTPS first (works on web — no mixed content)
+  /// HTTPS
   static const String _primary = "https://wapro-api.tail52a6fb.ts.net/api";
 
-  /// Native-only fallbacks (NOT used on web to avoid mixed content)
+  /// Native fallbacks
   static const List<String> _nativeFallbacks = [
-    // MagicDNS short name inside tailnet (Android/iOS/macOS/Windows apps)
+    // MagicDNS tailnet (Android/iOS/macOS/Windows apps)
     "http://wapro-api:9103/api",
-    // Your current Tailscale IPv4 (from the Machines page)
+    //  Tailscale
     "http://100.86.227.1:9103/api",
-    // Your LAN box
+    //  LAN box
     "http://192.168.1.103:9103/api",
-    // Android emulator -> host forward
+    // Android emulator
     "http://10.0.2.2:9103/api",
   ];
 
@@ -101,7 +101,6 @@ class ApiService {
 
     final items = body
         .map<StockItem>((e) => StockItem.fromJson(e as Map<String, dynamic>))
-        .map(StockNormalizer.normalize)
         .toList();
 
     if (items.isEmpty) {
@@ -142,7 +141,8 @@ class ApiService {
     if (res.statusCode == 200) {
       final Map<String, dynamic> data = json.decode(res.body);
       final item = StockItem.fromJson(data);
-      return StockNormalizer.normalize(item);
+      // return StockNormalizer.normalize(item);
+      return item;
     } else if (res.statusCode == 404) {
       return null;
     } else {

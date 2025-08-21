@@ -1,6 +1,6 @@
 // lib/models/stock_item.dart
 class StockItem {
-  final String id; // stringified id
+  final String id;
   final String name;
   final String description;
   final int quantity;
