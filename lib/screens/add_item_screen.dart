@@ -4,13 +4,6 @@ import 'package:strefa_ciszy/widgets/app_scaffold.dart';
 import 'package:strefa_ciszy/screens/inventory_list_screen.dart';
 import 'package:strefa_ciszy/widgets/stock_item_form.dart';
 
-// 🔴 Firestore service (disabled)
-// import '../services/stock_item_service.dart';
-
-// ✅ API
-import 'package:strefa_ciszy/services/api_service.dart';
-import 'package:strefa_ciszy/models/stock_item.dart';
-
 class AddItemScreen extends StatelessWidget {
   final String? initialBarcode;
   final String? initialName;
@@ -25,8 +18,6 @@ class AddItemScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    // final service = StockItemService(); // 🔴 Firestore
-
     final initial = StockItemInitial(
       barcode: initialBarcode ?? '',
       name: initialName ?? '',

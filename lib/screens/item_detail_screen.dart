@@ -3,7 +3,6 @@ import 'package:flutter/material.dart';
 import 'package:strefa_ciszy/utils/keyboard_utils.dart';
 import 'package:strefa_ciszy/widgets/app_scaffold.dart';
 import 'add_item_screen.dart';
-// Keep edit import if you plan to enable it later
 // import 'edit_item_screen.dart';
 
 import 'package:strefa_ciszy/services/api_service.dart';
@@ -65,7 +64,7 @@ class ItemDetailScreen extends StatelessWidget {
             }
 
             final qty = item.quantity;
-            final unit = item.unit; // normalized to '' in model
+            final unit = item.unit;
             final imageUrl = item.imageUrl;
 
             return SingleChildScrollView(
@@ -124,14 +123,13 @@ class ItemDetailScreen extends StatelessWidget {
                       _row('SKU', item.sku),
                       _row(
                         'Kategoria',
-                        // API sets category = description; keep fallback as before
                         item.category.isNotEmpty
                             ? item.category
                             : item.description,
                       ),
-                      _row('Magazyn', null), // intentionally blank (not in API)
+                      _row('Magazyn', null),
                       _row('Kod Kreskowy', item.barcode),
-                      _row('Ilość', '${qty}${unit.isNotEmpty ? ' $unit' : ''}'),
+                      _row('Ilość', '$qty${unit.isNotEmpty ? ' $unit' : ''}'),
                     ],
                   ),
 

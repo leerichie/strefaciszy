@@ -38,7 +38,6 @@ class _InventoryListScreenState extends State<InventoryListScreen> {
     _searchController = TextEditingController(text: widget.initialSearch ?? '');
     _search = widget.initialSearch?.trim() ?? '';
 
-    // Load categories from API (fallback to empty list if it fails)
     ApiService.fetchCategories()
         .then((cats) {
           if (!mounted) return;
@@ -134,8 +133,9 @@ class _InventoryListScreenState extends State<InventoryListScreen> {
                 items: [
                   const DropdownMenuItem(value: '', child: Text('Wszystko')),
                   ..._categories.map((cat) {
-                    if (cat.isEmpty)
+                    if (cat.isEmpty) {
                       return const DropdownMenuItem(value: '', child: Text(''));
+                    }
                     final label = cat[0].toUpperCase() + cat.substring(1);
                     return DropdownMenuItem(value: cat, child: Text(label));
                   }),
@@ -145,7 +145,6 @@ class _InventoryListScreenState extends State<InventoryListScreen> {
             ),
             const SizedBox(height: 8),
 
-            // --- API-only list (search + category) ---
             Expanded(
               child: FutureBuilder<List<StockItem>>(
                 future: ApiService.fetchProducts(
@@ -164,14 +163,12 @@ class _InventoryListScreenState extends State<InventoryListScreen> {
 
                   final allItems = snap.data ?? [];
 
-                  // onlyIds (keep behaviour; most screens pass null)
                   final afterOnlyIds = widget.onlyIds == null
                       ? allItems
                       : allItems
                             .where((i) => widget.onlyIds!.contains(i.id))
                             .toList();
 
-                  // local fallback search (kept)
                   final filtered = _search.isEmpty
                       ? afterOnlyIds
                       : afterOnlyIds.where((item) {
@@ -202,7 +199,7 @@ class _InventoryListScreenState extends State<InventoryListScreen> {
                     child: ListView.separated(
                       keyboardDismissBehavior:
                           ScrollViewKeyboardDismissBehavior.onDrag,
-                      itemCount: filtered.length, // ✅ use filtered
+                      itemCount: filtered.length,
                       separatorBuilder: (_, __) => const Divider(height: 1),
                       itemBuilder: (ctx, i) {
                         final item = filtered[i];
@@ -268,7 +265,6 @@ class _InventoryListScreenState extends State<InventoryListScreen> {
                                 )
                               : null,
                           onTap: () {
-                            // ✅ This id now comes from the API row
                             Navigator.of(context).push(
                               MaterialPageRoute(
                                 builder: (_) => ItemDetailScreen(

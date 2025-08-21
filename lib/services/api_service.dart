@@ -1,11 +1,10 @@
 // lib/services/api_service.dart
 import 'dart:convert';
+import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
 import 'package:strefa_ciszy/utils/stock_normalizer.dart';
 import '../models/stock_item.dart';
 
-/// Simple paging wrapper that you can use for "load more" lists.
-/// If you don't need paging yet, just ignore and keep using fetchProducts().
 class PagedItems {
   final List<StockItem> items;
   final int offset;
@@ -20,12 +19,46 @@ class PagedItems {
 }
 
 class ApiService {
-  // ✅ Your Tailscale base URL (left exactly as you provided)
-  static const String baseUrl = "http://100.93.209.78:9103/api";
+  /// HTTPS first (works on web — no mixed content)
+  static const String _primary = "https://wapro-api.tail52a6fb.ts.net/api";
 
-  // ---- helpers ----
+  /// Native-only fallbacks (NOT used on web to avoid mixed content)
+  static const List<String> _nativeFallbacks = [
+    // MagicDNS short name inside tailnet (Android/iOS/macOS/Windows apps)
+    "http://wapro-api:9103/api",
+    // Your current Tailscale IPv4 (from the Machines page)
+    "http://100.86.227.1:9103/api",
+    // Your LAN box
+    "http://192.168.1.103:9103/api",
+    // Android emulator -> host forward
+    "http://10.0.2.2:9103/api",
+  ];
+
+  static String _base = _primary;
+
+  static Future<void> init() async {
+    final candidates = kIsWeb
+        ? <String>[_primary]
+        : <String>[_primary, ..._nativeFallbacks];
+
+    for (final b in candidates) {
+      try {
+        final r = await http
+            .get(Uri.parse("$b/health"))
+            .timeout(const Duration(seconds: 3));
+        if (r.statusCode == 200) {
+          _base = b;
+          break;
+        }
+      } catch (_) {
+        /* try next */
+      }
+    }
+    debugPrint('[ApiService] BASE = $_base');
+  }
+
   static Uri _uri(String path, [Map<String, dynamic>? q]) {
-    final u = Uri.parse('$baseUrl$path');
+    final u = Uri.parse("$_base$path");
     if (q == null || q.isEmpty) return u;
     final qp = <String, String>{};
     q.forEach((k, v) {
@@ -43,45 +76,26 @@ class ApiService {
     int limit = 50,
     int offset = 0,
   }) async {
-    // -------- TEMP: flip to true to force-test your LAN IP instead of Tailscale
-    const bool _forceLan = false;
-
-    final uri = _forceLan
-        ? Uri.parse('http://192.168.1.103:9103/api/products').replace(
-            queryParameters: {
-              'name': search ?? '',
-              'q': search ?? '',
-              'category': category ?? '',
-              'limit': '$limit',
-              'offset': '$offset',
-            },
-          )
-        : _uri('/products', {
-            'name': search,
-            'q': search,
-            'category': category,
-            'limit': limit,
-            'offset': offset,
-          });
+    final uri = _uri('/products', {
+      'name': search,
+      'q': search,
+      'category': category,
+      'limit': limit,
+      'offset': offset,
+    });
 
     final res = await http.get(
       uri,
       headers: {'Accept': 'application/json', 'Cache-Control': 'no-cache'},
     );
+    debugPrint('[ApiService] GET $uri -> ${res.statusCode}');
 
-    // ==== DEBUG LOGS (show up in the browser console on Flutter Web) ====
-    // ignore: avoid_print
-    print('[ApiService] GET $uri -> ${res.statusCode}');
     if (res.statusCode != 200) {
-      // ignore: avoid_print
-      print('[ApiService] Body: ${res.body}');
       throw Exception('GET $uri failed: ${res.statusCode}');
     }
 
     final body = json.decode(res.body);
     if (body is! List) {
-      // ignore: avoid_print
-      print('[ApiService] Unexpected body type: ${body.runtimeType}');
       throw Exception('Unexpected response for /products: not a list');
     }
 
@@ -90,20 +104,16 @@ class ApiService {
         .map(StockNormalizer.normalize)
         .toList();
 
-    if (items.isNotEmpty) {
-      // ignore: avoid_print
-      print(
+    if (items.isEmpty) {
+      debugPrint('[ApiService] Empty list from API');
+    } else {
+      debugPrint(
         '[ApiService] First item: id=${items.first.id} name=${items.first.name}',
       );
-    } else {
-      // ignore: avoid_print
-      print('[ApiService] Empty list from API');
     }
-
     return items;
   }
 
-  // Optional: call this if you want paging signals (hasMore/nextOffset).
   static Future<PagedItems> fetchProductsPaged({
     String? search,
     String? category,
@@ -116,7 +126,7 @@ class ApiService {
       limit: limit,
       offset: offset,
     );
-    final hasMore = items.length >= limit; // infer from count
+    final hasMore = items.length >= limit;
     return PagedItems(
       items: items,
       offset: offset,
@@ -132,7 +142,7 @@ class ApiService {
     if (res.statusCode == 200) {
       final Map<String, dynamic> data = json.decode(res.body);
       final item = StockItem.fromJson(data);
-      return StockNormalizer.normalize(item); // <<<<<<<<
+      return StockNormalizer.normalize(item);
     } else if (res.statusCode == 404) {
       return null;
     } else {
@@ -140,15 +150,10 @@ class ApiService {
     }
   }
 
-  // ---- CATEGORIES ----
   static Future<List<String>> fetchCategories() async {
     final uri = _uri('/categories');
     final res = await http.get(uri);
-    assert(() {
-      // ignore: avoid_print
-      print('[ApiService] GET $uri -> ${res.statusCode}');
-      return true;
-    }());
+    debugPrint('[ApiService] GET $uri -> ${res.statusCode}');
 
     if (res.statusCode != 200) {
       throw Exception('GET ${uri.path} failed: ${res.statusCode} ${res.body}');

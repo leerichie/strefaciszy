@@ -13,7 +13,6 @@ import 'package:strefa_ciszy/widgets/app_scaffold.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import 'customer_list_screen.dart';
-import '1-inventory_list_screen.dart';
 import 'scan_screen.dart';
 import 'manage_users_screen.dart';
 

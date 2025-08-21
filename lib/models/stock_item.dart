@@ -52,30 +52,30 @@ class StockItem {
 
   // ---- API JSON helpers ----
   factory StockItem.fromJson(Map<String, dynamic> j) {
-    String _s(dynamic v) => (v == null) ? "" : v.toString();
-    int _i(dynamic v) {
+    String s(dynamic v) => (v == null) ? "" : v.toString();
+    int i(dynamic v) {
       if (v == null) return 0;
       if (v is num) return v.toInt();
       return int.tryParse(v.toString()) ?? 0;
     }
 
     // Safe category fallback: prefer category; if empty use description.
-    final _cat = (j['category'] ?? '').toString().trim();
-    final _desc = (j['description'] ?? '').toString().trim();
+    final cat = (j['category'] ?? '').toString().trim();
+    final desc = (j['description'] ?? '').toString().trim();
 
     return StockItem(
-      id: _s(j['id']),
-      name: _s(j['name']),
-      description: _desc,
-      quantity: _i(j['quantity']),
-      sku: _s(j['sku']),
-      barcode: _s(j['barcode']),
-      unit: _s(j['unit']),
-      producent: _s(j['producent']),
+      id: s(j['id']),
+      name: s(j['name']),
+      description: desc,
+      quantity: i(j['quantity']),
+      sku: s(j['sku']),
+      barcode: s(j['barcode']),
+      unit: s(j['unit']),
+      producent: s(j['producent']),
       imageUrl: (j['imageUrl'] == null || j['imageUrl'].toString().isEmpty)
           ? null
           : j['imageUrl'].toString(),
-      category: _cat.isNotEmpty ? _cat : _desc,
+      category: cat.isNotEmpty ? cat : desc,
     );
   }
 
@@ -96,26 +96,26 @@ class StockItem {
   // Your old Firestore docs typically had the same keys.
   // We keep the same normalization (null -> '' / 0).
   factory StockItem.fromMap(Map<String, dynamic> m, String id) {
-    String _s(dynamic v) => (v == null) ? "" : v.toString();
-    int _i(dynamic v) {
+    String s(dynamic v) => (v == null) ? "" : v.toString();
+    int i(dynamic v) {
       if (v == null) return 0;
       if (v is num) return v.toInt();
       return int.tryParse(v.toString()) ?? 0;
     }
 
-    final desc = _s(m['description']);
-    final catRaw = _s(m['category']).trim();
+    final desc = s(m['description']);
+    final catRaw = s(m['category']).trim();
     final cat = catRaw.isNotEmpty ? catRaw : desc;
 
     return StockItem(
       id: id,
-      name: _s(m['name']),
+      name: s(m['name']),
       description: desc,
-      quantity: _i(m['quantity']),
-      sku: _s(m['sku']),
-      barcode: _s(m['barcode']),
-      unit: _s(m['unit']),
-      producent: _s(m['producent']),
+      quantity: i(m['quantity']),
+      sku: s(m['sku']),
+      barcode: s(m['barcode']),
+      unit: s(m['unit']),
+      producent: s(m['producent']),
       imageUrl: (m['imageUrl'] == null || m['imageUrl'].toString().isEmpty)
           ? null
           : m['imageUrl'].toString(),

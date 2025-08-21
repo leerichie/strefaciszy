@@ -211,8 +211,9 @@ Future<ProjectLine?> showProjectLineDialog(
                                                     ),
                                               ),
                                             );
-                                        if (code == null || code.isEmpty)
+                                        if (code == null || code.isEmpty) {
                                           return;
+                                        }
 
                                         // fill the text box so user sees scanned code
                                         textCtrl.text = code;
@@ -241,12 +242,12 @@ Future<ProjectLine?> showProjectLineDialog(
                                             setState(() {
                                               itemRef = match!.id;
                                               textCtrl.text =
-                                                  '${match!.name}, ${match!.producent}';
-                                              unit = match!.unit.isNotEmpty
-                                                  ? match!.unit
+                                                  '${match.name}, ${match.producent}';
+                                              unit = match.unit.isNotEmpty
+                                                  ? match.unit
                                                   : 'szt';
                                             });
-                                            await checkIfItemInRW(match!.id);
+                                            await checkIfItemInRW(match.id);
                                           } else {
                                             ScaffoldMessenger.of(
                                               context,

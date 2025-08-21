@@ -4,13 +4,6 @@ import 'package:strefa_ciszy/screens/inventory_list_screen.dart';
 import 'package:strefa_ciszy/widgets/stock_item_form.dart';
 import '../utils/keyboard_utils.dart';
 
-// 🔴 Firestore service (disabled for API mode)
-// import '../services/stock_item_service.dart';
-
-// ✅ API
-import 'package:strefa_ciszy/services/api_service.dart';
-import 'package:strefa_ciszy/models/stock_item.dart';
-
 class EditItemScreen extends StatelessWidget {
   final String docId;
   final Map<String, dynamic> data;
@@ -32,8 +25,6 @@ class EditItemScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    // final service = StockItemService(); // 🔴 Firestore
-
     final initial = StockItemInitial(
       name: data['name'] ?? '',
       sku: data['sku'] ?? '',
