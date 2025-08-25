@@ -1,5 +1,6 @@
 import 'dart:convert';
 
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
@@ -44,9 +45,19 @@ class _MainMenuScreenState extends State<MainMenuScreen> {
     return email == 'leerichie@wp.pl';
   }
 
-  bool get _isApproved {
+  Stream<bool> _isApproverStream() {
     final email = FirebaseAuth.instance.currentUser?.email?.toLowerCase() ?? '';
-    return email == 'leerichie@wp.pl';
+    return FirebaseFirestore.instance
+        .collection('config')
+        .doc('security')
+        .snapshots()
+        .map((doc) {
+          final arr = List<String>.from(
+            doc.data()?['approverEmails'] ?? const [],
+          );
+          return arr.map((e) => e.toLowerCase()).contains(email);
+        })
+        .handleError((_) => false);
   }
 
   /// DEV:
@@ -241,19 +252,28 @@ class _MainMenuScreenState extends State<MainMenuScreen> {
 
         const Divider(),
 
-        if (_isApproved) ...[
-          ListTile(
-            leading: const Icon(Icons.verified_user),
-            title: const Text('Oczekujący'),
-            subtitle: const Text('dokumenty do zatwierdzenia'),
-            onTap: () {
-              Navigator.of(
-                context,
-              ).push(MaterialPageRoute(builder: (_) => const ApprovalScreen()));
-            },
-          ),
-          const Divider(),
-        ],
+        StreamBuilder<bool>(
+          stream: _isApproverStream(),
+          builder: (context, snap) {
+            final allowed = snap.data ?? false;
+            if (!allowed) return const SizedBox.shrink();
+            return Column(
+              children: [
+                ListTile(
+                  leading: const Icon(Icons.verified_user),
+                  title: const Text('Potwierdzenia (WAPRO)'),
+                  subtitle: const Text('Dokonanie zmiań w bazie danych'),
+                  onTap: () {
+                    Navigator.of(context).push(
+                      MaterialPageRoute(builder: (_) => const ApprovalScreen()),
+                    );
+                  },
+                ),
+                const Divider(),
+              ],
+            );
+          },
+        ),
 
         ListTile(
           leading: const Icon(Icons.download_rounded),

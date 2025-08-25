@@ -11,31 +11,15 @@ class ApprovalScreen extends StatefulWidget {
 }
 
 class _ApprovalScreenState extends State<ApprovalScreen> {
-  // 🔒 Simple approval gate (adjust the email!)
-  bool get _isApproved {
-    final email = FirebaseAuth.instance.currentUser?.email?.toLowerCase() ?? '';
-    // TODO: change this to your approval person's email
-    return email == 'leerichie@wp.pl';
-  }
-
-  // Filter range: show recent activity (default 14 days)
-  Duration _range = const Duration(days: 14);
+  Duration _range = const Duration(days: 30);
 
   Stream<QuerySnapshot<Map<String, dynamic>>> _projectsStream() {
-    final now = DateTime.now();
-    final start = now.subtract(_range);
-
-    // Pull recent projects changed via lastRwDate
-    // Note: requires Firestore index on collectionGroup('projects') if prompted.
     return FirebaseFirestore.instance
         .collectionGroup('projects')
-        // .where('lastRwDate', isGreaterThanOrEqualTo: start)
-        // .orderBy('lastRwDate', descending: true)
         .limit(200)
         .snapshots();
   }
 
-  // Cache for customer names (avoid refetching)
   final Map<String, String> _customerNameCache = {};
 
   Future<String> _getCustomerName(String customerId) async {
@@ -53,108 +37,139 @@ class _ApprovalScreenState extends State<ApprovalScreen> {
 
   @override
   Widget build(BuildContext context) {
-    if (!_isApproved) {
-      return Scaffold(
-        appBar: AppBar(title: const Text('Potwierdzenia')),
-        body: const Center(child: Text('Brak uprawnień.')),
-      );
-    }
+    final email = FirebaseAuth.instance.currentUser?.email?.toLowerCase() ?? '';
 
-    return Scaffold(
-      appBar: AppBar(
-        title: const Text('Potwierdzenia (WAPRO)'),
-        actions: [
-          PopupMenuButton<Duration>(
-            tooltip: 'Zakres',
-            onSelected: (d) => setState(() => _range = d),
-            itemBuilder: (ctx) => const [
-              PopupMenuItem(value: Duration(days: 1), child: Text('Dzisiaj')),
-              PopupMenuItem(value: Duration(days: 7), child: Text('7 dni')),
-              PopupMenuItem(value: Duration(days: 14), child: Text('14 dni')),
-              PopupMenuItem(value: Duration(days: 30), child: Text('30 dni')),
-            ],
-            child: const Padding(
-              padding: EdgeInsets.symmetric(horizontal: 12),
-              child: Icon(Icons.filter_alt_outlined),
+    return StreamBuilder<DocumentSnapshot<Map<String, dynamic>>>(
+      stream: FirebaseFirestore.instance
+          .collection('config')
+          .doc('security')
+          .snapshots(),
+      builder: (context, allowSnap) {
+        if (allowSnap.connectionState == ConnectionState.waiting) {
+          return const Scaffold(
+            body: Center(child: CircularProgressIndicator()),
+          );
+        }
+
+        final data = allowSnap.data?.data() ?? const <String, dynamic>{};
+        final list = List<String>.from(
+          data['approverEmails'] ?? const [],
+        ).map((e) => e.toLowerCase()).toList();
+        final allowed = list.contains(email);
+
+        if (!allowed) {
+          return Scaffold(
+            appBar: AppBar(title: const Text('Potwierdzenia')),
+            body: const Center(
+              child: Text('Brak uprawnień (firestore.console).'),
             ),
+          );
+        }
+
+        return Scaffold(
+          appBar: AppBar(
+            title: const Text('Potwierdzenia (WAPRO)'),
+            actions: [
+              PopupMenuButton<Duration>(
+                tooltip: 'Zakres',
+                onSelected: (d) => setState(() => _range = d),
+                itemBuilder: (ctx) => const [
+                  PopupMenuItem(
+                    value: Duration(days: 1),
+                    child: Text('Dzisiaj'),
+                  ),
+                  PopupMenuItem(value: Duration(days: 7), child: Text('7 dni')),
+                  PopupMenuItem(
+                    value: Duration(days: 14),
+                    child: Text('14 dni'),
+                  ),
+                  PopupMenuItem(
+                    value: Duration(days: 30),
+                    child: Text('30 dni'),
+                  ),
+                ],
+                child: const Padding(
+                  padding: EdgeInsets.symmetric(horizontal: 12),
+                  child: Icon(Icons.filter_alt_outlined),
+                ),
+              ),
+            ],
           ),
-        ],
-      ),
-      body: StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
-        stream: _projectsStream(),
-        builder: (ctx, snap) {
-          if (snap.connectionState == ConnectionState.waiting) {
-            return const Center(child: CircularProgressIndicator());
-          }
-          if (snap.hasError) {
-            return Center(child: Text('Błąd: ${snap.error}'));
-          }
-          final now = DateTime.now();
-          final start = now.subtract(_range);
+          body: StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
+            stream: _projectsStream(),
+            builder: (ctx, snap) {
+              if (snap.connectionState == ConnectionState.waiting) {
+                return const Center(child: CircularProgressIndicator());
+              }
+              if (snap.hasError) {
+                return Center(child: Text('Błąd: ${snap.error}'));
+              }
 
-          final docs = [...(snap.data?.docs ?? [])];
+              final now = DateTime.now();
+              final start = now.subtract(_range);
 
-          // keep only projects with items AND lastRwDate >= start
-          final filtered = docs.where((d) {
-            final data = d.data();
-            final items = (data['items'] as List<dynamic>?) ?? const [];
-            final ts = data['lastRwDate'] as Timestamp?;
-            final dt = ts?.toDate();
-            if (items.isEmpty) return false;
-            if (dt == null) return false;
-            return !dt.isBefore(start);
-          }).toList();
+              final docs = [...(snap.data?.docs ?? [])];
 
-          // newest first
-          filtered.sort((a, b) {
-            final ta = a.data()['lastRwDate'] as Timestamp?;
-            final tb = b.data()['lastRwDate'] as Timestamp?;
-            final da = ta?.toDate();
-            final db = tb?.toDate();
-            if (da == null && db == null) return 0;
-            if (da == null) return 1;
-            if (db == null) return -1;
-            return db.compareTo(da);
-          });
+              final filtered = docs.where((d) {
+                final data = d.data();
+                final items = (data['items'] as List<dynamic>?) ?? const [];
+                final ts = data['lastRwDate'] as Timestamp?;
+                final dt = ts?.toDate();
+                if (items.isEmpty) return false;
+                if (dt == null) return false;
+                return !dt.isBefore(start);
+              }).toList();
 
-          final projects = filtered;
+              filtered.sort((a, b) {
+                final ta = a.data()['lastRwDate'] as Timestamp?;
+                final tb = b.data()['lastRwDate'] as Timestamp?;
+                final da = ta?.toDate();
+                final db = tb?.toDate();
+                if (da == null && db == null) return 0;
+                if (da == null) return 1;
+                if (db == null) return -1;
+                return db.compareTo(da);
+              });
 
-          if (projects.isEmpty) {
-            return const Center(
-              child: Text('Brak projektów do potwierdzenia.'),
-            );
-          }
+              final projects = filtered;
 
-          return ListView.builder(
-            padding: const EdgeInsets.all(12),
-            itemCount: projects.length,
-            itemBuilder: (ctx, i) {
-              final p = projects[i];
-              final data = p.data();
-              final pathSegs = p.reference.path.split(
-                '/',
-              ); // customers/{cid}/projects/{pid}
-              final customerId = pathSegs.length >= 2
-                  ? pathSegs[pathSegs.length - 3]
-                  : '';
-              final projectId = p.id;
+              if (projects.isEmpty) {
+                return const Center(
+                  child: Text('Brak projektów do potwierdzenia.'),
+                );
+              }
 
-              final title = (data['title'] as String?) ?? '—';
-              final lastRwDate = (data['lastRwDate'] as Timestamp?)?.toDate();
-              final items = (data['items'] as List<dynamic>).cast<Map>();
+              return ListView.builder(
+                padding: const EdgeInsets.all(12),
+                itemCount: projects.length,
+                itemBuilder: (ctx, i) {
+                  final p = projects[i];
+                  final data = p.data();
+                  final segs = p.reference.path.split('/');
+                  final customerId = segs.length >= 3
+                      ? segs[segs.length - 3]
+                      : '';
+                  final projectId = p.id;
 
-              return _ProjectCard(
-                customerId: customerId,
-                projectId: projectId,
-                title: title,
-                lastRwDate: lastRwDate,
-                items: items,
-                customerNameFuture: _getCustomerName(customerId),
+                  final title = (data['title'] as String?) ?? '—';
+                  final lastRwDate = (data['lastRwDate'] as Timestamp?)
+                      ?.toDate();
+                  final items = (data['items'] as List<dynamic>).cast<Map>();
+
+                  return _ProjectCard(
+                    customerId: customerId,
+                    projectId: projectId,
+                    title: title,
+                    lastRwDate: lastRwDate,
+                    items: items,
+                    customerNameFuture: _getCustomerName(customerId),
+                  );
+                },
               );
             },
-          );
-        },
-      ),
+          ),
+        );
+      },
     );
   }
 }
@@ -205,7 +220,6 @@ class _ProjectCard extends StatefulWidget {
 }
 
 class _ProjectCardState extends State<_ProjectCard> {
-  // key = index in items, value = selected qty (1..itemQty)
   final Map<int, int> _selectedQty = {};
 
   int get _selectedCount => _selectedQty.length;
@@ -244,7 +258,6 @@ class _ProjectCardState extends State<_ProjectCard> {
   }
 
   Future<void> _confirmSelection() async {
-    // Build payload preview (no API call yet)
     final lines = <Map<String, dynamic>>[];
     for (final entry in _selectedQty.entries) {
       final i = entry.key;
@@ -279,7 +292,7 @@ class _ProjectCardState extends State<_ProjectCard> {
     await showDialog<void>(
       context: context,
       builder: (ctx) => AlertDialog(
-        title: const Text('Potwierdzić wydanie?'),
+        title: const Text('Aktualizować baza WAPRO?'),
         content: SizedBox(
           width: double.maxFinite,
           child: Column(
@@ -316,9 +329,8 @@ class _ProjectCardState extends State<_ProjectCard> {
             icon: const Icon(Icons.verified_outlined),
             label: const Text('Potwierdź'),
             onPressed: () async {
-              Navigator.pop(ctx); // close preview
+              Navigator.pop(ctx);
 
-              // Build API payload lines (prefer itemId when present)
               final apiLines = <Map<String, dynamic>>[];
               for (final entry in _selectedQty.entries) {
                 final i = entry.key;
@@ -334,7 +346,6 @@ class _ProjectCardState extends State<_ProjectCard> {
                   if (itemId.isNotEmpty) 'itemId': itemId,
                   'qty': qty,
                   'unit': unit,
-                  // keep these for logs on the server:
                   'name': name,
                   'producer': producer,
                 });
@@ -352,8 +363,7 @@ class _ProjectCardState extends State<_ProjectCard> {
                   projectId: widget.projectId,
                   items: apiLines,
                   actorEmail: email,
-                  dryRun:
-                      false, // set true if you want to test without WAPRO writes
+                  dryRun: false,
                 );
 
                 final ok = (resp['ok'] == true) || (resp['success'] == true);
@@ -361,7 +371,7 @@ class _ProjectCardState extends State<_ProjectCard> {
                     .toString();
 
                 if (ok) {
-                  _selectedQty.clear(); // reset selection
+                  _selectedQty.clear();
                   if (context.mounted) {
                     ScaffoldMessenger.of(context).showSnackBar(
                       SnackBar(
@@ -431,7 +441,6 @@ class _ProjectCardState extends State<_ProjectCard> {
                     onCheckedChanged: (v, maxQty) => _toggleIndex(i, v, maxQty),
                     onQtyChanged: (q, maxQty) => _setQty(i, q, maxQty),
                   ),
-
                 const SizedBox(height: 8),
                 Wrap(
                   spacing: 8,
@@ -448,7 +457,6 @@ class _ProjectCardState extends State<_ProjectCard> {
                       label: const Text('Wyczyść'),
                       onPressed: _clearSelection,
                     ),
-
                     ConstrainedBox(
                       constraints: const BoxConstraints(minWidth: 160),
                       child: Align(
@@ -464,7 +472,6 @@ class _ProjectCardState extends State<_ProjectCard> {
                     ),
                   ],
                 ),
-
                 const SizedBox(height: 4),
                 Align(
                   alignment: Alignment.centerRight,
@@ -546,7 +553,6 @@ class _SelectableItemRow extends StatelessWidget {
           ],
         ),
       ),
-
       onTap: () => onCheckedChanged(!checked, maxQty),
     );
   }

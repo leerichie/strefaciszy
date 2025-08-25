@@ -1,5 +1,6 @@
 // lib/services/api_service.dart
 import 'dart:convert';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
 // import 'package:strefa_ciszy/utils/stock_normalizer.dart';
@@ -170,6 +171,51 @@ class ApiService {
         .toList();
   }
 
+  /// approval -> final commit into WAPRO
+  static Future<Map<String, dynamic>> commitProjectItems({
+    required String customerId,
+    required String projectId,
+    required List<Map<String, dynamic>> items,
+    required String actorEmail,
+    bool dryRun = false,
+  }) async {
+    final uri = _uri('/commit');
+
+    final idToken = await FirebaseAuth.instance.currentUser?.getIdToken();
+
+    final payload = {
+      'customerId': customerId,
+      'projectId': projectId,
+      'items': items,
+      'actorEmail': actorEmail,
+      'dryRun': dryRun,
+    };
+
+    final headers = <String, String>{
+      'Accept': 'application/json',
+      'Content-Type': 'application/json',
+      if (idToken != null) 'Authorization': 'Bearer $idToken',
+      'X-Actor-Email': actorEmail,
+    };
+
+    final res = await http.post(
+      uri,
+      headers: headers,
+      body: json.encode(payload),
+    );
+
+    debugPrint('[ApiService] POST $uri -> ${res.statusCode}');
+
+    if (res.statusCode != 200) {
+      throw Exception('POST $uri failed: ${res.statusCode} ${res.body}');
+    }
+
+    final body = json.decode(res.body);
+    if (body is Map<String, dynamic>) return body;
+
+    throw Exception('Unexpected /commit response format');
+  }
+
   /// Accountant-only: commit selected project items to WAPRO (official deduction).
   /// Backend endpoint expected: POST /commit
   /// Body:
@@ -181,43 +227,4 @@ class ApiService {
   ///   "actorEmail": "accountant@company.com"
   /// }
   /// Returns JSON (e.g. { ok:true, docId:"WZ-00123", ... }).
-  static Future<Map<String, dynamic>> commitProjectItems({
-    required String customerId,
-    required String projectId,
-    required List<Map<String, dynamic>> items,
-    String? actorEmail,
-    bool dryRun = false,
-  }) async {
-    final uri = _uri('/commit');
-
-    final payload = <String, dynamic>{
-      'customerId': customerId,
-      'projectId': projectId,
-      'items': items,
-      'dryRun': dryRun,
-      if (actorEmail != null && actorEmail.isNotEmpty) 'actorEmail': actorEmail,
-    };
-
-    final headers = <String, String>{
-      'Content-Type': 'application/json',
-      'Accept': 'application/json',
-      if (actorEmail != null && actorEmail.isNotEmpty)
-        'X-Actor-Email': actorEmail, // optional server-side guard
-    };
-
-    final res = await http.post(
-      uri,
-      headers: headers,
-      body: json.encode(payload),
-    );
-
-    debugPrint('[ApiService] POST $uri -> ${res.statusCode}');
-    if (res.statusCode != 200) {
-      throw Exception('POST $uri failed: ${res.statusCode} ${res.body}');
-    }
-
-    final dynamic body = json.decode(res.body);
-    if (body is Map<String, dynamic>) return body;
-    return {'ok': true, 'data': body};
-  }
 }
