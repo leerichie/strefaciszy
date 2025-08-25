@@ -6,6 +6,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/services.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 import 'package:qr_flutter/qr_flutter.dart';
+import 'package:strefa_ciszy/screens/aprroval_screen.dart';
 import 'package:strefa_ciszy/screens/contacts_list_screen.dart';
 import 'package:strefa_ciszy/screens/inventory_list_screen.dart';
 import 'package:strefa_ciszy/screens/login_screen.dart';
@@ -39,6 +40,11 @@ class _MainMenuScreenState extends State<MainMenuScreen> {
   }
 
   bool get _isLee {
+    final email = FirebaseAuth.instance.currentUser?.email?.toLowerCase() ?? '';
+    return email == 'leerichie@wp.pl';
+  }
+
+  bool get _isApproved {
     final email = FirebaseAuth.instance.currentUser?.email?.toLowerCase() ?? '';
     return email == 'leerichie@wp.pl';
   }
@@ -234,6 +240,20 @@ class _MainMenuScreenState extends State<MainMenuScreen> {
           ),
 
         const Divider(),
+
+        if (_isApproved) ...[
+          ListTile(
+            leading: const Icon(Icons.verified_user),
+            title: const Text('Oczekujący'),
+            subtitle: const Text('dokumenty do zatwierdzenia'),
+            onTap: () {
+              Navigator.of(
+                context,
+              ).push(MaterialPageRoute(builder: (_) => const ApprovalScreen()));
+            },
+          ),
+          const Divider(),
+        ],
 
         ListTile(
           leading: const Icon(Icons.download_rounded),
