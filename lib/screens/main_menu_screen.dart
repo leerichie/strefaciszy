@@ -237,18 +237,18 @@ class _MainMenuScreenState extends State<MainMenuScreen> {
           },
         ),
 
-        if (!kIsWeb)
-          ListTile(
-            leading: const Icon(Icons.qr_code_scanner),
-            title: const Text('Skanuj'),
-            onTap: () {
-              Navigator.of(context).push(
-                MaterialPageRoute(
-                  builder: (_) => const ScanScreen(purpose: ScanPurpose.search),
-                ),
-              );
-            },
-          ),
+        // if (!kIsWeb)
+        ListTile(
+          leading: const Icon(Icons.qr_code_scanner),
+          title: const Text('Skanuj'),
+          onTap: () {
+            Navigator.of(context).push(
+              MaterialPageRoute(
+                builder: (_) => const ScanScreen(purpose: ScanPurpose.search),
+              ),
+            );
+          },
+        ),
 
         const Divider(),
 
@@ -297,17 +297,16 @@ class _MainMenuScreenState extends State<MainMenuScreen> {
     );
 
     return AppScaffold(
-      floatingActionButton: !kIsWeb
-          ? FloatingActionButton(
-              tooltip: 'Skanuj',
-              onPressed: () => Navigator.of(context).push(
-                MaterialPageRoute(
-                  builder: (_) => const ScanScreen(purpose: ScanPurpose.search),
-                ),
-              ),
-              child: const Icon(Icons.qr_code_scanner, size: 32),
-            )
-          : null,
+      floatingActionButton: FloatingActionButton(
+        tooltip: 'Skanuj',
+        onPressed: () => Navigator.of(context).push(
+          MaterialPageRoute(
+            builder: (_) => const ScanScreen(purpose: ScanPurpose.search),
+          ),
+        ),
+        child: const Icon(Icons.qr_code_scanner, size: 32),
+      ),
+
       floatingActionButtonLocation: FloatingActionButtonLocation.centerFloat,
 
       title: '',

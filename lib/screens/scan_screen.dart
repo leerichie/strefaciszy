@@ -1,5 +1,6 @@
 // lib/screens/scan_screen.dart
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:mobile_scanner/mobile_scanner.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
@@ -40,10 +41,32 @@ class _ScanScreenState extends State<ScanScreen> {
   bool _isLoading = false;
   bool? _found;
   bool get _isSearch => widget.purpose == ScanPurpose.search;
+  final _kbCtrl = TextEditingController();
+  final _kbFocus = FocusNode();
+
+  bool get _isPc =>
+      kIsWeb ||
+      defaultTargetPlatform == TargetPlatform.windows ||
+      defaultTargetPlatform == TargetPlatform.linux ||
+      defaultTargetPlatform == TargetPlatform.macOS;
+
+  @override
+  void initState() {
+    super.initState();
+    if (_isPc) {
+      WidgetsBinding.instance.addPostFrameCallback(
+        (_) => _kbFocus.requestFocus(),
+      );
+    }
+  }
 
   @override
   void dispose() {
-    _controller.dispose();
+    _kbCtrl.dispose();
+    _kbFocus.dispose();
+    try {
+      _controller.dispose();
+    } catch (_) {}
     super.dispose();
   }
 
@@ -58,6 +81,7 @@ class _ScanScreenState extends State<ScanScreen> {
   }
 
   Future<void> _resumeScanner() async {
+    if (_isPc) return;
     try {
       await _controller.start();
     } catch (_) {}
@@ -117,10 +141,10 @@ class _ScanScreenState extends State<ScanScreen> {
   Future<void> _lookupAndHandle(String value) async {
     if (value == _scannedCode && _found != null) return;
 
-    if (!_isSearch && widget.purpose != ScanPurpose.projectLine) {
-      _goToAddItem(value);
-      return;
-    }
+    // if (!_isSearch && widget.purpose != ScanPurpose.projectLine) {
+    //   _goToAddItem(value);
+    //   return;
+    // }
 
     setState(() {
       _scannedCode = value;
@@ -142,32 +166,43 @@ class _ScanScreenState extends State<ScanScreen> {
           _found = false;
         });
 
-        final add = await showDialog<bool>(
-          context: context,
-          builder: (_) => AlertDialog(
-            title: const Text('Brak produktu'),
-            content: Text('Nie znaleziono „$value”.\n Dodać nowy produkt?'),
-            actions: [
-              TextButton(
-                onPressed: () => Navigator.pop(context, false),
-                child: const Text('Nie'),
-              ),
-              ElevatedButton(
-                onPressed: () => Navigator.pop(context, true),
-                child: const Text('Tak'),
-              ),
-            ],
-          ),
-        );
-        if (!mounted) return;
-        if (add == true) {
-          _goToAddItem(value);
-        } else {
-          _resetIdle();
-          await _resumeScanner();
+        // final add = await showDialog<bool>(
+        //   context: context,
+        //   builder: (_) => AlertDialog(
+        //     title: const Text('Brak produktu'),
+        //     content: Text('Nie znaleziono „$value”.\n Dodać nowy produkt?'),
+        //     actions: [
+        //       TextButton(
+        //         onPressed: () => Navigator.pop(context, false),
+        //         child: const Text('Nie'),
+        //       ),
+        //       ElevatedButton(
+        //         onPressed: () => Navigator.pop(context, true),
+        //         child: const Text('Tak'),
+        //       ),
+        //     ],
+        //   ),
+        // );
+        // if (!mounted) return;
+        // if (add == true) {
+        //   _goToAddItem(value);
+        // } else {
+        //   _resetIdle();
+        //   await _resumeScanner();
+        // }
+        // return;
+
+        /// temp button
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('Nie znaleziono „$value” w WAPRO')),
+          );
         }
+        _resetIdle();
+        await _resumeScanner();
         return;
       }
+      /////
 
       final id = docs.first.id;
 
@@ -226,7 +261,7 @@ class _ScanScreenState extends State<ScanScreen> {
   void _onManualEntry(String input) {
     final code = input.trim();
     if (code.isEmpty) return;
-    _controller.stop();
+    if (!_isPc) _controller.stop();
 
     if (widget.returnCode) {
       if (widget.onScanned != null) {
@@ -237,6 +272,10 @@ class _ScanScreenState extends State<ScanScreen> {
     }
 
     _lookupAndHandle(code);
+    if (_isPc) {
+      _kbCtrl.clear();
+      _kbFocus.requestFocus();
+    }
   }
 
   @override
@@ -254,10 +293,21 @@ class _ScanScreenState extends State<ScanScreen> {
           child: Column(
             children: [
               Expanded(
-                child: MobileScanner(
-                  controller: _controller,
-                  onDetect: _onDetect,
-                ),
+                child: _isPc
+                    ? Center(
+                        child: Column(
+                          mainAxisSize: MainAxisSize.min,
+                          children: const [
+                            Icon(Icons.qr_code_scanner, size: 72),
+                            SizedBox(height: 12),
+                            Text('USB scanning (Web)'),
+                          ],
+                        ),
+                      )
+                    : MobileScanner(
+                        controller: _controller,
+                        onDetect: _onDetect,
+                      ),
               ),
               if (_isSearch && _isLoading)
                 const Padding(
@@ -290,11 +340,16 @@ class _ScanScreenState extends State<ScanScreen> {
                   vertical: 8,
                 ),
                 child: TextField(
+                  controller: _kbCtrl,
+                  focusNode: _kbFocus,
+                  autofocus: _isPc,
                   textInputAction: TextInputAction.search,
                   decoration: InputDecoration(
-                    labelText: isSearch
-                        ? 'Ręcznie szukać po nazwie lub kod…'
-                        : 'Wpisz kod lub nazwa...',
+                    labelText: _isPc
+                        ? 'skanuj kod (USB) lub wpisz…'
+                        : (isSearch
+                              ? 'Ręcznie szukać po nazwie lub kod…'
+                              : 'Wpisz kod lub nazwa...'),
                     border: const OutlineInputBorder(),
                   ),
                   onSubmitted: (v) {
@@ -305,26 +360,26 @@ class _ScanScreenState extends State<ScanScreen> {
                 ),
               ),
 
-              if (_found == false && !isSearch)
-                Padding(
-                  padding: EdgeInsets.fromLTRB(
-                    16,
-                    8,
-                    16,
-                    MediaQuery.of(context).viewPadding.bottom + 16,
-                  ),
-                  child: ElevatedButton(
-                    onPressed: () {
-                      Navigator.of(context).push(
-                        MaterialPageRoute(
-                          builder: (_) =>
-                              AddItemScreen(initialBarcode: _scannedCode),
-                        ),
-                      );
-                    },
-                    child: const Text('Dodaj Nowy Produkt'),
-                  ),
-                ),
+              // if (_found == false && !isSearch)
+              //   Padding(
+              //     padding: EdgeInsets.fromLTRB(
+              //       16,
+              //       8,
+              //       16,
+              //       MediaQuery.of(context).viewPadding.bottom + 16,
+              //     ),
+              //     child: ElevatedButton(
+              //       onPressed: () {
+              //         Navigator.of(context).push(
+              //           MaterialPageRoute(
+              //             builder: (_) =>
+              //                 AddItemScreen(initialBarcode: _scannedCode),
+              //           ),
+              //         );
+              //       },
+              //       child: const Text('Dodaj Nowy Produkt'),
+              //     ),
+              //   ),
             ],
           ),
         ),
