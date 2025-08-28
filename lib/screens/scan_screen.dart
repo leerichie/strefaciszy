@@ -1,10 +1,14 @@
 // lib/screens/scan_screen.dart
 
+import 'dart:async';
+
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:mobile_scanner/mobile_scanner.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:strefa_ciszy/models/stock_item.dart';
 import 'package:strefa_ciszy/screens/inventory_list_screen.dart';
+import 'package:strefa_ciszy/services/api_service.dart';
 import 'package:strefa_ciszy/widgets/app_scaffold.dart';
 import 'add_item_screen.dart';
 import 'item_detail_screen.dart';
@@ -44,6 +48,12 @@ class _ScanScreenState extends State<ScanScreen> {
   final _kbCtrl = TextEditingController();
   final _kbFocus = FocusNode();
 
+  bool _looksLikeBarcode(String v) => RegExp(r'^\d{6,}$').hasMatch(v);
+
+  final TextEditingController _manualCtrl = TextEditingController();
+  List<StockItem> _suggestions = [];
+  Timer? _debounce;
+
   bool get _isPc =>
       kIsWeb ||
       defaultTargetPlatform == TargetPlatform.windows ||
@@ -70,8 +80,6 @@ class _ScanScreenState extends State<ScanScreen> {
     super.dispose();
   }
 
-  bool _looksLikeBarcode(String v) => RegExp(r'^\d{6,}$').hasMatch(v);
-
   void _resetIdle() {
     setState(() {
       _isLoading = false;
@@ -87,54 +95,139 @@ class _ScanScreenState extends State<ScanScreen> {
     } catch (_) {}
   }
 
-  void _goToAddItem(String value) {
-    Navigator.of(context)
-        .push(
-          MaterialPageRoute(
-            builder: (_) => AddItemScreen(
-              initialBarcode: _looksLikeBarcode(value) ? value : null,
-              initialName: !_looksLikeBarcode(value) ? value : null,
-            ),
-          ),
-        )
-        .then((_) async {
-          if (!mounted) return;
-          _resetIdle();
-          await _resumeScanner();
-        });
+  void _onManualChanged(String v) {
+    _debounce?.cancel();
+    _debounce = Timer(const Duration(milliseconds: 250), () {
+      _refetchSuggestions(v);
+    });
   }
 
-  Future<List<QueryDocumentSnapshot<Map<String, dynamic>>>> _findItems(
-    String raw,
-  ) async {
-    final col = FirebaseFirestore.instance.collection('stock_items');
-    final norm = normalize(raw);
-    final tokens = norm.split(RegExp(r'\s+')).where((t) => t.isNotEmpty);
-
-    // Exact field matches first
-    for (final f in ['barcode', 'sku', 'category']) {
-      final snap = await col.where(f, isEqualTo: raw).get();
-      if (snap.docs.isNotEmpty) return snap.docs;
+  Future<void> _refetchSuggestions(String q) async {
+    final query = q.trim();
+    if (query.isEmpty) {
+      if (mounted) setState(() => _suggestions = []);
+      return;
     }
 
-    final all = await col.get();
-    return all.docs.where((d) {
-      final data = d.data();
-      // Normalize candidate fields for comparison
-      final candidates = <String?>[
-        data['name'] as String?,
-        data['producent'] as String?,
-        data['sku'] as String?,
-        data['barcode'] as String?,
-        data['category'] as String?,
-      ].map((s) => s != null ? normalize(s) : '').toList();
+    final isBarcode = RegExp(r'^\d{6,}$').hasMatch(query);
+    final tokens = normalize(
+      query,
+    ).split(RegExp(r'\s+')).where((t) => t.isNotEmpty).toList();
 
-      // For each token in search, ensure it appears in at least one candidate field
-      for (final token in tokens) {
-        final found = candidates.any((c) => c.contains(token));
-        if (!found) return false;
-      }
-      return true;
+    final seedToken = isBarcode
+        ? query
+        : (tokens..sort((a, b) => b.length.compareTo(a.length))).first;
+
+    final fetchLimit = isBarcode ? 50 : (tokens.length > 1 ? 1000 : 200);
+    final results = await ApiService.fetchProducts(
+      search: seedToken,
+      limit: fetchLimit,
+      offset: 0,
+    );
+
+    final List<StockItem> filtered = isBarcode
+        ? (() {
+            final exact = results.where((it) => it.barcode.trim() == query);
+            return exact.isNotEmpty ? exact.toList() : results;
+          })()
+        : results.where((it) {
+            return matchesAllTokens(query, [
+              it.name,
+              it.producent,
+              it.category.isNotEmpty ? it.category : it.description,
+              it.sku,
+              it.barcode,
+            ]);
+          }).toList();
+
+    if (!mounted) return;
+    setState(() => _suggestions = filtered.take(50).toList());
+  }
+
+  // void _goToAddItem(String value) {
+  //   Navigator.of(context)
+  //       .push(
+  //         MaterialPageRoute(
+  //           builder: (_) => AddItemScreen(
+  //             initialBarcode: _looksLikeBarcode(value) ? value : null,
+  //             initialName: !_looksLikeBarcode(value) ? value : null,
+  //           ),
+  //         ),
+  //       )
+  //       .then((_) async {
+  //         if (!mounted) return;
+  //         _resetIdle();
+  //         await _resumeScanner();
+  //       });
+  // }
+
+  // Future<List<QueryDocumentSnapshot<Map<String, dynamic>>>> _findItems(
+  //   String raw,
+  // ) async {
+  //   final col = FirebaseFirestore.instance.collection('stock_items');
+  //   final norm = normalize(raw);
+  //   final tokens = norm.split(RegExp(r'\s+')).where((t) => t.isNotEmpty);
+
+  //   for (final f in ['barcode', 'sku', 'category']) {
+  //     final snap = await col.where(f, isEqualTo: raw).get();
+  //     if (snap.docs.isNotEmpty) return snap.docs;
+  //   }
+
+  //   final all = await col.get();
+  //   return all.docs.where((d) {
+  //     final data = d.data();
+  //     final candidates = <String?>[
+  //       data['name'] as String?,
+  //       data['producent'] as String?,
+  //       data['sku'] as String?,
+  //       data['barcode'] as String?,
+  //       data['category'] as String?,
+  //     ].map((s) => s != null ? normalize(s) : '').toList();
+
+  //     for (final token in tokens) {
+  //       final found = candidates.any((c) => c.contains(token));
+  //       if (!found) return false;
+  //     }
+  //     return true;
+  //   }).toList();
+  // }
+
+  // api
+  Future<List<StockItem>> _findItems(String raw) async {
+    final query = raw.trim();
+    final isBarcode = _looksLikeBarcode(query);
+
+    final tokens = normalize(
+      query,
+    ).split(RegExp(r'\s')).where((t) => t.isNotEmpty).toList();
+    final isMulti = tokens.length > 1;
+    final seedToken = isBarcode
+        ? query
+        : (tokens.isNotEmpty
+              ? (tokens..sort((a, b) => b.length.compareTo(a.length))).first
+              : query);
+    final fetchLimit = isBarcode ? 50 : (isMulti ? 1000 : 200);
+
+    final results = await ApiService.fetchProducts(
+      search: seedToken,
+      limit: fetchLimit,
+      offset: 0,
+    );
+
+    if (isBarcode) {
+      final exact = results.where((it) => it.barcode == query).toList();
+      if (exact.isNotEmpty) return exact;
+    }
+
+    if (tokens.isEmpty) return results;
+    return results.where((it) {
+      return matchesAllTokens(query, [
+        it.name,
+        it.producent,
+        it.category.isNotEmpty ? it.category : it.description,
+        it.sku,
+        it.barcode,
+      ]);
     }).toList();
   }
 
@@ -153,9 +246,9 @@ class _ScanScreenState extends State<ScanScreen> {
     });
 
     try {
-      final docs = await _findItems(value);
+      final items = await _findItems(value);
 
-      if (docs.isEmpty) {
+      if (items.isEmpty) {
         if (widget.purpose == ScanPurpose.projectLine) {
           Navigator.of(context).pop();
           return;
@@ -204,20 +297,26 @@ class _ScanScreenState extends State<ScanScreen> {
       }
       /////
 
-      final id = docs.first.id;
+      final first = items.first;
+      final id = first.id;
 
       if (widget.purpose == ScanPurpose.projectLine) {
-        final data = docs.first.data();
+        // final data = docs.first.data();
+        // final label = [
+        //   data['name'] ?? '',
+        //   data['producent'] ?? '',
+        // ].where((s) => s.isNotEmpty).join(', ');
+
         final label = [
-          data['name'] ?? '',
-          data['producent'] ?? '',
-        ].where((s) => s.isNotEmpty).join(', ');
+          first.name,
+          first.producent,
+        ].where((s) => (s).trim().isNotEmpty).join(', ');
 
         Navigator.of(context).pop({'id': id, 'label': label});
         return;
       }
 
-      if (docs.length == 1) {
+      if (items.length == 1) {
         await Navigator.of(
           context,
         ).push(MaterialPageRoute(builder: (_) => ItemDetailScreen(itemId: id)));
@@ -309,11 +408,13 @@ class _ScanScreenState extends State<ScanScreen> {
                         onDetect: _onDetect,
                       ),
               ),
+
               if (_isSearch && _isLoading)
                 const Padding(
                   padding: EdgeInsets.all(12),
                   child: CircularProgressIndicator(),
                 ),
+
               if (_isSearch && _found == false)
                 Padding(
                   padding: const EdgeInsets.all(12),
@@ -323,6 +424,7 @@ class _ScanScreenState extends State<ScanScreen> {
                     textAlign: TextAlign.center,
                   ),
                 ),
+
               if (_isSearch && _scannedCode != null)
                 Padding(
                   padding: const EdgeInsets.all(12),
@@ -334,6 +436,39 @@ class _ScanScreenState extends State<ScanScreen> {
                     ),
                   ),
                 ),
+
+              // ===== Suggest
+              if (_suggestions.isNotEmpty)
+                ConstrainedBox(
+                  constraints: const BoxConstraints(maxHeight: 300),
+                  child: Material(
+                    elevation: 2,
+                    child: ListView.builder(
+                      shrinkWrap: true,
+                      itemCount: _suggestions.length,
+                      itemBuilder: (_, i) {
+                        final s = _suggestions[i];
+                        return ListTile(
+                          dense: true,
+                          title: Text('${s.name}, ${s.producent}'),
+                          subtitle: s.description.isNotEmpty
+                              ? Text(s.description)
+                              : null,
+                          trailing: Text('Stan: ${s.quantity}'),
+                          onTap: () {
+                            _kbCtrl.text = s.barcode;
+                            _kbCtrl.selection = TextSelection.fromPosition(
+                              TextPosition(offset: _kbCtrl.text.length),
+                            );
+                            setState(() => _suggestions = []);
+                          },
+                        );
+                      },
+                    ),
+                  ),
+                ),
+
+              // ===== Manual
               Padding(
                 padding: const EdgeInsets.symmetric(
                   horizontal: 16,
@@ -344,36 +479,31 @@ class _ScanScreenState extends State<ScanScreen> {
                   focusNode: _kbFocus,
                   autofocus: _isPc,
                   textInputAction: TextInputAction.search,
-                  decoration: InputDecoration(
-                    labelText: _isPc
-                        ? 'skanuj kod (USB) lub wpisz…'
-                        : (isSearch
-                              ? 'Ręcznie szukać po nazwie lub kod…'
-                              : 'Wpisz kod lub nazwa...'),
-                    border: const OutlineInputBorder(),
+                  decoration: const InputDecoration(
+                    labelText: 'skanuj kod (USB) lub wpisz…',
+                    border: OutlineInputBorder(),
                   ),
                   onSubmitted: (v) {
-                    FocusScope.of(context).unfocus();
-                    _onManualEntry(v);
+                    final query = v.trim();
+                    if (query.isNotEmpty) {
+                      Navigator.of(context).pop<String>(query);
+                    }
                   },
                   onTapOutside: (_) => FocusScope.of(context).unfocus(),
                 ),
               ),
 
-              // if (_found == false && !isSearch)
+              // (kept commented block unchanged)
+              // if (_found == false && !_isSearch)
               //   Padding(
               //     padding: EdgeInsets.fromLTRB(
-              //       16,
-              //       8,
-              //       16,
-              //       MediaQuery.of(context).viewPadding.bottom + 16,
+              //       16, 8, 16, MediaQuery.of(context).viewPadding.bottom + 16,
               //     ),
               //     child: ElevatedButton(
               //       onPressed: () {
               //         Navigator.of(context).push(
               //           MaterialPageRoute(
-              //             builder: (_) =>
-              //                 AddItemScreen(initialBarcode: _scannedCode),
+              //             builder: (_) => AddItemScreen(initialBarcode: _scannedCode),
               //           ),
               //         );
               //       },

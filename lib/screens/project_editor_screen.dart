@@ -83,6 +83,10 @@ class _ProjectEditorScreenState extends State<ProjectEditorScreen> {
 
   // List<StockItem> _stockItems = [];
   List<ProjectLine> _lines = [];
+
+  final Map<String, String> _projNameById = {};
+  final Map<String, String> _projProducerById = {};
+
   late final bool _rwLocked;
 
   late final StreamSubscription<DocumentSnapshot<Map<String, dynamic>>>
@@ -190,9 +194,15 @@ class _ProjectEditorScreenState extends State<ProjectEditorScreen> {
             final unit = m['unit'] as String? ?? '';
             final name = (m['name'] as String?) ?? '';
 
-            final isStock = _stockItems.any((s) => s.id == itemId);
+            // final isStock = _stockItems.any((s) => s.id == itemId);
+            // final originalStock = isStock
+            //     ? _stockItems.firstWhere((s) => s.id == itemId).quantity
+            //     : qty;
+
+            final isStock = (itemId).trim().isNotEmpty;
+            final int idx = _stockItems.indexWhere((s) => s.id == itemId);
             final originalStock = isStock
-                ? _stockItems.firstWhere((s) => s.id == itemId).quantity
+                ? (idx == -1 ? 0 : _stockItems[idx].quantity)
                 : qty;
 
             return ProjectLine(
@@ -228,6 +238,18 @@ class _ProjectEditorScreenState extends State<ProjectEditorScreen> {
     _midnightRolloverTimer?.cancel();
     super.dispose();
   }
+
+  /////// api
+  Future<void> _ensureStockItemLoaded(String id) async {
+    if (kUseFirestoreStock) return; // legacy mode still fine
+    if (_stockItems.any((s) => s.id == id)) return;
+
+    // Pull more pages until we find the item or there are no more pages.
+    while (!_stockItems.any((s) => s.id == id) && _stockHasMore) {
+      await _loadStockFromApi(); // this advances _stockOffset and appends to _stockItems
+    }
+  }
+  ////
 
   Future<void> _loadStockFromApi({bool reset = false}) async {
     if (reset) {
@@ -714,13 +736,15 @@ class _ProjectEditorScreenState extends State<ProjectEditorScreen> {
       await projectRef.update({
         'items': filteredLines.map((ln) {
           if (ln.isStock) {
-            final s = _stockItems.firstWhere((x) => x.id == ln.itemRef);
+            final int sIdx = _stockItems.indexWhere((x) => x.id == ln.itemRef);
+            final StockItem? s = sIdx != -1 ? _stockItems[sIdx] : null;
+
             return {
               'itemId': ln.itemRef,
               'quantity': ln.requestedQty,
               'unit': ln.unit,
-              'name': s.name,
-              'producer': s.producent ?? '',
+              'name': s?.name ?? (ln.isStock ? '' : ln.customName),
+              'producer': s?.producent ?? '',
             };
           } else {
             return {
@@ -1616,13 +1640,28 @@ class _ProjectEditorScreenState extends State<ProjectEditorScreen> {
                   return;
                 }
 
+                if (newLine.isStock) {
+                  await _ensureStockItemLoaded(newLine.itemRef);
+                }
+
+                final int idx = _stockItems.indexWhere(
+                  (s) => s.id == newLine.itemRef,
+                );
+                final String unitForLine = newLine.isStock
+                    ? (idx != -1 ? _stockItems[idx].unit : newLine.unit)
+                    : newLine.unit;
+
                 final lineWithUnit = newLine.isStock
-                    ? newLine.copyWith(
-                        unit: _stockItems
-                            .firstWhere((s) => s.id == newLine.itemRef)
-                            .unit,
-                      )
+                    ? newLine.copyWith(unit: unitForLine)
                     : newLine;
+
+                // final lineWithUnit = newLine.isStock
+                //     ? newLine.copyWith(
+                //         unit: _stockItems
+                //             .firstWhere((s) => s.id == newLine.itemRef)
+                //             .unit,
+                //       )
+                //     : newLine;
 
                 final existingIndex = lineWithUnit.isStock
                     ? _lines.indexWhere(

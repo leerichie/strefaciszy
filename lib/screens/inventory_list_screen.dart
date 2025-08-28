@@ -70,6 +70,20 @@ class _InventoryListScreenState extends State<InventoryListScreen> {
   Widget build(BuildContext context) {
     final isAdmin = widget.isAdmin;
     const title = 'Magazyn';
+    // server-side tokens
+    final tokens = normalize(
+      _search,
+    ).split(RegExp(r'\s+')).where((t) => t.isNotEmpty).toList();
+
+    final isMultiWord = tokens.length > 1;
+    final seedToken = isMultiWord
+        ? (tokens..sort((a, b) => b.length.compareTo(a.length))).first
+        : (tokens.isNotEmpty ? tokens.first : null);
+
+    final serverSearch = (_search.isNotEmpty ? seedToken : null);
+    final fetchLimit = isMultiWord
+        ? 1000
+        : 200; // bring enough for client filter
 
     return AppScaffold(
       // floatingActionButton: isAdmin
@@ -150,11 +164,12 @@ class _InventoryListScreenState extends State<InventoryListScreen> {
             Expanded(
               child: FutureBuilder<List<StockItem>>(
                 future: ApiService.fetchProducts(
-                  search: _search.isNotEmpty ? _search : null,
+                  search: serverSearch,
                   category: _category.isNotEmpty ? _category : null,
-                  limit: 200,
+                  limit: fetchLimit,
                   offset: 0,
                 ),
+
                 builder: (ctx, snap) {
                   if (snap.connectionState == ConnectionState.waiting) {
                     return const Center(child: CircularProgressIndicator());
@@ -174,7 +189,7 @@ class _InventoryListScreenState extends State<InventoryListScreen> {
                   final filtered = _search.isEmpty
                       ? afterOnlyIds
                       : afterOnlyIds.where((item) {
-                          return matchesSearch(_search, [
+                          return matchesAllTokens(_search, [
                             item.name,
                             item.producent,
                             item.category.isNotEmpty
