@@ -1550,7 +1550,7 @@
 //               child: const Icon(Icons.playlist_add, size: 28),
 //             ),
 
-//       floatingActionButtonLocation: FloatingActionButtonLocation.centerDocked,
+//       floatingActionButtonLocation: FloatingActionButtonLocation.centerFloat,
 
 //       bottomNavigationBar: BottomAppBar(
 //         shape: const CircularNotchedRectangle(),

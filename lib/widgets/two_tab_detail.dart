@@ -32,7 +32,7 @@ class TwoTabDetailScaffold extends StatelessWidget {
               body: TabBarView(children: bodies),
               floatingActionButton: fabs[tc.index],
               floatingActionButtonLocation:
-                  FloatingActionButtonLocation.centerDocked,
+                  FloatingActionButtonLocation.centerFloat,
             ),
           );
         },

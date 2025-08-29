@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:strefa_ciszy/models/stock_item.dart';
 import 'package:strefa_ciszy/screens/add_item_screen.dart';
 import 'package:strefa_ciszy/screens/item_detail_screen.dart';
+import 'package:strefa_ciszy/screens/scan_screen.dart';
 import 'package:strefa_ciszy/services/api_service.dart';
 import 'package:strefa_ciszy/utils/category_filter.dart';
 import 'package:strefa_ciszy/utils/keyboard_utils.dart';
@@ -70,32 +71,17 @@ class _InventoryListScreenState extends State<InventoryListScreen> {
   Widget build(BuildContext context) {
     final isAdmin = widget.isAdmin;
     const title = 'Magazyn';
-    // server-side tokens
-    final tokens = normalize(
-      _search,
-    ).split(RegExp(r'\s+')).where((t) => t.isNotEmpty).toList();
-
-    final isMultiWord = tokens.length > 1;
-    final seedToken = isMultiWord
-        ? (tokens..sort((a, b) => b.length.compareTo(a.length))).first
-        : (tokens.isNotEmpty ? tokens.first : null);
-
-    final serverSearch = (_search.isNotEmpty ? seedToken : null);
-    final fetchLimit = isMultiWord
-        ? 1000
-        : 200; // bring enough for client filter
 
     return AppScaffold(
-      // floatingActionButton: isAdmin
-      //     ? FloatingActionButton(
-      //         onPressed: () => Navigator.of(
-      //           context,
-      //         ).push(MaterialPageRoute(builder: (_) => const AddItemScreen())),
-      //         tooltip: 'Dodaj stock',
-      //         child: const Icon(Icons.add),
-      //       )
-      //     : null,
-      // floatingActionButtonLocation: FloatingActionButtonLocation.centerDocked,
+      floatingActionButton: FloatingActionButton(
+        tooltip: 'Skanuj',
+        onPressed: () => Navigator.of(
+          context,
+        ).push(MaterialPageRoute(builder: (_) => const ScanScreen())),
+        child: const Icon(Icons.qr_code_scanner, size: 32),
+      ),
+      floatingActionButtonLocation: FloatingActionButtonLocation.centerFloat,
+
       centreTitle: true,
       title: title,
       bottom: PreferredSize(
@@ -164,12 +150,11 @@ class _InventoryListScreenState extends State<InventoryListScreen> {
             Expanded(
               child: FutureBuilder<List<StockItem>>(
                 future: ApiService.fetchProducts(
-                  search: serverSearch,
+                  search: _search.isNotEmpty ? _search : null,
                   category: _category.isNotEmpty ? _category : null,
-                  limit: fetchLimit,
+                  limit: 200,
                   offset: 0,
                 ),
-
                 builder: (ctx, snap) {
                   if (snap.connectionState == ConnectionState.waiting) {
                     return const Center(child: CircularProgressIndicator());
@@ -189,7 +174,7 @@ class _InventoryListScreenState extends State<InventoryListScreen> {
                   final filtered = _search.isEmpty
                       ? afterOnlyIds
                       : afterOnlyIds.where((item) {
-                          return matchesAllTokens(_search, [
+                          return matchesSearch(_search, [
                             item.name,
                             item.producent,
                             item.category.isNotEmpty

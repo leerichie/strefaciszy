@@ -128,7 +128,7 @@ class MainMenuScreen extends StatelessWidget {
               child: const Icon(Icons.qr_code_scanner, size: 32),
             )
           : null,
-      floatingActionButtonLocation: FloatingActionButtonLocation.centerDocked,
+      floatingActionButtonLocation: FloatingActionButtonLocation.centerFloat,
 
       bottomNavigationBar: SafeArea(
         child: BottomAppBar(

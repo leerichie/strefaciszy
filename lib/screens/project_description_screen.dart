@@ -1093,7 +1093,7 @@ class _ProjectDescriptionScreenState extends State<ProjectDescriptionScreen> {
               //   child: const Icon(Icons.add),
               // ),
 
-              // floatingActionButtonLocation: FloatingActionButtonLocation.centerDocked,
+              // floatingActionButtonLocation: FloatingActionButtonLocation.centerFloat,
               // bottomNavigationBar: SafeArea(
               //   child: BottomAppBar(
               //     shape: const CircularNotchedRectangle(),

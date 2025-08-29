@@ -1,18 +1,17 @@
 // lib/screens/scan_screen.dart
-
 import 'dart:async';
-
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:mobile_scanner/mobile_scanner.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
+
 import 'package:strefa_ciszy/models/stock_item.dart';
-import 'package:strefa_ciszy/screens/inventory_list_screen.dart';
 import 'package:strefa_ciszy/services/api_service.dart';
+import 'package:strefa_ciszy/screens/item_detail_screen.dart';
+import 'package:strefa_ciszy/utils/web_fullscreen_guard_stub.dart'
+    if (dart.library.js_interop) 'package:strefa_ciszy/utils/web_fullscreen_guard_web.dart'
+    as webfs;
 import 'package:strefa_ciszy/widgets/app_scaffold.dart';
-import 'add_item_screen.dart';
-import 'item_detail_screen.dart';
-import 'package:strefa_ciszy/utils/search_utils.dart';
 
 enum ScanPurpose { add, search, projectLine }
 
@@ -20,7 +19,7 @@ class ScanScreen extends StatefulWidget {
   const ScanScreen({
     super.key,
     this.returnCode = false,
-    this.purpose = ScanPurpose.add,
+    this.purpose = ScanPurpose.search,
     this.titleText,
     this.onScanned,
   });
@@ -31,489 +30,522 @@ class ScanScreen extends StatefulWidget {
   final void Function(String code)? onScanned;
 
   @override
-  _ScanScreenState createState() => _ScanScreenState();
+  State<ScanScreen> createState() => _ScanScreenState();
 }
 
 class _ScanScreenState extends State<ScanScreen> {
-  final _controller = MobileScannerController(
+  bool get _isDesktopLike =>
+      kIsWeb ||
+      defaultTargetPlatform == TargetPlatform.macOS ||
+      defaultTargetPlatform == TargetPlatform.windows ||
+      defaultTargetPlatform == TargetPlatform.linux;
+
+  bool get _isProjectLine => widget.purpose == ScanPurpose.projectLine;
+  bool get _isSearch => widget.purpose == ScanPurpose.search;
+
+  final MobileScannerController _cam = MobileScannerController(
     detectionSpeed: DetectionSpeed.noDuplicates,
-    detectionTimeoutMs: 200,
-    formats: [BarcodeFormat.ean13, BarcodeFormat.qrCode],
+    detectionTimeoutMs: 250,
+    formats: const [
+      BarcodeFormat.ean13,
+      BarcodeFormat.ean8,
+      BarcodeFormat.code128,
+      BarcodeFormat.code93,
+      BarcodeFormat.upcA,
+      BarcodeFormat.upcE,
+      BarcodeFormat.qrCode,
+    ],
   );
 
-  String? _scannedCode;
-  bool _isLoading = false;
-  bool? _found;
-  bool get _isSearch => widget.purpose == ScanPurpose.search;
-  final _kbCtrl = TextEditingController();
-  final _kbFocus = FocusNode();
+  final FocusNode _rawFocus = FocusNode();
+  StringBuffer _kbBuffer = StringBuffer();
+  Timer? _kbIdleTimer;
 
-  bool _looksLikeBarcode(String v) => RegExp(r'^\d{6,}$').hasMatch(v);
+  String? _lastValue;
+  DateTime _lastAt = DateTime.fromMillisecondsSinceEpoch(0);
+  bool _busy = false;
 
-  final TextEditingController _manualCtrl = TextEditingController();
-  List<StockItem> _suggestions = [];
-  Timer? _debounce;
-
-  bool get _isPc =>
-      kIsWeb ||
-      defaultTargetPlatform == TargetPlatform.windows ||
-      defaultTargetPlatform == TargetPlatform.linux ||
-      defaultTargetPlatform == TargetPlatform.macOS;
+  bool _torchOn = false;
+  String? _statusText;
 
   @override
   void initState() {
     super.initState();
-    if (_isPc) {
-      WidgetsBinding.instance.addPostFrameCallback(
-        (_) => _kbFocus.requestFocus(),
-      );
-    }
+
+    if (kIsWeb) webfs.initFullscreenGuard();
+
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      _unfocusAll();
+      if (_isDesktopLike) {
+        FocusScope.of(context).requestFocus(_rawFocus);
+      }
+    });
   }
 
   @override
   void dispose() {
-    _kbCtrl.dispose();
-    _kbFocus.dispose();
-    try {
-      _controller.dispose();
-    } catch (_) {}
+    _kbIdleTimer?.cancel();
+    _rawFocus.dispose();
+    _cam.dispose();
+
+    if (kIsWeb) webfs.disposeFullscreenGuard();
     super.dispose();
   }
 
-  void _resetIdle() {
-    setState(() {
-      _isLoading = false;
-      _found = null;
-      _scannedCode = null;
-    });
+  static String _digitsOnly(String s) {
+    final b = StringBuffer();
+    for (final r in s.runes) {
+      if (r >= 48 && r <= 57) b.writeCharCode(r);
+    }
+    return b.toString();
   }
 
-  Future<void> _resumeScanner() async {
-    if (_isPc) return;
+  static String? _upcToEan13(String d) => d.length == 12 ? '0$d' : null;
+
+  bool _debounced(String v) {
+    final now = DateTime.now();
+    if (v == _lastValue && now.difference(_lastAt).inMilliseconds < 900) {
+      return true;
+    }
+    _lastValue = v;
+    _lastAt = now;
+    return false;
+  }
+
+  Future<void> _resumeCamera() async {
+    if (_isDesktopLike) return;
     try {
-      await _controller.start();
+      await _cam.start();
     } catch (_) {}
   }
 
-  void _onManualChanged(String v) {
-    _debounce?.cancel();
-    _debounce = Timer(const Duration(milliseconds: 250), () {
-      _refetchSuggestions(v);
-    });
-  }
-
-  Future<void> _refetchSuggestions(String q) async {
-    final query = q.trim();
-    if (query.isEmpty) {
-      if (mounted) setState(() => _suggestions = []);
-      return;
-    }
-
-    final isBarcode = RegExp(r'^\d{6,}$').hasMatch(query);
-    final tokens = normalize(
-      query,
-    ).split(RegExp(r'\s+')).where((t) => t.isNotEmpty).toList();
-
-    final seedToken = isBarcode
-        ? query
-        : (tokens..sort((a, b) => b.length.compareTo(a.length))).first;
-
-    final fetchLimit = isBarcode ? 50 : (tokens.length > 1 ? 1000 : 200);
-    final results = await ApiService.fetchProducts(
-      search: seedToken,
-      limit: fetchLimit,
-      offset: 0,
-    );
-
-    final List<StockItem> filtered = isBarcode
-        ? (() {
-            final exact = results.where((it) => it.barcode.trim() == query);
-            return exact.isNotEmpty ? exact.toList() : results;
-          })()
-        : results.where((it) {
-            return matchesAllTokens(query, [
-              it.name,
-              it.producent,
-              it.category.isNotEmpty ? it.category : it.description,
-              it.sku,
-              it.barcode,
-            ]);
-          }).toList();
-
+  void _showSnack(String msg) {
     if (!mounted) return;
-    setState(() => _suggestions = filtered.take(50).toList());
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(msg)));
   }
 
-  // void _goToAddItem(String value) {
-  //   Navigator.of(context)
-  //       .push(
-  //         MaterialPageRoute(
-  //           builder: (_) => AddItemScreen(
-  //             initialBarcode: _looksLikeBarcode(value) ? value : null,
-  //             initialName: !_looksLikeBarcode(value) ? value : null,
-  //           ),
-  //         ),
-  //       )
-  //       .then((_) async {
-  //         if (!mounted) return;
-  //         _resetIdle();
-  //         await _resumeScanner();
-  //       });
-  // }
+  void _showRootSnack(String msg) {
+    final rootCtx = Navigator.of(context, rootNavigator: true).context;
+    ScaffoldMessenger.of(rootCtx).clearSnackBars();
+    ScaffoldMessenger.of(rootCtx).showSnackBar(
+      SnackBar(
+        content: Text(msg),
+        duration: const Duration(milliseconds: 1100),
+      ),
+    );
+  }
 
-  // Future<List<QueryDocumentSnapshot<Map<String, dynamic>>>> _findItems(
-  //   String raw,
-  // ) async {
-  //   final col = FirebaseFirestore.instance.collection('stock_items');
-  //   final norm = normalize(raw);
-  //   final tokens = norm.split(RegExp(r'\s+')).where((t) => t.isNotEmpty);
+  void _unfocusAll() {
+    try {
+      FocusManager.instance.primaryFocus?.unfocus();
+      final rootCtx = Navigator.of(context, rootNavigator: true).context;
+      FocusScope.of(rootCtx).unfocus();
+    } catch (_) {}
+  }
 
-  //   for (final f in ['barcode', 'sku', 'category']) {
-  //     final snap = await col.where(f, isEqualTo: raw).get();
-  //     if (snap.docs.isNotEmpty) return snap.docs;
-  //   }
+  bool _isExactEanMatch(String code, String candidate) {
+    final a = _digitsOnly(code);
+    final b = _digitsOnly(candidate);
+    if (a.isEmpty || b.isEmpty) return false;
 
-  //   final all = await col.get();
-  //   return all.docs.where((d) {
-  //     final data = d.data();
-  //     final candidates = <String?>[
-  //       data['name'] as String?,
-  //       data['producent'] as String?,
-  //       data['sku'] as String?,
-  //       data['barcode'] as String?,
-  //       data['category'] as String?,
-  //     ].map((s) => s != null ? normalize(s) : '').toList();
+    if (a == b) return true;
 
-  //     for (final token in tokens) {
-  //       final found = candidates.any((c) => c.contains(token));
-  //       if (!found) return false;
-  //     }
-  //     return true;
-  //   }).toList();
-  // }
+    // Accept UPC-A <-> EAN-13 equivalents
+    final aAsEan13 = _upcToEan13(a); // 12 -> 13
+    final bAsEan13 = _upcToEan13(b);
+    if (aAsEan13 != null && aAsEan13 == b) return true;
+    if (bAsEan13 != null && bAsEan13 == a) return true;
 
-  // api
-  Future<List<StockItem>> _findItems(String raw) async {
-    final query = raw.trim();
-    final isBarcode = _looksLikeBarcode(query);
+    return false;
+  }
 
-    final tokens = normalize(
-      query,
-    ).split(RegExp(r'\s')).where((t) => t.isNotEmpty).toList();
-    final isMulti = tokens.length > 1;
-    final seedToken = isBarcode
-        ? query
-        : (tokens.isNotEmpty
-              ? (tokens..sort((a, b) => b.length.compareTo(a.length))).first
-              : query);
-    final fetchLimit = isBarcode ? 50 : (isMulti ? 1000 : 200);
-
-    final results = await ApiService.fetchProducts(
-      search: seedToken,
-      limit: fetchLimit,
-      offset: 0,
+  Future<void> _notFoundReset(String norm) async {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).clearSnackBars();
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text('Nie znaleziono „$norm”.'),
+        duration: const Duration(milliseconds: 1100),
+      ),
     );
 
-    if (isBarcode) {
-      final exact = results.where((it) => it.barcode == query).toList();
-      if (exact.isNotEmpty) return exact;
-    }
+    setState(() => _statusText = null);
+    _busy = false;
 
-    if (tokens.isEmpty) return results;
-    return results.where((it) {
-      return matchesAllTokens(query, [
-        it.name,
-        it.producent,
-        it.category.isNotEmpty ? it.category : it.description,
-        it.sku,
-        it.barcode,
-      ]);
-    }).toList();
+    await Future.delayed(const Duration(seconds: 2));
+    if (!mounted) return;
+
+    if (_isDesktopLike) {
+      FocusScope.of(context).requestFocus(_rawFocus);
+    } else {
+      await _resumeCamera();
+    }
   }
 
-  Future<void> _lookupAndHandle(String value) async {
-    if (value == _scannedCode && _found != null) return;
+  Future<void> _handleRawScan(String raw) async {
+    if (_busy) return;
 
-    // if (!_isSearch && widget.purpose != ScanPurpose.projectLine) {
-    //   _goToAddItem(value);
-    //   return;
-    // }
+    final digits = _digitsOnly(raw);
+    if (digits.length < 8) return;
 
-    setState(() {
-      _scannedCode = value;
-      _isLoading = true;
-      _found = null;
-    });
+    final norm = digits;
+    final alt13 = _upcToEan13(norm);
+    if (_debounced(norm)) return;
+
+    _busy = true;
+    setState(() => _statusText = 'Szukam: $norm');
 
     try {
-      final items = await _findItems(value);
+      final items = await ApiService.fetchProducts(
+        search: norm,
+        limit: 50,
+        offset: 0,
+      );
 
-      if (items.isEmpty) {
-        if (widget.purpose == ScanPurpose.projectLine) {
+      StockItem? exact;
+      final candidates = <StockItem>[];
+
+      for (final it in items) {
+        final bc = it.barcode;
+        if (bc.trim().isEmpty) continue;
+
+        if (_isExactEanMatch(norm, bc)) {
+          exact ??= it;
+        } else {
+          final bcd = _digitsOnly(bc);
+          if (bcd.contains(norm) || norm.contains(bcd)) {
+            candidates.add(it);
+          }
+        }
+      }
+
+      if (widget.returnCode) {
+        if (exact != null) {
+          widget.onScanned?.call(norm);
+          _kbIdleTimer?.cancel();
+          _kbBuffer = StringBuffer();
+          _unfocusAll();
+          if (!mounted) return;
+          Navigator.of(context).pop(norm);
+        } else {
+          _showRootSnack('Nie znaleziono „$norm”.');
+          _kbIdleTimer?.cancel();
+          _kbBuffer = StringBuffer();
+          await Future.delayed(const Duration(seconds: 1));
+          _unfocusAll();
+          if (!mounted) return;
           Navigator.of(context).pop();
+        }
+        return;
+      }
+
+      if (_isProjectLine) {
+        if (exact != null) {
+          final label = [
+            exact!.name,
+            if (exact!.producent.isNotEmpty) exact!.producent,
+          ].where((e) => e.trim().isNotEmpty).join(', ');
+
+          if (!mounted) return;
+          Navigator.of(context).pop({'id': exact!.id, 'label': label});
           return;
         }
 
-        setState(() {
-          _isLoading = false;
-          _found = false;
-        });
+        _showRootSnack('Nie znaleziono „$norm”.');
+        _kbIdleTimer?.cancel();
+        _kbBuffer = StringBuffer();
+        await Future.delayed(const Duration(seconds: 2));
+        _unfocusAll();
+        if (!mounted) return;
+        Navigator.of(context).pop();
+        return;
+      }
 
-        // final add = await showDialog<bool>(
-        //   context: context,
-        //   builder: (_) => AlertDialog(
-        //     title: const Text('Brak produktu'),
-        //     content: Text('Nie znaleziono „$value”.\n Dodać nowy produkt?'),
-        //     actions: [
-        //       TextButton(
-        //         onPressed: () => Navigator.pop(context, false),
-        //         child: const Text('Nie'),
-        //       ),
-        //       ElevatedButton(
-        //         onPressed: () => Navigator.pop(context, true),
-        //         child: const Text('Tak'),
-        //       ),
-        //     ],
-        //   ),
-        // );
-        // if (!mounted) return;
-        // if (add == true) {
-        //   _goToAddItem(value);
-        // } else {
-        //   _resetIdle();
-        //   await _resumeScanner();
-        // }
-        // return;
-
-        /// temp button
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text('Nie znaleziono „$value” w WAPRO')),
+      if (_isSearch) {
+        if (exact != null) {
+          if (!mounted) return;
+          Navigator.of(context).pushReplacement(
+            MaterialPageRoute(
+              builder: (_) => ItemDetailScreen(itemId: exact!.id),
+            ),
           );
+          return;
         }
-        _resetIdle();
-        await _resumeScanner();
-        return;
-      }
-      /////
 
-      final first = items.first;
-      final id = first.id;
-
-      if (widget.purpose == ScanPurpose.projectLine) {
-        // final data = docs.first.data();
-        // final label = [
-        //   data['name'] ?? '',
-        //   data['producent'] ?? '',
-        // ].where((s) => s.isNotEmpty).join(', ');
-
-        final label = [
-          first.name,
-          first.producent,
-        ].where((s) => (s).trim().isNotEmpty).join(', ');
-
-        Navigator.of(context).pop({'id': id, 'label': label});
+        await _notFoundReset(norm);
         return;
       }
 
-      if (items.length == 1) {
-        await Navigator.of(
-          context,
-        ).push(MaterialPageRoute(builder: (_) => ItemDetailScreen(itemId: id)));
-      } else {
-        await Navigator.of(context).push(
-          MaterialPageRoute(
-            builder: (_) =>
-                InventoryListScreen(isAdmin: true, initialSearch: value),
+      await _notFoundReset(norm);
+      return;
+    } catch (e) {
+      if (mounted) {
+        _showSnack('Błąd skanowania: $e');
+        setState(() => _statusText = null);
+      }
+      _busy = false;
+      await _resumeCamera();
+    }
+  }
+
+  Future<void> _showChooser(
+    List<StockItem> items, {
+    required String scannedNorm,
+  }) async {
+    if (!mounted) return;
+    if (items.isEmpty) {
+      _showSnack('Nie znaleziono „$scannedNorm”.');
+      _busy = false;
+      await _resumeCamera();
+      return;
+    }
+
+    await showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      builder: (ctx) {
+        return SafeArea(
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(maxHeight: 500),
+            child: ListView.separated(
+              itemCount: items.length,
+              separatorBuilder: (_, __) => const Divider(height: 1),
+              itemBuilder: (_, i) {
+                final it = items[i];
+                final qtyText =
+                    '${it.quantity}${it.unit.isNotEmpty ? ' ${it.unit}' : ''}';
+                return ListTile(
+                  leading: const Icon(Icons.inventory_2_outlined),
+                  title: Text(
+                    it.name,
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                  subtitle: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      if (it.producent.isNotEmpty) Text(it.producent),
+                      Row(
+                        children: [
+                          if (it.sku.isNotEmpty)
+                            Flexible(
+                              child: Text(
+                                'SKU: ${it.sku}',
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                            ),
+                          if (it.sku.isNotEmpty) const SizedBox(width: 12),
+                          if (it.barcode.isNotEmpty)
+                            Flexible(
+                              child: Text(
+                                'EAN: ${it.barcode}',
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                            ),
+                        ],
+                      ),
+                    ],
+                  ),
+                  trailing: Text(
+                    qtyText,
+                    style: TextStyle(
+                      fontWeight: FontWeight.bold,
+                      color: it.quantity <= 0
+                          ? Colors.red
+                          : it.quantity <= 3
+                          ? Colors.orange
+                          : Colors.green,
+                    ),
+                  ),
+                  onTap: () {
+                    final label = [
+                      it.name,
+                      if (it.producent.isNotEmpty) it.producent,
+                    ].where((e) => e.trim().isNotEmpty).join(', ');
+                    Navigator.of(context).pop();
+                    Navigator.of(context).pop({'id': it.id, 'label': label});
+                  },
+                );
+              },
+            ),
           ),
         );
-      }
-
-      if (!mounted) return;
-      _resetIdle();
-      await _resumeScanner();
-    } catch (_) {
-      setState(() {
-        _isLoading = false;
-        _found = false;
-      });
-      await _resumeScanner();
-    }
+      },
+    );
   }
 
-  void _onDetect(BarcodeCapture capture) {
-    final raw = capture.barcodes.first.rawValue;
+  void _onDetect(BarcodeCapture cap) {
+    final first = cap.barcodes.isNotEmpty ? cap.barcodes.first : null;
+    final raw = first?.rawValue;
     if (raw == null || raw.isEmpty) return;
-    _controller.stop();
 
-    if (widget.returnCode) {
-      if (widget.onScanned != null) {
-        widget.onScanned!(raw);
-      }
-      Navigator.of(context).pop(raw);
-      return;
-    }
-
-    _lookupAndHandle(raw);
+    _cam.stop();
+    _handleRawScan(raw);
   }
 
-  void _onManualEntry(String input) {
-    final code = input.trim();
-    if (code.isEmpty) return;
-    if (!_isPc) _controller.stop();
+  void _onRawKey(RawKeyEvent e) {
+    if (!_isDesktopLike) return;
 
-    if (widget.returnCode) {
-      if (widget.onScanned != null) {
-        widget.onScanned!(code);
-      }
-      Navigator.of(context).pop(code);
+    if (!_rawFocus.hasFocus) {
+      FocusScope.of(context).requestFocus(_rawFocus);
+    }
+
+    final isDown = e is RawKeyDownEvent;
+    if (!isDown) return;
+
+    String? ch;
+    if (e is RawKeyDownEvent && e.data is RawKeyEventDataWeb) {
+      ch = (e.data as RawKeyEventDataWeb).keyLabel;
+    } else {
+      ch = e.character;
+    }
+
+    final logical = e.logicalKey;
+    final isEnter =
+        logical == LogicalKeyboardKey.enter ||
+        logical == LogicalKeyboardKey.numpadEnter;
+    final isTab = logical == LogicalKeyboardKey.tab;
+
+    if (isEnter || isTab) {
+      _kbIdleTimer?.cancel();
+      final v = _kbBuffer.toString();
+      _kbBuffer = StringBuffer();
+      if (v.isNotEmpty) _handleRawScan(v);
       return;
     }
 
-    _lookupAndHandle(code);
-    if (_isPc) {
-      _kbCtrl.clear();
-      _kbFocus.requestFocus();
+    if (ch != null && ch.isNotEmpty) {
+      final rune = ch.codeUnitAt(0);
+      final isDigit = rune >= 48 && rune <= 57;
+      if (isDigit) {
+        _kbBuffer.write(ch);
+        _kbIdleTimer?.cancel();
+        _kbIdleTimer = Timer(const Duration(milliseconds: 120), () {
+          final v = _kbBuffer.toString();
+          _kbBuffer = StringBuffer();
+          if (v.isNotEmpty) _handleRawScan(v);
+        });
+      }
     }
   }
 
   @override
   Widget build(BuildContext context) {
-    final isSearch = widget.purpose == ScanPurpose.search;
     final title =
-        widget.titleText ?? (isSearch ? 'Wyszukaj produkt' : 'Dodaj produkt');
+        widget.titleText ??
+        (_isProjectLine
+            ? 'Skanuj (dodaj do projektu)'
+            : 'Skanuj (sprawdz towar)');
 
     return AppScaffold(
       title: title,
       body: SafeArea(
-        child: GestureDetector(
-          behavior: HitTestBehavior.translucent,
-          onTap: () => FocusScope.of(context).unfocus(),
-          child: Column(
-            children: [
-              Expanded(
-                child: _isPc
-                    ? Center(
+        child: Stack(
+          children: [
+            if (!_isDesktopLike)
+              Positioned.fill(
+                child: MobileScanner(controller: _cam, onDetect: _onDetect),
+              )
+            else
+              Align(
+                alignment: Alignment.center,
+                child: ConstrainedBox(
+                  constraints: const BoxConstraints(
+                    maxWidth: 640,
+                    maxHeight: 380,
+                  ),
+                  child: Card(
+                    elevation: 6,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: Padding(
+                      padding: const EdgeInsets.all(20),
+                      child: RawKeyboardListener(
+                        autofocus: true,
+                        focusNode: _rawFocus,
+                        onKey: _onRawKey,
                         child: Column(
                           mainAxisSize: MainAxisSize.min,
-                          children: const [
-                            Icon(Icons.qr_code_scanner, size: 72),
-                            SizedBox(height: 12),
-                            Text('USB scanning (Web)'),
+                          children: [
+                            const Icon(Icons.qr_code_scanner, size: 56),
+                            const SizedBox(height: 10),
+                            const Text('Skanuj...'),
+                            if (_statusText != null) ...[
+                              const SizedBox(height: 8),
+                              Text(
+                                _statusText!,
+                                style: const TextStyle(
+                                  fontWeight: FontWeight.bold,
+                                ),
+                              ),
+                            ],
                           ],
                         ),
-                      )
-                    : MobileScanner(
-                        controller: _controller,
-                        onDetect: _onDetect,
                       ),
-              ),
-
-              if (_isSearch && _isLoading)
-                const Padding(
-                  padding: EdgeInsets.all(12),
-                  child: CircularProgressIndicator(),
-                ),
-
-              if (_isSearch && _found == false)
-                Padding(
-                  padding: const EdgeInsets.all(12),
-                  child: Text(
-                    'Nie ma produktu “${_scannedCode ?? ''}”',
-                    style: const TextStyle(fontSize: 16, color: Colors.red),
-                    textAlign: TextAlign.center,
-                  ),
-                ),
-
-              if (_isSearch && _scannedCode != null)
-                Padding(
-                  padding: const EdgeInsets.all(12),
-                  child: Text(
-                    'Szukam: ${_scannedCode!}',
-                    style: const TextStyle(
-                      fontSize: 16,
-                      fontWeight: FontWeight.bold,
                     ),
                   ),
                 ),
+              ),
 
-              // ===== Suggest
-              if (_suggestions.isNotEmpty)
-                ConstrainedBox(
-                  constraints: const BoxConstraints(maxHeight: 300),
-                  child: Material(
-                    elevation: 2,
-                    child: ListView.builder(
-                      shrinkWrap: true,
-                      itemCount: _suggestions.length,
-                      itemBuilder: (_, i) {
-                        final s = _suggestions[i];
-                        return ListTile(
-                          dense: true,
-                          title: Text('${s.name}, ${s.producent}'),
-                          subtitle: s.description.isNotEmpty
-                              ? Text(s.description)
-                              : null,
-                          trailing: Text('Stan: ${s.quantity}'),
-                          onTap: () {
-                            _kbCtrl.text = s.barcode;
-                            _kbCtrl.selection = TextSelection.fromPosition(
-                              TextPosition(offset: _kbCtrl.text.length),
-                            );
-                            setState(() => _suggestions = []);
-                          },
-                        );
+            if (!_isDesktopLike)
+              Positioned(
+                right: 12,
+                top: 12,
+                child: Column(
+                  children: [
+                    FloatingActionButton.small(
+                      heroTag: 'torch',
+                      onPressed: () async {
+                        _torchOn = !_torchOn;
+                        await _cam.toggleTorch();
+                        if (mounted) setState(() {});
                       },
+                      child: Icon(_torchOn ? Icons.flash_on : Icons.flash_off),
                     ),
-                  ),
-                ),
-
-              // ===== Manual
-              Padding(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 16,
-                  vertical: 8,
-                ),
-                child: TextField(
-                  controller: _kbCtrl,
-                  focusNode: _kbFocus,
-                  autofocus: _isPc,
-                  textInputAction: TextInputAction.search,
-                  decoration: const InputDecoration(
-                    labelText: 'skanuj kod (USB) lub wpisz…',
-                    border: OutlineInputBorder(),
-                  ),
-                  onSubmitted: (v) {
-                    final query = v.trim();
-                    if (query.isNotEmpty) {
-                      Navigator.of(context).pop<String>(query);
-                    }
-                  },
-                  onTapOutside: (_) => FocusScope.of(context).unfocus(),
+                    const SizedBox(height: 12),
+                    _SwitchCamBtn(controller: _cam),
+                  ],
                 ),
               ),
-
-              // (kept commented block unchanged)
-              // if (_found == false && !_isSearch)
-              //   Padding(
-              //     padding: EdgeInsets.fromLTRB(
-              //       16, 8, 16, MediaQuery.of(context).viewPadding.bottom + 16,
-              //     ),
-              //     child: ElevatedButton(
-              //       onPressed: () {
-              //         Navigator.of(context).push(
-              //           MaterialPageRoute(
-              //             builder: (_) => AddItemScreen(initialBarcode: _scannedCode),
-              //           ),
-              //         );
-              //       },
-              //       child: const Text('Dodaj Nowy Produkt'),
-              //     ),
-              //   ),
-            ],
-          ),
+            if (_isSearch && _statusText != null)
+              Positioned(
+                left: 0,
+                right: 0,
+                bottom: 0,
+                child: Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 16,
+                    vertical: 12,
+                  ),
+                  color: Colors.black.withValues(alpha: 0.5),
+                  child: Text(
+                    _statusText!,
+                    textAlign: TextAlign.center,
+                    style: const TextStyle(color: Colors.white),
+                  ),
+                ),
+              ),
+          ],
         ),
       ),
+    );
+  }
+}
+
+class _SwitchCamBtn extends StatelessWidget {
+  const _SwitchCamBtn({required this.controller});
+  final MobileScannerController controller;
+
+  @override
+  Widget build(BuildContext context) {
+    return FloatingActionButton.small(
+      heroTag: 'camera',
+      onPressed: () async {
+        await controller.switchCamera();
+      },
+      child: const Icon(Icons.cameraswitch),
     );
   }
 }

@@ -71,6 +71,39 @@ class ApiService {
     return u.replace(queryParameters: qp);
   }
 
+  /// READ-ONLY: fetch EAN
+  /// Expects backend route: GET /api/admin/products/<id>/ean
+  /// Response example:
+  /// {
+  ///   "id": "3029",
+  ///   "wapro_ean": "5900779350861",
+  ///   "override_ean": "",
+  ///   "effective_ean": "5900779350861",
+  ///   "status": "LOCKED_WAPRO",
+  ///   "updated_by": null,
+  ///   "updated_at": null
+  /// }
+  static Future<Map<String, dynamic>> fetchEanStateById(
+    String productId,
+  ) async {
+    final uri = _uri('/admin/products/$productId/ean');
+    final res = await http.get(
+      uri,
+      headers: {'Accept': 'application/json', 'Cache-Control': 'no-cache'},
+    );
+    debugPrint('[ApiService] GET $uri -> ${res.statusCode}');
+
+    if (res.statusCode != 200) {
+      throw Exception('GET $uri failed: ${res.statusCode} ${res.body}');
+    }
+
+    final body = json.decode(res.body);
+    if (body is! Map<String, dynamic>) {
+      throw Exception('Unexpected response for /admin/products/:id/ean');
+    }
+    return body;
+  }
+
   static Future<List<StockItem>> fetchProducts({
     String? search,
     String? category,

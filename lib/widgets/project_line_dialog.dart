@@ -1,7 +1,5 @@
 // lib/widgets/project_line_dialog.dart
 
-import 'dart:async';
-
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/services.dart';
@@ -59,15 +57,6 @@ Future<ProjectLine?> showProjectLineDialog(
 
     builder: (ctx) {
       bool hasItemInAnyRW = false;
-
-      TextEditingController? _autoCtrl;
-      FocusNode? _autoFocus;
-
-      /// api
-      List<StockItem> _autoOpts = [];
-      Timer? _debounce;
-      StockItem? _selectedItem;
-
       final bottomInset = MediaQuery.of(ctx).viewInsets.bottom;
       return AnimatedPadding(
         padding: EdgeInsets.only(bottom: bottomInset),
@@ -90,101 +79,6 @@ Future<ProjectLine?> showProjectLineDialog(
 
               child: StatefulBuilder(
                 builder: (ctx, setState) {
-                  // TextEditingController? _autoCtrl;
-                  // FocusNode? _autoFocus;
-
-                  Future<void> _refetchOptions(String q) async {
-                    final query = q.trim();
-                    if (query.isEmpty) {
-                      if (!ctx.mounted) return;
-                      setState(() {
-                        _autoOpts = [];
-                      });
-                      WidgetsBinding.instance.addPostFrameCallback((_) {
-                        if (_autoFocus?.hasFocus ?? false)
-                          _autoCtrl?.notifyListeners();
-                      });
-                      return;
-                    }
-
-                    final isBarcode = RegExp(r'^\d{6,}$').hasMatch(query);
-                    final tokens = normalize(
-                      query,
-                    ).split(RegExp(r'\s+')).where((t) => t.isNotEmpty).toList();
-
-                    final isMulti = tokens.length > 1;
-                    final seedToken = isBarcode
-                        ? query
-                        : (tokens..sort((a, b) => b.length.compareTo(a.length)))
-                              .first;
-
-                    final fetchLimit = isBarcode ? 50 : (isMulti ? 1000 : 200);
-
-                    final results = await ApiService.fetchProducts(
-                      search: seedToken,
-                      limit: fetchLimit,
-                      offset: 0,
-                    );
-
-                    final List<StockItem> filtered = isBarcode
-                        ? (() {
-                            final exact = results.where(
-                              (it) => it.barcode.trim() == query,
-                            );
-                            return exact.isNotEmpty ? exact.toList() : results;
-                          })()
-                        : results.where((it) {
-                            return matchesAllTokens(query, [
-                              it.name,
-                              it.producent,
-                              it.category.isNotEmpty
-                                  ? it.category
-                                  : it.description,
-                              it.sku,
-                              it.barcode,
-                            ]);
-                          }).toList();
-
-                    if (!ctx.mounted) return;
-                    setState(() => _autoOpts = filtered.take(50).toList());
-
-                    WidgetsBinding.instance.addPostFrameCallback((_) {
-                      if (_autoFocus?.hasFocus ?? false)
-                        _autoCtrl?.notifyListeners();
-                    });
-                  }
-
-                  Future<void> _showListFromQuery(
-                    String q, {
-                    bool maybePickBarcode = false,
-                    Future<void> Function(StockItem)? select,
-                  }) async {
-                    if (!ctx.mounted) return;
-
-                    // put text + focus (this usually opens overlay if options already exist)
-                    _autoCtrl?.value = TextEditingValue(
-                      text: q,
-                      selection: TextSelection.collapsed(offset: q.length),
-                    );
-                    if (!(_autoFocus?.hasFocus ?? true))
-                      _autoFocus?.requestFocus();
-
-                    // 🔔 immediate nudge (helps when options are already there)
-                    _autoCtrl?.notifyListeners();
-
-                    await _refetchOptions(
-                      q,
-                    ); // will also ping after options arrive
-
-                    if (maybePickBarcode && RegExp(r'^\d{6,}$').hasMatch(q)) {
-                      final exact = _autoOpts.where(
-                        (it) => it.barcode.trim() == q,
-                      );
-                      if (exact.isNotEmpty && select != null)
-                        await select(exact.first);
-                    }
-                  }
-
                   Future<void> checkIfItemInRW(String ref) async {
                     if (ref.isEmpty) {
                       setState(() => hasItemInAnyRW = false);
@@ -240,10 +134,8 @@ Future<ProjectLine?> showProjectLineDialog(
 
                           DropdownButtonFormField<bool>(
                             value: isStock,
-                            decoration: const InputDecoration(
-                              labelText: 'Produkt',
-                            ),
-                            items: const [
+                            decoration: InputDecoration(labelText: 'Produkt'),
+                            items: [
                               DropdownMenuItem(
                                 value: true,
                                 child: Text('W Magazynie'),
@@ -258,41 +150,55 @@ Future<ProjectLine?> showProjectLineDialog(
                               setState(() {
                                 isStock = v;
                                 itemRef = '';
-                                _selectedItem = null;
                                 customController.clear();
                                 productController.clear();
-                                _autoOpts = [];
                               });
                             },
                           ),
-
                           SizedBox(height: 12),
 
+                          // Autocomplete FOR stock
                           if (isStock)
                             Autocomplete<StockItem>(
                               optionsBuilder: (TextEditingValue te) {
-                                final q = te.text.trim();
+                                final q = te.text;
                                 if (q.isEmpty) return const <StockItem>[];
-                                return _autoOpts;
+                                return stockItems.where(
+                                  (s) => matchesSearch(q, [
+                                    s.name,
+                                    s.producent,
+                                    s.description,
+                                  ]),
+                                );
                               },
-
                               displayStringForOption: (s) =>
                                   '${s.name}, ${s.producent}, ${s.description}',
                               fieldViewBuilder: (ctx, textCtrl, focusNode, onSubmit) {
-                                // cache the real controller/focus used by RawAutocomplete
-                                _autoCtrl ??= textCtrl;
-                                _autoFocus ??= focusNode;
-
                                 if (!didInitAuto && initialLabel.isNotEmpty) {
                                   textCtrl.text = initialLabel;
                                   didInitAuto = true;
                                 }
-
                                 return TextFormField(
-                                  controller: textCtrl,
+                                  controller:
+                                      textCtrl, // This is the actual visible input
                                   focusNode: focusNode,
                                   decoration: InputDecoration(
                                     labelText: 'Szukaj produkt',
+
+                                    // suffixIcon: IconButton(
+                                    //   icon: const Icon(Icons.qr_code_scanner),
+                                    //   onPressed: () async {
+                                    //     final code = await Navigator.of(context)
+                                    //         .push<String>(
+                                    //           MaterialPageRoute(
+                                    //             builder: (_) =>
+                                    //                 const ScanScreen(
+                                    //                   returnCode: true,
+                                    //                 ),
+                                    //           ),
+                                    //         );
+                                    //     if (code != null && code.isNotEmpty) {
+                                    //       textCtrl.text = code;
                                     suffixIcon: IconButton(
                                       icon: const Icon(Icons.qr_code_scanner),
                                       onPressed: () async {
@@ -305,54 +211,106 @@ Future<ProjectLine?> showProjectLineDialog(
                                                     ),
                                               ),
                                             );
-                                        if (code == null || code.trim().isEmpty)
+                                        if (code == null || code.isEmpty) {
                                           return;
-                                        final q = code.trim();
+                                        }
 
-                                        // Fill field, open list; if barcode -> auto-pick exact match
-                                        await _showListFromQuery(
-                                          q,
-                                          maybePickBarcode: true,
-                                          select: (s) async {
+                                        // fill the text box so user sees scanned code
+                                        textCtrl.text = code;
+
+                                        try {
+                                          final results =
+                                              await ApiService.fetchProducts(
+                                                search: code,
+                                                limit: 50,
+                                                offset: 0,
+                                              );
+
+                                          ////////
+                                          StockItem? match;
+                                          final exact = results.where(
+                                            (s) =>
+                                                s.barcode.trim() == code.trim(),
+                                          );
+                                          if (exact.isNotEmpty) {
+                                            match = exact.first;
+                                          } else if (results.isNotEmpty) {
+                                            match = results.first;
+                                          }
+
+                                          if (match != null) {
                                             setState(() {
-                                              _selectedItem = s;
-                                              itemRef = s.id;
-                                              unit = s.unit.isNotEmpty
-                                                  ? s.unit
+                                              itemRef = match!.id;
+                                              textCtrl.text =
+                                                  '${match.name}, ${match.producent}';
+                                              unit = match.unit.isNotEmpty
+                                                  ? match.unit
                                                   : 'szt';
-                                              productController.text =
-                                                  '${s.name}, ${s.producent}';
-                                              prevQty =
-                                                  existing?.previousQty ??
-                                                  (existingLines[s.id] ?? 0);
                                             });
-                                            await checkIfItemInRW(s.id);
-                                          },
-                                        );
+                                            await checkIfItemInRW(match.id);
+                                          } else {
+                                            ScaffoldMessenger.of(
+                                              context,
+                                            ).showSnackBar(
+                                              SnackBar(
+                                                content: Text(
+                                                  'Nie znaleziono produktu: $code',
+                                                ),
+                                              ),
+                                            );
+                                          }
+                                        } catch (e) {
+                                          ScaffoldMessenger.of(
+                                            context,
+                                          ).showSnackBar(
+                                            SnackBar(
+                                              content: Text(
+                                                'Skanowanie nie powiodło się: $e',
+                                              ),
+                                            ),
+                                          );
+
+                                          // final snap = await FirebaseFirestore
+                                          //     .instance
+                                          //     .collection('stock_items')
+                                          //     .where('barcode', isEqualTo: code)
+                                          //     .limit(1)
+                                          //     .get();
+
+                                          // if (snap.docs.isNotEmpty) {
+                                          //   final doc = snap.docs.first;
+                                          //   final data = doc.data();
+                                          //   setState(() {
+                                          //     itemRef = doc.id;
+                                          //     textCtrl.text =
+                                          //         '${data['name']}, ${data['producent']}';
+                                          //     unit =
+                                          //         data['unit'] as String? ??
+                                          //         'szt';
+                                          //   });
+                                          //   await checkIfItemInRW(doc.id);
+                                          // } else {
+                                          //   ScaffoldMessenger.of(
+                                          //     context,
+                                          //   ).showSnackBar(
+                                          //     SnackBar(
+                                          //       content: Text(
+                                          //         'Nie znaleziono produktu: $code',
+                                          //       ),
+                                          //     ),
+                                          //   );
+                                          // }
+                                        }
                                       },
                                     ),
                                   ),
-                                  onChanged: (v) {
-                                    setState(() {}); // keep UI responsive
-                                    _debounce?.cancel();
-                                    _debounce = Timer(
-                                      const Duration(milliseconds: 250),
-                                      () {
-                                        _refetchOptions(v);
-                                      },
-                                    );
-                                  },
-                                  onFieldSubmitted: (v) {
-                                    // If user presses Enter, also open list right away
-                                    _showListFromQuery(v);
-                                  },
+                                  onChanged: (_) => setState(() {}),
                                   validator: (v) => isStock && itemRef.isEmpty
                                       ? 'Wybierz produkt.'
                                       : null,
                                 );
                               },
 
-                              //// ean: 5902983719250
                               optionsViewBuilder:
                                   (
                                     BuildContext ctx,
@@ -481,9 +439,21 @@ Future<ProjectLine?> showProjectLineDialog(
                                     );
                                   },
 
+                              // onSelected: (s) async {
+                              //   setState(() {
+                              //     itemRef = s.id;
+                              //     unit = s.unit!;
+                              //     productController.text =
+                              //         '${s.name}, ${s.producent}';
+                              //     prevQty =
+                              //         existing?.previousQty ??
+                              //         existingLines[s.id] ??
+                              //         0;
+                              //   });
+                              //   await checkIfItemInRW(s.id);
+                              // },
                               onSelected: (s) async {
                                 setState(() {
-                                  _selectedItem = s;
                                   itemRef = s.id;
                                   unit = s.unit.isNotEmpty ? s.unit : 'szt';
                                   productController.text =
@@ -523,32 +493,74 @@ Future<ProjectLine?> showProjectLineDialog(
                             ),
                             keyboardType: TextInputType.number,
 
+                            // validator: (v) {
+                            //   final n = int.tryParse(v ?? '');
+                            //   if (n == null || n < 0) {
+                            //     return 'Nieprawidłowa ilość';
+                            //   }
+
+                            //   if (isStock) {
+                            //     final stockItem = stockItems.firstWhere(
+                            //       (s) => s.id == itemRef,
+                            //       orElse: () => StockItem(
+                            //         id: '',
+                            //         name: '',
+                            //         description: '',
+                            //         quantity: 0,
+                            //       ),
+                            //     );
+                            //     final available = stockItem.quantity;
+                            //     final takenBefore = existing?.previousQty ?? 0;
+                            //     final delta = (n - takenBefore);
+                            //     if (delta > available) {
+                            //       final maxTotal = available + takenBefore;
+                            //       return 'Za mało w magazynie (max: $maxTotal)';
+                            //     }
+                            //   }
+                            //   return null;
+                            // },
                             validator: (v) {
                               final n = int.tryParse(v ?? '');
-                              if (n == null || n < 0) {
-                                return 'Nieprawidłowa ilość';
+                              if (n == null || n <= 0) {
+                                return 'Serio? ...no jak?';
                               }
 
                               if (isStock) {
-                                // live quantity
                                 final idx = stockItems.indexWhere(
                                   (s) => s.id == itemRef,
                                 );
-                                final available =
-                                    _selectedItem?.quantity ??
-                                    (idx == -1 ? 0 : stockItems[idx].quantity);
+                                final available = idx == -1
+                                    ? 0
+                                    : stockItems[idx].quantity;
 
-                                final takenBefore = existing?.previousQty ?? 0;
-                                final delta = n - takenBefore;
-                                if (delta > available) {
-                                  final maxTotal = available + takenBefore;
-                                  return 'Za mało w magazynie (max: $maxTotal)';
+                                if (available <= 0) {
+                                  return 'Brak na stanie';
+                                }
+                                if (n > available) {
+                                  return 'Nie ma w magazynie (max: $available '
+                                      ' $unit)';
                                 }
                               }
                               return null;
                             },
+                            ////
                           ),
 
+                          SizedBox(height: 12),
+
+                          // DropdownButtonFormField<String>(
+                          //   value: unit,
+                          //   decoration: InputDecoration(labelText: 'jm.'),
+                          //   items: ['szt', 'm', 'kg', 'kpl']
+                          //       .map(
+                          //         (u) => DropdownMenuItem(
+                          //           value: u,
+                          //           child: Text(u),
+                          //         ),
+                          //       )
+                          //       .toList(),
+                          //   onChanged: (v) => setState(() => unit = v ?? unit),
+                          // ),
                           SizedBox(height: 24),
 
                           Row(
@@ -585,6 +597,49 @@ Future<ProjectLine?> showProjectLineDialog(
                                 ),
 
                               ElevatedButton(
+                                // onPressed: () {
+                                //   if (!formKey.currentState!.validate()) return;
+                                //   if (isStock && itemRef.isEmpty) {
+                                //     ScaffoldMessenger.of(context).showSnackBar(
+                                //       const SnackBar(
+                                //         content: Text('Wybierz produkt.'),
+                                //       ),
+                                //     );
+                                //     return;
+                                //   }
+
+                                //   final chosen = isStock
+                                //       ? stockItems.firstWhere(
+                                //           (s) => s.id == itemRef,
+                                //         )
+                                //       : StockItem(
+                                //           id: '',
+                                //           name: customController.text.trim(),
+                                //           description: customController.text
+                                //               .trim(),
+                                //           quantity: 0,
+                                //         );
+
+                                //   final added =
+                                //       int.tryParse(qtyController.text.trim()) ??
+                                //       0;
+                                //   final newQty = prevQty + added;
+
+                                //   final line = ProjectLine(
+                                //     isStock: isStock,
+                                //     itemRef: itemRef,
+                                //     customName: isStock
+                                //         ? ''
+                                //         : customController.text.trim(),
+                                //     requestedQty: newQty,
+                                //     unit: unit,
+                                //     originalStock: chosen.quantity,
+                                //     previousQty: prevQty,
+                                //     updatedAt: DateTime.now(),
+                                //   );
+
+                                //   Navigator.of(ctx).pop(line);
+                                // },
                                 onPressed: () {
                                   if (!formKey.currentState!.validate()) return;
                                   if (isStock && itemRef.isEmpty) {
@@ -599,21 +654,62 @@ Future<ProjectLine?> showProjectLineDialog(
                                   final added =
                                       int.tryParse(qtyController.text.trim()) ??
                                       0;
-                                  final newQty = prevQty + added;
+                                  if (added <= 0) {
+                                    ScaffoldMessenger.of(context).showSnackBar(
+                                      const SnackBar(
+                                        content: Text('Wprowadź ilość > 0'),
+                                      ),
+                                    );
+                                    return;
+                                  }
 
-                                  int originalStock;
                                   if (isStock) {
                                     final idx = stockItems.indexWhere(
                                       (s) => s.id == itemRef,
                                     );
-                                    originalStock =
-                                        _selectedItem?.quantity ??
-                                        (idx == -1
-                                            ? 0
-                                            : stockItems[idx].quantity);
-                                  } else {
-                                    originalStock = 0;
+                                    final available = idx == -1
+                                        ? 0
+                                        : stockItems[idx].quantity;
+                                    if (available <= 0) {
+                                      ScaffoldMessenger.of(
+                                        context,
+                                      ).showSnackBar(
+                                        const SnackBar(
+                                          content: Text(
+                                            'Brak na stanie — nie można dodać.',
+                                          ),
+                                        ),
+                                      );
+                                      return;
+                                    }
+                                    if (added > available) {
+                                      ScaffoldMessenger.of(
+                                        context,
+                                      ).showSnackBar(
+                                        SnackBar(
+                                          content: Text(
+                                            'Za mało w magazynie (max: $available)',
+                                          ),
+                                        ),
+                                      );
+                                      return;
+                                    }
                                   }
+
+                                  final newQty = prevQty + added;
+
+                                  // compute originalStock for preview only
+                                  final int originalStock = isStock
+                                      ? (stockItems.indexWhere(
+                                                  (s) => s.id == itemRef,
+                                                ) ==
+                                                -1
+                                            ? 0
+                                            : stockItems[stockItems.indexWhere(
+                                                    (s) => s.id == itemRef,
+                                                  )]
+                                                  .quantity)
+                                      : 0;
 
                                   final line = ProjectLine(
                                     isStock: isStock,
@@ -630,6 +726,8 @@ Future<ProjectLine?> showProjectLineDialog(
 
                                   Navigator.of(ctx).pop(line);
                                 },
+
+                                /////////
                                 child: Text(
                                   existing == null ? 'Dodaj' : 'Zapisz',
                                 ),

@@ -188,7 +188,7 @@ class _ManageUsersScreenState extends State<ManageUsersScreen> {
         child: const Icon(Icons.person_add_alt),
       ),
 
-      floatingActionButtonLocation: FloatingActionButtonLocation.centerDocked,
+      floatingActionButtonLocation: FloatingActionButtonLocation.centerFloat,
       centreTitle: true,
       title: title,
       actions: [Padding(padding: const EdgeInsets.symmetric(horizontal: 8.0))],
@@ -279,7 +279,7 @@ class _ManageUsersScreenState extends State<ManageUsersScreen> {
       //   child: const Icon(Icons.person_add_alt),
       // ),
 
-      // floatingActionButtonLocation: FloatingActionButtonLocation.centerDocked,
+      // floatingActionButtonLocation: FloatingActionButtonLocation.centerFloat,
       // bottomNavigationBar: SafeArea(
       //   child: BottomAppBar(
       //     shape: const CircularNotchedRectangle(),

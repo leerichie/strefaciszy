@@ -380,7 +380,7 @@ class _ContactsListScreenState extends State<ContactsListScreen> {
         onPressed: _addContact,
         child: const Icon(Icons.person_add_alt),
       ),
-      floatingActionButtonLocation: FloatingActionButtonLocation.centerDocked,
+      floatingActionButtonLocation: FloatingActionButtonLocation.centerFloat,
       title: 'Kontakty',
       titleWidget: dynamicTitleWidget,
       centreTitle: true,

@@ -795,7 +795,7 @@ class _AddContactScreenState extends State<AddContactScreen> {
 
         centreTitle: true,
 
-        floatingActionButtonLocation: FloatingActionButtonLocation.centerDocked,
+        floatingActionButtonLocation: FloatingActionButtonLocation.centerFloat,
         floatingActionButton: _isEditing
             ? FloatingActionButton(
                 tooltip: 'Usuń kontakt',

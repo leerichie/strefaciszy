@@ -280,7 +280,7 @@ class _CustomerListScreenState extends State<CustomerListScreen> {
         onPressed: _addCustomer,
         child: const Icon(Icons.person_add),
       ),
-      floatingActionButtonLocation: FloatingActionButtonLocation.centerDocked,
+      floatingActionButtonLocation: FloatingActionButtonLocation.centerFloat,
       centreTitle: true,
       title: title,
       bottom: PreferredSize(
@@ -566,7 +566,7 @@ class _CustomerListScreenState extends State<CustomerListScreen> {
         //   onPressed: _addCustomer,
         //   child: const Icon(Icons.person_add),
         // ),
-        // floatingActionButtonLocation: FloatingActionButtonLocation.centerDocked,
+        // floatingActionButtonLocation: FloatingActionButtonLocation.centerFloat,
         // bottomNavigationBar: SafeArea(
         //   child: BottomAppBar(
         //     shape: const CircularNotchedRectangle(),

@@ -33,7 +33,7 @@ class BaseScaffold extends StatelessWidget {
         child: body,
       ),
       floatingActionButton: floatingActionButton,
-      floatingActionButtonLocation: FloatingActionButtonLocation.centerDocked,
+      floatingActionButtonLocation: FloatingActionButtonLocation.centerFloat,
       bottomNavigationBar: SafeArea(
         child: BottomAppBar(
           shape: const CircularNotchedRectangle(),

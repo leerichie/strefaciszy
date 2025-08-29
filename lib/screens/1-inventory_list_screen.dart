@@ -107,7 +107,7 @@
 //               child: const Icon(Icons.add),
 //             )
 //           : null,
-//       floatingActionButtonLocation: FloatingActionButtonLocation.centerDocked,
+//       floatingActionButtonLocation: FloatingActionButtonLocation.centerFloat,
 //       centreTitle: true,
 //       title: title,
 //       bottom: PreferredSize(
@@ -333,7 +333,7 @@
 //       //         child: const Icon(Icons.add),
 //       //       )
 //       //     : null,
-//       // floatingActionButtonLocation: FloatingActionButtonLocation.centerDocked,
+//       // floatingActionButtonLocation: FloatingActionButtonLocation.centerFloat,
 //       // bottomNavigationBar: SafeArea(
 //       //   child: BottomAppBar(
 //       //     shape: const CircularNotchedRectangle(),

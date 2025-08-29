@@ -1,5 +1,6 @@
 // lib/screens/item_detail_screen.dart
 import 'package:flutter/material.dart';
+import 'package:strefa_ciszy/screens/scan_screen.dart';
 import 'package:strefa_ciszy/utils/keyboard_utils.dart';
 import 'package:strefa_ciszy/widgets/app_scaffold.dart';
 import 'add_item_screen.dart';
@@ -20,7 +21,35 @@ class ItemDetailScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     const title = 'Szczegóły';
+
     return AppScaffold(
+      floatingActionButton: FloatingActionButton(
+        tooltip: 'Skanuj',
+        onPressed: () async {
+          final result = await Navigator.of(context)
+              .push<Map<String, dynamic>?>(
+                MaterialPageRoute(
+                  builder: (_) =>
+                      const ScanScreen(purpose: ScanPurpose.projectLine),
+                ),
+              );
+
+          if (result != null && result['id'] is String) {
+            Navigator.of(context).pushReplacement(
+              MaterialPageRoute(
+                builder: (_) => ItemDetailScreen(
+                  itemId: result['id'] as String,
+                  isAdmin: isAdmin,
+                ),
+              ),
+            );
+          }
+        },
+        child: const Icon(Icons.qr_code_scanner, size: 32),
+      ),
+
+      floatingActionButtonLocation: FloatingActionButtonLocation.centerFloat,
+
       centreTitle: true,
       title: title,
       bottom: const PreferredSize(

@@ -10,7 +10,7 @@ from firebase_admin import auth as fb_auth, credentials, firestore
 app = Flask(__name__)
 CORS(app)
 app.logger.setLevel(logging.INFO)
-
+ 
 SERVER   = r"KASIA-BIURO\SQLEXPRESS"
 DATABASE = "WAPRO"
 USER     = "sc_app_admin"
@@ -40,7 +40,7 @@ def exec_nonquery(sql: str, params=()):
         cur.execute(sql, params)
         conn.commit()
 
-# ---------- NEW: Firebase Admin bootstrap + approver check ----------
+# ---------- Firebae Admin bootstrap + approver check ----------
 _FIREBASE_APP = None
 _FS = None
 
@@ -75,7 +75,7 @@ def _is_approver(email: Optional[str], uid: Optional[str]) -> bool:
 
     ok_uid = bool(uid and uid in uids)
     return ok_email or ok_uid
-# -------------------------------------------------------------------
+# ---------------------HEALTH --------------------------------------
 
 @app.get("/api/admin/health")
 def health_admin():
@@ -102,7 +102,6 @@ def commit_project_items():
     if not token:
         return jsonify({"ok": False, "error": "missing-token"}), 401
 
-    # Verify ID token
     try:
         _init_firebase()
         decoded = fb_auth.verify_id_token(token)
@@ -113,11 +112,9 @@ def commit_project_items():
     email = (decoded.get("email") or "").lower()
     uid   = decoded.get("uid")
 
-    # Approver gate
     if not _is_approver(email, uid):
         return jsonify({"ok": False, "error": "not-approver"}), 403
 
-    # Parse payload
     data = request.get_json(force=True) or {}
     customer_id = (data.get("customerId") or "").strip()
     project_id  = (data.get("projectId")  or "").strip()
@@ -127,7 +124,6 @@ def commit_project_items():
     if not project_id or not isinstance(items, list) or not items:
         return jsonify({"ok": False, "error": "bad-payload"}), 400
 
-    # Normalize lines
     lines = []
     for it in items:
         if not isinstance(it, dict):
@@ -142,7 +138,6 @@ def commit_project_items():
             "itemId":   (it.get("itemId") or "").strip(),
             "qty":      qty,
             "unit":     (it.get("unit") or "szt"),
-            # keep for logs/debug
             "name":     (it.get("name") or ""),
             "producer": (it.get("producer") or ""),
         })
@@ -155,7 +150,6 @@ def commit_project_items():
         doc_id = f"DRYRUN-{project_id[:6]}-{int(datetime.datetime.utcnow().timestamp())}"
         return jsonify({"ok": True, "docId": doc_id, "dryRun": True}), 200
 
-    # LIVE: safe log into SQL (create table if missing)
     conn = None
     try:
         conn = pyodbc.connect(CONN_STR)
@@ -208,7 +202,7 @@ VALUES (?, ?, ?, ?)
                 conn.close()
         except Exception:
             pass
-# -------------------------------------------------------------------
+# -------------------- normalisation sync ---------------------------------
 
 @app.post("/api/sync/preview")
 def sync_preview():
@@ -229,24 +223,24 @@ def sync_preview():
         return {"error": "id required"}, 400
 
     sql = """
-MERGE dbo.APP_PRODUCT_NORMALIZED AS T
-USING (SELECT CAST(? AS NUMERIC(18,0)) AS id_artykulu) AS S
-ON (T.id_artykulu = S.id_artykulu)
-WHEN MATCHED THEN UPDATE SET
-  normalized_name        = ?,
-  normalized_producent   = ?,
-  normalized_category    = ?,
-  normalized_description = ?,
-  proposed_by            = ?,
-  proposed_at            = SYSUTCDATETIME(),
-  approved               = 0,
-  approved_by            = NULL,
-  approved_at            = NULL
-WHEN NOT MATCHED THEN
-  INSERT (id_artykulu, normalized_name, normalized_producent, normalized_category,
-          normalized_description, proposed_by)
-  VALUES (S.id_artykulu, ?, ?, ?, ?, ?);
-"""
+        MERGE dbo.APP_PRODUCT_NORMALIZED AS T
+        USING (SELECT CAST(? AS NUMERIC(18,0)) AS id_artykulu) AS S
+        ON (T.id_artykulu = S.id_artykulu)
+        WHEN MATCHED THEN UPDATE SET
+        normalized_name        = ?,
+        normalized_producent   = ?,
+        normalized_category    = ?,
+        normalized_description = ?,
+        proposed_by            = ?,
+        proposed_at            = SYSUTCDATETIME(),
+        approved               = 0,
+        approved_by            = NULL,
+        approved_at            = NULL
+        WHEN NOT MATCHED THEN
+        INSERT (id_artykulu, normalized_name, normalized_producent, normalized_category,
+                normalized_description, proposed_by)
+        VALUES (S.id_artykulu, ?, ?, ?, ?, ?);
+        """
     params = [
         pid,
         data.get("normalized_name"),
@@ -439,7 +433,146 @@ def create_product():
     except Exception as e:
         app.logger.exception("create_product failed")
         return {"error": "insert failed", "detail": str(e)}, 500
+    
+    # ------------- EAN EDIT
+
+def digits_only(s: Optional[str]) -> str:
+    return ''.join(ch for ch in (s or '') if ch.isdigit())
+
+def ensure_override_table():
+    """Create APP_EAN_OVERRIDE if missing. Idempotent."""
+    exec_nonquery("""
+IF OBJECT_ID('dbo.APP_EAN_OVERRIDE') IS NULL
+BEGIN
+  CREATE TABLE dbo.APP_EAN_OVERRIDE(
+    id_artykulu  NVARCHAR(50) NOT NULL PRIMARY KEY,
+    override_ean NVARCHAR(20) NULL,
+    updated_by   NVARCHAR(256) NULL,
+    updated_at   DATETIME2(0) NOT NULL DEFAULT SYSUTCDATETIME()
+  );
+END
+""")
+
+def get_wapro_ean_for_id(pid: str) -> str:
+    rows = fetch_all("""
+SELECT TOP 1
+  COALESCE(
+    NULLIF((
+      SELECT MAX(COALESCE(NULLIF(E.KOD_KRESKOWY,''), ''))
+      FROM dbo.ART_ECR_MAG_V E WHERE E.ID_ARTYKULU = A.ID_ARTYKULU
+    ), ''),
+    NULLIF(A.KOD_KRESKOWY, ''),
+    ''
+  ) AS wapro_ean
+FROM dbo.ARTYKUL A
+WHERE CAST(A.ID_ARTYKULU AS NVARCHAR(50)) = ?
+""", (pid,))
+    return (rows[0].get("wapro_ean") if rows else "") or ""
+
+def get_override_row(pid: str) -> Tuple[str, Optional[str], Optional[str]]:
+    rows = fetch_all("""
+SELECT
+  COALESCE(override_ean,'') AS override_ean,
+  COALESCE(updated_by,'')   AS updated_by,
+  CONVERT(VARCHAR(19), updated_at, 126) AS updated_at
+FROM dbo.APP_EAN_OVERRIDE
+WHERE id_artykulu = ?
+""", (pid,))
+    if not rows:
+        return ("", None, None)
+    r = rows[0]
+    return (r.get("override_ean") or "", r.get("updated_by") or None, r.get("updated_at") or None)
+
+def compute_status(wapro_ean: str, override_ean: str) -> Tuple[str, str]:
+    if (wapro_ean or "").strip():
+        return (wapro_ean, "LOCKED_WAPRO")
+    if (override_ean or "").strip():
+        return (override_ean, "OVERRIDDEN")
+    return ("", "EMPTY")
+
+@app.post("/api/admin/ean/setup")
+def admin_ean_setup():
+    ensure_override_table()
+    return jsonify({"ok": True, "table": "APP_EAN_OVERRIDE"}), 200
+
+@app.get("/api/admin/products/<pid>/ean")
+def admin_get_ean(pid):
+    wapro_ean = get_wapro_ean_for_id(pid)
+    try:
+        override_ean, updated_by, updated_at = get_override_row(pid)
+    except Exception:
+        override_ean, updated_by, updated_at = ("", None, None)
+
+    effective, status = compute_status(wapro_ean, override_ean)
+    return jsonify({
+        "id": pid,
+        "wapro_ean": wapro_ean,
+        "override_ean": override_ean,
+        "effective_ean": effective,
+        "status": status,
+        "updated_by": updated_by,
+        "updated_at": updated_at,
+    }), 200
+
+@app.patch("/api/admin/products/<pid>/ean")
+def admin_set_override_ean(pid):
+    """
+    Set/clear override EAN ONLY if WAPRO EAN is empty.
+    Body:
+      { "ean": "5901234567897", "updated_by": "user@company" }
+      { "ean": "" }  -> clear
+    """
+    data = request.get_json(force=True) or {}
+    raw = (data.get("ean") or data.get("barcode") or "").strip()
+    updated_by = (data.get("updated_by") or "api").strip()
+
+    wapro_ean = get_wapro_ean_for_id(pid)
+    if wapro_ean:
+        return jsonify({
+            "ok": False,
+            "error": "ean-managed-by-wapro",
+            "wapro_ean": wapro_ean
+        }), 409
+
+    ensure_override_table()
+
+    norm = digits_only(raw)
+    with pyodbc.connect(CONN_STR) as conn:
+        cur = conn.cursor()
+        if norm == "":
+            cur.execute("""
+MERGE dbo.APP_EAN_OVERRIDE AS T
+USING (SELECT CAST(? AS NVARCHAR(50)) AS id_artykulu) AS S
+ON (T.id_artykulu = S.id_artykulu)
+WHEN MATCHED THEN UPDATE SET override_ean = NULL, updated_by = ?, updated_at = SYSUTCDATETIME()
+WHEN NOT MATCHED THEN
+  INSERT (id_artykulu, override_ean, updated_by)
+  VALUES (S.id_artykulu, NULL, ?);
+""", (pid, updated_by, updated_by))
+        else:
+            cur.execute("""
+MERGE dbo.APP_EAN_OVERRIDE AS T
+USING (SELECT CAST(? AS NVARCHAR(50)) AS id_artykulu) AS S
+ON (T.id_artykulu = S.id_artykulu)
+WHEN MATCHED THEN UPDATE SET override_ean = ?, updated_by = ?, updated_at = SYSUTCDATETIME()
+WHEN NOT MATCHED THEN
+  INSERT (id_artykulu, override_ean, updated_by)
+  VALUES (S.id_artykulu, ?, ?);
+""", (pid, norm, updated_by, norm, updated_by))
+        conn.commit()
+
+    override_ean, upd_by, upd_at = get_override_row(pid)
+    effective, status = compute_status("", override_ean) 
+    return jsonify({
+        "ok": True,
+        "id": pid,
+        "override_ean": override_ean,
+        "effective_ean": effective,
+        "status": status,
+        "updated_by": upd_by,
+        "updated_at": upd_at,
+    }), 200
 
 if __name__ == "__main__":
-    # Example: python -m waitress --listen=0.0.0.0:9104 app_admin:app
+    # python -m waitress --listen=0.0.0.0:9104 app_admin:app
     app.run(host="0.0.0.0", port=9104, debug=False)

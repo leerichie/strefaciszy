@@ -352,7 +352,7 @@ class _CustomerDetailScreenState extends State<CustomerDetailScreen> {
         onPressed: _addProject,
         child: const Icon(Icons.playlist_add),
       ),
-      floatingActionButtonLocation: FloatingActionButtonLocation.centerDocked,
+      floatingActionButtonLocation: FloatingActionButtonLocation.centerFloat,
       title: '',
       titleWidget: titleStreamWidget,
       centreTitle: true,

@@ -166,7 +166,7 @@ class _RWDocumentsScreenState extends State<RWDocumentsScreen> {
       //   },
       //   child: const Icon(Icons.swap_horiz, size: 32),
       // ),
-      floatingActionButtonLocation: FloatingActionButtonLocation.centerDocked,
+      floatingActionButtonLocation: FloatingActionButtonLocation.centerFloat,
 
       title: '',
       titleWidget: titleWidg,
@@ -578,7 +578,7 @@ class _RWDocumentsScreenState extends State<RWDocumentsScreen> {
       //         child: const Icon(Icons.qr_code_scanner, size: 32),
       //       )
       //     : null,
-      // floatingActionButtonLocation: FloatingActionButtonLocation.centerDocked,
+      // floatingActionButtonLocation: FloatingActionButtonLocation.centerFloat,
 
       // bottomNavigationBar: SafeArea(
       //   child: BottomAppBar(

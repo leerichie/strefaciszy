@@ -57,7 +57,7 @@ class AuditLogScreen extends StatelessWidget {
               },
             )
           : null,
-      floatingActionButtonLocation: FloatingActionButtonLocation.centerDocked,
+      floatingActionButtonLocation: FloatingActionButtonLocation.centerFloat,
       bottomNavigationBar: SafeArea(
         child: BottomAppBar(
           shape: const CircularNotchedRectangle(),

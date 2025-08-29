@@ -666,7 +666,7 @@ class _SwapWorkflowScreenState extends State<SwapWorkflowScreen>
           return SizedBox.shrink();
         },
       ),
-      floatingActionButtonLocation: FloatingActionButtonLocation.centerDocked,
+      floatingActionButtonLocation: FloatingActionButtonLocation.centerFloat,
       body: TabBarView(
         controller: _tabController,
         children: [

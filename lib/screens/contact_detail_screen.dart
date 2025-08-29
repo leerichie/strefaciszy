@@ -552,7 +552,7 @@ class _ContactDetailScreenState extends State<ContactDetailScreen> {
                     ],
                   ),
                   floatingActionButtonLocation:
-                      FloatingActionButtonLocation.centerDocked,
+                      FloatingActionButtonLocation.centerFloat,
                   floatingActionButton: custId == null
                       ? null
                       : (tabController.index == 0
