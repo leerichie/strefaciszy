@@ -4,6 +4,7 @@ import pyodbc
 
 import os, json, datetime, logging
 from typing import Optional
+import re
 import firebase_admin
 from firebase_admin import auth as fb_auth, credentials, firestore
 
@@ -572,6 +573,60 @@ WHEN NOT MATCHED THEN
         "updated_by": upd_by,
         "updated_at": upd_at,
     }), 200
+
+@app.get("/api/products/<pid>/ean")
+def api_get_product_ean(pid):
+    """
+    Read-only: return current EAN from ARTYKUL.KOD_KRESKOWY.
+    """
+    rows = fetch_all("""
+        SELECT CAST(ID_ARTYKULU AS VARCHAR(50)) AS id,
+               COALESCE(NULLIF(KOD_KRESKOWY,''), '') AS ean
+        FROM dbo.ARTYKUL
+        WHERE ID_ARTYKULU = ?
+    """, (pid,))
+    if not rows:
+        return jsonify({"error": "not-found"}), 404
+    return jsonify({"id": rows[0]["id"], "ean": rows[0]["ean"] or ""}), 200
+
+
+@app.put("/api/products/<pid>/ean")
+def api_put_product_ean(pid):
+    """
+    SAFE edit: set EAN only if ARTYKUL.KOD_KRESKOWY is empty (or same).
+    Body: { "ean": "5900..." }
+    """
+    data = request.get_json(force=True) or {}
+    ean = (data.get("ean") or "").strip()
+
+    if not re.fullmatch(r"\d{8,14}", ean):
+        return jsonify({"ok": False, "error": "bad-ean"}), 400
+
+    with pyodbc.connect(CONN_STR) as conn:
+        cur = conn.cursor()
+
+        cur.execute("""
+            SELECT COALESCE(NULLIF(KOD_KRESKOWY,''), '') AS ean
+            FROM dbo.ARTYKUL
+            WHERE ID_ARTYKULU = ?
+        """, (pid,))
+        row = cur.fetchone()
+        if not row:
+            return jsonify({"ok": False, "error": "not-found"}), 404
+
+        current = row[0] or ""
+
+        if current and current != ean:
+            return jsonify({"ok": False, "error": "already-set", "current": current}), 409
+
+        cur.execute("""
+            UPDATE dbo.ARTYKUL
+            SET KOD_KRESKOWY = ?
+            WHERE ID_ARTYKULU = ?
+        """, (ean, pid))
+        conn.commit()
+
+    return jsonify({"ok": True, "id": str(pid), "ean": ean}), 200
 
 if __name__ == "__main__":
     # python -m waitress --listen=0.0.0.0:9104 app_admin:app
