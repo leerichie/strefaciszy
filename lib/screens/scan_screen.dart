@@ -6,6 +6,7 @@ import 'package:flutter/services.dart';
 import 'package:mobile_scanner/mobile_scanner.dart';
 
 import 'package:strefa_ciszy/models/stock_item.dart';
+import 'package:strefa_ciszy/services/admin_api.dart';
 import 'package:strefa_ciszy/services/api_service.dart';
 import 'package:strefa_ciszy/screens/item_detail_screen.dart';
 import 'package:strefa_ciszy/utils/web_fullscreen_guard_stub.dart'
@@ -13,7 +14,7 @@ import 'package:strefa_ciszy/utils/web_fullscreen_guard_stub.dart'
     as webfs;
 import 'package:strefa_ciszy/widgets/app_scaffold.dart';
 
-enum ScanPurpose { add, search, projectLine }
+enum ScanPurpose { add, search, projectLine, eanForItem }
 
 class ScanScreen extends StatefulWidget {
   const ScanScreen({
@@ -22,12 +23,16 @@ class ScanScreen extends StatefulWidget {
     this.purpose = ScanPurpose.search,
     this.titleText,
     this.onScanned,
+    this.setEanForItemId,
+    this.setEanForItemLabel,
   });
 
   final bool returnCode;
   final ScanPurpose purpose;
   final String? titleText;
   final void Function(String code)? onScanned;
+  final String? setEanForItemId;
+  final String? setEanForItemLabel;
 
   @override
   State<ScanScreen> createState() => _ScanScreenState();
@@ -42,6 +47,7 @@ class _ScanScreenState extends State<ScanScreen> {
 
   bool get _isProjectLine => widget.purpose == ScanPurpose.projectLine;
   bool get _isSearch => widget.purpose == ScanPurpose.search;
+  bool get _isSetEan => widget.purpose == ScanPurpose.eanForItem;
 
   final MobileScannerController _cam = MobileScannerController(
     detectionSpeed: DetectionSpeed.noDuplicates,
@@ -120,18 +126,23 @@ class _ScanScreenState extends State<ScanScreen> {
     } catch (_) {}
   }
 
-  void _showSnack(String msg) {
+  void _showSnack(String msg, {Duration? forTime}) {
     if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(msg)));
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(msg),
+        duration: forTime ?? const Duration(seconds: 2),
+      ),
+    );
   }
 
-  void _showRootSnack(String msg) {
+  void _showRootSnack(String msg, {Duration? forTime}) {
     final rootCtx = Navigator.of(context, rootNavigator: true).context;
     ScaffoldMessenger.of(rootCtx).clearSnackBars();
     ScaffoldMessenger.of(rootCtx).showSnackBar(
       SnackBar(
         content: Text(msg),
-        duration: const Duration(milliseconds: 1100),
+        duration: forTime ?? const Duration(milliseconds: 1100),
       ),
     );
   }
@@ -194,7 +205,110 @@ class _ScanScreenState extends State<ScanScreen> {
     if (_debounced(norm)) return;
 
     _busy = true;
-    setState(() => _statusText = 'Szukam: $norm');
+    // setState(() => _statusText = 'Szukam: $norm');
+    setState(
+      () => _statusText = _isSetEan ? 'Ustawiam EAN: $norm' : 'Szukam: $norm',
+    );
+
+    // set EAN
+    if (_isSetEan) {
+      final itemId = widget.setEanForItemId;
+      if (itemId == null || itemId.isEmpty) {
+        _showRootSnack('Brak ID dla EAN.', forTime: const Duration(seconds: 2));
+        if (mounted) Navigator.of(context).pop();
+        return;
+      }
+
+      final eanToSet = alt13 ?? norm;
+      if (!(eanToSet.length == 13 || eanToSet.length == 8)) {
+        _showRootSnack(
+          'Nieprawidłowy EAN: $eanToSet',
+          forTime: const Duration(seconds: 2),
+        );
+        if (mounted) {
+          _busy = false;
+          await _resumeCamera();
+        }
+        return;
+      }
+
+      try {
+        final res = await AdminApi.setEanWithResult(
+          productId: itemId,
+          ean: eanToSet,
+        );
+        if (res.ok) {
+          _showRootSnack(
+            'Zapisano EAN: $eanToSet',
+            forTime: const Duration(seconds: 2),
+          );
+          if (mounted) {
+            Navigator.of(context).pop(<String, dynamic>{
+              'mode': 'setEan',
+              'ok': true,
+              'ean': eanToSet,
+            });
+          }
+          return;
+        }
+
+        if (res.duplicate) {
+          final who = res.conflictName?.trim().isNotEmpty == true
+              ? res.conflictName!
+              : (res.conflictId ?? 'inny produkt');
+          _showRootSnack(
+            'Ten EAN już istnieje: $who',
+            forTime: const Duration(seconds: 3),
+          );
+          if (mounted) {
+            Navigator.of(context).pop(<String, dynamic>{
+              'mode': 'setEan',
+              'ok': false,
+              'duplicate': true,
+              'ean': eanToSet,
+              'conflictId': res.conflictId,
+              'conflictName': res.conflictName,
+            });
+          }
+          return;
+        }
+
+        if (res.error == 'already-set' || res.error == 'already-set-race') {
+          _showRootSnack(
+            'Produkt ma już EAN.',
+            forTime: const Duration(seconds: 2),
+          );
+          if (mounted)
+            Navigator.of(context).pop(<String, dynamic>{
+              'mode': 'setEan',
+              'ok': false,
+              'already': true,
+            });
+          return;
+        }
+
+        _showRootSnack(
+          'Błąd zapisu: ${res.error ?? 'nieznany'}',
+          forTime: const Duration(seconds: 2),
+        );
+        if (mounted)
+          Navigator.of(context).pop(<String, dynamic>{
+            'mode': 'setEan',
+            'ok': false,
+            'error': res.error ?? 'unknown',
+          });
+        return;
+      } catch (e) {
+        _showRootSnack('Błąd: $e', forTime: const Duration(seconds: 2));
+        if (mounted)
+          Navigator.of(context).pop(<String, dynamic>{
+            'mode': 'setEan',
+            'ok': false,
+            'error': e.toString(),
+          });
+        return;
+      }
+    }
 
     try {
       final items = await ApiService.fetchProducts(
@@ -220,23 +334,34 @@ class _ScanScreenState extends State<ScanScreen> {
         }
       }
 
+      // if (widget.returnCode) {
+      //   if (exact != null) {
+      //     widget.onScanned?.call(norm);
+      //     _kbIdleTimer?.cancel();
+      //     _kbBuffer = StringBuffer();
+      //     _unfocusAll();
+      //     if (!mounted) return;
+      //     Navigator.of(context).pop(norm);
+      //   } else {
+      //     _showRootSnack('Nie znaleziono „$norm”.');
+      //     _kbIdleTimer?.cancel();
+      //     _kbBuffer = StringBuffer();
+      //     await Future.delayed(const Duration(seconds: 1));
+      //     _unfocusAll();
+      //     if (!mounted) return;
+      //     Navigator.of(context).pop();
+      //   }
+      //   return;
+      // }
       if (widget.returnCode) {
-        if (exact != null) {
-          widget.onScanned?.call(norm);
-          _kbIdleTimer?.cancel();
-          _kbBuffer = StringBuffer();
-          _unfocusAll();
-          if (!mounted) return;
-          Navigator.of(context).pop(norm);
-        } else {
-          _showRootSnack('Nie znaleziono „$norm”.');
-          _kbIdleTimer?.cancel();
-          _kbBuffer = StringBuffer();
-          await Future.delayed(const Duration(seconds: 1));
-          _unfocusAll();
-          if (!mounted) return;
-          Navigator.of(context).pop();
-        }
+        final eanToReturn =
+            alt13 ?? norm; // normalize UPC-A -> EAN-13 if needed
+        widget.onScanned?.call(eanToReturn);
+        _kbIdleTimer?.cancel();
+        _kbBuffer = StringBuffer();
+        _unfocusAll();
+        if (!mounted) return;
+        Navigator.of(context).pop(eanToReturn);
         return;
       }
 
@@ -434,9 +559,11 @@ class _ScanScreenState extends State<ScanScreen> {
   Widget build(BuildContext context) {
     final title =
         widget.titleText ??
-        (_isProjectLine
-            ? 'Skanuj (dodaj do projektu)'
-            : 'Skanuj (sprawdz towar)');
+        (_isSetEan
+            ? 'Skanuj EAN (ustaw)'
+            : (_isProjectLine
+                  ? 'Skanuj (dodaj do projektu)'
+                  : 'Skanuj (sprawdz towar)'));
 
     return AppScaffold(
       title: title,
@@ -471,7 +598,14 @@ class _ScanScreenState extends State<ScanScreen> {
                           children: [
                             const Icon(Icons.qr_code_scanner, size: 56),
                             const SizedBox(height: 10),
-                            const Text('Skanuj...'),
+                            Text(
+                              _isSetEan
+                                  ? (widget.setEanForItemLabel?.isNotEmpty ==
+                                            true
+                                        ? 'Ustaw EAN dla: ${widget.setEanForItemLabel}'
+                                        : 'Ustaw EAN…')
+                                  : 'Skanuj...',
+                            ),
                             if (_statusText != null) ...[
                               const SizedBox(height: 8),
                               Text(

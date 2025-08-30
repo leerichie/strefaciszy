@@ -48,6 +48,12 @@ Future<ProjectLine?> showProjectLineDialog(
 
   final dssController = DraggableScrollableController();
 
+  int selectedAvailable = 0;
+  if (itemRef.isNotEmpty) {
+    final idx0 = stockItems.indexWhere((s) => s.id == itemRef);
+    if (idx0 != -1) selectedAvailable = stockItems[idx0].quantity;
+  }
+
   return showModalBottomSheet<ProjectLine>(
     context: context,
     isScrollControlled: true,
@@ -57,6 +63,7 @@ Future<ProjectLine?> showProjectLineDialog(
 
     builder: (ctx) {
       bool hasItemInAnyRW = false;
+
       final bottomInset = MediaQuery.of(ctx).viewInsets.bottom;
       return AnimatedPadding(
         padding: EdgeInsets.only(bottom: bottomInset),
@@ -205,10 +212,13 @@ Future<ProjectLine?> showProjectLineDialog(
                                         final code = await Navigator.of(context)
                                             .push<String>(
                                               MaterialPageRoute(
-                                                builder: (_) =>
-                                                    const ScanScreen(
-                                                      returnCode: true,
-                                                    ),
+                                                builder: (_) => const ScanScreen(
+                                                  returnCode: true,
+                                                  purpose:
+                                                      ScanPurpose.projectLine,
+                                                  titleText:
+                                                      'Skanuj (dodaj do projektu)',
+                                                ),
                                               ),
                                             );
                                         if (code == null || code.isEmpty) {
@@ -239,15 +249,25 @@ Future<ProjectLine?> showProjectLineDialog(
                                           }
 
                                           if (match != null) {
+                                            // Promote to non-nullable for use inside the closure
+                                            final m = match!;
+
                                             setState(() {
-                                              itemRef = match!.id;
+                                              itemRef = m.id;
                                               textCtrl.text =
-                                                  '${match.name}, ${match.producent}';
-                                              unit = match.unit.isNotEmpty
-                                                  ? match.unit
+                                                  '${m.name}, ${m.producent}';
+                                              unit = m.unit.isNotEmpty
+                                                  ? m.unit
                                                   : 'szt';
+                                              selectedAvailable =
+                                                  m.quantity; // keep real stock
+                                              prevQty =
+                                                  existing?.previousQty ??
+                                                  existingLines[m.id] ??
+                                                  0;
                                             });
-                                            await checkIfItemInRW(match.id);
+
+                                            await checkIfItemInRW(m.id);
                                           } else {
                                             ScaffoldMessenger.of(
                                               context,
@@ -462,9 +482,11 @@ Future<ProjectLine?> showProjectLineDialog(
                                       existing?.previousQty ??
                                       existingLines[s.id] ??
                                       0;
+                                  selectedAvailable = s.quantity; // <— NEW
                                 });
                                 await checkIfItemInRW(s.id);
                               },
+
                               //////
                             ),
 
@@ -521,28 +543,19 @@ Future<ProjectLine?> showProjectLineDialog(
                             // },
                             validator: (v) {
                               final n = int.tryParse(v ?? '');
-                              if (n == null || n <= 0) {
+                              if (n == null || n <= 0)
                                 return 'Serio? ...no jak?';
-                              }
 
                               if (isStock) {
-                                final idx = stockItems.indexWhere(
-                                  (s) => s.id == itemRef,
-                                );
-                                final available = idx == -1
-                                    ? 0
-                                    : stockItems[idx].quantity;
-
-                                if (available <= 0) {
-                                  return 'Brak na stanie';
-                                }
-                                if (n > available) {
-                                  return 'Nie ma w magazynie (max: $available '
-                                      ' $unit)';
-                                }
+                                final available =
+                                    selectedAvailable; // <— use the captured value
+                                if (available <= 0) return 'Brak na stanie';
+                                if (n > available)
+                                  return 'Nie ma w magazynie (max: $available $unit)';
                               }
                               return null;
                             },
+
                             ////
                           ),
 
@@ -664,12 +677,8 @@ Future<ProjectLine?> showProjectLineDialog(
                                   }
 
                                   if (isStock) {
-                                    final idx = stockItems.indexWhere(
-                                      (s) => s.id == itemRef,
-                                    );
-                                    final available = idx == -1
-                                        ? 0
-                                        : stockItems[idx].quantity;
+                                    final available =
+                                        selectedAvailable; // value set on scan/selection
                                     if (available <= 0) {
                                       ScaffoldMessenger.of(
                                         context,
@@ -688,7 +697,7 @@ Future<ProjectLine?> showProjectLineDialog(
                                       ).showSnackBar(
                                         SnackBar(
                                           content: Text(
-                                            'Za mało w magazynie (max: $available)',
+                                            'Za mało w magazynie (max: $available $unit)',
                                           ),
                                         ),
                                       );
@@ -700,15 +709,7 @@ Future<ProjectLine?> showProjectLineDialog(
 
                                   // compute originalStock for preview only
                                   final int originalStock = isStock
-                                      ? (stockItems.indexWhere(
-                                                  (s) => s.id == itemRef,
-                                                ) ==
-                                                -1
-                                            ? 0
-                                            : stockItems[stockItems.indexWhere(
-                                                    (s) => s.id == itemRef,
-                                                  )]
-                                                  .quantity)
+                                      ? selectedAvailable
                                       : 0;
 
                                   final line = ProjectLine(

@@ -14,8 +14,8 @@ void main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
   //// for editing backend -----
-  // await ApiService.init();
-  // await AdminApi.init();
+  await ApiService.init();
+  await AdminApi.init();
 
   await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
 

@@ -4,9 +4,9 @@ import 'package:strefa_ciszy/screens/scan_screen.dart';
 import 'package:strefa_ciszy/utils/keyboard_utils.dart';
 import 'package:strefa_ciszy/widgets/app_scaffold.dart';
 import 'add_item_screen.dart';
-// import 'edit_item_screen.dart';
 
 import 'package:strefa_ciszy/services/api_service.dart';
+import 'package:strefa_ciszy/services/admin_api.dart'; // <-- NEW
 import 'package:strefa_ciszy/models/stock_item.dart';
 
 class ItemDetailScreen extends StatelessWidget {
@@ -17,6 +17,113 @@ class ItemDetailScreen extends StatelessWidget {
     this.isAdmin = false,
     required this.itemId,
   });
+
+  // ---- EAN helpers (local) ----
+  String _digitsOnly(String s) => s.replaceAll(RegExp(r'\D+'), '');
+  bool _isValidEan(String? ean) {
+    final d = _digitsOnly(ean ?? '');
+    if (d.isEmpty) return false;
+    if (!(d.length == 8 || d.length == 13)) return false;
+    final nums = d.split('').map(int.parse).toList();
+    final check = nums.removeLast();
+    int sum = 0;
+    if (d.length == 13) {
+      for (int i = 0; i < nums.length; i++) {
+        sum += (i % 2 == 0) ? nums[i] : nums[i] * 3;
+      }
+    } else {
+      for (int i = 0; i < nums.length; i++) {
+        sum += (i % 2 == 0) ? nums[i] * 3 : nums[i];
+      }
+    }
+    final calc = (10 - (sum % 10)) % 10;
+    return calc == check;
+  }
+
+  Future<void> _addEanFlow(BuildContext context, StockItem item) async {
+    final ctrl = TextEditingController();
+    String? chosen;
+
+    Future<void> pickByScan() async {
+      // only return the raw code; do NOT search
+      final code = await Navigator.of(context).push<String>(
+        MaterialPageRoute(
+          builder: (_) => const ScanScreen(
+            returnCode: true,
+            titleText: 'Skanuj EAN (ustaw)',
+          ),
+        ),
+      );
+      if (!context.mounted) return;
+      if (code != null && code.isNotEmpty) {
+        final digits = _digitsOnly(code);
+        ctrl.text = digits;
+        chosen = digits;
+      }
+    }
+
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Dodaj EAN'),
+        content: TextFormField(
+          controller: ctrl,
+          keyboardType: TextInputType.number,
+          decoration: InputDecoration(
+            hintText: '8 lub 13 cyfr',
+            suffixIcon: IconButton(
+              tooltip: 'Skanuj',
+              icon: const Icon(Icons.qr_code_scanner),
+              onPressed: pickByScan,
+            ),
+          ),
+          onChanged: (v) => chosen = _digitsOnly(v),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Anuluj'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('Zapisz'),
+          ),
+        ],
+      ),
+    );
+
+    if (ok != true) return;
+
+    chosen = _digitsOnly(chosen ?? ctrl.text);
+    if (!_isValidEan(chosen)) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Nieprawidłowy EAN (8 lub 13 cyfr).')),
+      );
+      return;
+    }
+
+    try {
+      await AdminApi.setProductEan(id: item.id, ean: chosen!);
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('EAN zapisany: $chosen'),
+          duration: const Duration(seconds: 2),
+        ),
+      );
+      // Optional refresh of the details screen:
+      // if (!context.mounted) return;
+      // Navigator.of(context).pushReplacement(
+      //   MaterialPageRoute(
+      //     builder: (_) => ItemDetailScreen(itemId: item.id, isAdmin: isAdmin),
+      //   ),
+      // );
+    } catch (e) {
+      final msg = e.toString().replaceFirst('Exception: ', '');
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(msg), duration: const Duration(seconds: 6)),
+      );
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -29,8 +136,7 @@ class ItemDetailScreen extends StatelessWidget {
           final result = await Navigator.of(context)
               .push<Map<String, dynamic>?>(
                 MaterialPageRoute(
-                  builder: (_) =>
-                      const ScanScreen(purpose: ScanPurpose.projectLine),
+                  builder: (_) => const ScanScreen(purpose: ScanPurpose.search),
                 ),
               );
 
@@ -47,9 +153,7 @@ class ItemDetailScreen extends StatelessWidget {
         },
         child: const Icon(Icons.qr_code_scanner, size: 32),
       ),
-
       floatingActionButtonLocation: FloatingActionButtonLocation.centerFloat,
-
       centreTitle: true,
       title: title,
       bottom: const PreferredSize(
@@ -95,6 +199,10 @@ class ItemDetailScreen extends StatelessWidget {
             final qty = item.quantity;
             final unit = item.unit;
             final imageUrl = item.imageUrl;
+
+            final barcode = item.barcode.trim();
+            final hasValidEan = _isValidEan(barcode);
+            final needsEan = !hasValidEan;
 
             return SingleChildScrollView(
               padding: const EdgeInsets.all(16),
@@ -157,40 +265,23 @@ class ItemDetailScreen extends StatelessWidget {
                             : item.description,
                       ),
                       _row('Magazyn', null),
-                      _row('Kod Kreskowy', item.barcode),
+                      _row('Kod Kreskowy', hasValidEan ? barcode : '—'),
                       _row('Ilość', '$qty${unit.isNotEmpty ? ' $unit' : ''}'),
                     ],
                   ),
 
                   const SizedBox(height: 16),
 
-                  // Center(
-                  //   child: ElevatedButton(
-                  //     onPressed: isAdmin
-                  //         ? () {
-                  //             // Keep disabled until you wire API editing routes.
-                  //             ScaffoldMessenger.of(context).showSnackBar(
-                  //               const SnackBar(
-                  //                 content: Text(
-                  //                   'Edytowanie przez API jeszcze nieaktywne',
-                  //                 ),
-                  //               ),
-                  //             );
-                  //             // If you later enable:
-                  //             // Navigator.of(context).push(
-                  //             //   MaterialPageRoute(
-                  //             //     builder: (_) => EditItemScreen(
-                  //             //       item.id,
-                  //             //       // pass any needed data
-                  //             //       isAdmin: isAdmin,
-                  //             //     ),
-                  //             //   ),
-                  //             // );
-                  //           }
-                  //         : null,
-                  //     child: const Text('Edytuj szczegóły'),
-                  //   ),
-                  // ),
+                  if (isAdmin && needsEan)
+                    Center(
+                      child: ElevatedButton.icon(
+                        icon: const Icon(Icons.add),
+                        label: const Text('Dodaj EAN'),
+                        onPressed: () => _addEanFlow(context, item),
+                      ),
+                    ),
+
+                  // (keep any other admin buttons disabled for now)
                 ],
               ),
             );

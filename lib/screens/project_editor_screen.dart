@@ -1616,11 +1616,28 @@ class _ProjectEditorScreenState extends State<ProjectEditorScreen> {
                   return;
                 }
 
+                StockItem? picked;
+                if (newLine.isStock) {
+                  final idx = _stockItems.indexWhere(
+                    (s) => s.id == newLine.itemRef,
+                  );
+                  if (idx != -1) {
+                    picked = _stockItems[idx];
+                  } else {
+                    try {
+                      picked = await ApiService.fetchProduct(newLine.itemRef);
+                      if (picked != null) {
+                        setState(() => _stockItems.add(picked!));
+                      }
+                    } catch (_) {}
+                  }
+                }
+
                 final lineWithUnit = newLine.isStock
                     ? newLine.copyWith(
-                        unit: _stockItems
-                            .firstWhere((s) => s.id == newLine.itemRef)
-                            .unit,
+                        unit: (picked?.unit.isNotEmpty == true
+                            ? picked!.unit
+                            : 'szt'),
                       )
                     : newLine;
 
