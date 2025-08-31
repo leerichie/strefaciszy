@@ -15,6 +15,7 @@ import 'package:strefa_ciszy/services/admin_api.dart';
 import 'package:strefa_ciszy/services/api_service.dart';
 import 'package:strefa_ciszy/utils/stock_normalizer.dart';
 import 'package:strefa_ciszy/widgets/app_scaffold.dart';
+import 'package:strefa_ciszy/widgets/debug_reserve_button.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import 'customer_list_screen.dart';
@@ -60,73 +61,6 @@ class _MainMenuScreenState extends State<MainMenuScreen> {
         .handleError((_) => false);
   }
 
-  /// DEV:
-
-  // Future<void> _normalizeAll() async {
-  //   if (!mounted) return;
-
-  //   ScaffoldMessenger.of(context).showSnackBar(
-  //     const SnackBar(content: Text('Starting full normalization…')),
-  //   );
-
-  //   try {
-  //     const pageSize = 200;
-  //     int offset = 0;
-  //     int staged = 0;
-
-  //     while (true) {
-  //       final items = await ApiService.fetchProducts(
-  //         limit: pageSize,
-  //         offset: offset,
-  //       );
-  //       if (items.isEmpty) break;
-
-  //       for (final it in items) {
-  //         final norm = StockNormalizer.normalize(it);
-  //         await AdminApi.stageOne(normalized: norm, who: 'lee');
-  //         staged++;
-  //         await Future.delayed(const Duration(milliseconds: 5));
-  //       }
-
-  //       offset += items.length;
-  //       if (!mounted) return;
-  //       ScaffoldMessenger.of(
-  //         context,
-  //       ).showSnackBar(SnackBar(content: Text('Staged $staged so far…')));
-  //     }
-
-  //     final pending = await AdminApi.pendingIds();
-  //     int applied = 0;
-  //     const chunk = 200;
-  //     for (int i = 0; i < pending.length; i += chunk) {
-  //       final part = pending.sublist(
-  //         i,
-  //         (i + chunk > pending.length) ? pending.length : i + chunk,
-  //       );
-  //       await AdminApi.applyIds(part, who: 'lee');
-  //       applied += part.length;
-  //       if (!mounted) return;
-  //       ScaffoldMessenger.of(context).showSnackBar(
-  //         SnackBar(content: Text('Applied $applied / ${pending.length}…')),
-  //       );
-  //     }
-
-  //     if (!mounted) return;
-  //     ScaffoldMessenger.of(context).showSnackBar(
-  //       SnackBar(
-  //         content: Text(
-  //           'Normalization complete. Staged: $staged • Applied: $applied',
-  //         ),
-  //       ),
-  //     );
-  //   } catch (e) {
-  //     if (!mounted) return;
-  //     ScaffoldMessenger.of(
-  //       context,
-  //     ).showSnackBar(SnackBar(content: Text('Error: $e')));
-  //   }
-  // }
-
   Future<void> _loadVersion() async {
     if (kIsWeb) {
       try {
@@ -142,7 +76,6 @@ class _MainMenuScreenState extends State<MainMenuScreen> {
       }
     }
 
-    // Mobile/Desktop fallback
     final info = await PackageInfo.fromPlatform();
     setState(() {
       _version = 'v.${info.version} _${info.buildNumber}';
@@ -174,22 +107,15 @@ class _MainMenuScreenState extends State<MainMenuScreen> {
       padding: const EdgeInsets.all(16),
       children: [
         Image.asset('assets/images/strefa_ciszy_logo.png', width: 200),
-
         const SizedBox(height: 24),
 
-        // DEV btn
-        // if (_isLee && isAdmin) ...[
-        //   const Divider(),
-        //   ListTile(
-        //     leading: const Icon(Icons.auto_fix_high),
-        //     title: const Text('Normalize (name • category • producer)'),
-        //     subtitle: const Text('Applies to all in WAPRO'),
-        //     onTap: _normalizeAll,
-        //   ),
-        //   const Divider(),
-        // ],
+        // DEV button (only you; doesn’t touch the main FAB)
+        if (_isLee && isAdmin) ...[
+          const DebugReserveButton(), // <-- inline debug button
+          const SizedBox(height: 16),
+          const Divider(),
+        ],
 
-        ///////
         if (isAdmin) ...[
           ListTile(
             leading: const Icon(Icons.admin_panel_settings),
@@ -237,7 +163,6 @@ class _MainMenuScreenState extends State<MainMenuScreen> {
           },
         ),
 
-        // if (!kIsWeb)
         ListTile(
           leading: const Icon(Icons.qr_code_scanner),
           title: const Text('Skanuj'),
@@ -306,12 +231,10 @@ class _MainMenuScreenState extends State<MainMenuScreen> {
         ),
         child: const Icon(Icons.qr_code_scanner, size: 32),
       ),
-
       floatingActionButtonLocation: FloatingActionButtonLocation.centerFloat,
 
       title: '',
-      titleWidget: Text(_version, style: TextStyle(fontSize: 15)),
-
+      titleWidget: Text(_version, style: const TextStyle(fontSize: 15)),
       showBackOnMobile: false,
 
       body: Stack(

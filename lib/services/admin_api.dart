@@ -1,4 +1,3 @@
-// lib/services/admin_api.dart
 import 'dart:convert';
 import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
@@ -10,9 +9,9 @@ class SetEanResult {
   final bool ok;
   final String? error;
   final String? conflictId;
-  final String? conflictName; // NEW: friendly name for duplicate target
+  final String? conflictName;
   final String? current;
-  final bool duplicate; // NEW: explicit flag
+  final bool duplicate;
 
   const SetEanResult({
     required this.ok,
@@ -26,26 +25,20 @@ class SetEanResult {
 
 class AdminApi {
   static const List<String> _primaryCandidates = [
-    // If you later expose HTTPS on 9104, add it here.
     // 'https://wapro-api.tail52a6fb.ts.net:9104/api',
   ];
 
   static const List<String> _fallbacks = [
-    // MagicDNS inside tailnet
-    'http://wapro-api:9104/api',
-    // Tailscale IP
-    'http://100.86.227.1:9104/api',
-    // LAN
-    'http://192.168.1.103:9104/api',
-    // Android emulator -> host
-    'http://10.0.2.2:9104/api',
+    'http://wapro-api:9104/api', // MagicDNS inside tailnet / docker
+    'http://100.86.227.1:9104/api', // Tailscale IP (adjust if needed)
+    'http://192.168.1.103:9104/api', // LAN
+    'http://10.0.2.2:9104/api', // Android emulator -> host
   ];
 
   static String _base = '';
 
   static Future<void> init() async {
     final candidates = <String>[..._primaryCandidates, ..._fallbacks];
-
     for (final b in candidates) {
       try {
         final r = await http
@@ -72,8 +65,7 @@ class AdminApi {
     return Uri.parse('$_base$path');
   }
 
-  // ---------------- Normalization endpoints (unchanged) ----------------
-
+  // ---------- Normalization (unchanged) ----------
   static Future<void> stageOne({
     required StockItem normalized,
     required String who,
@@ -119,11 +111,7 @@ class AdminApi {
     return list.map((m) => '${m['id_artykulu']}').toList();
   }
 
-  // ---------------- EAN edit ----------------
-
-  /// Calls admin PUT /products/<productId>/ean and returns a structured result.
-  /// On duplicate, we also try to resolve the **conflicting product name** so
-  /// the UI can show "Ten EAN już istnieje: <name>".
+  // ---------- EAN ----------
   static Future<SetEanResult> setEanWithResult({
     required String productId,
     required String ean,
@@ -149,7 +137,6 @@ class AdminApi {
     final conflictId = m['conflictId']?.toString();
     final current = m['current']?.toString();
 
-    // If it's a duplicate, attempt to fetch the nice product name
     if (error == 'duplicate-ean') {
       String? conflictName;
       if (conflictId != null && conflictId.isNotEmpty) {
@@ -162,7 +149,7 @@ class AdminApi {
             ].where((s) => s.trim().isNotEmpty).join(', ');
           }
         } catch (_) {
-          /* best-effort only */
+          /* best-effort */
         }
       }
       return SetEanResult(
@@ -182,8 +169,6 @@ class AdminApi {
     );
   }
 
-  /// Convenience wrapper that throws a user-friendly exception string so old
-  /// call sites can keep using try/catch without refactoring.
   static Future<void> setProductEan({
     required String id,
     required String ean,
@@ -206,5 +191,32 @@ class AdminApi {
     } else {
       throw Exception('Nie udało się zapisać EAN. (${r.error ?? "błąd"})');
     }
+  }
+
+  // ---------- Reservations ----------
+  static Future<Map<String, dynamic>> reserveUpsert({
+    required String projectId,
+    String? customerId,
+    required String itemId,
+    required num qty,
+    String? warehouseId,
+    required String actorEmail,
+  }) async {
+    final res = await http.post(
+      _u('/reservations/upsert'),
+      headers: {'Content-Type': 'application/json'},
+      body: jsonEncode({
+        'projectId': projectId,
+        'customerId': customerId,
+        'itemId': itemId,
+        'qty': qty,
+        'warehouseId': warehouseId,
+        'actorEmail': actorEmail,
+      }),
+    );
+    if (res.statusCode != 200) {
+      throw Exception('reserveUpsert failed: ${res.statusCode} ${res.body}');
+    }
+    return (jsonDecode(res.body) as Map).cast<String, dynamic>();
   }
 }

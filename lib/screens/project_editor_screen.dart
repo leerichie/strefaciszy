@@ -190,10 +190,14 @@ class _ProjectEditorScreenState extends State<ProjectEditorScreen> {
             final unit = m['unit'] as String? ?? '';
             final name = (m['name'] as String?) ?? '';
 
-            final isStock = _stockItems.any((s) => s.id == itemId);
-            final originalStock = isStock
-                ? _stockItems.firstWhere((s) => s.id == itemId).quantity
-                : qty;
+            // final isStock = _stockItems.any((s) => s.id == itemId);
+            // final originalStock = isStock
+            //     ? _stockItems.firstWhere((s) => s.id == itemId).quantity
+            //     : qty;
+
+            final idx = _stockItems.indexWhere((s) => s.id == itemId);
+            final isStock = itemId.isNotEmpty;
+            final originalStock = idx == -1 ? qty : _stockItems[idx].quantity;
 
             return ProjectLine(
               isStock: isStock,
@@ -383,11 +387,15 @@ class _ProjectEditorScreenState extends State<ProjectEditorScreen> {
             final qty = (m['quantity'] as num?)?.toInt() ?? 0;
             final unit = m['unit'] as String? ?? '';
             final name = m['name'] as String? ?? '';
-            final isStock = _stockItems.any((s) => s.id == itemId);
+            // final isStock = _stockItems.any((s) => s.id == itemId);
 
-            final originalStock = isStock
-                ? _stockItems.firstWhere((s) => s.id == itemId).quantity
-                : qty;
+            // final originalStock = isStock
+            //     ? _stockItems.firstWhere((s) => s.id == itemId).quantity
+            //     : qty;
+
+            final idx = _stockItems.indexWhere((s) => s.id == itemId);
+            final isStock = itemId.isNotEmpty;
+            final originalStock = idx == -1 ? qty : _stockItems[idx].quantity;
 
             return ProjectLine(
               isStock: isStock,
@@ -490,6 +498,15 @@ class _ProjectEditorScreenState extends State<ProjectEditorScreen> {
     final user = FirebaseAuth.instance.currentUser;
     if (user == null) return;
 
+    String createdByName = user.displayName ?? '';
+    if (createdByName.isEmpty) {
+      final u = await FirebaseFirestore.instance
+          .collection('users')
+          .doc(user.uid)
+          .get();
+      createdByName = (u.data()?['name'] as String?) ?? user.email ?? '—';
+    }
+
     final custSnap = await FirebaseFirestore.instance
         .collection('customers')
         .doc(widget.customerId)
@@ -566,6 +583,7 @@ class _ProjectEditorScreenState extends State<ProjectEditorScreen> {
     );
 
     rwData['customerName'] = _customerName;
+    rwData['createdByName'] = createdByName;
 
     rwData['notesList'] = _notes
         .map(
@@ -1003,6 +1021,7 @@ class _ProjectEditorScreenState extends State<ProjectEditorScreen> {
                           'createdDay': DateTime(now.year, now.month, now.day),
                           'createdAt': FieldValue.serverTimestamp(),
                           'createdBy': authUser.uid,
+                          'createdByName': userName,
                           'items': <Map<String, dynamic>>[],
                           'notesList': [noteMap],
                         });
