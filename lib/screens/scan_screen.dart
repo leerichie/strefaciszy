@@ -278,12 +278,13 @@ class _ScanScreenState extends State<ScanScreen> {
             'Produkt ma już EAN.',
             forTime: const Duration(seconds: 2),
           );
-          if (mounted)
+          if (mounted) {
             Navigator.of(context).pop(<String, dynamic>{
               'mode': 'setEan',
               'ok': false,
               'already': true,
             });
+          }
           return;
         }
 
@@ -291,21 +292,23 @@ class _ScanScreenState extends State<ScanScreen> {
           'Błąd zapisu: ${res.error ?? 'nieznany'}',
           forTime: const Duration(seconds: 2),
         );
-        if (mounted)
+        if (mounted) {
           Navigator.of(context).pop(<String, dynamic>{
             'mode': 'setEan',
             'ok': false,
             'error': res.error ?? 'unknown',
           });
+        }
         return;
       } catch (e) {
         _showRootSnack('Błąd: $e', forTime: const Duration(seconds: 2));
-        if (mounted)
+        if (mounted) {
           Navigator.of(context).pop(<String, dynamic>{
             'mode': 'setEan',
             'ok': false,
             'error': e.toString(),
           });
+        }
         return;
       }
     }
@@ -368,12 +371,12 @@ class _ScanScreenState extends State<ScanScreen> {
       if (_isProjectLine) {
         if (exact != null) {
           final label = [
-            exact!.name,
-            if (exact!.producent.isNotEmpty) exact!.producent,
+            exact.name,
+            if (exact.producent.isNotEmpty) exact.producent,
           ].where((e) => e.trim().isNotEmpty).join(', ');
 
           if (!mounted) return;
-          Navigator.of(context).pop({'id': exact!.id, 'label': label});
+          Navigator.of(context).pop({'id': exact.id, 'label': label});
           return;
         }
 
@@ -520,7 +523,7 @@ class _ScanScreenState extends State<ScanScreen> {
     if (!isDown) return;
 
     String? ch;
-    if (e is RawKeyDownEvent && e.data is RawKeyEventDataWeb) {
+    if (e.data is RawKeyEventDataWeb) {
       ch = (e.data as RawKeyEventDataWeb).keyLabel;
     } else {
       ch = e.character;

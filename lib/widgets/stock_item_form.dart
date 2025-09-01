@@ -231,7 +231,7 @@ class _StockItemFormState extends State<StockItemForm> {
               ),
               const SizedBox(height: 12),
               DropdownButtonFormField<String>(
-                value: _unit,
+                initialValue: _unit,
                 decoration: const InputDecoration(
                   labelText: 'Jednostka miary.',
                 ),

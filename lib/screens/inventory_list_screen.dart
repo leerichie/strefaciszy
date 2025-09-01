@@ -1,9 +1,7 @@
 // lib/screens/inventory_list_screen.dart
 
-import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:strefa_ciszy/models/stock_item.dart';
-import 'package:strefa_ciszy/screens/add_item_screen.dart';
 import 'package:strefa_ciszy/screens/item_detail_screen.dart';
 import 'package:strefa_ciszy/screens/scan_screen.dart';
 import 'package:strefa_ciszy/services/api_service.dart';

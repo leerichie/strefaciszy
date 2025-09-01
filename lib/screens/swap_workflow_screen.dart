@@ -555,10 +555,12 @@ class _SwapWorkflowScreenState extends State<SwapWorkflowScreen>
       final isToday = await _isSourceToday();
       if (isToday) {
         final affected = <String>{};
-        if (_oldItemId != null && _oldItemId!.isNotEmpty)
+        if (_oldItemId != null && _oldItemId!.isNotEmpty) {
           affected.add(_oldItemId!);
-        if (_newItemId != null && _newItemId!.isNotEmpty)
+        }
+        if (_newItemId != null && _newItemId!.isNotEmpty) {
           affected.add(_newItemId!);
+        }
         if (affected.isNotEmpty) {
           await _updateReservationsForItems(affected);
         }

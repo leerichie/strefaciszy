@@ -69,27 +69,20 @@ class _ProjectEditorScreenState extends State<ProjectEditorScreen> {
   List<XFile> _images = [];
   String _customerName = '';
 
-  // late final StreamSubscription<QuerySnapshot<StockItem>> _stockSub;
-  // Toggle: false = use API for stock, true = legacy Firestore stock
   static const bool kUseFirestoreStock = false;
 
-  // Nullable: only set when kUseFirestoreStock == true
   StreamSubscription<QuerySnapshot<StockItem>>? _stockSub;
 
   List<StockItem> _stockItems = [];
-
-  // (optional) API paging state if you want to load more later
   int _stockOffset = 0;
   bool _stockHasMore = true;
-  ////////
-
-  // List<StockItem> _stockItems = [];
   List<ProjectLine> _lines = [];
   late final bool _rwLocked;
 
   late final StreamSubscription<DocumentSnapshot<Map<String, dynamic>>>
   _notesSub;
   Timer? _midnightRolloverTimer;
+  final Map<String, int> _serverAvail = {};
 
   @override
   void initState() {
@@ -536,31 +529,44 @@ class _ProjectEditorScreenState extends State<ProjectEditorScreen> {
       final actorEmail = FirebaseAuth.instance.currentUser?.email ?? 'app';
 
       for (final ln in filteredLines.where((l) => l.isStock)) {
-        await AdminApi.reserveUpsert(
+        final r = await AdminApi.reserveUpsert(
           projectId: widget.projectId,
           customerId: widget.customerId,
           itemId: ln.itemRef,
           qty: ln.requestedQty,
           actorEmail: actorEmail,
         );
+        final afterStr =
+            r['available_after'] ?? r['availableAfter'] ?? r['available'];
+        final after = int.tryParse(afterStr?.toString() ?? '');
+        debugPrint('reserveUpsert ${ln.itemRef} -> after=$after resp=$r');
+        if (after != null) _serverAvail[ln.itemRef] = after;
+        if (mounted) setState(() {});
       }
 
       for (final ln in fullLines.where(
         (l) => l.isStock && (l.previousQty ?? 0) > 0 && l.requestedQty <= 0,
       )) {
-        await AdminApi.reserveUpsert(
+        final r = await AdminApi.reserveUpsert(
           projectId: widget.projectId,
           customerId: widget.customerId,
           itemId: ln.itemRef,
           qty: 0,
           actorEmail: actorEmail,
         );
+        final afterStr =
+            r['available_after'] ?? r['availableAfter'] ?? r['available'];
+        final after = int.tryParse(afterStr?.toString() ?? '');
+        debugPrint('reserveUpsert ${ln.itemRef} -> after=$after resp=$r');
+        if (after != null) _serverAvail[ln.itemRef] = after;
+        if (mounted) setState(() {});
       }
+      if (mounted) setState(() {});
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Rezerwacja nie powiodła się: $e')),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('Rezerwacja nie udany: $e')));
       }
       return;
     }
@@ -918,29 +924,34 @@ class _ProjectEditorScreenState extends State<ProjectEditorScreen> {
       });
     }
 
-    // --- NEW: release this line's reservation in WAPRO
+    // ---  reservation via API
     if (line.isStock) {
       try {
         await AdminApi.init();
         final email = FirebaseAuth.instance.currentUser?.email ?? 'app';
-        await AdminApi.reserveUpsert(
+        final r = await AdminApi.reserveUpsert(
           projectId: widget.projectId,
           customerId: widget.customerId,
           itemId: line.itemRef,
-          qty: 0, // release
+          qty: 0,
           actorEmail: email,
         );
+
+        final afterStr =
+            r['available_after'] ?? r['availableAfter'] ?? r['available'];
+        final after = int.tryParse(afterStr?.toString() ?? '');
+
+        if (after != null && mounted) {
+          setState(() => _serverAvail[line.itemRef] = after);
+        }
       } catch (e) {
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text('Zwolnienie rezerwacji nie powiodło się: $e'),
-            ),
+            SnackBar(content: Text('Zwolnienia rezerwacji nie udany: $e')),
           );
         }
       }
     }
-    // --- END NEW
 
     final s = line.isStock
         ? _stockItems.firstWhereOrNull((x) => x.id == line.itemRef)
@@ -1252,12 +1263,20 @@ class _ProjectEditorScreenState extends State<ProjectEditorScreen> {
                               ? (stock?.description ?? '')
                               : '';
 
+                          final delta = ln.requestedQty - ln.previousQty;
+
                           final stockQty = ln.isStock
                               ? (stock?.quantity ?? ln.originalStock)
                               : ln.originalStock;
 
-                          final delta = ln.requestedQty - ln.previousQty;
-                          final previewQty = stockQty - delta;
+                          final int previewDefault = stockQty - delta;
+
+                          // Prefer the server-reported availability if we have it
+                          final int previewQty =
+                              ln.isStock && _serverAvail.containsKey(ln.itemRef)
+                              ? _serverAvail[ln.itemRef]!
+                              : previewDefault;
+
                           final qtyColor = previewQty <= 0
                               ? Colors.red
                               : Colors.green;

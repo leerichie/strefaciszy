@@ -420,7 +420,7 @@ class _ContactsListScreenState extends State<ContactsListScreen> {
                   ),
                   isDense: true,
                 ),
-                value: _category == 'Wszyscy' ? null : _category,
+                initialValue: _category == 'Wszyscy' ? null : _category,
                 items: _categories.map((cat) {
                   return DropdownMenuItem(
                     value: cat == 'Wszyscy' ? '' : cat,

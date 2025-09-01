@@ -12,7 +12,6 @@ import 'package:strefa_ciszy/screens/project_editor_screen.dart';
 import 'package:strefa_ciszy/services/admin_api.dart';
 import 'package:strefa_ciszy/services/audit_service.dart';
 import 'package:strefa_ciszy/services/file_saver.dart';
-import 'package:strefa_ciszy/services/stock_service.dart';
 import 'package:strefa_ciszy/utils/colour_utils.dart';
 import 'package:strefa_ciszy/utils/keyboard_utils.dart';
 import 'package:strefa_ciszy/widgets/app_scaffold.dart';
@@ -481,7 +480,7 @@ class _RWDocumentsScreenState extends State<RWDocumentsScreen> {
                                           child: AutoSizeText(
                                             '${(d['customerName'] ?? '–')} • ${(d['projectName'] ?? '–')}',
                                             maxLines: 1,
-                                            minFontSize: 8,
+                                            minFontSize: 9,
                                             style: Theme.of(context)
                                                 .textTheme
                                                 .bodyMedium
@@ -491,25 +490,9 @@ class _RWDocumentsScreenState extends State<RWDocumentsScreen> {
                                           ),
                                         ),
 
-                                        const SizedBox(width: 16),
+                                        const SizedBox(width: 8),
 
-                                        const Icon(
-                                          Icons.person,
-                                          size: 16,
-                                          color: Colors.blueGrey,
-                                        ),
-                                        const SizedBox(width: 4),
-                                        Expanded(
-                                          child: Text(
-                                            displayName,
-                                            style: TextStyle(
-                                              color: colourFromString(
-                                                displayName,
-                                              ),
-                                              fontWeight: FontWeight.w400,
-                                            ),
-                                          ),
-                                        ),
+                                       
                                       ],
                                     ),
 
@@ -531,6 +514,23 @@ class _RWDocumentsScreenState extends State<RWDocumentsScreen> {
                                             style: Theme.of(
                                               context,
                                             ).textTheme.bodySmall,
+                                          ),
+                                        ),
+                                        const Icon(
+                                          Icons.person,
+                                          size: 16,
+                                          color: Colors.blueGrey,
+                                        ),
+                                        const SizedBox(width: 4),
+                                        Expanded(
+                                          child: Text(
+                                            displayName,
+                                            style: TextStyle(
+                                              color: colourFromString(
+                                                displayName,
+                                              ),
+                                              fontWeight: FontWeight.w400,
+                                            ),
                                           ),
                                         ),
                                       ],

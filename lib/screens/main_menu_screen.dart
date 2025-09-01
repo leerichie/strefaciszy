@@ -11,11 +11,7 @@ import 'package:strefa_ciszy/screens/aprroval_screen.dart';
 import 'package:strefa_ciszy/screens/contacts_list_screen.dart';
 import 'package:strefa_ciszy/screens/inventory_list_screen.dart';
 import 'package:strefa_ciszy/screens/login_screen.dart';
-import 'package:strefa_ciszy/services/admin_api.dart';
-import 'package:strefa_ciszy/services/api_service.dart';
-import 'package:strefa_ciszy/utils/stock_normalizer.dart';
 import 'package:strefa_ciszy/widgets/app_scaffold.dart';
-import 'package:strefa_ciszy/widgets/debug_reserve_button.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import 'customer_list_screen.dart';

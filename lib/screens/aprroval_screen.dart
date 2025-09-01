@@ -463,7 +463,7 @@ class _ProjectCardState extends State<_ProjectCard> {
                         alignment: Alignment.centerRight,
                         child: ElevatedButton.icon(
                           icon: const Icon(Icons.verified_user_outlined),
-                          label: Text('Potwierdź (${_selectedCount})'),
+                          label: Text('Potwierdź ($_selectedCount)'),
                           onPressed: _selectedCount == 0
                               ? null
                               : _confirmSelection,

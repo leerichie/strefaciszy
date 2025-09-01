@@ -918,7 +918,7 @@ class _AddContactScreenState extends State<AddContactScreen> {
                               children: [
                                 Expanded(
                                   child: DropdownButtonFormField<String>(
-                                    value: _categories.contains(_category)
+                                    initialValue: _categories.contains(_category)
                                         ? _category
                                         : null,
                                     decoration: const InputDecoration(
@@ -1041,7 +1041,7 @@ class _AddContactScreenState extends State<AddContactScreen> {
                           // === Dropdown extras ===
                           DropdownButtonFormField<String>(
                             key: ValueKey(_availableExtraFields.length),
-                            value: null,
+                            initialValue: null,
                             decoration: const InputDecoration(
                               labelText: 'Dodaj pole...',
                             ),

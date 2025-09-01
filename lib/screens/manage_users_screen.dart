@@ -67,7 +67,7 @@ class _ManageUsersScreenState extends State<ManageUsersScreen> {
                   ),
                   DropdownButtonFormField<String>(
                     decoration: const InputDecoration(labelText: 'Dostęp'),
-                    value: role,
+                    initialValue: role,
                     items: ['admin', 'user']
                         .map((r) => DropdownMenuItem(value: r, child: Text(r)))
                         .toList(),
@@ -137,7 +137,7 @@ class _ManageUsersScreenState extends State<ManageUsersScreen> {
               ),
               DropdownButtonFormField<String>(
                 decoration: const InputDecoration(labelText: 'Dostęp'),
-                value: role,
+                initialValue: role,
                 items: ['admin', 'user']
                     .map((r) => DropdownMenuItem(value: r, child: Text(r)))
                     .toList(),

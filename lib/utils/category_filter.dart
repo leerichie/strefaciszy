@@ -77,7 +77,7 @@ class CategoryFilter {
     if (!letters.hasMatch(t)) return false;
 
     final words = t.split(RegExp(r'\s+'));
-    if (words.length >= 1 && words.every((w) => w.length >= 2)) {
+    if (words.isNotEmpty && words.every((w) => w.length >= 2)) {
       return true;
     }
     return false;

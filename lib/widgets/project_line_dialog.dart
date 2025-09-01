@@ -142,7 +142,7 @@ Future<ProjectLine?> showProjectLineDialog(
                           SizedBox(height: 16),
 
                           DropdownButtonFormField<bool>(
-                            value: isStock,
+                            initialValue: isStock,
                             decoration: InputDecoration(labelText: 'Produkt'),
                             items: [
                               DropdownMenuItem(
@@ -252,7 +252,7 @@ Future<ProjectLine?> showProjectLineDialog(
 
                                           if (match != null) {
                                             // Promote to non-nullable for use inside the closure
-                                            final m = match!;
+                                            final m = match;
 
                                             setState(() {
                                               itemRef = m.id;
@@ -545,14 +545,16 @@ Future<ProjectLine?> showProjectLineDialog(
                             // },
                             validator: (v) {
                               final n = int.tryParse(v ?? '');
-                              if (n == null || n <= 0)
+                              if (n == null || n <= 0) {
                                 return 'Serio? ...no jak?';
+                              }
 
                               if (isStock) {
                                 final available = selectedAvailable;
                                 if (available <= 0) return 'Brak na stanie';
-                                if (n > available)
+                                if (n > available) {
                                   return 'Nie ma w magazynie (max: $available $unit)';
+                                }
                               }
                               return null;
                             },
