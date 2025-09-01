@@ -4,6 +4,7 @@ class StockItem {
   final String name;
   final String description;
   final int quantity;
+  final int reserved;
   final String sku;
   final String barcode;
   final String unit;
@@ -11,11 +12,17 @@ class StockItem {
   final String? imageUrl;
   final String category; // API sets = description
 
+  int get available {
+    final a = quantity - reserved;
+    return a < 0 ? 0 : a;
+  }
+
   StockItem({
     required this.id,
     required this.name,
     required this.description,
     required this.quantity,
+    this.reserved = 0,
     required this.sku,
     required this.barcode,
     required this.unit,
@@ -29,6 +36,7 @@ class StockItem {
     String? name,
     String? description,
     int? quantity,
+    int? reserved,
     String? sku,
     String? barcode,
     String? unit,
@@ -41,6 +49,7 @@ class StockItem {
       name: name ?? this.name,
       description: description ?? this.description,
       quantity: quantity ?? this.quantity,
+      reserved: reserved ?? this.reserved,
       sku: sku ?? this.sku,
       barcode: barcode ?? this.barcode,
       unit: unit ?? this.unit,
@@ -68,6 +77,7 @@ class StockItem {
       name: s(j['name']),
       description: desc,
       quantity: i(j['quantity']),
+      reserved: j.containsKey('reserved') ? i(j['reserved']) : 0,
       sku: s(j['sku']),
       barcode: s(j['barcode']),
       unit: s(j['unit']),
@@ -84,6 +94,7 @@ class StockItem {
     'name': name,
     'description': description,
     'quantity': quantity,
+    'reserved': reserved,
     'sku': sku,
     'barcode': barcode,
     'unit': unit,
@@ -92,9 +103,6 @@ class StockItem {
     'category': category,
   };
 
-  // ---- Firestore shims (so withConverter compiles) ----
-  // Your old Firestore docs typically had the same keys.
-  // We keep the same normalization (null -> '' / 0).
   factory StockItem.fromMap(Map<String, dynamic> m, String id) {
     String s(dynamic v) => (v == null) ? "" : v.toString();
     int i(dynamic v) {
@@ -112,6 +120,7 @@ class StockItem {
       name: s(m['name']),
       description: desc,
       quantity: i(m['quantity']),
+      reserved: m.containsKey('reserved') ? i(m['reserved']) : 0,
       sku: s(m['sku']),
       barcode: s(m['barcode']),
       unit: s(m['unit']),
@@ -127,6 +136,7 @@ class StockItem {
     'name': name,
     'description': description,
     'quantity': quantity,
+    'reserved': reserved,
     'sku': sku,
     'barcode': barcode,
     'unit': unit,

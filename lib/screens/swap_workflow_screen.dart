@@ -3,6 +3,7 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:strefa_ciszy/screens/scan_screen.dart';
+import 'package:strefa_ciszy/services/admin_api.dart';
 import 'package:strefa_ciszy/services/audit_service.dart';
 import 'package:strefa_ciszy/services/stock_service.dart';
 
@@ -376,18 +377,18 @@ class _SwapWorkflowScreenState extends State<SwapWorkflowScreen>
             text: TextSpan(
               style: Theme.of(context).textTheme.bodyMedium,
               children: [
-                TextSpan(
+                const TextSpan(
                   text: 'Zwracasz:\n',
-                  style: const TextStyle(fontWeight: FontWeight.bold),
+                  style: TextStyle(fontWeight: FontWeight.bold),
                 ),
                 TextSpan(
                   text:
                       '${_oldLine?['producent'] ?? ''} ${_oldLine?['name'] ?? _oldItemId}\n',
                 ),
                 TextSpan(text: '$_oldQty ${_oldLine?['unit'] ?? ''}\n\n'),
-                TextSpan(
+                const TextSpan(
                   text: 'Instalujesz:\n',
-                  style: const TextStyle(fontWeight: FontWeight.bold),
+                  style: TextStyle(fontWeight: FontWeight.bold),
                 ),
                 TextSpan(
                   text:
@@ -409,7 +410,6 @@ class _SwapWorkflowScreenState extends State<SwapWorkflowScreen>
           ],
         ),
       );
-
       if (proceed != true) return;
 
       try {
@@ -449,7 +449,7 @@ class _SwapWorkflowScreenState extends State<SwapWorkflowScreen>
               sourceRwRef: _sourceRwRef!,
               customerId: widget.customerId,
               projectId: widget.projectId,
-              oldItemId: diff > 0 ? _oldItemId! : _oldItemId!,
+              oldItemId: _oldItemId!,
               oldQty: diff > 0 ? 0 : -diff,
               newItemId: _newItemId!,
               newQty: diff > 0 ? diff : 0,
@@ -550,6 +550,24 @@ class _SwapWorkflowScreenState extends State<SwapWorkflowScreen>
       }
     }
 
+    // ---- NEW: Update WAPRO reservations if the source RW is today
+    try {
+      final isToday = await _isSourceToday();
+      if (isToday) {
+        final affected = <String>{};
+        if (_oldItemId != null && _oldItemId!.isNotEmpty)
+          affected.add(_oldItemId!);
+        if (_newItemId != null && _newItemId!.isNotEmpty)
+          affected.add(_newItemId!);
+        if (affected.isNotEmpty) {
+          await _updateReservationsForItems(affected);
+        }
+      }
+    } catch (_) {
+      // best-effort; UI message already handled in helper
+    }
+    // ----
+
     if (!mounted) return;
 
     final oldName =
@@ -584,6 +602,63 @@ class _SwapWorkflowScreenState extends State<SwapWorkflowScreen>
     ScaffoldMessenger.of(
       context,
     ).showSnackBar(const SnackBar(content: Text('Akcja wykonana')));
+  }
+
+  Future<bool> _isSourceToday() async {
+    if (_sourceRwRef == null) return false;
+    final snap = await _sourceRwRef!.get();
+    final raw = snap.data()?['createdAt'];
+    DateTime dt;
+    if (raw is Timestamp) {
+      dt = raw.toDate();
+    } else if (raw is String) {
+      dt = DateTime.tryParse(raw) ?? DateTime.now();
+    } else {
+      dt = DateTime.now();
+    }
+    final now = DateTime.now();
+    final start = DateTime(now.year, now.month, now.day);
+    final end = start.add(const Duration(days: 1));
+    return dt.isAfter(start) && dt.isBefore(end);
+  }
+
+  Future<int> _getProjectQty(String itemId) async {
+    final projRef = FirebaseFirestore.instance
+        .collection('customers')
+        .doc(widget.customerId)
+        .collection('projects')
+        .doc(widget.projectId);
+    final projSnap = await projRef.get(const GetOptions(source: Source.server));
+    final items = (projSnap.data()?['items'] as List<dynamic>? ?? const []);
+    for (final e in items) {
+      final m = e as Map<String, dynamic>;
+      if ((m['itemId'] ?? '') == itemId) {
+        return (m['quantity'] as num?)?.toInt() ?? 0;
+      }
+    }
+    return 0;
+  }
+
+  Future<void> _updateReservationsForItems(Set<String> itemIds) async {
+    try {
+      await AdminApi.init();
+      for (final id in itemIds) {
+        if (id.isEmpty) continue;
+        final q = await _getProjectQty(id);
+        await AdminApi.reserveUpsert(
+          projectId: widget.projectId,
+          customerId: widget.customerId,
+          itemId: id,
+          qty: q,
+          actorEmail: 'app', // ?? signed-in user’s email
+        );
+      }
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Rezerwacje (WAPRO) nie zaktualizowane: $e')),
+      );
+    }
   }
 
   Widget _buildLineEditor(

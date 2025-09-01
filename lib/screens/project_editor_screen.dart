@@ -2,6 +2,7 @@
 
 import 'dart:async';
 import 'dart:core';
+import 'package:collection/collection.dart';
 import 'package:auto_size_text/auto_size_text.dart';
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
@@ -12,6 +13,7 @@ import 'package:strefa_ciszy/models/stock_item.dart';
 import 'package:strefa_ciszy/models/project_line.dart';
 import 'package:strefa_ciszy/screens/project_description_screen.dart';
 import 'package:strefa_ciszy/screens/rw_documents_screen.dart';
+import 'package:strefa_ciszy/services/admin_api.dart';
 import 'package:strefa_ciszy/services/api_service.dart';
 import 'package:strefa_ciszy/services/stock_service.dart';
 import 'package:strefa_ciszy/widgets/app_scaffold.dart';
@@ -528,6 +530,42 @@ class _ProjectEditorScreenState extends State<ProjectEditorScreen> {
 
     setState(() => _saving = true);
 
+    // api reserve
+    try {
+      await AdminApi.init();
+      final actorEmail = FirebaseAuth.instance.currentUser?.email ?? 'app';
+
+      for (final ln in filteredLines.where((l) => l.isStock)) {
+        await AdminApi.reserveUpsert(
+          projectId: widget.projectId,
+          customerId: widget.customerId,
+          itemId: ln.itemRef,
+          qty: ln.requestedQty,
+          actorEmail: actorEmail,
+        );
+      }
+
+      for (final ln in fullLines.where(
+        (l) => l.isStock && (l.previousQty ?? 0) > 0 && l.requestedQty <= 0,
+      )) {
+        await AdminApi.reserveUpsert(
+          projectId: widget.projectId,
+          customerId: widget.customerId,
+          itemId: ln.itemRef,
+          qty: 0,
+          actorEmail: actorEmail,
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Rezerwacja nie powiodła się: $e')),
+        );
+      }
+      return;
+    }
+    ////
+
     final projectRef = FirebaseFirestore.instance
         .collection('customers')
         .doc(widget.customerId)
@@ -583,6 +621,7 @@ class _ProjectEditorScreenState extends State<ProjectEditorScreen> {
     );
 
     rwData['customerName'] = _customerName;
+    rwData['projectName'] = projectName;
     rwData['createdByName'] = createdByName;
 
     rwData['notesList'] = _notes
@@ -613,14 +652,6 @@ class _ProjectEditorScreenState extends State<ProjectEditorScreen> {
 
     // DELETE-ALL
     if (filteredLines.isEmpty && docSnap.exists) {
-      // for (final ln in fullLines.where((l) => l.previousQty > 0)) {
-      //   try {
-      //     await StockService.increaseQty(ln.itemRef, ln.previousQty);
-      //     debugPrint('🔄 Restored ${ln.previousQty} for ${ln.itemRef}');
-      //   } catch (e) {
-      //     debugPrint('⚠️ Couldn\'t restore ${ln.itemRef}: $e');
-      //   }
-      // }
       if (kUseFirestoreStock) {
         for (final ln in fullLines.where(
           (l) => l.previousQty > 0 && l.isStock,
@@ -633,6 +664,41 @@ class _ProjectEditorScreenState extends State<ProjectEditorScreen> {
           }
         }
       }
+
+      try {
+        await AdminApi.init();
+        final actorEmail = FirebaseAuth.instance.currentUser?.email ?? 'app';
+        for (final ln in fullLines.where(
+          (l) => l.isStock && (l.previousQty ?? 0) > 0,
+        )) {
+          await AdminApi.reserveUpsert(
+            projectId: widget.projectId,
+            customerId: widget.customerId,
+            itemId: ln.itemRef,
+            qty: 0, // release
+            actorEmail: actorEmail,
+          );
+        }
+      } catch (e) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('Nie udało się zwolnić rezerwacji: $e')),
+          );
+        }
+      }
+
+      // if (kUseFirestoreStock) {
+      //   for (final ln in fullLines.where(
+      //     (l) => l.previousQty > 0 && l.isStock,
+      //   )) {
+      //     try {
+      //       await StockService.increaseQty(ln.itemRef, ln.previousQty);
+      //       debugPrint('🔄 Restored ${ln.previousQty} for ${ln.itemRef}');
+      //     } catch (e) {
+      //       debugPrint('⚠️ Couldn\'t restore ${ln.itemRef}: $e');
+      //     }
+      //   }
+      // }
       ////
       final custSnap2 = await FirebaseFirestore.instance
           .collection('customers')
@@ -649,8 +715,9 @@ class _ProjectEditorScreenState extends State<ProjectEditorScreen> {
       final projectName2 = projSnap2.data()?['title'] as String? ?? '–';
 
       for (final ln in fullLines.where((l) => l.previousQty > 0)) {
-        final stock = _stockItems.firstWhere((s) => s.id == ln.itemRef);
-        final name = stock.name;
+        final stock = _stockItems.firstWhereOrNull((s) => s.id == ln.itemRef);
+        final name = stock?.name ?? ln.itemRef;
+
         final changeText = '-${ln.previousQty}${ln.unit}';
 
         await AuditService.logAction(
@@ -732,13 +799,13 @@ class _ProjectEditorScreenState extends State<ProjectEditorScreen> {
       await projectRef.update({
         'items': filteredLines.map((ln) {
           if (ln.isStock) {
-            final s = _stockItems.firstWhere((x) => x.id == ln.itemRef);
+            final s = _stockItems.firstWhereOrNull((x) => x.id == ln.itemRef);
             return {
               'itemId': ln.itemRef,
               'quantity': ln.requestedQty,
               'unit': ln.unit,
-              'name': s.name,
-              'producer': s.producent ?? '',
+              'name': s?.name,
+              'producer': s?.producent ?? '',
             };
           } else {
             return {
@@ -763,12 +830,12 @@ class _ProjectEditorScreenState extends State<ProjectEditorScreen> {
         final prev = ln.previousQty ?? 0;
         final diff = ln.requestedQty - prev;
         final name = ln.isStock
-            ? _stockItems.firstWhere((s) => s.id == ln.itemRef).name
+            ? _stockItems.firstWhereOrNull((s) => s.id == ln.itemRef)?.name
             : ln.customName;
         final changeText = '${diff > 0 ? '+' : ''}$diff${ln.unit}';
 
         final s = ln.isStock
-            ? _stockItems.firstWhere((x) => x.id == ln.itemRef)
+            ? _stockItems.firstWhereOrNull((x) => x.id == ln.itemRef)
             : null;
         final producent = ln.isStock ? (s?.producent ?? '') : '';
         final productName = ln.isStock ? (s?.name ?? '') : ln.customName;
@@ -842,14 +909,6 @@ class _ProjectEditorScreenState extends State<ProjectEditorScreen> {
       return m['name'] != line.customName;
     }).toList();
 
-    // if (line.isStock) {
-    //   final stockRef = FirebaseFirestore.instance
-    //       .collection('stock_items')
-    //       .doc(line.itemRef);
-    //   await stockRef.update({
-    //     'quantity': FieldValue.increment(line.requestedQty),
-    //   });
-    // }
     if (kUseFirestoreStock && line.isStock) {
       final stockRef = FirebaseFirestore.instance
           .collection('stock_items')
@@ -858,10 +917,33 @@ class _ProjectEditorScreenState extends State<ProjectEditorScreen> {
         'quantity': FieldValue.increment(line.requestedQty),
       });
     }
-    /////
+
+    // --- NEW: release this line's reservation in WAPRO
+    if (line.isStock) {
+      try {
+        await AdminApi.init();
+        final email = FirebaseAuth.instance.currentUser?.email ?? 'app';
+        await AdminApi.reserveUpsert(
+          projectId: widget.projectId,
+          customerId: widget.customerId,
+          itemId: line.itemRef,
+          qty: 0, // release
+          actorEmail: email,
+        );
+      } catch (e) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('Zwolnienie rezerwacji nie powiodło się: $e'),
+            ),
+          );
+        }
+      }
+    }
+    // --- END NEW
 
     final s = line.isStock
-        ? _stockItems.firstWhere((x) => x.id == line.itemRef)
+        ? _stockItems.firstWhereOrNull((x) => x.id == line.itemRef)
         : null;
     final producent = line.isStock ? (s?.producent ?? '') : '';
     final productName = line.isStock ? (s?.name ?? '') : line.customName;
@@ -1155,7 +1237,7 @@ class _ProjectEditorScreenState extends State<ProjectEditorScreen> {
                           final today = DateTime.now();
                           final ln = _lines[i];
                           final stock = ln.isStock
-                              ? _stockItems.firstWhere(
+                              ? _stockItems.firstWhereOrNull(
                                   (s) => s.id == ln.itemRef,
                                 )
                               : null;
@@ -1171,10 +1253,9 @@ class _ProjectEditorScreenState extends State<ProjectEditorScreen> {
                               : '';
 
                           final stockQty = ln.isStock
-                              ? _stockItems
-                                    .firstWhere((s) => s.id == ln.itemRef)
-                                    .quantity
+                              ? (stock?.quantity ?? ln.originalStock)
                               : ln.originalStock;
+
                           final delta = ln.requestedQty - ln.previousQty;
                           final previewQty = stockQty - delta;
                           final qtyColor = previewQty <= 0

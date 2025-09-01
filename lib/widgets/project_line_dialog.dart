@@ -1,5 +1,6 @@
 // lib/widgets/project_line_dialog.dart
 
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/services.dart';
@@ -7,6 +8,7 @@ import 'package:strefa_ciszy/models/project_line.dart';
 import 'package:strefa_ciszy/models/stock_item.dart';
 import 'package:strefa_ciszy/screens/scan_screen.dart';
 import 'package:strefa_ciszy/screens/swap_workflow_screen.dart';
+import 'package:strefa_ciszy/services/admin_api.dart';
 import 'package:strefa_ciszy/services/api_service.dart';
 import 'package:strefa_ciszy/utils/search_utils.dart';
 
@@ -547,8 +549,7 @@ Future<ProjectLine?> showProjectLineDialog(
                                 return 'Serio? ...no jak?';
 
                               if (isStock) {
-                                final available =
-                                    selectedAvailable; // <— use the captured value
+                                final available = selectedAvailable;
                                 if (available <= 0) return 'Brak na stanie';
                                 if (n > available)
                                   return 'Nie ma w magazynie (max: $available $unit)';
@@ -559,21 +560,6 @@ Future<ProjectLine?> showProjectLineDialog(
                             ////
                           ),
 
-                          SizedBox(height: 12),
-
-                          // DropdownButtonFormField<String>(
-                          //   value: unit,
-                          //   decoration: InputDecoration(labelText: 'jm.'),
-                          //   items: ['szt', 'm', 'kg', 'kpl']
-                          //       .map(
-                          //         (u) => DropdownMenuItem(
-                          //           value: u,
-                          //           child: Text(u),
-                          //         ),
-                          //       )
-                          //       .toList(),
-                          //   onChanged: (v) => setState(() => unit = v ?? unit),
-                          // ),
                           SizedBox(height: 24),
 
                           Row(
@@ -584,6 +570,7 @@ Future<ProjectLine?> showProjectLineDialog(
                                 child: const Text('Anuluj'),
                               ),
 
+                              // Show SWAP button only when item exists in any RW
                               if (isStock &&
                                   itemRef.isNotEmpty &&
                                   hasItemInAnyRW)
@@ -609,52 +596,85 @@ Future<ProjectLine?> showProjectLineDialog(
                                   ),
                                 ),
 
+                              // -------------------- (kept for reference) --------------------
+                              // if (isStock &&
+                              //     itemRef.isNotEmpty &&
+                              //     hasItemInAnyRW)
+                              //   ElevatedButton(
+                              //     onPressed: () async {
+                              //       await Navigator.of(context).push(
+                              //         MaterialPageRoute(
+                              //           builder: (_) => SwapWorkflowScreen(
+                              //             customerId: customerId,
+                              //             projectId: projectId,
+                              //             preselectedItemId: itemRef,
+                              //             isAdmin: isAdmin,
+                              //           ),
+                              //         ),
+                              //       );
+                              //       if (ctx.mounted) {
+                              //         Navigator.of(ctx).pop();
+                              //       }
+                              //     },
+                              //     child: const Icon(
+                              //       Icons.swap_horizontal_circle,
+                              //       color: Color.fromARGB(255, 148, 115, 13),
+                              //     ),
+                              //   ),
+                              // ElevatedButton(
+                              //   onPressed: () {
+                              //     if (!formKey.currentState!.validate()) return;
+                              //     if (isStock && itemRef.isEmpty) {
+                              //       ScaffoldMessenger.of(context).showSnackBar(
+                              //         const SnackBar(content: Text('Wybierz produkt.')),
+                              //       );
+                              //       return;
+                              //     }
+                              //     final added = int.tryParse(qtyController.text.trim()) ?? 0;
+                              //     if (added <= 0) {
+                              //       ScaffoldMessenger.of(context).showSnackBar(
+                              //         const SnackBar(content: Text('Wprowadź ilość > 0')),
+                              //       );
+                              //       return;
+                              //     }
+                              //     if (isStock) {
+                              //       final available = selectedAvailable; // value set on scan/selection
+                              //       if (available <= 0) {
+                              //         ScaffoldMessenger.of(context).showSnackBar(
+                              //           const SnackBar(content: Text('Brak na stanie — nie można dodać.')),
+                              //         );
+                              //         return;
+                              //       }
+                              //       if (added > available) {
+                              //         ScaffoldMessenger.of(context).showSnackBar(
+                              //           SnackBar(content: Text('Za mało w magazynie (max: $available $unit)')),
+                              //         );
+                              //         return;
+                              //       }
+                              //     }
+                              //     final newQty = prevQty + added;
+                              //     final int originalStock = isStock ? selectedAvailable : 0;
+                              //     final line = ProjectLine(
+                              //       isStock: isStock,
+                              //       itemRef: itemRef,
+                              //       customName: isStock ? '' : customController.text.trim(),
+                              //       requestedQty: newQty,
+                              //       unit: unit,
+                              //       originalStock: originalStock,
+                              //       previousQty: prevQty,
+                              //       updatedAt: DateTime.now(),
+                              //     );
+                              //     Navigator.of(ctx).pop(line);
+                              //   },
+                              //   child: Text(existing == null ? 'Dodaj' : 'Zapisz'),
+                              // ),
+                              // ------------------ end kept commented block -------------------
+
+                              // ✅ Always-visible DODAJ / ZAPISZ button
                               ElevatedButton(
-                                // onPressed: () {
-                                //   if (!formKey.currentState!.validate()) return;
-                                //   if (isStock && itemRef.isEmpty) {
-                                //     ScaffoldMessenger.of(context).showSnackBar(
-                                //       const SnackBar(
-                                //         content: Text('Wybierz produkt.'),
-                                //       ),
-                                //     );
-                                //     return;
-                                //   }
-
-                                //   final chosen = isStock
-                                //       ? stockItems.firstWhere(
-                                //           (s) => s.id == itemRef,
-                                //         )
-                                //       : StockItem(
-                                //           id: '',
-                                //           name: customController.text.trim(),
-                                //           description: customController.text
-                                //               .trim(),
-                                //           quantity: 0,
-                                //         );
-
-                                //   final added =
-                                //       int.tryParse(qtyController.text.trim()) ??
-                                //       0;
-                                //   final newQty = prevQty + added;
-
-                                //   final line = ProjectLine(
-                                //     isStock: isStock,
-                                //     itemRef: itemRef,
-                                //     customName: isStock
-                                //         ? ''
-                                //         : customController.text.trim(),
-                                //     requestedQty: newQty,
-                                //     unit: unit,
-                                //     originalStock: chosen.quantity,
-                                //     previousQty: prevQty,
-                                //     updatedAt: DateTime.now(),
-                                //   );
-
-                                //   Navigator.of(ctx).pop(line);
-                                // },
-                                onPressed: () {
+                                onPressed: () async {
                                   if (!formKey.currentState!.validate()) return;
+
                                   if (isStock && itemRef.isEmpty) {
                                     ScaffoldMessenger.of(context).showSnackBar(
                                       const SnackBar(
@@ -676,9 +696,9 @@ Future<ProjectLine?> showProjectLineDialog(
                                     return;
                                   }
 
+                                  // Local availability guard
                                   if (isStock) {
-                                    final available =
-                                        selectedAvailable; // value set on scan/selection
+                                    final available = selectedAvailable;
                                     if (available <= 0) {
                                       ScaffoldMessenger.of(
                                         context,
@@ -707,11 +727,55 @@ Future<ProjectLine?> showProjectLineDialog(
 
                                   final newQty = prevQty + added;
 
-                                  // compute originalStock for preview only
+                                  // Reserve in WAPRO for stock items
+                                  if (isStock) {
+                                    try {
+                                      await AdminApi.init();
+                                      final email =
+                                          FirebaseAuth
+                                              .instance
+                                              .currentUser
+                                              ?.email ??
+                                          'app';
+                                      final r = await AdminApi.reserveUpsert(
+                                        projectId: projectId,
+                                        customerId: customerId,
+                                        itemId: itemRef,
+                                        qty: newQty,
+                                        actorEmail: email,
+                                      );
+
+                                      if (context.mounted) {
+                                        final after = r['available_after'];
+                                        ScaffoldMessenger.of(
+                                          context,
+                                        ).showSnackBar(
+                                          SnackBar(
+                                            content: Text(
+                                              'Zarezerwowano $newQty $unit • Dostępne po: $after',
+                                            ),
+                                          ),
+                                        );
+                                      }
+                                    } catch (e) {
+                                      if (context.mounted) {
+                                        ScaffoldMessenger.of(
+                                          context,
+                                        ).showSnackBar(
+                                          SnackBar(
+                                            content: Text(
+                                              'Rezerwacja nie powiodła się: $e',
+                                            ),
+                                          ),
+                                        );
+                                      }
+                                      return;
+                                    }
+                                  }
+
                                   final int originalStock = isStock
                                       ? selectedAvailable
                                       : 0;
-
                                   final line = ProjectLine(
                                     isStock: isStock,
                                     itemRef: itemRef,
@@ -725,10 +789,10 @@ Future<ProjectLine?> showProjectLineDialog(
                                     updatedAt: DateTime.now(),
                                   );
 
-                                  Navigator.of(ctx).pop(line);
+                                  if (ctx.mounted) {
+                                    Navigator.of(ctx).pop(line);
+                                  }
                                 },
-
-                                /////////
                                 child: Text(
                                   existing == null ? 'Dodaj' : 'Zapisz',
                                 ),

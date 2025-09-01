@@ -2,12 +2,14 @@
 
 import 'package:auto_size_text/auto_size_text.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:intl/intl.dart';
 import 'package:open_file/open_file.dart';
 import 'package:strefa_ciszy/screens/project_editor_screen.dart';
+import 'package:strefa_ciszy/services/admin_api.dart';
 import 'package:strefa_ciszy/services/audit_service.dart';
 import 'package:strefa_ciszy/services/file_saver.dart';
 import 'package:strefa_ciszy/services/stock_service.dart';
@@ -100,17 +102,25 @@ class _RWDocumentsScreenState extends State<RWDocumentsScreen> {
                   .get(),
             ]),
             builder: (ctx, snap) {
-              if (snap.connectionState != ConnectionState.done ||
-                  !snap.hasData) {
-                return const Text('Raport');
+              // show nothing while loading (keeps AppBar clean)
+              if (!snap.hasData) {
+                return const SizedBox.shrink();
               }
-              final List<DocumentSnapshot<Map<String, dynamic>>> docs =
-                  snap.data!;
 
-              final custData = docs[0].data()!;
-              final projData = docs[1].data()!;
-              final custName = custData['name'] ?? '–';
-              final projName = projData['title'] ?? '–';
+              final docs = snap.data!;
+              final custData =
+                  (docs.isNotEmpty ? docs[0].data() : null) ?? const {};
+              final projData =
+                  (docs.length > 1 ? docs[1].data() : null) ?? const {};
+
+              final custName =
+                  (custData['name'] as String?)?.trim().isNotEmpty == true
+                  ? (custData['name'] as String).trim()
+                  : '–';
+              final projName =
+                  (projData['title'] as String?)?.trim().isNotEmpty == true
+                  ? (projData['title'] as String).trim()
+                  : '–';
 
               return Column(
                 mainAxisSize: MainAxisSize.min,
@@ -132,23 +142,7 @@ class _RWDocumentsScreenState extends State<RWDocumentsScreen> {
               );
             },
           )
-        : RichText(
-            text: TextSpan(
-              style:
-                  Theme.of(context).appBarTheme.titleTextStyle ??
-                  DefaultTextStyle.of(context).style,
-              children: [
-                TextSpan(
-                  text: 'Raport – wszystkie',
-                  style: TextStyle(
-                    color: Colors.blueGrey,
-                    fontSize: 18,
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
-              ],
-            ),
-          );
+        : const SizedBox.shrink(); // no “Raport” when not inside a project
 
     return AppScaffold(
       // floatingActionButton: FloatingActionButton(
@@ -353,9 +347,6 @@ class _RWDocumentsScreenState extends State<RWDocumentsScreen> {
                                 context: context,
                                 builder: (ctx2) => AlertDialog(
                                   title: Text('Usuń dokument?'),
-                                  // content: Text(
-                                  //   'Na pewno usunąć dokument ${d['type']}?',
-                                  // ),
                                   actions: [
                                     TextButton(
                                       onPressed: () =>
@@ -377,11 +368,40 @@ class _RWDocumentsScreenState extends State<RWDocumentsScreen> {
                                   (data['items'] as List<dynamic>? ?? [])
                                       .cast<Map<String, dynamic>>();
 
-                              for (var it in items) {
-                                final id = it['itemId'] as String;
-                                final qty = (it['quantity'] as num).toInt();
-                                await StockService.increaseQty(id, qty);
+                              try {
+                                await AdminApi.init();
+                                final actorEmail =
+                                    FirebaseAuth.instance.currentUser?.email ??
+                                    'app';
+                                for (final it in items) {
+                                  final id = (it['itemId'] ?? '').toString();
+                                  if (id.isEmpty) continue;
+                                  await AdminApi.reserveUpsert(
+                                    projectId: widget.projectId!,
+                                    customerId: widget.customerId!,
+                                    itemId: id,
+                                    qty: 0,
+                                    actorEmail: actorEmail,
+                                  );
+                                }
+                              } catch (e) {
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  SnackBar(
+                                    content: Text(
+                                      'Cofanie rezerwacja nie powiodło się: $e',
+                                    ),
+                                  ),
+                                );
+                                return;
                               }
+
+                              // firestore
+                              // for (var it in items) {
+                              //   final id = (it['itemId'] ?? '').toString();
+                              //   final qty = (it['quantity'] as num?)?.toInt() ?? 0;
+                              //   if (id.isEmpty || qty <= 0) continue;
+                              //   await StockService.increaseQty(id, qty);
+                              // }
 
                               final projectRef = FirebaseFirestore.instance
                                   .collection('customers')
@@ -422,7 +442,9 @@ class _RWDocumentsScreenState extends State<RWDocumentsScreen> {
 
                               ScaffoldMessenger.of(context).showSnackBar(
                                 SnackBar(
-                                  content: Text('Usunięty, stan przywrócony'),
+                                  content: Text(
+                                    'Usunięty, rezerwacje zwolnione',
+                                  ),
                                 ),
                               );
                             },
@@ -456,9 +478,10 @@ class _RWDocumentsScreenState extends State<RWDocumentsScreen> {
                                         const SizedBox(width: 8),
 
                                         Flexible(
-                                          child: Text(
-                                            'Raport: ${d['customerName'] ?? ''} • ${d['projectName'] ?? ''}',
-                                            overflow: TextOverflow.ellipsis,
+                                          child: AutoSizeText(
+                                            '${(d['customerName'] ?? '–')} • ${(d['projectName'] ?? '–')}',
+                                            maxLines: 1,
+                                            minFontSize: 8,
                                             style: Theme.of(context)
                                                 .textTheme
                                                 .bodyMedium
@@ -467,6 +490,7 @@ class _RWDocumentsScreenState extends State<RWDocumentsScreen> {
                                                 ),
                                           ),
                                         ),
+
                                         const SizedBox(width: 16),
 
                                         const Icon(
@@ -478,7 +502,6 @@ class _RWDocumentsScreenState extends State<RWDocumentsScreen> {
                                         Expanded(
                                           child: Text(
                                             displayName,
-                                            overflow: TextOverflow.ellipsis,
                                             style: TextStyle(
                                               color: colourFromString(
                                                 displayName,
@@ -492,7 +515,7 @@ class _RWDocumentsScreenState extends State<RWDocumentsScreen> {
 
                                     const SizedBox(height: 4),
 
-                                    // Row 2: date (like history)
+                                    // Row 2: date
                                     Row(
                                       children: [
                                         const Icon(
@@ -512,7 +535,6 @@ class _RWDocumentsScreenState extends State<RWDocumentsScreen> {
                                         ),
                                       ],
                                     ),
-
                                     // // Optional extra lines (kept from your original, commented)
                                     // if ((d['items'] as List).isEmpty &&
                                     //     (d['notesList'] as List).isNotEmpty)
@@ -527,6 +549,7 @@ class _RWDocumentsScreenState extends State<RWDocumentsScreen> {
                                 ),
                               ),
 
+                              // Right side: edit/delete buttons
                               if (actions.isNotEmpty)
                                 Row(
                                   mainAxisSize: MainAxisSize.min,

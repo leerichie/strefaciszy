@@ -111,7 +111,7 @@ class _MainMenuScreenState extends State<MainMenuScreen> {
 
         // DEV button (only you; doesn’t touch the main FAB)
         if (_isLee && isAdmin) ...[
-          const DebugReserveButton(), // <-- inline debug button
+          // const DebugReserveButton(),
           const SizedBox(height: 16),
           const Divider(),
         ],

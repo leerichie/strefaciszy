@@ -336,7 +336,7 @@ class _CustomerListScreenState extends State<CustomerListScreen> {
 
       body: DismissKeyboard(
         child: StreamBuilder<QuerySnapshot>(
-          stream: _col.orderBy('createdAt', descending: true).snapshots(),
+          stream: _col.snapshots(),
           builder: (ctx, snap) {
             if (snap.connectionState == ConnectionState.waiting) {
               return const Center(child: CircularProgressIndicator());
