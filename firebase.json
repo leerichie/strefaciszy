@@ -64,7 +64,6 @@
       "flutter build apk --release",
       "cp build/app/outputs/flutter-apk/app-release.apk build/web/app-release.apk",
       "cp build/web/version.json version.json"
-
     ],
     "rewrites": [
       {
@@ -74,7 +73,12 @@
     ]
   },
   "firestore": {
+    "database": "(default)",
+    "location": "nam5",
     "rules": "firestore.rules",
     "indexes": "firestore.indexes.json"
+  },
+  "storage": {
+    "rules": "storage.rules"
   }
 }

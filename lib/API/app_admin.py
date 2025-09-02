@@ -11,8 +11,22 @@ from firebase_admin import auth as fb_auth, credentials, firestore
 # -----------------------------------------------------------------------------
 # Flask + CORS
 # -----------------------------------------------------------------------------
+ALLOWED_ORIGINS = [
+    "https://strefa-ciszy.web.app",
+    "https://strefa-ciszy.firebaseapp.com",
+    r"http://localhost:\d+",
+    r"http://127\.0\.0\.1:\d+",
+]
+
 app = Flask(__name__)
-CORS(app)
+CORS(
+    app,
+    resources={r"/api/*": {"origins": ALLOWED_ORIGINS}},  # covers /api/admin/* too
+    supports_credentials=False,
+    allow_headers=["Content-Type","Authorization","Cache-Control","X-Requested-With"],
+    methods=["GET","POST","PUT","PATCH","DELETE","OPTIONS"],
+)
+
 app.logger.setLevel(logging.INFO)
 
 # -----------------------------------------------------------------------------
@@ -599,6 +613,30 @@ WHEN NOT MATCHED THEN
         "updated_by": upd_by,
         "updated_at": upd_at,
     }), 200
+
+@app.post("/api/admin/commit")
+def _alias_admin_commit():
+    return commit_project_items()
+
+@app.post("/api/admin/sync/preview")
+def _alias_admin_sync_preview():
+    return sync_preview()
+
+@app.post("/api/admin/sync/apply")
+def _alias_admin_sync_apply():
+    return sync_apply()
+
+@app.get("/api/admin/sync/pending")
+def _alias_admin_sync_pending():
+    return sync_pending()
+
+@app.post("/api/admin/reservations/upsert")
+def _alias_admin_res_upsert():
+    return reservations_upsert()
+
+@app.put("/api/admin/products/<pid>/ean")
+def admin_put_ean(pid):
+    return set_product_ean(pid)
 
 @app.put("/api/products/<pid>/ean")
 def set_product_ean(pid):

@@ -1,7 +1,7 @@
 import 'dart:convert';
-import 'package:flutter/foundation.dart';
-import 'package:http/http.dart' as http;
 
+import 'package:flutter/foundation.dart' show kIsWeb;
+import 'package:http/http.dart' as http;
 import 'package:strefa_ciszy/models/stock_item.dart';
 import 'package:strefa_ciszy/services/api_service.dart';
 
@@ -12,7 +12,6 @@ class SetEanResult {
   final String? conflictName;
   final String? current;
   final bool duplicate;
-
   const SetEanResult({
     required this.ok,
     this.error,
@@ -24,21 +23,29 @@ class SetEanResult {
 }
 
 class AdminApi {
-  static const List<String> _primaryCandidates = [
-    // 'https://wapro-api.tail52a6fb.ts.net:9104/api',
-  ];
+  // WEB
+  static const String _primaryWeb = 'https://wapro-api.tail52a6fb.ts.net/api';
 
-  static const List<String> _fallbacks = [
-    'http://wapro-api:9104/api', // MagicDNS inside tailnet / docker
-    'http://100.86.227.1:9104/api', // Tailscale IP (adjust if needed)
-    'http://192.168.1.103:9104/api', // LAN
-    'http://10.0.2.2:9104/api', // Android emulator -> host
+  static const String _primaryNative =
+      'https://wapro-api.tail52a6fb.ts.net/api';
+
+  // Native
+  static const List<String> _nativeFallbacks = [
+    'http://wapro-api:9104/api',
+    'http://100.86.227.1:9104/api',
+    'http://192.168.1.103:9104/api',
+    'http://10.0.2.2:9104/api',
   ];
 
   static String _base = '';
 
   static Future<void> init() async {
-    final candidates = <String>[..._primaryCandidates, ..._fallbacks];
+    if (_base.isNotEmpty) return;
+
+    final candidates = kIsWeb
+        ? <String>[_primaryWeb]
+        : <String>[_primaryNative, ..._nativeFallbacks];
+
     for (final b in candidates) {
       try {
         final r = await http
@@ -46,26 +53,24 @@ class AdminApi {
             .timeout(const Duration(seconds: 3));
         if (r.statusCode == 200) {
           _base = b;
-          debugPrint('[AdminApi] BASE = $_base');
           return;
         }
       } catch (_) {
         /* try next */
       }
     }
-    throw Exception(
-      'AdminApi: no reachable base (is 9104 open on your tailnet/LAN?)',
-    );
+    _base = candidates.first;
   }
 
   static Uri _u(String path) {
     if (_base.isEmpty) {
-      throw StateError('AdminApi not initialized. Call AdminApi.init() first.');
+      init();
+      return Uri.parse('${(_base.isEmpty ? _primaryWeb : _base)}$path');
     }
     return Uri.parse('$_base$path');
   }
 
-  // ---------- Normalization (unchanged) ----------
+  // ---------- Normalization ----------
   static Future<void> stageOne({
     required StockItem normalized,
     required String who,
@@ -79,7 +84,7 @@ class AdminApi {
       'proposed_by': who,
     };
     final res = await http.post(
-      _u('/sync/preview'),
+      _u('/admin/sync/preview'),
       headers: {'Content-Type': 'application/json'},
       body: jsonEncode(body),
     );
@@ -93,7 +98,7 @@ class AdminApi {
   static Future<void> applyIds(List<String> ids, {required String who}) async {
     final body = {'ids': ids, 'approved_by': who};
     final res = await http.post(
-      _u('/sync/apply'),
+      _u('/admin/sync/apply'),
       headers: {'Content-Type': 'application/json'},
       body: jsonEncode(body),
     );
@@ -103,7 +108,7 @@ class AdminApi {
   }
 
   static Future<List<String>> pendingIds() async {
-    final res = await http.get(_u('/sync/pending'));
+    final res = await http.get(_u('/admin/sync/pending'));
     if (res.statusCode != 200) {
       throw Exception('pending failed: ${res.statusCode}');
     }
@@ -117,7 +122,7 @@ class AdminApi {
     required String ean,
   }) async {
     final res = await http.put(
-      _u('/products/$productId/ean'),
+      _u('/admin/products/$productId/ean'),
       headers: {'Content-Type': 'application/json'},
       body: jsonEncode({'ean': ean}),
     );
@@ -148,9 +153,7 @@ class AdminApi {
               if (p.producent.isNotEmpty) p.producent,
             ].where((s) => s.trim().isNotEmpty).join(', ');
           }
-        } catch (_) {
-          /* best-effort */
-        }
+        } catch (_) {}
       }
       return SetEanResult(
         ok: false,
@@ -203,7 +206,7 @@ class AdminApi {
     required String actorEmail,
   }) async {
     final res = await http.post(
-      _u('/reservations/upsert'),
+      _u('/admin/reservations/upsert'),
       headers: {'Content-Type': 'application/json'},
       body: jsonEncode({
         'projectId': projectId,

@@ -1,8 +1,8 @@
 // lib/widgets/project_line_dialog.dart
 
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/services.dart';
 import 'package:strefa_ciszy/models/project_line.dart';
 import 'package:strefa_ciszy/models/stock_item.dart';
@@ -754,7 +754,7 @@ Future<ProjectLine?> showProjectLineDialog(
                                         ).showSnackBar(
                                           SnackBar(
                                             content: Text(
-                                              'Zarezerwowano $newQty $unit • Dostępne po: $after',
+                                              'Zarezerwowano $newQty $unit • Dostępny: $after',
                                             ),
                                           ),
                                         );

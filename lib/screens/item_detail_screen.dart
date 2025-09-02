@@ -1,13 +1,13 @@
 // lib/screens/item_detail_screen.dart
 import 'package:flutter/material.dart';
+import 'package:strefa_ciszy/models/stock_item.dart';
 import 'package:strefa_ciszy/screens/scan_screen.dart';
+import 'package:strefa_ciszy/services/admin_api.dart'; // <-- NEW
+import 'package:strefa_ciszy/services/api_service.dart';
 import 'package:strefa_ciszy/utils/keyboard_utils.dart';
 import 'package:strefa_ciszy/widgets/app_scaffold.dart';
-import 'add_item_screen.dart';
 
-import 'package:strefa_ciszy/services/api_service.dart';
-import 'package:strefa_ciszy/services/admin_api.dart'; // <-- NEW
-import 'package:strefa_ciszy/models/stock_item.dart';
+import 'add_item_screen.dart';
 
 class ItemDetailScreen extends StatelessWidget {
   final String itemId;
@@ -272,7 +272,7 @@ class ItemDetailScreen extends StatelessWidget {
 
                   const SizedBox(height: 16),
 
-                  if (isAdmin && needsEan)
+                  if (needsEan)
                     Center(
                       child: ElevatedButton.icon(
                         icon: const Icon(Icons.add),

@@ -1,8 +1,10 @@
 // lib/services/api_service.dart
 import 'dart:convert';
+
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
+
 // import 'package:strefa_ciszy/utils/stock_normalizer.dart';
 import '../models/stock_item.dart';
 
@@ -87,10 +89,7 @@ class ApiService {
     String productId,
   ) async {
     final uri = _uri('/admin/products/$productId/ean');
-    final res = await http.get(
-      uri,
-      headers: {'Accept': 'application/json', 'Cache-Control': 'no-cache'},
-    );
+    final res = await http.get(uri, headers: {'Accept': 'application/json'});
     debugPrint('[ApiService] GET $uri -> ${res.statusCode}');
 
     if (res.statusCode != 200) {
@@ -118,10 +117,7 @@ class ApiService {
       'offset': offset,
     });
 
-    final res = await http.get(
-      uri,
-      headers: {'Accept': 'application/json', 'Cache-Control': 'no-cache'},
-    );
+    final res = await http.get(uri, headers: {'Accept': 'application/json'});
     debugPrint('[ApiService] GET $uri -> ${res.statusCode}');
 
     if (res.statusCode != 200) {
@@ -212,7 +208,7 @@ class ApiService {
     required String actorEmail,
     bool dryRun = false,
   }) async {
-    final uri = _uri('/commit');
+    final uri = _uri('/admin/commit');
 
     final idToken = await FirebaseAuth.instance.currentUser?.getIdToken();
 
