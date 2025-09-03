@@ -6,6 +6,7 @@ import 'package:strefa_ciszy/screens/contacts_list_screen.dart';
 import 'package:strefa_ciszy/screens/customer_detail_screen.dart';
 import 'package:strefa_ciszy/screens/customer_list_screen.dart';
 import 'package:strefa_ciszy/screens/inventory_list_screen.dart';
+import 'package:strefa_ciszy/screens/login_screen.dart';
 import 'package:strefa_ciszy/screens/main_menu_screen.dart';
 import 'package:strefa_ciszy/screens/project_editor_screen.dart';
 import 'package:strefa_ciszy/screens/scan_screen.dart';
@@ -106,6 +107,15 @@ class _AppDrawerState extends State<AppDrawer> {
           .doc(docId)
           .delete();
     }
+  }
+
+  Future<void> _signOut() async {
+    await FirebaseAuth.instance.signOut();
+    if (!mounted) return;
+    Navigator.of(context).pushAndRemoveUntil(
+      MaterialPageRoute(builder: (_) => const LoginScreen()),
+      (_) => false,
+    );
   }
 
   @override
@@ -502,7 +512,11 @@ class _AppDrawerState extends State<AppDrawer> {
                   ],
                 ),
               ),
-              // 2) footer signature
+              IconButton(
+                icon: const Icon(Icons.logout),
+                tooltip: 'Logout',
+                onPressed: _signOut,
+              ),
               Padding(
                 padding: const EdgeInsets.only(right: 16, bottom: 16),
                 child: Align(

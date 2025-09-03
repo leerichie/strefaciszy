@@ -31,10 +31,10 @@ class AdminApi {
 
   // Native
   static const List<String> _nativeFallbacks = [
-    'http://wapro-api:9104/api',
-    'http://100.86.227.1:9104/api',
-    'http://192.168.1.103:9104/api',
-    'http://10.0.2.2:9104/api',
+    'http://wapro-api:9103/api',
+    'http://100.86.227.1:9103/api',
+    'http://192.168.1.103:9103/api',
+    'http://10.0.2.2:9103/api',
   ];
 
   static String _base = '';
@@ -49,7 +49,7 @@ class AdminApi {
     for (final b in candidates) {
       try {
         final r = await http
-            .get(Uri.parse('$b/admin/health'))
+            .get(Uri.parse('$b/health'))
             .timeout(const Duration(seconds: 3));
         if (r.statusCode == 200) {
           _base = b;
