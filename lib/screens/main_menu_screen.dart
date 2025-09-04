@@ -11,6 +11,7 @@ import 'package:strefa_ciszy/screens/approval_screen.dart';
 import 'package:strefa_ciszy/screens/contacts_list_screen.dart';
 import 'package:strefa_ciszy/screens/inventory_list_screen.dart';
 import 'package:strefa_ciszy/screens/login_screen.dart';
+import 'package:strefa_ciszy/screens/reservation_tester_screen.dart';
 import 'package:strefa_ciszy/widgets/app_scaffold.dart';
 import 'package:url_launcher/url_launcher.dart';
 
@@ -172,6 +173,20 @@ class _MainMenuScreenState extends State<MainMenuScreen> {
         ),
 
         const Divider(),
+
+        if (isAdmin) ...[
+          ListTile(
+            leading: const Icon(Icons.playlist_add_check_circle_outlined),
+            title: const Text('Rezerwacje (test)'),
+            subtitle: const Text('Reserve → Confirm → Invoiced/Release'),
+            onTap: () => Navigator.of(context).push(
+              MaterialPageRoute(
+                builder: (_) => const ReservationTesterScreen(),
+              ),
+            ),
+          ),
+          const Divider(),
+        ],
 
         StreamBuilder<bool>(
           stream: _isApproverStream(),

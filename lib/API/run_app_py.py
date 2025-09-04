@@ -8,6 +8,7 @@ import firebase_admin
 from firebase_admin import auth as fb_auth, credentials, firestore
 
 # CORS / Flask
+
 ALLOWED_ORIGINS = [
     "https://strefa-ciszy.web.app",
     "https://strefa-ciszy.firebaseapp.com",
@@ -18,14 +19,16 @@ ALLOWED_ORIGINS = [
 app = Flask(__name__)
 CORS(
     app,
-    resources={r"/api/*": {"origins": ALLOWED_ORIGINS}},  
+    resources={r"/api/*": {"origins": ALLOWED_ORIGINS}},  # covers /api/admin/* too
     supports_credentials=False,
     allow_headers=["Content-Type","Authorization","Cache-Control","X-Requested-With"],
     methods=["GET","POST","PUT","PATCH","DELETE","OPTIONS"],
 )
 app.logger.setLevel(logging.INFO)
 
-# SQL Server connection (merged)
+# ------------------------------------------------------------------------------
+# SQL Server connection
+# ------------------------------------------------------------------------------
 SERVER   = r"KASIA-BIURO\SQLEXPRESS"
 DATABASE = "WAPRO"
 USER     = "sc_app_admin"  
@@ -68,7 +71,8 @@ def exec_nonquery(sql: str, params=()):
         cur.execute(sql, params)
         conn.commit()
 
-# Firebase helpers 
+# ------------------------------------------------------------------------------
+# Firebase helpers (unchanged)
 # ------------------------------------------------------------------------------
 _FIREBASE_APP = None
 _FS = None
@@ -100,6 +104,7 @@ def _is_approver(email: Optional[str], uid: Optional[str]) -> bool:
     return ok_email or ok_uid
 
 # Health
+
 @app.get("/api/health")
 def health_plain():
     return jsonify({"ok": True, "service": "strefa-admin", "ts": datetime.datetime.utcnow().isoformat() + "Z"}), 200
@@ -108,7 +113,8 @@ def health_plain():
 def health_admin():
     return jsonify({"status": "ok"}), 200
 
-# ===  Catalog (uses app.v_AppCatalog) =====================================
+
+
 @app.get("/api/catalog")
 def catalog():
     q = (request.args.get("q") or "").strip()
@@ -131,7 +137,84 @@ def catalog():
         rows = cur.fetchall()
         return jsonify([dict(zip(cols, r)) for r in rows])
 
-# === Reservation / Invoicing endpoints
+# reservation
+
+@app.post("/api/admin/reservations/upsert")
+def reservations_upsert_compat():
+    """
+    Compatibility shim for the old app endpoint.
+    Body:
+      {
+        "projectId": "P-100",
+        "customerId": "...",      # ignored here
+        "itemId": "123",          # string or number; WAPRO ID_ARTYKULU
+        "qty": 2,                 # desired ABSOLUTE qty for this project+item
+        "warehouseId": null,      # ignored (not splitting by magazyn here)
+        "actorEmail": "user@x"    # used as 'user' in proc
+      }
+    Behavior:
+      - Computes current reserved for this project+item across active (Status 1,2) and non-invoiced lines.
+      - If desired > current: reserve the delta via app.sp_ReserveStock.
+      - If desired == current: no-op.
+      - If desired < current: 409 decrease-not-supported (for now).
+    """
+    data = request.get_json(force=True) or {}
+
+    project_id  = (data.get("projectId") or "").strip()
+    item_raw    = (data.get("itemId") or "").strip()
+    actor_email = (data.get("actorEmail") or "api").strip()
+
+    # parse numbers
+    try:
+        id_artykulu = int(item_raw)
+    except Exception:
+        return jsonify({"ok": False, "error": "bad-itemId"}), 400
+
+    try:
+        desired_qty = float(data.get("qty"))
+    except Exception:
+        return jsonify({"ok": False, "error": "bad-qty"}), 400
+
+    if not project_id or desired_qty < 0:
+        return jsonify({"ok": False, "error": "bad-payload"}), 400
+
+    with get_conn() as cn, cn.cursor() as cur:
+        cur.execute("""
+            SELECT ISNULL(SUM(rl.Qty), 0)
+            FROM app.ReservationLines rl
+            JOIN app.Reservations r ON r.ReservationId = rl.ReservationId
+            WHERE r.ProjectId = ? AND r.Status IN (1,2)
+              AND rl.InvoiceNo IS NULL
+              AND rl.ID_ARTYKULU = ?
+        """, (project_id, id_artykulu))
+        row = cur.fetchone()
+        current_qty = float(row[0] if row and row[0] is not None else 0.0)
+
+    delta = desired_qty - current_qty
+
+    if delta < -1e-9:
+        try:
+            cur.execute("{CALL app.sp_UnreserveStock(?,?,?)}",
+                        (project_id, id_artykulu, -delta))
+            return jsonify({
+                "ok": True,
+                "projectId": project_id,
+                "itemId": str(id_artykulu),
+                "qty": desired_qty,
+                "delta": float(delta),  
+                "reservationId": None,
+                "note": "decreased"
+            }), 200
+        except pyodbc.Error as e:
+            return jsonify({"ok": False, "error": str(e)}), 409
+
+    if delta <= 1e-9:
+        return jsonify({
+            "ok": True, "projectId": project_id, "itemId": str(id_artykulu),
+            "qty": desired_qty, "delta": 0.0, "reservationId": None, "note": "no-op"
+        }), 200
+    
+
 @app.post("/api/reserve")
 def api_reserve():
     """
@@ -207,7 +290,6 @@ def api_release():
         return jsonify({"ok": True})
 
 
-# ------------------------------------------------------------------------------
 # /api/commit (approver-gated log)
 @app.post("/api/commit")
 def commit_project_items():
@@ -305,7 +387,8 @@ VALUES (?, ?, ?, ?)
         except Exception:
             pass
 
-# ---- Normalization endpoints (unchanged) ----
+# Normalisation
+
 @app.post("/api/sync/preview")
 def sync_preview():
     data = request.get_json(force=True) or {}
@@ -631,7 +714,7 @@ WHERE id_artykulu = ?
         "updated_at": r.get("updated_at") or None,
     }), 200
 
-# ---- Products (unchanged) ----
+# ---- Products ----
 @app.get("/api/products")
 def list_products():
     q = request.args.get("q") or request.args.get("name") or request.args.get("search")
@@ -773,12 +856,11 @@ def get_product(id):
         "category":   (r.get("description") or "")
     }), 200
 
-# ---- Legacy reservations_upsert kept (DO NOT DELETE YET) ----
-# original /api/reservations/upsert is left out on purpose to avoid mixing
+# ---- Legacy reservations_upsert kept (DO NOT DELETE ) ----
+# /api/reservations/upsert is left out on purpose to avoid mixing
 # two reservation systems. Keep old service running if still use.
 # If want it here too, can copy it verbatim under a /api/legacy/... path.
 
-
 if __name__ == "__main__":
-    #  waitress:  python -m waitress --listen=0.0.0.0:9103 app:app
+    # Example waitress:  python -m waitress --listen=0.0.0.0:9132 app:app
     app.run(host="0.0.0.0", port=9103, debug=False)

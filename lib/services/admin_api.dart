@@ -222,4 +222,88 @@ class AdminApi {
     }
     return (jsonDecode(res.body) as Map).cast<String, dynamic>();
   }
+
+  // --- Catalog with availability (joins v_AppCatalog)
+  static Future<List<Map<String, dynamic>>> catalog({
+    String q = '',
+    int top = 100,
+  }) async {
+    final uri = _u(
+      '/catalog',
+    ).replace(queryParameters: {'q': q, 'top': '$top'});
+    final res = await http.get(uri);
+    if (res.statusCode != 200) {
+      throw Exception('GET $uri failed: ${res.statusCode} ${res.body}');
+    }
+    return (jsonDecode(res.body) as List).cast<Map<String, dynamic>>();
+  }
+
+  // --- New reservation flow (stored-procs backend) ---
+  static Future<String> reserve({
+    required String projectId,
+    required int idArtykulu,
+    required num qty,
+    String user = 'app',
+    String? comment,
+  }) async {
+    final res = await http.post(
+      _u('/reserve'),
+      headers: {'Content-Type': 'application/json'},
+      body: jsonEncode({
+        'projectId': projectId,
+        'idArtykulu': idArtykulu,
+        'qty': qty,
+        'user': user,
+        'comment': comment,
+      }),
+    );
+    if (res.statusCode != 200) {
+      // Proc throws when overbooking is attempted — surface message
+      throw Exception('reserve failed: ${res.statusCode} ${res.body}');
+    }
+    final m = (jsonDecode(res.body) as Map).cast<String, dynamic>();
+    return (m['reservationId'] as String?) ?? '';
+  }
+
+  static Future<void> confirm({
+    required String reservationId,
+    bool lockAll = true,
+  }) async {
+    final res = await http.post(
+      _u('/confirm'),
+      headers: {'Content-Type': 'application/json'},
+      body: jsonEncode({'reservationId': reservationId, 'lockAll': lockAll}),
+    );
+    if (res.statusCode != 200) {
+      throw Exception('confirm failed: ${res.statusCode} ${res.body}');
+    }
+  }
+
+  static Future<void> invoiced({
+    required String reservationId,
+    required String invoiceNo,
+  }) async {
+    final res = await http.post(
+      _u('/invoiced'),
+      headers: {'Content-Type': 'application/json'},
+      body: jsonEncode({
+        'reservationId': reservationId,
+        'invoiceNo': invoiceNo,
+      }),
+    );
+    if (res.statusCode != 200) {
+      throw Exception('invoiced failed: ${res.statusCode} ${res.body}');
+    }
+  }
+
+  static Future<void> release({required String reservationId}) async {
+    final res = await http.post(
+      _u('/release'),
+      headers: {'Content-Type': 'application/json'},
+      body: jsonEncode({'reservationId': reservationId}),
+    );
+    if (res.statusCode != 200) {
+      throw Exception('release failed: ${res.statusCode} ${res.body}');
+    }
+  }
 }
