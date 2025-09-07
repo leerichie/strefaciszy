@@ -1,8 +1,8 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
+import 'package:intl/intl.dart';
 import 'package:strefa_ciszy/services/admin_api.dart';
-import 'package:strefa_ciszy/services/api_service.dart';
 import 'package:strefa_ciszy/services/audit_service.dart';
 
 class ApprovalScreen extends StatefulWidget {
@@ -70,7 +70,7 @@ class _ApprovalScreenState extends State<ApprovalScreen> {
 
         return Scaffold(
           appBar: AppBar(
-            title: const Text('Potwierdzenia (WAPRO)'),
+            title: const Text('Projekty do zatwierdzenie (WF-MAG sync)'),
             actions: [
               PopupMenuButton<Duration>(
                 tooltip: 'Zakres',
@@ -144,6 +144,7 @@ class _ApprovalScreenState extends State<ApprovalScreen> {
                 itemBuilder: (ctx, i) {
                   final p = filtered[i];
                   final m = p.data();
+                  final reservationId = (m['reservationId'] as String?)?.trim();
                   final segs = p.reference.path.split('/');
                   final customerId = segs.length >= 3
                       ? segs[segs.length - 3]
@@ -162,6 +163,7 @@ class _ApprovalScreenState extends State<ApprovalScreen> {
                     items: items,
                     customerNameFuture: _getCustomerName(customerId),
                     docRef: p.reference,
+                    reservationId: reservationId,
                   );
                 },
               );
@@ -181,6 +183,7 @@ class _ProjectCard extends StatefulWidget {
   final List<Map> items;
   final Future<String> customerNameFuture;
   final DocumentReference<Map<String, dynamic>> docRef;
+  final String? reservationId;
 
   const _ProjectCard({
     required this.customerId,
@@ -190,6 +193,7 @@ class _ProjectCard extends StatefulWidget {
     required this.items,
     required this.customerNameFuture,
     required this.docRef,
+    this.reservationId,
   });
 
   @override
@@ -227,6 +231,54 @@ class _ProjectCardState extends State<_ProjectCard> {
     if (snap.docs.isEmpty) return null;
     return snap.docs.first.reference;
   }
+
+  bool get _canInvoice {
+    if (_selectedQty.isEmpty) return false;
+    for (final e in _selectedQty.entries) {
+      final maxQty = (_items[e.key]['quantity'] as num?)?.toInt() ?? 0;
+      if (e.value > 0 && maxQty > 0) return true;
+    }
+    return false;
+  }
+
+  // Future<void> _copyToClipboard(String text, String label) async {
+  //   await Clipboard.setData(ClipboardData(text: text));
+  //   if (!mounted) return;
+  //   ScaffoldMessenger.of(
+  //     context,
+  //   ).showSnackBar(SnackBar(content: Text('$label skopiowane')));
+  // }
+
+  // Future<void> _lockForInvoicing() async {
+  //   final rid = widget.reservationId?.trim();
+  //   if (rid == null || rid.isEmpty) {
+  //     ScaffoldMessenger.of(context).showSnackBar(
+  //       const SnackBar(content: Text('Brak reservationId dla projektu.')),
+  //     );
+  //     return;
+  //   }
+
+  //   try {
+  //     ScaffoldMessenger.of(context).showSnackBar(
+  //       const SnackBar(content: Text('Blokuję rezerwację do faktury…')),
+  //     );
+  //     // Lock ALL or just the selected subset?
+  //     // With your current API: lockAll = (_selectedQty.length == _items.length)
+  //     final lockAll =
+  //         _selectedQty.isEmpty || _selectedQty.length == _items.length;
+  //     await AdminApi.confirm(reservationId: rid, lockAll: lockAll);
+
+  //     if (!mounted) return;
+  //     ScaffoldMessenger.of(
+  //       context,
+  //     ).showSnackBar(const SnackBar(content: Text('Zablokowano do faktury.')));
+  //   } catch (e) {
+  //     if (!mounted) return;
+  //     ScaffoldMessenger.of(
+  //       context,
+  //     ).showSnackBar(SnackBar(content: Text('Błąd blokady: $e')));
+  //   }
+  // }
 
   Future<void> _mirrorProjectAndRwDocs(
     List<Map<String, dynamic>> newItems,
@@ -288,12 +340,59 @@ class _ProjectCardState extends State<_ProjectCard> {
       return;
     }
 
+    // Build a summary list for confirmation
+    final lines = <String>[];
+    _selectedQty.forEach((idx, qty) {
+      final m = _items[idx];
+      final name = (m['name'] as String?) ?? '';
+      final producer = (m['producer'] as String?) ?? '';
+      final unit = (m['unit'] as String?) ?? 'szt';
+      final title = [producer, name].where((s) => s.isNotEmpty).join(' ');
+      lines.add('• $title  —  $qty $unit');
+    });
+
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (_) => AlertDialog(
+        title: const Text('Na pewno cofac rezerwacja?'),
+        content: SizedBox(
+          width: 420,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text('Pozycji: ${_selectedQty.length}'),
+              const SizedBox(height: 8),
+              ...lines.map(
+                (t) => Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 2),
+                  child: Text(t, style: const TextStyle(fontSize: 14)),
+                ),
+              ),
+            ],
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Anuluj'),
+          ),
+          FilledButton.icon(
+            icon: const Icon(Icons.lock_open),
+            label: const Text('Cofnij'),
+            onPressed: () => Navigator.pop(context, true),
+          ),
+        ],
+      ),
+    );
+    if (ok != true) return;
+
     final email = FirebaseAuth.instance.currentUser?.email ?? 'app';
     ScaffoldMessenger.of(
       context,
     ).showSnackBar(const SnackBar(content: Text('Cofam rezerwacja…')));
 
-    int ok = 0, fail = 0;
+    int okCount = 0, fail = 0;
     final newQtyByIndex = <int, int>{};
 
     for (final entry in _selectedQty.entries) {
@@ -317,7 +416,7 @@ class _ProjectCardState extends State<_ProjectCard> {
           actorEmail: email,
         );
         newQtyByIndex[i] = newQty;
-        ok++;
+        okCount++;
         await _logRelease(m: m, releasedQty: releaseQty, newQty: newQty);
       } catch (_) {
         fail++;
@@ -345,15 +444,15 @@ class _ProjectCardState extends State<_ProjectCard> {
     } catch (_) {}
 
     if (!mounted) return;
-    if (fail == 0) {
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text('Cofnieta rezerwacja: $ok')));
-    } else {
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text('Zwolniono: $ok, błędy: $fail')));
-    }
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(
+          fail == 0
+              ? 'Cofnięto: $okCount'
+              : 'Zwolniono: $okCount, błędy: $fail',
+        ),
+      ),
+    );
   }
 
   Future<void> _releaseAllInProject() async {
@@ -460,131 +559,315 @@ class _ProjectCardState extends State<_ProjectCard> {
     );
   }
 
-  Future<void> _confirmSelection() async {
-    final lines = <Map<String, dynamic>>[];
-    for (final entry in _selectedQty.entries) {
-      final i = entry.key;
-      final qty = entry.value;
-      final m = _items[i];
+  Future<String?> _askInvoiceTag() async {
+    final ctrl = TextEditingController();
+    return showDialog<String>(
+      context: context,
+      builder: (_) => AlertDialog(
+        title: const Text('Numer faktury (opcjonalnie)'),
+        content: TextField(
+          controller: ctrl,
+          autofocus: true,
+          decoration: const InputDecoration(
+            hintText: 'Zostaw puste aby wygenerować',
+            border: OutlineInputBorder(),
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Anuluj'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(context, ctrl.text.trim()),
+            child: const Text('OK'),
+          ),
+        ],
+      ),
+    );
+  }
 
-      final itemId = (m['itemId'] as String?) ?? '';
-      final name = (m['name'] as String?) ?? '';
-      final unit = (m['unit'] as String?) ?? 'szt';
-      final producer = (m['producer'] as String?) ?? '';
-
-      lines.add({
-        if (itemId.isNotEmpty) 'itemId': itemId,
-        'name': name,
-        'producer': producer,
-        'unit': unit,
-        'qty': qty,
-      });
-    }
-
-    if (lines.isEmpty) {
+  Future<void> _invoiceSelected() async {
+    if (!_canInvoice) {
       ScaffoldMessenger.of(
         context,
       ).showSnackBar(const SnackBar(content: Text('Nic nie wybrano')));
       return;
     }
 
-    final titleText = await widget.customerNameFuture
-        .then((c) => '$c  •  ${widget.title}')
-        .catchError((_) => widget.title);
+    // Build payload for backend: [{ itemId:int, qty:num }]
+    final List<Map<String, dynamic>> lines = [];
+    _selectedQty.forEach((idx, qty) {
+      final m = _items[idx];
+      final idStr = (m['itemId'] ?? '').toString();
+      final id = int.tryParse(idStr);
+      final maxQty = (m['quantity'] as num?)?.toInt() ?? 0;
+      final q = qty.clamp(1, maxQty);
+      if (id != null && q > 0) {
+        lines.add({'itemId': id, 'qty': q});
+      }
+    });
 
-    await showDialog<void>(
+    if (lines.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Wybrane pozycje nie mają ID lub ilości.'),
+        ),
+      );
+      return;
+    }
+
+    // Optional invoice number
+    final ctrl = TextEditingController();
+    final enteredInvoice = await showDialog<String?>(
       context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Text('Aktualizować baza Wf-Mag?'),
-        content: SizedBox(
-          width: double.maxFinite,
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                titleText,
-                style: const TextStyle(fontWeight: FontWeight.w600),
-              ),
-              const SizedBox(height: 8),
-              for (final ln in lines)
-                Padding(
-                  padding: const EdgeInsets.symmetric(vertical: 2),
-                  child: Text(
-                    '${ln['producer'] ?? ''} ${ln['name']}  —  ${ln['qty']} ${ln['unit']}',
-                    style: const TextStyle(fontSize: 14),
-                  ),
-                ),
-              const SizedBox(height: 8),
-              Text(
-                'Projekt: ${widget.projectId}',
-                style: Theme.of(context).textTheme.bodySmall,
-              ),
-            ],
+      builder: (_) => AlertDialog(
+        title: const Text('Twoj numer faktury'),
+        content: TextField(
+          controller: ctrl,
+          autofocus: true,
+          decoration: const InputDecoration(
+            hintText: 'Moze byc pusty nazwa',
+            border: OutlineInputBorder(),
           ),
         ),
         actions: [
           TextButton(
-            onPressed: () => Navigator.pop(ctx),
-            child: const Text('Anuluj'),
+            onPressed: () => Navigator.pop(context, null),
+            child: const Text('Pomiń'),
           ),
-          ElevatedButton.icon(
-            icon: const Icon(Icons.verified_outlined),
-            label: const Text('Potwierdź'),
-            onPressed: () async {
-              Navigator.pop(ctx);
-
-              final email = FirebaseAuth.instance.currentUser?.email ?? '';
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(content: Text('Trwa potwierdzenie…')),
-              );
-
-              try {
-                final resp = await ApiService.commitProjectItems(
-                  customerId: widget.customerId,
-                  projectId: widget.projectId,
-                  items: lines,
-                  actorEmail: email,
-                  dryRun: false,
-                );
-
-                final ok = (resp['ok'] == true) || (resp['success'] == true);
-                final doc = (resp['docId'] ?? resp['document'] ?? '')
-                    .toString();
-
-                if (ok) {
-                  _selectedQty.clear();
-                  if (context.mounted) {
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      SnackBar(
-                        content: Text(
-                          doc.isNotEmpty
-                              ? 'Zatwierdzono. Dokument: $doc'
-                              : 'Zatwierdzono.',
-                        ),
-                      ),
-                    );
-                  }
-                } else {
-                  if (context.mounted) {
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      SnackBar(content: Text('Błąd: ${resp.toString()}')),
-                    );
-                  }
-                }
-              } catch (e) {
-                if (context.mounted) {
-                  ScaffoldMessenger.of(
-                    context,
-                  ).showSnackBar(SnackBar(content: Text('Błąd: $e')));
-                }
-              }
-            },
+          FilledButton(
+            onPressed: () => Navigator.pop(context, ctrl.text.trim()),
+            child: const Text('OK'),
           ),
         ],
       ),
     );
+
+    // Final confirmation
+    final proceed = await showDialog<bool>(
+      context: context,
+      builder: (_) {
+        return AlertDialog(
+          title: const Text('Oznaczyć jako fakturowany?'),
+          content: SizedBox(
+            width: double.maxFinite,
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                for (final e in _selectedQty.entries)
+                  Builder(
+                    builder: (_) {
+                      final i = e.key;
+                      final q = e.value;
+                      final m = _items[i];
+                      final name = (m['name'] as String?) ?? '';
+                      final prod = (m['producer'] as String?) ?? '';
+                      final unit = (m['unit'] as String?) ?? 'szt';
+                      return Padding(
+                        padding: const EdgeInsets.symmetric(vertical: 2),
+                        child: Text('$prod $name  —  $q $unit'),
+                      );
+                    },
+                  ),
+                const SizedBox(height: 8),
+                Text(
+                  'Projekt: ${widget.projectId}',
+                  style: Theme.of(context).textTheme.bodySmall,
+                ),
+                if ((enteredInvoice ?? '').isNotEmpty)
+                  Text(
+                    'FV: $enteredInvoice',
+                    style: Theme.of(context).textTheme.bodySmall,
+                  ),
+              ],
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context, false),
+              child: const Text('Anuluj'),
+            ),
+            FilledButton(
+              onPressed: () => Navigator.pop(context, true),
+              child: const Text('Oznacz'),
+            ),
+          ],
+        );
+      },
+    );
+    if (proceed != true) return;
+
+    try {
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('Oznaczam fakturowanie…')));
+
+      final tag = await AdminApi.invoicedPartial(
+        projectId: widget.projectId,
+        lines: lines,
+        invoiceNo: (enteredInvoice != null && enteredInvoice.isNotEmpty)
+            ? enteredInvoice
+            : null,
+      );
+
+      setState(() {
+        final removeIdx = <int>[];
+        _selectedQty.forEach((idx, qty) {
+          final maxQty = (_items[idx]['quantity'] as num?)?.toInt() ?? 0;
+          final newQty = (maxQty - qty).clamp(0, maxQty);
+          _items[idx]['quantity'] = newQty;
+          if (newQty == 0) removeIdx.add(idx);
+        });
+        removeIdx.sort((a, b) => b.compareTo(a));
+        for (final i in removeIdx) {
+          _items.removeAt(i);
+        }
+        _selectedQty.clear();
+      });
+
+      try {
+        await _mirrorProjectAndRwDocs(_items);
+      } catch (_) {}
+
+      if (!mounted) return;
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('Oznaczono fakturowanie • $tag')));
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('Błąd: $e')));
+    }
   }
+
+  // Future<void> _confirmSelection() async {
+  //   final lines = <Map<String, dynamic>>[];
+  //   for (final entry in _selectedQty.entries) {
+  //     final i = entry.key;
+  //     final qty = entry.value;
+  //     final m = _items[i];
+
+  //     final itemId = (m['itemId'] as String?) ?? '';
+  //     final name = (m['name'] as String?) ?? '';
+  //     final unit = (m['unit'] as String?) ?? 'szt';
+  //     final producer = (m['producer'] as String?) ?? '';
+
+  //     lines.add({
+  //       if (itemId.isNotEmpty) 'itemId': itemId,
+  //       'name': name,
+  //       'producer': producer,
+  //       'unit': unit,
+  //       'qty': qty,
+  //     });
+  //   }
+
+  //   if (lines.isEmpty) {
+  //     ScaffoldMessenger.of(
+  //       context,
+  //     ).showSnackBar(const SnackBar(content: Text('Nic nie wybrano')));
+  //     return;
+  //   }
+
+  //   final titleText = await widget.customerNameFuture
+  //       .then((c) => '$c  •  ${widget.title}')
+  //       .catchError((_) => widget.title);
+
+  //   await showDialog<void>(
+  //     context: context,
+  //     builder: (ctx) => AlertDialog(
+  //       title: const Text('Aktualizować baza Wf-Mag?'),
+  //       content: SizedBox(
+  //         width: double.maxFinite,
+  //         child: Column(
+  //           mainAxisSize: MainAxisSize.min,
+  //           crossAxisAlignment: CrossAxisAlignment.start,
+  //           children: [
+  //             Text(
+  //               titleText,
+  //               style: const TextStyle(fontWeight: FontWeight.w600),
+  //             ),
+  //             const SizedBox(height: 8),
+  //             for (final ln in lines)
+  //               Padding(
+  //                 padding: const EdgeInsets.symmetric(vertical: 2),
+  //                 child: Text(
+  //                   '${ln['producer'] ?? ''} ${ln['name']}  —  ${ln['qty']} ${ln['unit']}',
+  //                   style: const TextStyle(fontSize: 14),
+  //                 ),
+  //               ),
+  //             const SizedBox(height: 8),
+  //             Text(
+  //               'Projekt: ${widget.projectId}',
+  //               style: Theme.of(context).textTheme.bodySmall,
+  //             ),
+  //           ],
+  //         ),
+  //       ),
+  //       actions: [
+  //         TextButton(
+  //           onPressed: () => Navigator.pop(ctx),
+  //           child: const Text('Anuluj'),
+  //         ),
+  //         ElevatedButton.icon(
+  //           icon: const Icon(Icons.verified_outlined),
+  //           label: const Text('Potwierdź'),
+  //           onPressed: () async {
+  //             Navigator.pop(ctx);
+
+  //             final email = FirebaseAuth.instance.currentUser?.email ?? '';
+  //             ScaffoldMessenger.of(context).showSnackBar(
+  //               const SnackBar(content: Text('Trwa potwierdzenie…')),
+  //             );
+
+  //             try {
+  //               final resp = await ApiService.commitProjectItems(
+  //                 customerId: widget.customerId,
+  //                 projectId: widget.projectId,
+  //                 items: lines,
+  //                 actorEmail: email,
+  //                 dryRun: false,
+  //               );
+
+  //               final ok = (resp['ok'] == true) || (resp['success'] == true);
+  //               final doc = (resp['docId'] ?? resp['document'] ?? '')
+  //                   .toString();
+
+  //               if (ok) {
+  //                 _selectedQty.clear();
+  //                 if (context.mounted) {
+  //                   ScaffoldMessenger.of(context).showSnackBar(
+  //                     SnackBar(
+  //                       content: Text(
+  //                         doc.isNotEmpty
+  //                             ? 'Zatwierdzono. Dokument: $doc'
+  //                             : 'Zatwierdzono.',
+  //                       ),
+  //                     ),
+  //                   );
+  //                 }
+  //               } else {
+  //                 if (context.mounted) {
+  //                   ScaffoldMessenger.of(context).showSnackBar(
+  //                     SnackBar(content: Text('Błąd: ${resp.toString()}')),
+  //                   );
+  //                 }
+  //               }
+  //             } catch (e) {
+  //               if (context.mounted) {
+  //                 ScaffoldMessenger.of(
+  //                   context,
+  //                 ).showSnackBar(SnackBar(content: Text('Błąd: $e')));
+  //               }
+  //             }
+  //           },
+  //         ),
+  //       ],
+  //     ),
+  //   );
+  // }
 
   @override
   Widget build(BuildContext context) {
@@ -605,7 +888,7 @@ class _ProjectCardState extends State<_ProjectCard> {
         ),
         subtitle: Text(
           widget.lastRwDate != null
-              ? 'Ostatnia zmiana: ${widget.lastRwDate!.toLocal()}'
+              ? 'Ostatnia zmiana: ${DateFormat('dd.MM.yyyy HH:mm', 'pl_PL').format(widget.lastRwDate!.toLocal())}'
               : 'Ostatnia zmiana: —',
         ),
         children: [
@@ -646,33 +929,59 @@ class _ProjectCardState extends State<_ProjectCard> {
                     ),
                     OutlinedButton.icon(
                       icon: const Icon(Icons.playlist_remove),
-                      label: const Text('Cofnij wszystkie'),
+                      label: const Text('Cofnij wszystko'),
                       onPressed: _items.isEmpty ? null : _releaseAllInProject,
                     ),
-                    ConstrainedBox(
-                      constraints: const BoxConstraints(minWidth: 160),
-                      child: Align(
-                        alignment: Alignment.centerRight,
-                        child: ElevatedButton.icon(
-                          icon: const Icon(Icons.verified_user_outlined),
-                          label: Text('Potwierdź ($_selectedCount)'),
-                          onPressed: _selectedCount == 0
-                              ? null
-                              : _confirmSelection,
-                        ),
-                      ),
+
+                    // OutlinedButton.icon(
+                    //   icon: const Icon(Icons.lock),
+                    //   label: const Text('Zablokuj do faktury'),
+                    //   onPressed:
+                    //       (widget.reservationId == null ||
+                    //           widget.reservationId!.isEmpty)
+                    //       ? null
+                    //       : _lockForInvoicing,
+                    // ),
+                    ElevatedButton.icon(
+                      icon: const Icon(Icons.receipt_long),
+                      label: const Text('Oznacz fakturowany'),
+                      onPressed: _canInvoice ? _invoiceSelected : null,
                     ),
+
+                    // ConstrainedBox(
+                    //   constraints: const BoxConstraints(minWidth: 160),
+                    //   child: Align(
+                    //     alignment: Alignment.centerRight,
+                    //     child: ElevatedButton.icon(
+                    //       icon: const Icon(Icons.verified_user_outlined),
+                    //       label: Text('Potwierdź ($_selectedCount)'),
+                    //       onPressed: _selectedCount == 0
+                    //           ? null
+                    //           : _confirmSelection,
+                    //     ),
+                    //   ),
+                    // ),
                   ],
                 ),
                 const SizedBox(height: 4),
-                Align(
-                  alignment: Alignment.centerRight,
-                  child: Text(
-                    'ID: ${widget.projectId}',
-                    style: Theme.of(
-                      context,
-                    ).textTheme.bodySmall?.copyWith(color: Colors.grey[600]),
-                  ),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.end,
+                  children: [
+                    SelectableText(
+                      'ID: ${widget.projectId}',
+                      style: Theme.of(
+                        context,
+                      ).textTheme.bodySmall?.copyWith(color: Colors.grey[600]),
+                    ),
+                    const SizedBox(width: 4),
+                    // IconButton(
+                    //   tooltip: 'Kopiuj',
+                    //   icon: const Icon(Icons.copy),
+                    //   onPressed: () =>
+                    //       _copyToClipboard(widget.projectId, 'ID projektu'),
+                    //   visualDensity: VisualDensity.compact,
+                    // ),
+                  ],
                 ),
               ],
             ),
@@ -704,8 +1013,14 @@ class _SelectableItemRow extends StatelessWidget {
     final producer = (item['producer'] as String?) ?? '';
     final unit = (item['unit'] as String?) ?? 'szt';
     final maxQty = (item['quantity'] as num?)?.toInt() ?? 0;
-
     final title = [producer, name].where((e) => e.isNotEmpty).join(' ');
+
+    final lastInv = item['lastInvoiced'];
+    final invoicedQty = (lastInv is Map && lastInv['qty'] is num)
+        ? (lastInv['qty'] as num).toInt()
+        : 0;
+    final invoiceTag =
+        (lastInv is Map ? (lastInv['tag'] as String?) : null) ?? '';
 
     return ListTile(
       dense: true,
@@ -714,7 +1029,29 @@ class _SelectableItemRow extends StatelessWidget {
         value: checked,
         onChanged: (v) => onCheckedChanged(v ?? false, maxQty),
       ),
-      title: Text(title, style: const TextStyle(fontSize: 14)),
+      title: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(title, style: const TextStyle(fontSize: 14)),
+          if (invoicedQty > 0)
+            Padding(
+              padding: const EdgeInsets.only(top: 2),
+              child: Wrap(
+                spacing: 6,
+                children: [
+                  Chip(
+                    label: Text(
+                      'Fakturowano: $invoicedQty $unit'
+                      '${invoiceTag.isNotEmpty ? ' • $invoiceTag' : ''}',
+                    ),
+                    visualDensity: VisualDensity.compact,
+                    materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                  ),
+                ],
+              ),
+            ),
+        ],
+      ),
       trailing: FittedBox(
         fit: BoxFit.scaleDown,
         child: Row(

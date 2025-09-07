@@ -4,6 +4,7 @@ import 'dart:convert';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
+import 'package:strefa_ciszy/services/admin_api.dart';
 
 // import 'package:strefa_ciszy/utils/stock_normalizer.dart';
 import '../models/stock_item.dart';
@@ -22,28 +23,26 @@ class PagedItems {
 }
 
 class ApiService {
-  /// HTTPS
   static const String _primary = "https://wapro-api.tail52a6fb.ts.net/api";
 
-  /// Native fallbacks
   static const List<String> _nativeFallbacks = [
-    // MagicDNS tailnet (Android/iOS/macOS/Windows apps)
-    "http://wapro-api:9103/api",
-    //  Tailscale
-    "http://100.86.227.1:9103/api",
-    //  LAN box
-    "http://192.168.1.103:9103/api",
-    // Android emulator
-    "http://10.0.2.2:9103/api",
+    'http://192.168.1.103:9103/api',
+    'http://192.168.1.151:9103/api',
+    'http://10.0.2.2:9103/api',
+    // 'http://wapro-api:9103/api',
   ];
 
   static String _base = _primary;
 
   static Future<void> init() async {
-    final candidates = kIsWeb
-        ? <String>[_primary]
-        : <String>[_primary, ..._nativeFallbacks];
+    await AdminApi.init();
+    _base = AdminApi.base;
+    if (_base.isNotEmpty) {
+      debugPrint('[ApiService] BASE <- AdminApi = $_base');
+      return;
+    }
 
+    final candidates = <String>[..._nativeFallbacks, _primary];
     for (final b in candidates) {
       try {
         final r = await http
@@ -53,9 +52,7 @@ class ApiService {
           _base = b;
           break;
         }
-      } catch (_) {
-        /* try next */
-      }
+      } catch (_) {}
     }
     debugPrint('[ApiService] BASE = $_base');
   }
@@ -63,14 +60,13 @@ class ApiService {
   static Uri _uri(String path, [Map<String, dynamic>? q]) {
     final u = Uri.parse("$_base$path");
     if (q == null || q.isEmpty) return u;
-    final qp = <String, String>{};
-    q.forEach((k, v) {
-      if (v == null) return;
-      final s = v.toString();
-      if (s.isEmpty) return;
-      qp[k] = s;
-    });
-    return u.replace(queryParameters: qp);
+    return u.replace(
+      queryParameters: {
+        for (final e in q.entries)
+          if (e.value != null && e.value.toString().isNotEmpty)
+            e.key: e.value.toString(),
+      },
+    );
   }
 
   /// READ-ONLY: fetch EAN
@@ -208,7 +204,7 @@ class ApiService {
     required String actorEmail,
     bool dryRun = false,
   }) async {
-    final uri = _uri('/admin/commit');
+    final uri = _uri('/commit');
 
     final idToken = await FirebaseAuth.instance.currentUser?.getIdToken();
 

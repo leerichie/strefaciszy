@@ -1,4 +1,5 @@
 from flask import Flask, jsonify, request
+from uuid import uuid4 
 from flask_cors import CORS
 import pyodbc
 import os, json, datetime, logging, re, decimal
@@ -19,16 +20,24 @@ ALLOWED_ORIGINS = [
 app = Flask(__name__)
 CORS(
     app,
-    resources={r"/api/*": {"origins": ALLOWED_ORIGINS}},  # covers /api/admin/* too
-    supports_credentials=False,
-    allow_headers=["Content-Type","Authorization","Cache-Control","X-Requested-With"],
-    methods=["GET","POST","PUT","PATCH","DELETE","OPTIONS"],
+    resources={
+        r"/api/*": {
+            "origins": ALLOWED_ORIGINS,                
+            "methods": ["GET","POST","PUT","PATCH","DELETE","OPTIONS"],
+            "allow_headers": ["*"],                    
+            "expose_headers": ["Content-Type","Authorization"],
+            "supports_credentials": False,
+        }
+    },
+    max_age=600,
 )
+
+@app.route("/api/<path:_>", methods=["OPTIONS"])
+def _cors_preflight(_):
+    return ("", 204)
 app.logger.setLevel(logging.INFO)
 
-# ------------------------------------------------------------------------------
-# SQL Server connection
-# ------------------------------------------------------------------------------
+# SQL Server 
 SERVER   = r"KASIA-BIURO\SQLEXPRESS"
 DATABASE = "WAPRO"
 USER     = "sc_app_admin"  
@@ -53,7 +62,6 @@ def fetch_all(sql: str, params=()):
         cur.execute(sql, params)
         cols = [d[0] for d in cur.description]
         rows = cur.fetchall()
-        # convert Decimals -> float (json safe)
         out = []
         for r in rows:
             d = {}
@@ -71,9 +79,8 @@ def exec_nonquery(sql: str, params=()):
         cur.execute(sql, params)
         conn.commit()
 
-# ------------------------------------------------------------------------------
-# Firebase helpers (unchanged)
-# ------------------------------------------------------------------------------
+# Firebase helpers
+
 _FIREBASE_APP = None
 _FS = None
 
@@ -82,11 +89,27 @@ def _init_firebase():
     if _FIREBASE_APP is not None and _FS is not None:
         return
     try:
-        cred = credentials.ApplicationDefault()
+        sa_path = os.getenv("SC_FIREBASE_SA") or os.getenv("GOOGLE_APPLICATION_CREDENTIALS")
+        if sa_path and os.path.exists(sa_path):
+            cred = credentials.Certificate(sa_path)
+        else:
+            cred = credentials.ApplicationDefault()
         _FIREBASE_APP = firebase_admin.initialize_app(cred)
     except Exception:
         _FIREBASE_APP = firebase_admin.get_app()
     _FS = firestore.client()
+
+
+# def _init_firebase():
+#     global _FIREBASE_APP, _FS
+#     if _FIREBASE_APP is not None and _FS is not None:
+#         return
+#     try:
+#         cred = credentials.ApplicationDefault()
+#         _FIREBASE_APP = firebase_admin.initialize_app(cred)
+#     except Exception:
+#         _FIREBASE_APP = firebase_admin.get_app()
+#     _FS = firestore.client()
 
 def _is_approver(email: Optional[str], uid: Optional[str]) -> bool:
     if _FS is None:
@@ -137,36 +160,38 @@ def catalog():
         rows = cur.fetchall()
         return jsonify([dict(zip(cols, r)) for r in rows])
 
-# reservation
+# RESERVATIONS (compat+legacy)
+
+@app.post("/api/reservations/upsert1")
+def _legacy_public_upsert1():
+    return reservations_upsert_compat()
+
+@app.post("/api/reservations/upsert")
+def _legacy_public_upsert():
+    return reservations_upsert_compat()
+
+@app.post("/api/admin/reservations/upsert1")
+def _legacy_admin_upsert1():
+    return reservations_upsert_compat()
 
 @app.post("/api/admin/reservations/upsert")
 def reservations_upsert_compat():
     """
-    Compatibility shim for the old app endpoint.
-    Body:
-      {
-        "projectId": "P-100",
-        "customerId": "...",      # ignored here
-        "itemId": "123",          # string or number; WAPRO ID_ARTYKULU
-        "qty": 2,                 # desired ABSOLUTE qty for this project+item
-        "warehouseId": null,      # ignored (not splitting by magazyn here)
-        "actorEmail": "user@x"    # used as 'user' in proc
-      }
-    Behavior:
-      - Computes current reserved for this project+item across active (Status 1,2) and non-invoiced lines.
-      - If desired > current: reserve the delta via app.sp_ReserveStock.
-      - If desired == current: no-op.
-      - If desired < current: 409 decrease-not-supported (for now).
+    Compatibility shim for old clients.
+    Body:  { projectId, customerId?, itemId, qty, warehouseId?, actorEmail }
+    Reply: {
+      ok, projectId, itemId, qty, delta, reservationId?, note?,
+      stock, reserved_total, available_after, unit
+    }
     """
     data = request.get_json(force=True) or {}
+    app.logger.info("UPsert payload: %s", data)
 
     project_id  = (data.get("projectId") or "").strip()
-    item_raw    = (data.get("itemId") or "").strip()
     actor_email = (data.get("actorEmail") or "api").strip()
 
-    # parse numbers
     try:
-        id_artykulu = int(item_raw)
+        id_artykulu = int(str(data.get("itemId") or "").strip())
     except Exception:
         return jsonify({"ok": False, "error": "bad-itemId"}), 400
 
@@ -178,49 +203,138 @@ def reservations_upsert_compat():
     if not project_id or desired_qty < 0:
         return jsonify({"ok": False, "error": "bad-payload"}), 400
 
-    with get_conn() as cn, cn.cursor() as cur:
-        cur.execute("""
-            SELECT ISNULL(SUM(rl.Qty), 0)
-            FROM app.ReservationLines rl
-            JOIN app.Reservations r ON r.ReservationId = rl.ReservationId
-            WHERE r.ProjectId = ? AND r.Status IN (1,2)
-              AND rl.InvoiceNo IS NULL
-              AND rl.ID_ARTYKULU = ?
-        """, (project_id, id_artykulu))
-        row = cur.fetchone()
-        current_qty = float(row[0] if row and row[0] is not None else 0.0)
+    try:
+        with get_conn() as cn:
+            cn.autocommit = False
+            with cn.cursor() as cur:
+                cur.execute("""
+                    SELECT ISNULL(SUM(rl.Qty), 0)
+                    FROM app.ReservationLines rl WITH (UPDLOCK, ROWLOCK)
+                    JOIN app.Reservations r ON r.ReservationId = rl.ReservationId
+                    WHERE r.ProjectId = ? AND r.Status IN (1,2)
+                      AND rl.InvoiceNo IS NULL
+                      AND rl.ID_ARTYKULU = ?
+                """, (project_id, id_artykulu))
+                row = cur.fetchone()
+                current_qty = float(row[0] if row and row[0] is not None else 0.0)
 
-    delta = desired_qty - current_qty
+                cur.execute("""
+                    SELECT ISNULL(SUM(rl.Qty), 0)
+                    FROM app.ReservationLines rl WITH (UPDLOCK)
+                    JOIN app.Reservations r ON r.ReservationId = rl.ReservationId
+                    WHERE rl.ID_ARTYKULU = ?
+                      AND rl.InvoiceNo IS NULL
+                      AND NOT (r.ProjectId = ? AND r.Status IN (1,2))
+                """, (id_artykulu, project_id))
+                row = cur.fetchone()
+                reserved_other = float(row[0] if row and row[0] is not None else 0.0)
 
-    if delta < -1e-9:
-        try:
-            cur.execute("{CALL app.sp_UnreserveStock(?,?,?)}",
-                        (project_id, id_artykulu, -delta))
-            return jsonify({
-                "ok": True,
-                "projectId": project_id,
-                "itemId": str(id_artykulu),
-                "qty": desired_qty,
-                "delta": float(delta),  
-                "reservationId": None,
-                "note": "decreased"
-            }), 200
-        except pyodbc.Error as e:
-            return jsonify({"ok": False, "error": str(e)}), 409
+                cur.execute("""
+                WITH sm AS (
+                  SELECT id_artykulu,
+                         SUM(CASE WHEN stan IS NULL THEN 0 ELSE CAST(stan AS DECIMAL(18,3)) END) AS qty,
+                         MAX(NULLIF(skrot,'')) AS unit
+                  FROM dbo.JLVIEW_STANMAGAZYNU_RAP WITH (NOLOCK)
+                  WHERE id_artykulu = CAST(? AS NUMERIC(18,0))
+                  GROUP BY id_artykulu
+                )
+                SELECT
+                  CAST(COALESCE(sm.qty, a.STAN, 0) AS DECIMAL(18,3)) AS quantity,
+                  COALESCE(sm.unit, NULLIF(wa.JednostkaSprzedazy,''), '') AS unit
+                FROM dbo.ARTYKUL a
+                LEFT JOIN sm ON sm.id_artykulu = a.ID_ARTYKULU
+                LEFT JOIN dbo.WIDOK_ARTYKUL wa ON wa.IdArtykulu = a.ID_ARTYKULU
+                WHERE a.ID_ARTYKULU = CAST(? AS NUMERIC(18,0))
+                """, (id_artykulu, id_artykulu))
+                row = cur.fetchone()
+                stock_qty = float(row[0] if row and row[0] is not None else 0.0)
+                unit = (row[1] if row and row[1] is not None else '')
 
-    if delta <= 1e-9:
-        return jsonify({
-            "ok": True, "projectId": project_id, "itemId": str(id_artykulu),
-            "qty": desired_qty, "delta": 0.0, "reservationId": None, "note": "no-op"
-        }), 200
-    
+                delta = desired_qty - current_qty
+                new_reserved_total = reserved_other + desired_qty
+                available_after = stock_qty - new_reserved_total
+
+                if delta < -1e-9:
+                    try:
+                        cur.execute("{CALL app.sp_UnreserveStock(?,?,?)}",
+                                    (project_id, id_artykulu, -delta))
+                        cn.commit()
+                        return jsonify({
+                            "ok": True,
+                            "projectId": project_id,
+                            "itemId": str(id_artykulu),
+                            "qty": desired_qty,
+                            "delta": float(delta),
+                            "reservationId": None,
+                            "note": "decreased",
+                            "stock": stock_qty,
+                            "reserved_total": new_reserved_total,
+                            "available_after": available_after,
+                            "unit": unit,
+                        }), 200
+                    except pyodbc.Error as e:
+                        cn.rollback()
+                        return jsonify({
+                            "ok": False,
+                            "error": str(e),
+                            "stock": stock_qty,
+                            "reserved_total": new_reserved_total,
+                            "available_after": available_after,
+                            "unit": unit,
+                        }), 409
+
+                if abs(delta) <= 1e-9:
+                    cn.commit()
+                    return jsonify({
+                        "ok": True,
+                        "projectId": project_id,
+                        "itemId": str(id_artykulu),
+                        "qty": desired_qty,
+                        "delta": 0.0,
+                        "reservationId": None,
+                        "note": "no-op",
+                        "stock": stock_qty,
+                        "reserved_total": new_reserved_total,
+                        "available_after": available_after,
+                        "unit": unit,
+                    }), 200
+
+                try:
+                    cur.execute("{CALL app.sp_ReserveStock(?,?,?,?,?)}",
+                                (project_id, id_artykulu, delta, actor_email, None))
+                    row = cur.fetchone()
+                    res_id = str(row[0]) if row and row[0] else None
+                    cn.commit()
+                    return jsonify({
+                        "ok": True,
+                        "projectId": project_id,
+                        "itemId": str(id_artykulu),
+                        "qty": desired_qty,
+                        "delta": float(delta),
+                        "reservationId": res_id,
+                        "stock": stock_qty,
+                        "reserved_total": new_reserved_total,
+                        "available_after": available_after,
+                        "unit": unit,
+                    }), 200
+                except pyodbc.Error as e:
+                    cn.rollback()
+                    return jsonify({
+                        "ok": False,
+                        "error": str(e),
+                        "stock": stock_qty,
+                        "reserved_total": new_reserved_total,
+                        "available_after": available_after,
+                        "unit": unit,
+                    }), 409
+
+    except Exception as e:
+        app.logger.exception("reservations_upsert_compat failed")
+        return jsonify({"ok": False, "error": f"exception: {e}"}), 500
+
 
 @app.post("/api/reserve")
 def api_reserve():
-    """
-    Body: { projectId, idArtykulu, qty, user, comment? }
-    Calls: app.sp_ReserveStock (has overbooking guard)
-    """
     data = request.get_json(force=True) or {}
     project = (data.get("projectId") or "").strip()
     try:
@@ -244,9 +358,8 @@ def api_reserve():
             row = cur.fetchone()
             return jsonify({"ok": True, "reservationId": str(row[0]) if row else None})
         except pyodbc.Error as e:
-            # surface the friendly THROW message from proc
             return jsonify({"ok": False, "error": str(e)}), 409
-
+        
 @app.post("/api/confirm")
 def api_confirm():
     """
@@ -260,6 +373,73 @@ def api_confirm():
     with get_conn() as cn, cn.cursor() as cur:
         cur.execute("{CALL app.sp_ConfirmForInvoice(?,?)}", (rid, lock_all))
         return jsonify({"ok": True})
+    
+
+@app.post("/api/invoiced_partial")
+def api_invoiced_partial():
+    """
+    Body:
+    {
+      "projectId": "o6Un75ted6w390YaZ6rt",
+      "invoiceNo": "",                 # optional; auto-generated if blank
+      "lines": [ { "itemId": 3029, "qty": 1 }, ... ]
+    }
+    """
+    data = request.get_json(force=True) or {}
+    project = (data.get("projectId") or "").strip()
+    invoice = (data.get("invoiceNo") or "").strip()
+    lines   = data.get("lines") or []
+
+    if not project or not isinstance(lines, list) or not lines:
+        return jsonify({"ok": False, "error": "bad-payload"}), 400
+
+    if not invoice:
+        invoice = f"APP-{datetime.datetime.utcnow().strftime('%Y%m%dT%H%M%S')}-{uuid4().hex[:6]}"
+
+    clean = []
+    for l in lines:
+        try:
+            item_id = int(str(l.get("itemId")).strip())
+            qty     = float(l.get("qty"))
+        except Exception:
+            continue
+        if qty > 0:
+            clean.append({"itemId": item_id, "qty": qty})
+
+    if not clean:
+        return jsonify({"ok": False, "error": "no-valid-lines"}), 400
+
+    conn = None
+    try:
+        conn = get_conn()
+        conn.autocommit = False
+        cur = conn.cursor()
+
+        for l in clean:
+            cur.execute("{CALL app.sp_MarkInvoicedLine(?,?,?,?)}",
+                        (project, invoice, l["itemId"], l["qty"]))
+
+        conn.commit()
+        return jsonify({"ok": True, "invoiceTag": invoice}), 200
+
+    except pyodbc.Error as e:
+        try:
+            if conn: conn.rollback()
+        except Exception:
+            pass
+        return jsonify({"ok": False, "error": str(e)}), 409
+    except Exception as e:
+        try:
+            if conn: conn.rollback()
+        except Exception:
+            pass
+        return jsonify({"ok": False, "error": f"exception: {e}"}), 500
+    finally:
+        try:
+            if conn: conn.close()
+        except Exception:
+            pass
+
 
 @app.post("/api/invoiced")
 def api_invoiced():
@@ -315,6 +495,8 @@ def commit_project_items():
     project_id  = (data.get("projectId")  or "").strip()
     items       = data.get("items") or []
     dry_run     = bool(data.get("dryRun", False))
+    app.logger.info("COMMIT start: project=%s items=%s", project_id, len(items))
+
     if not project_id or not isinstance(items, list) or not items:
         return jsonify({"ok": False, "error": "bad-payload"}), 400
 
@@ -862,5 +1044,5 @@ def get_product(id):
 # If want it here too, can copy it verbatim under a /api/legacy/... path.
 
 if __name__ == "__main__":
-    # Example waitress:  python -m waitress --listen=0.0.0.0:9132 app:app
+    # waitress:  python -m waitress --listen=0.0.0.0:9132 app:app
     app.run(host="0.0.0.0", port=9103, debug=False)

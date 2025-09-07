@@ -56,6 +56,36 @@ Future<ProjectLine?> showProjectLineDialog(
     if (idx0 != -1) selectedAvailable = stockItems[idx0].quantity;
   }
 
+  List<StockItem> suggestions = List<StockItem>.from(stockItems);
+  String lastQuery = '';
+  int reqSeq = 0;
+
+  Future<void> refreshSuggestions(
+    BuildContext ctx,
+    void Function(void Function()) setState,
+    String q,
+  ) async {
+    final query = q.trim();
+    if (query.isEmpty) {
+      setState(() => suggestions = List<StockItem>.from(stockItems));
+      lastQuery = '';
+      return;
+    }
+    if (query == lastQuery) return;
+    lastQuery = query;
+
+    final int mySeq = ++reqSeq;
+    try {
+      final results = await ApiService.fetchProducts(
+        search: query,
+        limit: 50,
+        offset: 0,
+      );
+      if (!ctx.mounted || mySeq != reqSeq) return;
+      setState(() => suggestions = results);
+    } catch (_) {}
+  }
+
   return showModalBottomSheet<ProjectLine>(
     context: context,
     isScrollControlled: true,
@@ -170,44 +200,38 @@ Future<ProjectLine?> showProjectLineDialog(
                           if (isStock)
                             Autocomplete<StockItem>(
                               optionsBuilder: (TextEditingValue te) {
-                                final q = te.text;
+                                final q = te.text.trim();
                                 if (q.isEmpty) return const <StockItem>[];
-                                return stockItems.where(
-                                  (s) => matchesSearch(q, [
+
+                                return suggestions.where((s) {
+                                  final catOrDesc = (s.category.isNotEmpty
+                                      ? s.category
+                                      : s.description);
+                                  return matchesSearch(q, [
                                     s.name,
                                     s.producent,
-                                    s.description,
-                                  ]),
-                                );
+                                    catOrDesc,
+                                    s.sku,
+                                    s.barcode,
+                                  ]);
+                                });
                               },
-                              displayStringForOption: (s) =>
-                                  '${s.name}, ${s.producent}, ${s.description}',
+                              displayStringForOption: (s) {
+                                final catOrDesc = (s.category.isNotEmpty
+                                    ? s.category
+                                    : s.description);
+                                return '${s.name}, ${s.producent}${catOrDesc.isNotEmpty ? ' — $catOrDesc' : ''}';
+                              },
                               fieldViewBuilder: (ctx, textCtrl, focusNode, onSubmit) {
                                 if (!didInitAuto && initialLabel.isNotEmpty) {
                                   textCtrl.text = initialLabel;
                                   didInitAuto = true;
                                 }
                                 return TextFormField(
-                                  controller:
-                                      textCtrl, // This is the actual visible input
+                                  controller: textCtrl,
                                   focusNode: focusNode,
                                   decoration: InputDecoration(
                                     labelText: 'Szukaj produkt',
-
-                                    // suffixIcon: IconButton(
-                                    //   icon: const Icon(Icons.qr_code_scanner),
-                                    //   onPressed: () async {
-                                    //     final code = await Navigator.of(context)
-                                    //         .push<String>(
-                                    //           MaterialPageRoute(
-                                    //             builder: (_) =>
-                                    //                 const ScanScreen(
-                                    //                   returnCode: true,
-                                    //                 ),
-                                    //           ),
-                                    //         );
-                                    //     if (code != null && code.isNotEmpty) {
-                                    //       textCtrl.text = code;
                                     suffixIcon: IconButton(
                                       icon: const Icon(Icons.qr_code_scanner),
                                       onPressed: () async {
@@ -223,12 +247,15 @@ Future<ProjectLine?> showProjectLineDialog(
                                                 ),
                                               ),
                                             );
-                                        if (code == null || code.isEmpty) {
+                                        if (code == null || code.isEmpty)
                                           return;
-                                        }
 
-                                        // fill the text box so user sees scanned code
                                         textCtrl.text = code;
+                                        await refreshSuggestions(
+                                          ctx,
+                                          setState,
+                                          code,
+                                        );
 
                                         try {
                                           final results =
@@ -238,22 +265,19 @@ Future<ProjectLine?> showProjectLineDialog(
                                                 offset: 0,
                                               );
 
-                                          ////////
                                           StockItem? match;
                                           final exact = results.where(
                                             (s) =>
                                                 s.barcode.trim() == code.trim(),
                                           );
-                                          if (exact.isNotEmpty) {
-                                            match = exact.first;
-                                          } else if (results.isNotEmpty) {
-                                            match = results.first;
-                                          }
+                                          match = exact.isNotEmpty
+                                              ? exact.first
+                                              : (results.isNotEmpty
+                                                    ? results.first
+                                                    : null);
 
                                           if (match != null) {
-                                            // Promote to non-nullable for use inside the closure
                                             final m = match;
-
                                             setState(() {
                                               itemRef = m.id;
                                               textCtrl.text =
@@ -261,14 +285,12 @@ Future<ProjectLine?> showProjectLineDialog(
                                               unit = m.unit.isNotEmpty
                                                   ? m.unit
                                                   : 'szt';
-                                              selectedAvailable =
-                                                  m.quantity; // keep real stock
+                                              selectedAvailable = m.quantity;
                                               prevQty =
                                                   existing?.previousQty ??
                                                   existingLines[m.id] ??
                                                   0;
                                             });
-
                                             await checkIfItemInRW(m.id);
                                           } else {
                                             ScaffoldMessenger.of(
@@ -287,179 +309,136 @@ Future<ProjectLine?> showProjectLineDialog(
                                           ).showSnackBar(
                                             SnackBar(
                                               content: Text(
-                                                'Skanowanie nie powiodło się: $e',
+                                                'Skanowanie nie udany: $e',
                                               ),
                                             ),
                                           );
-
-                                          // final snap = await FirebaseFirestore
-                                          //     .instance
-                                          //     .collection('stock_items')
-                                          //     .where('barcode', isEqualTo: code)
-                                          //     .limit(1)
-                                          //     .get();
-
-                                          // if (snap.docs.isNotEmpty) {
-                                          //   final doc = snap.docs.first;
-                                          //   final data = doc.data();
-                                          //   setState(() {
-                                          //     itemRef = doc.id;
-                                          //     textCtrl.text =
-                                          //         '${data['name']}, ${data['producent']}';
-                                          //     unit =
-                                          //         data['unit'] as String? ??
-                                          //         'szt';
-                                          //   });
-                                          //   await checkIfItemInRW(doc.id);
-                                          // } else {
-                                          //   ScaffoldMessenger.of(
-                                          //     context,
-                                          //   ).showSnackBar(
-                                          //     SnackBar(
-                                          //       content: Text(
-                                          //         'Nie znaleziono produktu: $code',
-                                          //       ),
-                                          //     ),
-                                          //   );
-                                          // }
                                         }
                                       },
                                     ),
                                   ),
-                                  onChanged: (_) => setState(() {}),
+                                  onChanged: (v) {
+                                    setState(() {});
+                                    refreshSuggestions(ctx, setState, v);
+                                  },
                                   validator: (v) => isStock && itemRef.isEmpty
                                       ? 'Wybierz produkt.'
                                       : null,
                                 );
                               },
+                              optionsViewBuilder: (ctx, onSelected, options) {
+                                final mq = MediaQuery.of(ctx);
+                                final maxHeight = mq.size.height * 0.7;
 
-                              optionsViewBuilder:
-                                  (
-                                    BuildContext ctx,
-                                    AutocompleteOnSelected<StockItem>
-                                    onSelected,
-                                    Iterable<StockItem> options,
-                                  ) {
-                                    final mq = MediaQuery.of(ctx);
-                                    final maxHeight = mq.size.height * 0.7;
-
-                                    return Align(
-                                      alignment: Alignment.topLeft,
-                                      child: GestureDetector(
-                                        onTapDown: (_) =>
-                                            FocusScope.of(ctx).unfocus(),
-                                        onVerticalDragStart: (_) =>
-                                            FocusScope.of(ctx).unfocus(),
-                                        behavior: HitTestBehavior.translucent,
-                                        child: Material(
-                                          elevation: 4,
-                                          child: ConstrainedBox(
-                                            constraints: BoxConstraints(
-                                              maxHeight: maxHeight,
-                                            ),
-                                            child: NotificationListener<ScrollNotification>(
-                                              onNotification: (notification) {
-                                                if (notification
-                                                    is ScrollStartNotification) {
-                                                  SystemChannels.textInput
-                                                      .invokeMethod(
-                                                        'TextInput.hide',
-                                                      );
-                                                }
-                                                return false;
-                                              },
-                                              child: ListView.builder(
-                                                padding: EdgeInsets.zero,
-                                                itemCount: options.length,
-                                                itemBuilder: (BuildContext ctx2, int index) {
-                                                  final StockItem s = options
-                                                      .elementAt(index);
-
-                                                  final tile = ListTile(
-                                                    dense: true,
-                                                    minVerticalPadding: 0,
-                                                    visualDensity:
-                                                        VisualDensity(
-                                                          vertical: -2,
-                                                        ),
-                                                    contentPadding:
-                                                        const EdgeInsets.symmetric(
-                                                          horizontal: 8,
-                                                          vertical: 4,
-                                                        ),
-                                                    tileColor:
-                                                        Colors.transparent,
-                                                    selectedTileColor:
-                                                        Colors.transparent,
-                                                    title: Text(
-                                                      '${s.name}, ${s.producent}',
-                                                      style: TextStyle(
-                                                        fontSize: 14,
-                                                      ),
-                                                    ),
-                                                    trailing: Text(
-                                                      'Stan: ${s.quantity}',
-                                                      style: TextStyle(
-                                                        fontWeight:
-                                                            FontWeight.w600,
-                                                        color: s.quantity <= 0
-                                                            ? Colors.red
-                                                            : Colors.blueGrey,
-                                                      ),
-                                                    ),
-                                                    onTap: () {
-                                                      FocusScope.of(
-                                                        ctx,
-                                                      ).unfocus();
-                                                      onSelected(s);
-                                                    },
+                                return Align(
+                                  alignment: Alignment.topLeft,
+                                  child: GestureDetector(
+                                    onTapDown: (_) =>
+                                        FocusScope.of(ctx).unfocus(),
+                                    onVerticalDragStart: (_) =>
+                                        FocusScope.of(ctx).unfocus(),
+                                    behavior: HitTestBehavior.translucent,
+                                    child: Material(
+                                      elevation: 4,
+                                      child: ConstrainedBox(
+                                        constraints: BoxConstraints(
+                                          maxHeight: maxHeight,
+                                        ),
+                                        child: NotificationListener<ScrollNotification>(
+                                          onNotification: (notification) {
+                                            if (notification
+                                                is ScrollStartNotification) {
+                                              SystemChannels.textInput
+                                                  .invokeMethod(
+                                                    'TextInput.hide',
                                                   );
+                                            }
+                                            return false;
+                                          },
+                                          child: ListView.builder(
+                                            padding: EdgeInsets.zero,
+                                            itemCount: options.length,
+                                            itemBuilder: (BuildContext ctx2, int index) {
+                                              final StockItem s = options
+                                                  .elementAt(index);
 
-                                                  if (index.isEven) {
-                                                    return Container(
-                                                      margin:
-                                                          const EdgeInsets.symmetric(
-                                                            vertical: 2,
-                                                            horizontal: 4,
-                                                          ),
-                                                      decoration: BoxDecoration(
-                                                        color: Colors.white,
-                                                        boxShadow: [
-                                                          BoxShadow(
-                                                            color: Colors.black
-                                                                .withValues(
-                                                                  alpha: 0.05,
-                                                                ),
-                                                            blurRadius: 2,
-                                                            offset: Offset(
-                                                              0,
-                                                              1,
-                                                            ),
-                                                          ),
-                                                        ],
-                                                        borderRadius:
-                                                            BorderRadius.circular(
-                                                              4,
-                                                            ),
-                                                      ),
-                                                      child: ClipRRect(
-                                                        borderRadius:
-                                                            BorderRadius.circular(
-                                                              4,
-                                                            ),
-                                                        child: tile,
-                                                      ),
-                                                    );
-                                                  }
-                                                  return tile;
+                                              final tile = ListTile(
+                                                dense: true,
+                                                minVerticalPadding: 0,
+                                                visualDensity: VisualDensity(
+                                                  vertical: -2,
+                                                ),
+                                                contentPadding:
+                                                    const EdgeInsets.symmetric(
+                                                      horizontal: 8,
+                                                      vertical: 4,
+                                                    ),
+                                                tileColor: Colors.transparent,
+                                                selectedTileColor:
+                                                    Colors.transparent,
+                                                title: Text(
+                                                  '${s.name}, ${s.producent}',
+                                                  style: TextStyle(
+                                                    fontSize: 14,
+                                                  ),
+                                                ),
+                                                trailing: Text(
+                                                  'Stan: ${s.quantity}',
+                                                  style: TextStyle(
+                                                    fontWeight: FontWeight.w600,
+                                                    color: s.quantity <= 0
+                                                        ? Colors.red
+                                                        : Colors.blueGrey,
+                                                  ),
+                                                ),
+                                                onTap: () {
+                                                  FocusScope.of(ctx).unfocus();
+                                                  onSelected(s);
                                                 },
-                                              ),
-                                            ),
+                                              );
+
+                                              if (index.isEven) {
+                                                return Container(
+                                                  margin:
+                                                      const EdgeInsets.symmetric(
+                                                        vertical: 2,
+                                                        horizontal: 4,
+                                                      ),
+                                                  decoration: BoxDecoration(
+                                                    color: Colors.white,
+                                                    boxShadow: [
+                                                      BoxShadow(
+                                                        color: Colors.black
+                                                            .withValues(
+                                                              alpha: 0.05,
+                                                            ),
+                                                        blurRadius: 2,
+                                                        offset: Offset(0, 1),
+                                                      ),
+                                                    ],
+                                                    borderRadius:
+                                                        BorderRadius.circular(
+                                                          4,
+                                                        ),
+                                                  ),
+                                                  child: ClipRRect(
+                                                    borderRadius:
+                                                        BorderRadius.circular(
+                                                          4,
+                                                        ),
+                                                    child: tile,
+                                                  ),
+                                                );
+                                              }
+                                              return tile;
+                                            },
                                           ),
                                         ),
                                       ),
-                                    );
-                                  },
+                                    ),
+                                  ),
+                                );
+                              },
 
                               // onSelected: (s) async {
                               //   setState(() {

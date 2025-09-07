@@ -1,6 +1,6 @@
 import 'dart:convert';
 
-import 'package:flutter/foundation.dart' show kIsWeb;
+import 'package:flutter/foundation.dart' show debugPrint;
 import 'package:http/http.dart' as http;
 import 'package:strefa_ciszy/models/stock_item.dart';
 import 'package:strefa_ciszy/services/api_service.dart';
@@ -23,28 +23,22 @@ class SetEanResult {
 }
 
 class AdminApi {
-  // WEB
-  static const String _primaryWeb = 'https://wapro-api.tail52a6fb.ts.net/api';
+  static const String _primary = 'https://wapro-api.tail52a6fb.ts.net/api';
 
-  static const String _primaryNative =
-      'https://wapro-api.tail52a6fb.ts.net/api';
-
-  // Native
-  static const List<String> _nativeFallbacks = [
-    'http://wapro-api:9103/api',
-    'http://100.86.227.1:9103/api',
-    'http://192.168.1.103:9103/api',
-    'http://10.0.2.2:9103/api',
+  static const List<String> _fallbacks = [
+    'http://192.168.1.103:9103/api', // Waitress
+    'http://192.168.1.151:9103/api', // LAN IP
+    'http://10.0.2.2:9103/api', // Android
+    // 'http://wapro-api:9103/api',
   ];
 
   static String _base = '';
+  static String get base => _base;
 
   static Future<void> init() async {
     if (_base.isNotEmpty) return;
 
-    final candidates = kIsWeb
-        ? <String>[_primaryWeb]
-        : <String>[_primaryNative, ..._nativeFallbacks];
+    final candidates = <String>[..._fallbacks, _primary];
 
     for (final b in candidates) {
       try {
@@ -53,24 +47,28 @@ class AdminApi {
             .timeout(const Duration(seconds: 3));
         if (r.statusCode == 200) {
           _base = b;
+          debugPrint('[AdminApi] BASE = $_base');
           return;
         }
       } catch (_) {
         /* try next */
       }
     }
-    _base = candidates.first;
+    _base = _primary;
+    debugPrint('[AdminApi] BASE (fallback) = $_base');
   }
 
   static Uri _u(String path) {
     if (_base.isEmpty) {
+      // lazy-init safeguard
+      // ignore: unawaited_futures
       init();
-      return Uri.parse('${(_base.isEmpty ? _primaryWeb : _base)}$path');
+      return Uri.parse('$_primary$path');
     }
     return Uri.parse('$_base$path');
   }
 
-  // ---------- Normalization ----------
+  // ---------- Normalisation
   static Future<void> stageOne({
     required StockItem normalized,
     required String who,
@@ -305,5 +303,30 @@ class AdminApi {
     if (res.statusCode != 200) {
       throw Exception('release failed: ${res.statusCode} ${res.body}');
     }
+  }
+
+  static Future<String> invoicedPartial({
+    required String projectId,
+    required List<Map<String, dynamic>> lines,
+    String? invoiceNo,
+  }) async {
+    await init();
+    final res = await http.post(
+      _u('/invoiced_partial'),
+      headers: {'Content-Type': 'application/json'},
+      body: jsonEncode({
+        'projectId': projectId,
+        'invoiceNo': invoiceNo ?? '',
+        'lines': lines,
+      }),
+    );
+    if (res.statusCode != 200) {
+      throw Exception('invoiced_partial failed: ${res.statusCode} ${res.body}');
+    }
+    final m = (jsonDecode(res.body) as Map).cast<String, dynamic>();
+    if (m['ok'] != true) {
+      throw Exception('invoiced_partial error: ${res.body}');
+    }
+    return (m['invoiceTag'] as String?) ?? (invoiceNo ?? '');
   }
 }
