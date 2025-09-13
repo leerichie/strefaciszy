@@ -2,26 +2,27 @@
 
 import 'dart:async';
 import 'dart:core';
-import 'package:collection/collection.dart';
+
 import 'package:auto_size_text/auto_size_text.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:collection/collection.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:firebase_auth/firebase_auth.dart';
-import 'package:strefa_ciszy/models/stock_item.dart';
 import 'package:strefa_ciszy/models/project_line.dart';
+import 'package:strefa_ciszy/models/stock_item.dart';
 import 'package:strefa_ciszy/screens/project_description_screen.dart';
 import 'package:strefa_ciszy/screens/rw_documents_screen.dart';
 import 'package:strefa_ciszy/services/admin_api.dart';
 import 'package:strefa_ciszy/services/api_service.dart';
+import 'package:strefa_ciszy/services/audit_service.dart';
 import 'package:strefa_ciszy/services/stock_service.dart';
+import 'package:strefa_ciszy/services/storage_service.dart';
 import 'package:strefa_ciszy/widgets/app_scaffold.dart';
 import 'package:strefa_ciszy/widgets/note_dialogue.dart';
-import 'package:strefa_ciszy/widgets/project_line_dialog.dart';
-import 'package:strefa_ciszy/services/audit_service.dart';
 import 'package:strefa_ciszy/widgets/notes_section.dart';
-import 'package:strefa_ciszy/services/storage_service.dart';
+import 'package:strefa_ciszy/widgets/project_line_dialog.dart';
 
 class NoSwipeCupertinoRoute<T> extends CupertinoPageRoute<T> {
   NoSwipeCupertinoRoute({required super.builder});

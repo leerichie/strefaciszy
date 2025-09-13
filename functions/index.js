@@ -66,7 +66,7 @@ exports.listUsersHttp = functions.https.onRequest(async (req, res) => {
   }
 });
 
-// 2) Create a new user + Firestore role doc
+// 2) Create a new user + Firestore role doc + set custom claim
 exports.createUserHttp = functions.https.onRequest(async (req, res) => {
   if (req.method === 'OPTIONS') {
     return res.status(204).set(corsHeaders).send('');
@@ -83,8 +83,14 @@ exports.createUserHttp = functions.https.onRequest(async (req, res) => {
 
   try {
     const user = await admin.auth().createUser({displayName: name, email, password});
-    await admin.firestore().collection('users').doc(user.uid).set({name, role});
 
+    await admin.firestore().collection('users').doc(user.uid)
+        .set({name, email, role});
+
+    await admin.auth().setCustomUserClaims(
+        user.uid,
+      role === 'admin' ? {admin: true} : {},
+    );
 
     return res.json({uid: user.uid, email: user.email, role});
   } catch (e) {
@@ -92,6 +98,7 @@ exports.createUserHttp = functions.https.onRequest(async (req, res) => {
     return res.status(500).json({error: 'Internal error'});
   }
 });
+
 
 // 3) Update a user’s role
 exports.updateUserRoleHttp = functions.https.onRequest(async (req, res) => {

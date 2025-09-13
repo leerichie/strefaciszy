@@ -195,8 +195,8 @@ class _MainMenuScreenState extends State<MainMenuScreen> {
               children: [
                 ListTile(
                   leading: const Icon(Icons.verified_user),
-                  title: const Text('Potwierdzenia (WAPRO)'),
-                  subtitle: const Text('Dokonanie zmiań w bazie danych'),
+                  title: const Text('Fakturowanie (Wf-Mag)'),
+                  subtitle: const Text('zatwierdzenie towar do fakturowanie'),
                   onTap: () {
                     Navigator.of(context).push(
                       MaterialPageRoute(builder: (_) => const ApprovalScreen()),

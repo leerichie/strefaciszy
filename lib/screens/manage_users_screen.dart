@@ -1,9 +1,10 @@
 // lib/screens/manage_users_screen.dart
 
-import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:flutter/material.dart';
 import 'package:strefa_ciszy/utils/keyboard_utils.dart';
 import 'package:strefa_ciszy/widgets/app_scaffold.dart';
+
 import '../services/user_functions.dart';
 
 class ManageUsersScreen extends StatefulWidget {
@@ -33,7 +34,11 @@ class _ManageUsersScreenState extends State<ManageUsersScreen> {
     return _svc.listUsers();
   }
 
-  void _reload() => setState(() => _usersFuture = _loadUsers());
+  void _reload() {
+    setState(() {
+      _usersFuture = _loadUsers();
+    });
+  }
 
   Future<void> _showAddDialog() async {
     String name = '', email = '', pwd = '', role = 'user';
@@ -108,7 +113,7 @@ class _ManageUsersScreenState extends State<ManageUsersScreen> {
         email = user['email'] ?? '',
         password = '',
         role = user['role'] ?? 'user';
-    final isAdmin = role == 'admin';
+    // final isAdmin = role == 'admin';
     final nameController = TextEditingController(text: name);
     final emailController = TextEditingController(text: email);
 
@@ -138,10 +143,16 @@ class _ManageUsersScreenState extends State<ManageUsersScreen> {
               DropdownButtonFormField<String>(
                 decoration: const InputDecoration(labelText: 'Dostęp'),
                 initialValue: role,
-                items: ['admin', 'user']
-                    .map((r) => DropdownMenuItem(value: r, child: Text(r)))
-                    .toList(),
-                onChanged: isAdmin ? null : (v) => role = v ?? role,
+                items: const [
+                  DropdownMenuItem(value: 'admin', child: Text('admin')),
+                  DropdownMenuItem(value: 'user', child: Text('user')),
+                ],
+                onChanged: (v) {
+                  if (v == null) return;
+                  setState(() {
+                    role = v;
+                  });
+                },
               ),
             ],
           ),
@@ -272,44 +283,6 @@ class _ManageUsersScreenState extends State<ManageUsersScreen> {
           },
         ),
       ),
-
-      // floatingActionButton: FloatingActionButton(
-      //   tooltip: 'Dodaj pracownika',
-      //   onPressed: _showAddDialog,
-      //   child: const Icon(Icons.person_add_alt),
-      // ),
-
-      // floatingActionButtonLocation: FloatingActionButtonLocation.centerFloat,
-      // bottomNavigationBar: SafeArea(
-      //   child: BottomAppBar(
-      //     shape: const CircularNotchedRectangle(),
-      //     notchMargin: 6,
-      //     child: Padding(
-      //       padding: const EdgeInsets.symmetric(horizontal: 32),
-      //       child: Row(
-      //         mainAxisAlignment: MainAxisAlignment.spaceBetween,
-      //         children: [
-      //           IconButton(
-      //             tooltip: 'Inwentaryzacja',
-      //             icon: const Icon(Icons.inventory_2),
-      //             onPressed: () => Navigator.of(context).push(
-      //               MaterialPageRoute(
-      //                 builder: (_) => InventoryListScreen(isAdmin: isAdmin),
-      //               ),
-      //             ),
-      //           ),
-      //           IconButton(
-      //             tooltip: 'Skanuj',
-      //             icon: const Icon(Icons.qr_code_scanner),
-      //             onPressed: () => Navigator.of(
-      //               context,
-      //             ).push(MaterialPageRoute(builder: (_) => const ScanScreen())),
-      //           ),
-      //         ],
-      //       ),
-      //     ),
-      //   ),
-      // ),
     );
   }
 }

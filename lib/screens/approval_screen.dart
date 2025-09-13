@@ -3,7 +3,6 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:strefa_ciszy/services/admin_api.dart';
-import 'package:strefa_ciszy/services/audit_service.dart';
 
 class ApprovalScreen extends StatefulWidget {
   const ApprovalScreen({super.key});
@@ -332,232 +331,231 @@ class _ProjectCardState extends State<_ProjectCard> {
     });
   }
 
-  Future<void> _releaseSelection() async {
-    if (_selectedQty.isEmpty) {
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(const SnackBar(content: Text('Nic nie wybrano')));
-      return;
-    }
+  // Future<void> _releaseSelection() async {
+  //   if (_selectedQty.isEmpty) {
+  //     ScaffoldMessenger.of(
+  //       context,
+  //     ).showSnackBar(const SnackBar(content: Text('Nic nie wybrano')));
+  //     return;
+  //   }
 
-    // Build a summary list for confirmation
-    final lines = <String>[];
-    _selectedQty.forEach((idx, qty) {
-      final m = _items[idx];
-      final name = (m['name'] as String?) ?? '';
-      final producer = (m['producer'] as String?) ?? '';
-      final unit = (m['unit'] as String?) ?? 'szt';
-      final title = [producer, name].where((s) => s.isNotEmpty).join(' ');
-      lines.add('• $title  —  $qty $unit');
-    });
+  //   final lines = <String>[];
+  //   _selectedQty.forEach((idx, qty) {
+  //     final m = _items[idx];
+  //     final name = (m['name'] as String?) ?? '';
+  //     final producer = (m['producer'] as String?) ?? '';
+  //     final unit = (m['unit'] as String?) ?? 'szt';
+  //     final title = [producer, name].where((s) => s.isNotEmpty).join(' ');
+  //     lines.add('• $title  —  $qty $unit');
+  //   });
 
-    final ok = await showDialog<bool>(
-      context: context,
-      builder: (_) => AlertDialog(
-        title: const Text('Na pewno cofac rezerwacja?'),
-        content: SizedBox(
-          width: 420,
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text('Pozycji: ${_selectedQty.length}'),
-              const SizedBox(height: 8),
-              ...lines.map(
-                (t) => Padding(
-                  padding: const EdgeInsets.symmetric(vertical: 2),
-                  child: Text(t, style: const TextStyle(fontSize: 14)),
-                ),
-              ),
-            ],
-          ),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context, false),
-            child: const Text('Anuluj'),
-          ),
-          FilledButton.icon(
-            icon: const Icon(Icons.lock_open),
-            label: const Text('Cofnij'),
-            onPressed: () => Navigator.pop(context, true),
-          ),
-        ],
-      ),
-    );
-    if (ok != true) return;
+  //   final ok = await showDialog<bool>(
+  //     context: context,
+  //     builder: (_) => AlertDialog(
+  //       title: const Text('Na pewno cofac rezerwacja?'),
+  //       content: SizedBox(
+  //         width: 420,
+  //         child: Column(
+  //           mainAxisSize: MainAxisSize.min,
+  //           crossAxisAlignment: CrossAxisAlignment.start,
+  //           children: [
+  //             Text('Pozycji: ${_selectedQty.length}'),
+  //             const SizedBox(height: 8),
+  //             ...lines.map(
+  //               (t) => Padding(
+  //                 padding: const EdgeInsets.symmetric(vertical: 2),
+  //                 child: Text(t, style: const TextStyle(fontSize: 14)),
+  //               ),
+  //             ),
+  //           ],
+  //         ),
+  //       ),
+  //       actions: [
+  //         TextButton(
+  //           onPressed: () => Navigator.pop(context, false),
+  //           child: const Text('Anuluj'),
+  //         ),
+  //         FilledButton.icon(
+  //           icon: const Icon(Icons.lock_open),
+  //           label: const Text('Cofnij'),
+  //           onPressed: () => Navigator.pop(context, true),
+  //         ),
+  //       ],
+  //     ),
+  //   );
+  //   if (ok != true) return;
 
-    final email = FirebaseAuth.instance.currentUser?.email ?? 'app';
-    ScaffoldMessenger.of(
-      context,
-    ).showSnackBar(const SnackBar(content: Text('Cofam rezerwacja…')));
+  //   final email = FirebaseAuth.instance.currentUser?.email ?? 'app';
+  //   ScaffoldMessenger.of(
+  //     context,
+  //   ).showSnackBar(const SnackBar(content: Text('Cofam rezerwacja…')));
 
-    int okCount = 0, fail = 0;
-    final newQtyByIndex = <int, int>{};
+  //   int okCount = 0, fail = 0;
+  //   final newQtyByIndex = <int, int>{};
 
-    for (final entry in _selectedQty.entries) {
-      final i = entry.key;
-      final releaseQty = entry.value;
-      final m = _items[i];
+  //   for (final entry in _selectedQty.entries) {
+  //     final i = entry.key;
+  //     final releaseQty = entry.value;
+  //     final m = _items[i];
 
-      final itemId = (m['itemId'] as String?)?.trim() ?? '';
-      final origQty = (m['quantity'] as num?)?.toInt() ?? 0;
-      if (itemId.isEmpty || origQty <= 0) continue;
+  //     final itemId = (m['itemId'] as String?)?.trim() ?? '';
+  //     final origQty = (m['quantity'] as num?)?.toInt() ?? 0;
+  //     if (itemId.isEmpty || origQty <= 0) continue;
 
-      final newQty = (origQty - releaseQty).clamp(0, origQty);
+  //     final newQty = (origQty - releaseQty).clamp(0, origQty);
 
-      try {
-        await AdminApi.reserveUpsert(
-          projectId: widget.projectId,
-          customerId: widget.customerId,
-          itemId: itemId,
-          qty: newQty,
-          warehouseId: null,
-          actorEmail: email,
-        );
-        newQtyByIndex[i] = newQty;
-        okCount++;
-        await _logRelease(m: m, releasedQty: releaseQty, newQty: newQty);
-      } catch (_) {
-        fail++;
-      }
-    }
+  //     try {
+  //       await AdminApi.reserveUpsert(
+  //         projectId: widget.projectId,
+  //         customerId: widget.customerId,
+  //         itemId: itemId,
+  //         qty: newQty,
+  //         warehouseId: null,
+  //         actorEmail: email,
+  //       );
+  //       newQtyByIndex[i] = newQty;
+  //       okCount++;
+  //       await _logRelease(m: m, releasedQty: releaseQty, newQty: newQty);
+  //     } catch (_) {
+  //       fail++;
+  //     }
+  //   }
 
-    setState(() {
-      final toRemove = <int>[];
-      newQtyByIndex.forEach((i, q) {
-        if (q == 0) {
-          toRemove.add(i);
-        } else {
-          _items[i]['quantity'] = q;
-        }
-      });
-      toRemove.sort((a, b) => b.compareTo(a));
-      for (final idx in toRemove) {
-        _items.removeAt(idx);
-      }
-      _selectedQty.clear();
-    });
+  //   setState(() {
+  //     final toRemove = <int>[];
+  //     newQtyByIndex.forEach((i, q) {
+  //       if (q == 0) {
+  //         toRemove.add(i);
+  //       } else {
+  //         _items[i]['quantity'] = q;
+  //       }
+  //     });
+  //     toRemove.sort((a, b) => b.compareTo(a));
+  //     for (final idx in toRemove) {
+  //       _items.removeAt(idx);
+  //     }
+  //     _selectedQty.clear();
+  //   });
 
-    try {
-      await _mirrorProjectAndRwDocs(_items);
-    } catch (_) {}
+  //   try {
+  //     await _mirrorProjectAndRwDocs(_items);
+  //   } catch (_) {}
 
-    if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(
-          fail == 0
-              ? 'Cofnięto: $okCount'
-              : 'Zwolniono: $okCount, błędy: $fail',
-        ),
-      ),
-    );
-  }
+  //   if (!mounted) return;
+  //   ScaffoldMessenger.of(context).showSnackBar(
+  //     SnackBar(
+  //       content: Text(
+  //         fail == 0
+  //             ? 'Cofnięto: $okCount'
+  //             : 'Zwolniono: $okCount, błędy: $fail',
+  //       ),
+  //     ),
+  //   );
+  // }
 
-  Future<void> _releaseAllInProject() async {
-    final email = FirebaseAuth.instance.currentUser?.email ?? 'app';
+  // Future<void> _releaseAllInProject() async {
+  //   final email = FirebaseAuth.instance.currentUser?.email ?? 'app';
 
-    final itemIds = <String>[
-      for (final m in _items)
-        if ((m['itemId'] as String?)?.isNotEmpty == true)
-          (m['itemId'] as String),
-    ];
-    if (itemIds.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Projekt nie ma pozycji z ID.')),
-      );
-      return;
-    }
+  //   final itemIds = <String>[
+  //     for (final m in _items)
+  //       if ((m['itemId'] as String?)?.isNotEmpty == true)
+  //         (m['itemId'] as String),
+  //   ];
+  //   if (itemIds.isEmpty) {
+  //     ScaffoldMessenger.of(context).showSnackBar(
+  //       const SnackBar(content: Text('Projekt nie ma pozycji z ID.')),
+  //     );
+  //     return;
+  //   }
 
-    final confirmed = await showDialog<bool>(
-      context: context,
-      builder: (_) => AlertDialog(
-        title: const Text('Cofac wszystkie rezerwacji?'),
-        content: Text(
-          'Projekt: ${widget.projectId}\nPozycji: ${itemIds.length}',
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context, false),
-            child: const Text('Anuluj'),
-          ),
-          FilledButton(
-            onPressed: () => Navigator.pop(context, true),
-            child: const Text('Zwolnij'),
-          ),
-        ],
-      ),
-    );
-    if (confirmed != true) return;
+  //   final confirmed = await showDialog<bool>(
+  //     context: context,
+  //     builder: (_) => AlertDialog(
+  //       title: const Text('Cofac wszystkie rezerwacji?'),
+  //       content: Text(
+  //         'Projekt: ${widget.projectId}\nPozycji: ${itemIds.length}',
+  //       ),
+  //       actions: [
+  //         TextButton(
+  //           onPressed: () => Navigator.pop(context, false),
+  //           child: const Text('Anuluj'),
+  //         ),
+  //         FilledButton(
+  //           onPressed: () => Navigator.pop(context, true),
+  //           child: const Text('Zwolnij'),
+  //         ),
+  //       ],
+  //     ),
+  //   );
+  //   if (confirmed != true) return;
 
-    int ok = 0, fail = 0;
-    for (int i = 0; i < _items.length; i++) {
-      final m = _items[i];
-      final id = (m['itemId'] as String?) ?? '';
-      if (id.isEmpty) continue;
+  //   int ok = 0, fail = 0;
+  //   for (int i = 0; i < _items.length; i++) {
+  //     final m = _items[i];
+  //     final id = (m['itemId'] as String?) ?? '';
+  //     if (id.isEmpty) continue;
 
-      final released = (m['quantity'] as num?)?.toInt() ?? 0;
+  //     final released = (m['quantity'] as num?)?.toInt() ?? 0;
 
-      try {
-        await AdminApi.reserveUpsert(
-          projectId: widget.projectId,
-          customerId: widget.customerId,
-          itemId: id,
-          qty: 0,
-          warehouseId: null,
-          actorEmail: email,
-        );
-        ok++;
+  //     try {
+  //       await AdminApi.reserveUpsert(
+  //         projectId: widget.projectId,
+  //         customerId: widget.customerId,
+  //         itemId: id,
+  //         qty: 0,
+  //         warehouseId: null,
+  //         actorEmail: email,
+  //       );
+  //       ok++;
 
-        await _logRelease(m: m, releasedQty: released, newQty: 0);
-      } catch (_) {
-        fail++;
-      }
-    }
+  //       await _logRelease(m: m, releasedQty: released, newQty: 0);
+  //     } catch (_) {
+  //       fail++;
+  //     }
+  //   }
 
-    setState(() {
-      _items.clear();
-      _selectedQty.clear();
-    });
-    await _mirrorProjectAndRwDocs(_items);
+  //   setState(() {
+  //     _items.clear();
+  //     _selectedQty.clear();
+  //   });
+  //   await _mirrorProjectAndRwDocs(_items);
 
-    if (_items.isEmpty) {
-      await AuditService.logAction(
-        action: 'Zwolniono wszystkie rezerwacji',
-        customerId: widget.customerId,
-        projectId: widget.projectId,
-        details: {'Pozycje': '${itemIds.length}', 'RW': 'usuniety (pusty)'},
-      );
-    }
+  //   if (_items.isEmpty) {
+  //     await AuditService.logAction(
+  //       action: 'Zwolniono wszystkie rezerwacji',
+  //       customerId: widget.customerId,
+  //       projectId: widget.projectId,
+  //       details: {'Pozycje': '${itemIds.length}', 'RW': 'usuniety (pusty)'},
+  //     );
+  //   }
 
-    if (!mounted) return;
-    ScaffoldMessenger.of(
-      context,
-    ).showSnackBar(SnackBar(content: Text('Zwolniono: $ok, błędy: $fail')));
-  }
+  //   if (!mounted) return;
+  //   ScaffoldMessenger.of(
+  //     context,
+  //   ).showSnackBar(SnackBar(content: Text('Zwolniono: $ok, błędy: $fail')));
+  // }
 
-  Future<void> _logRelease({
-    required Map<String, dynamic> m,
-    required int releasedQty,
-    required int newQty,
-  }) async {
-    final unit = (m['unit'] as String?) ?? 'szt';
-    final prod = (m['producer'] as String?) ?? '';
-    final name = (m['name'] as String?) ?? '';
-    final line = [
-      prod,
-      name,
-      '-$releasedQty$unit',
-    ].where((x) => x.isNotEmpty).join(' ');
+  // Future<void> _logRelease({
+  //   required Map<String, dynamic> m,
+  //   required int releasedQty,
+  //   required int newQty,
+  // }) async {
+  //   final unit = (m['unit'] as String?) ?? 'szt';
+  //   final prod = (m['producer'] as String?) ?? '';
+  //   final name = (m['name'] as String?) ?? '';
+  //   final line = [
+  //     prod,
+  //     name,
+  //     '-$releasedQty$unit',
+  //   ].where((x) => x.isNotEmpty).join(' ');
 
-    await AuditService.logAction(
-      action: 'Zwolniono rezerwacja',
-      customerId: widget.customerId,
-      projectId: widget.projectId,
-      details: {'•': line, 'Pozostał w projekcie': '$newQty $unit'},
-    );
-  }
+  //   await AuditService.logAction(
+  //     action: 'Zwolniono rezerwacja',
+  //     customerId: widget.customerId,
+  //     projectId: widget.projectId,
+  //     details: {'•': line, 'Pozostał w projekcie': '$newQty $unit'},
+  //   );
+  // }
 
   Future<String?> _askInvoiceTag() async {
     final ctrl = TextEditingController();
@@ -922,16 +920,16 @@ class _ProjectCardState extends State<_ProjectCard> {
                       label: const Text('Wyczyść'),
                       onPressed: _clearSelection,
                     ),
-                    ElevatedButton.icon(
-                      icon: const Icon(Icons.lock_open),
-                      label: const Text('Cofnij rezerwacja'),
-                      onPressed: _selectedCount == 0 ? null : _releaseSelection,
-                    ),
-                    OutlinedButton.icon(
-                      icon: const Icon(Icons.playlist_remove),
-                      label: const Text('Cofnij wszystko'),
-                      onPressed: _items.isEmpty ? null : _releaseAllInProject,
-                    ),
+                    // ElevatedButton.icon(
+                    //   icon: const Icon(Icons.lock_open),
+                    //   label: const Text('Cofnij rezerwacja'),
+                    //   onPressed: _selectedCount == 0 ? null : _releaseSelection,
+                    // ),
+                    // OutlinedButton.icon(
+                    //   icon: const Icon(Icons.playlist_remove),
+                    //   label: const Text('Cofnij wszystko'),
+                    //   onPressed: _items.isEmpty ? null : _releaseAllInProject,
+                    // ),
 
                     // OutlinedButton.icon(
                     //   icon: const Icon(Icons.lock),
