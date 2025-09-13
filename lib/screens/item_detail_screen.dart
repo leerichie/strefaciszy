@@ -207,82 +207,95 @@ class ItemDetailScreen extends StatelessWidget {
             return SingleChildScrollView(
               padding: const EdgeInsets.all(16),
               keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  if (imageUrl != null && imageUrl.isNotEmpty) ...[
-                    Center(
-                      child: SizedBox(
-                        width: double.infinity,
-                        height: 150,
-                        child: ClipRRect(
-                          borderRadius: BorderRadius.circular(8),
-                          child: Image.network(
-                            imageUrl,
-                            fit: BoxFit.cover,
-                            loadingBuilder: (ctx, child, progress) {
-                              if (progress == null) return child;
-                              return const Center(
-                                child: CircularProgressIndicator(),
-                              );
-                            },
-                            errorBuilder: (ctx, error, stack) {
-                              return Container(
-                                color: Colors.grey[200],
-                                child: const Icon(
-                                  Icons.broken_image,
-                                  size: 64,
-                                  color: Colors.grey,
-                                ),
-                              );
-                            },
+              child: SelectionArea(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    if (imageUrl != null && imageUrl.isNotEmpty) ...[
+                      Center(
+                        child: SizedBox(
+                          width: double.infinity,
+                          height: 150,
+                          child: ClipRRect(
+                            borderRadius: BorderRadius.circular(8),
+                            child: Image.network(
+                              imageUrl,
+                              fit: BoxFit.cover,
+                              loadingBuilder: (ctx, child, progress) {
+                                if (progress == null) return child;
+                                return const Center(
+                                  child: CircularProgressIndicator(),
+                                );
+                              },
+                              errorBuilder: (ctx, error, stack) {
+                                return Container(
+                                  color: Colors.grey[200],
+                                  child: const Icon(
+                                    Icons.broken_image,
+                                    size: 64,
+                                    color: Colors.grey,
+                                  ),
+                                );
+                              },
+                            ),
                           ),
                         ),
                       ),
-                    ),
-                    const SizedBox(height: 16),
-                  ],
-
-                  Text(
-                    item.name,
-                    style: const TextStyle(
-                      fontSize: 24,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                  const SizedBox(height: 8),
-
-                  Table(
-                    columnWidths: const {0: IntrinsicColumnWidth()},
-                    defaultVerticalAlignment: TableCellVerticalAlignment.middle,
-                    children: [
-                      _row('Producent', item.producent),
-                      _row('SKU', item.sku),
-                      _row(
-                        'Kategoria',
-                        item.category.isNotEmpty
-                            ? item.category
-                            : item.description,
-                      ),
-                      _row('Magazyn', null),
-                      _row('Kod Kreskowy', hasValidEan ? barcode : '—'),
-                      _row('Ilość', '$qty${unit.isNotEmpty ? ' $unit' : ''}'),
+                      const SizedBox(height: 16),
                     ],
-                  ),
 
-                  const SizedBox(height: 16),
-
-                  if (needsEan)
-                    Center(
-                      child: ElevatedButton.icon(
-                        icon: const Icon(Icons.add),
-                        label: const Text('Dodaj EAN'),
-                        onPressed: () => _addEanFlow(context, item),
+                    Text(
+                      item.name,
+                      style: const TextStyle(
+                        fontSize: 24,
+                        fontWeight: FontWeight.bold,
                       ),
                     ),
+                    const SizedBox(height: 4),
+                    Text(
+                      'WAPRO id_artykulu: ${item.id}',
+                      style: TextStyle(
+                        fontSize: 11,
+                        color: Colors.grey[600],
+                        height: 1.2,
+                      ),
+                      maxLines: 1,
+                    ),
+                    const SizedBox(height: 8),
 
-                  // (keep any other admin buttons disabled for now)
-                ],
+                    Table(
+                      columnWidths: const {0: IntrinsicColumnWidth()},
+                      defaultVerticalAlignment:
+                          TableCellVerticalAlignment.middle,
+                      children: [
+                        _row('Producent', item.producent),
+                        _row('SKU', item.sku),
+                        _row(
+                          'Kategoria',
+                          item.category.isNotEmpty
+                              ? item.category
+                              : item.description,
+                        ),
+                        _row('Magazyn', null),
+                        _row('Kod Kreskowy', hasValidEan ? barcode : '—'),
+                        _row('Ilość', '$qty${unit.isNotEmpty ? ' $unit' : ''}'),
+                      ],
+                    ),
+
+                    const SizedBox(height: 16),
+
+                    if (needsEan)
+                      Center(
+                        child: ElevatedButton.icon(
+                          icon: const Icon(Icons.add),
+                          label: const Text('Dodaj EAN'),
+                          onPressed: () => _addEanFlow(context, item),
+                        ),
+                      ),
+
+                    // (keep any other admin buttons disabled for now)
+                  ],
+                ),
               ),
             );
           },

@@ -22,8 +22,7 @@ class NoteLocal {
     required this.noteId,
     required this.projectId,
     required this.text,
-    DateTime? createdAtLocal,
     this.serverId,
     this.syncState = SyncState.synced,
-  }) : createdAtLocal = createdAtLocal ?? DateTime.now();
+  }) : createdAtLocal = DateTime.now();
 }

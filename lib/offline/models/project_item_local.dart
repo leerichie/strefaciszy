@@ -29,7 +29,6 @@ class ProjectItemLocal {
     this.note,
     this.serverVersion = 0,
     this.updatedAtServer,
-    DateTime? updatedAtLocal,
     this.syncState = SyncState.synced,
-  }) : updatedAtLocal = updatedAtLocal ?? DateTime.now();
+  }) : updatedAtLocal = DateTime.now();
 }

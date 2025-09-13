@@ -196,86 +196,98 @@ class _InventoryListScreenState extends State<InventoryListScreen> {
                       }
                       return false;
                     },
-                    child: ListView.separated(
-                      keyboardDismissBehavior:
-                          ScrollViewKeyboardDismissBehavior.onDrag,
-                      itemCount: filtered.length,
-                      separatorBuilder: (_, __) => const Divider(height: 1),
-                      itemBuilder: (ctx, i) {
-                        final item = filtered[i];
-                        return ListTile(
-                          isThreeLine: true,
-                          title: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(
-                                item.producent,
-                                style: const TextStyle(
-                                  fontSize: 14,
-                                  fontWeight: FontWeight.bold,
+                    child: SelectionArea(
+                      child: ListView.separated(
+                        keyboardDismissBehavior:
+                            ScrollViewKeyboardDismissBehavior.onDrag,
+                        itemCount: filtered.length,
+                        separatorBuilder: (_, __) => const Divider(height: 1),
+                        itemBuilder: (ctx, i) {
+                          final item = filtered[i];
+                          return ListTile(
+                            isThreeLine: true,
+                            title: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  item.producent,
+                                  style: const TextStyle(
+                                    fontSize: 14,
+                                    fontWeight: FontWeight.bold,
+                                  ),
                                 ),
-                              ),
-                              Text(
-                                item.name,
-                                style: const TextStyle(fontSize: 14),
-                              ),
-                              Text(
-                                item.category.isNotEmpty
-                                    ? item.category
-                                    : item.description,
-                                style: TextStyle(
-                                  fontSize: 13,
-                                  color: Colors.grey[700],
-                                  fontStyle: FontStyle.italic,
+                                Text(
+                                  'WAPRO id_artykulu: ${item.id}',
+                                  style: TextStyle(
+                                    fontSize: 11,
+                                    color: Colors.grey[600],
+                                    height: 1.2,
+                                  ),
+
+                                  maxLines: 1,
                                 ),
-                              ),
-                            ],
-                          ),
-                          subtitle: Text(
-                            '${item.quantity}${item.unit.isNotEmpty ? ' ${item.unit}' : ''}',
-                            style: TextStyle(
-                              fontSize: 14,
-                              fontWeight: FontWeight.bold,
-                              color: item.quantity <= 0
-                                  ? Colors.red
-                                  : item.quantity <= 3
-                                  ? Colors.orange
-                                  : Colors.green,
+                                Text(
+                                  item.name,
+                                  style: const TextStyle(fontSize: 14),
+                                ),
+                                Text(
+                                  item.category.isNotEmpty
+                                      ? item.category
+                                      : item.description,
+                                  style: TextStyle(
+                                    fontSize: 13,
+                                    color: Colors.grey[700],
+                                    fontStyle: FontStyle.italic,
+                                  ),
+                                ),
+                              ],
                             ),
-                          ),
-                          trailing: item.imageUrl != null
-                              ? SizedBox(
-                                  width: 48,
-                                  height: 48,
-                                  child: ClipRRect(
-                                    borderRadius: BorderRadius.circular(4),
-                                    child: Image.network(
-                                      item.imageUrl!,
-                                      fit: BoxFit.cover,
-                                      errorBuilder: (_, __, ___) => Container(
-                                        color: Colors.grey[200],
-                                        child: const Icon(
-                                          Icons.broken_image,
-                                          size: 24,
-                                          color: Colors.grey,
+                            subtitle: Text(
+                              '${item.quantity}${item.unit.isNotEmpty ? ' ${item.unit}' : ''}',
+                              style: TextStyle(
+                                fontSize: 14,
+                                fontWeight: FontWeight.bold,
+                                color: item.quantity <= 0
+                                    ? Colors.red
+                                    : item.quantity <= 3
+                                    ? Colors.orange
+                                    : Colors.green,
+                              ),
+                            ),
+                            trailing: item.imageUrl != null
+                                ? SizedBox(
+                                    width: 48,
+                                    height: 48,
+                                    child: ClipRRect(
+                                      borderRadius: BorderRadius.circular(4),
+                                      child: Image.network(
+                                        item.imageUrl!,
+                                        fit: BoxFit.cover,
+                                        errorBuilder: (_, __, ___) => Container(
+                                          color: Colors.grey[200],
+                                          child: const Icon(
+                                            Icons.broken_image,
+                                            size: 24,
+                                            color: Colors.grey,
+                                          ),
                                         ),
                                       ),
                                     ),
+                                  )
+                                : null,
+                            onTap: () {
+                              Navigator.of(context).push(
+                                MaterialPageRoute(
+                                  builder: (_) => ItemDetailScreen(
+                                    itemId: item.id,
+                                    isAdmin: widget.isAdmin,
                                   ),
-                                )
-                              : null,
-                          onTap: () {
-                            Navigator.of(context).push(
-                              MaterialPageRoute(
-                                builder: (_) => ItemDetailScreen(
-                                  itemId: item.id,
-                                  isAdmin: widget.isAdmin,
                                 ),
-                              ),
-                            );
-                          },
-                        );
-                      },
+                              );
+                            },
+                          );
+                        },
+                      ),
                     ),
                   );
                 },

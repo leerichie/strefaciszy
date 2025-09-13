@@ -57,6 +57,33 @@ class ApiService {
     debugPrint('[ApiService] BASE = $_base');
   }
 
+  static Future<dynamic> postJson(
+    String path,
+    Map<String, dynamic> body, {
+    Map<String, String>? extraHeaders,
+  }) async {
+    final uri = _uri(path);
+    final res = await http.post(
+      uri,
+      headers: {
+        'Accept': 'application/json',
+        'Content-Type': 'application/json',
+        if (extraHeaders != null) ...extraHeaders,
+      },
+      body: json.encode(body),
+    );
+
+    debugPrint('[ApiService] POST $uri -> ${res.statusCode}');
+
+    if (res.statusCode < 200 || res.statusCode >= 300) {
+      throw Exception('POST $uri failed: ${res.statusCode} ${res.body}');
+    }
+
+    if (res.body.isEmpty) return {};
+    final decoded = json.decode(res.body);
+    return decoded;
+  }
+
   static Uri _uri(String path, [Map<String, dynamic>? q]) {
     final u = Uri.parse("$_base$path");
     if (q == null || q.isEmpty) return u;
@@ -69,18 +96,35 @@ class ApiService {
     );
   }
 
-  /// READ-ONLY: fetch EAN
-  /// Expects backend route: GET /api/admin/products/<id>/ean
-  /// Response example:
-  /// {
-  ///   "id": "3029",
-  ///   "wapro_ean": "5900779350861",
-  ///   "override_ean": "",
-  ///   "effective_ean": "5900779350861",
-  ///   "status": "LOCKED_WAPRO",
-  ///   "updated_by": null,
-  ///   "updated_at": null
-  /// }
+  // Reset reservation
+  static Future<Map<String, dynamic>> resetReservation({
+    required String projectId,
+    required String itemId,
+    required String actorEmail,
+  }) async {
+    final res = await postJson('/admin/reservations/upsert', {
+      'projectId': projectId,
+      'itemId': itemId,
+      'qty': 0,
+      'actorEmail': actorEmail,
+    });
+    return (res is Map<String, dynamic>) ? res : <String, dynamic>{};
+  }
+
+  //Fetch product info
+  static Future<Map<String, dynamic>> fetchProductRaw(String id) async {
+    final uri = _uri('/products/$id');
+    final res = await http.get(uri, headers: {'Accept': 'application/json'});
+    if (res.statusCode != 200) {
+      throw Exception('GET $uri failed: ${res.statusCode} ${res.body}');
+    }
+    final body = json.decode(res.body);
+    if (body is! Map<String, dynamic>) {
+      throw Exception('Unexpected /products/:id response');
+    }
+    return body;
+  }
+
   static Future<Map<String, dynamic>> fetchEanStateById(
     String productId,
   ) async {

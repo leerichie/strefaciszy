@@ -247,8 +247,9 @@ Future<ProjectLine?> showProjectLineDialog(
                                                 ),
                                               ),
                                             );
-                                        if (code == null || code.isEmpty)
+                                        if (code == null || code.isEmpty) {
                                           return;
+                                        }
 
                                         textCtrl.text = code;
                                         await refreshSuggestions(

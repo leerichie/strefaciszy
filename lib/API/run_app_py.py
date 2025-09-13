@@ -174,6 +174,174 @@ def _legacy_public_upsert():
 def _legacy_admin_upsert1():
     return reservations_upsert_compat()
 
+@app.get("/api/admin/reservations/active_for_item/<int:item_id>")
+def admin_active_reservations_for_item(item_id: int):
+    """
+    Returns active reservations (Status in (1,2), not invoiced) for a given item_id.
+    [
+      { "reservationId": "...", "projectId": "...", "qty": 3 }
+    ]
+    """
+    sql = """
+    SELECT r.ReservationId, r.ProjectId, SUM(rl.Qty) AS qty
+    FROM app.Reservations r
+    JOIN app.ReservationLines rl ON rl.ReservationId = r.ReservationId
+    WHERE rl.InvoiceNo IS NULL
+      AND r.Status IN (1,2)
+      AND rl.ID_ARTYKULU = ?
+    GROUP BY r.ReservationId, r.ProjectId
+    ORDER BY r.CreatedAt DESC
+    """
+    rows = fetch_all(sql, (item_id,))
+    out = [
+      {
+        "reservationId": str(r.get("ReservationId")),
+        "projectId": r.get("ProjectId"),
+        "qty": int(r.get("qty") or 0),
+      }
+      for r in rows
+    ]
+    return jsonify(out), 200
+
+@app.post("/api/admin/reservations/reset_item")
+def admin_reset_item_reservations():
+    """
+    Body: { "itemId": 1536, "projectId": "optional" }
+    If projectId is omitted/empty -> releases ALL active reservations for that item.
+    """
+    data = request.get_json(force=True) or {}
+    try:
+        item_id = int(str(data.get("itemId") or "").strip())
+    except Exception:
+        return jsonify({"ok": False, "error": "bad-itemId"}), 400
+    project_id = (data.get("projectId") or "").strip()
+
+    try:
+        with get_conn() as cn:
+            cn.autocommit = False
+            cur = cn.cursor()
+
+            if project_id:
+                # How much is reserved on this project?
+                cur.execute("""
+                    SELECT ISNULL(SUM(rl.Qty),0)
+                    FROM app.ReservationLines rl
+                    JOIN app.Reservations r ON r.ReservationId = rl.ReservationId
+                    WHERE rl.InvoiceNo IS NULL
+                      AND r.Status IN (1,2)
+                      AND r.ProjectId = ?
+                      AND rl.ID_ARTYKULU = ?
+                """, (project_id, item_id))
+                row = cur.fetchone()
+                qty = float(row[0] if row and row[0] is not None else 0.0)
+                if qty > 0:
+                    cur.execute("{CALL app.sp_UnreserveStock(?,?,?)}",
+                                (project_id, item_id, qty))
+            else:
+                # Release ALL projects that hold this item
+                cur.execute("""
+                    SELECT r.ProjectId, SUM(rl.Qty) AS qty
+                    FROM app.Reservations r
+                    JOIN app.ReservationLines rl ON rl.ReservationId = r.ReservationId
+                    WHERE rl.InvoiceNo IS NULL
+                      AND r.Status IN (1,2)
+                      AND rl.ID_ARTYKULU = ?
+                    GROUP BY r.ProjectId
+                """, (item_id,))
+                for proj_id, qty in cur.fetchall():
+                    q = float(qty or 0.0)
+                    if q > 0 and proj_id:
+                        cur.execute("{CALL app.sp_UnreserveStock(?,?,?)}",
+                                    (proj_id, item_id, q))
+
+            cn.commit()
+            return jsonify({"ok": True}), 200
+
+    except pyodbc.Error as e:
+        try:
+            if cn: cn.rollback()
+        except Exception:
+            pass
+        return jsonify({"ok": False, "error": str(e)}), 500
+
+
+@app.get("/api/admin/reservations/summary")
+def reservations_summary():
+    project_id = (request.args.get("projectId") or "").strip()
+    item_id    = (request.args.get("itemId") or "").strip()
+    if not item_id:
+        return jsonify({"ok": False, "error": "missing-itemId"}), 400
+    try:
+        id_artykulu = int(item_id)
+    except Exception:
+        return jsonify({"ok": False, "error": "bad-itemId"}), 400
+
+    with get_conn() as cn, cn.cursor() as cur:
+        # reserved on this project (if given)
+        reserved_on_project = 0
+        if project_id:
+            cur.execute("""
+                SELECT ISNULL(SUM(rl.Qty), 0)
+                FROM app.ReservationLines rl
+                JOIN app.Reservations r ON r.ReservationId = rl.ReservationId
+                WHERE r.ProjectId = ? AND r.Status IN (1,2)
+                  AND rl.InvoiceNo IS NULL
+                  AND rl.ID_ARTYKULU = ?
+            """, (project_id, id_artykulu))
+            row = cur.fetchone()
+            reserved_on_project = float(row[0] or 0)
+
+        # reserved overall (all projects)
+        cur.execute("""
+            SELECT ISNULL(SUM(rl.Qty), 0)
+            FROM app.ReservationLines rl
+            JOIN app.Reservations r ON r.ReservationId = rl.ReservationId
+            WHERE r.Status IN (1,2)
+              AND rl.InvoiceNo IS NULL
+              AND rl.ID_ARTYKULU = ?
+        """, (id_artykulu,))
+        row = cur.fetchone()
+        reserved_total = float(row[0] or 0)
+
+        # stock snapshot
+        cur.execute("""
+            WITH sm AS (
+              SELECT id_artykulu,
+                     SUM(CASE WHEN stan IS NULL THEN 0 ELSE CAST(stan AS DECIMAL(18,3)) END) AS qty,
+                     MAX(NULLIF(skrot,'')) AS unit
+              FROM dbo.JLVIEW_STANMAGAZYNU_RAP WITH (NOLOCK)
+              WHERE id_artykulu = CAST(? AS NUMERIC(18,0))
+              GROUP BY id_artykulu
+            )
+            SELECT
+              CAST(COALESCE(sm.qty, a.STAN, 0) AS DECIMAL(18,3)) AS quantity,
+              COALESCE(sm.unit, NULLIF(wa.JednostkaSprzedazy,''), '') AS unit,
+              CAST(a.NAZWA AS NVARCHAR(100)) AS name
+            FROM dbo.ARTYKUL a
+            LEFT JOIN sm ON sm.id_artykulu = a.ID_ARTYKULU
+            LEFT JOIN dbo.WIDOK_ARTYKUL wa ON wa.IdArtykulu = a.ID_ARTYKULU
+            WHERE a.ID_ARTYKULU = CAST(? AS NUMERIC(18,0))
+        """, (id_artykulu, id_artykulu))
+        row = cur.fetchone()
+        stock_qty = float(row[0] or 0)
+        unit = (row[1] or '')
+        name = (row[2] or '')
+
+    available_after = stock_qty - reserved_total
+
+    return jsonify({
+        "ok": True,
+        "itemId": str(id_artykulu),
+        "name": name,
+        "stock": stock_qty,
+        "reserved_on_project": reserved_on_project,
+        "reserved_total": reserved_total,
+        "available_after_if_reset": available_after,
+        "unit": unit,
+    }), 200
+
+
+
 @app.post("/api/admin/reservations/upsert")
 def reservations_upsert_compat():
     """

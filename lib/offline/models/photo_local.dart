@@ -26,7 +26,6 @@ class PhotoLocal {
     required this.localPath,
     this.thumbPath,
     this.cloudUrl,
-    DateTime? createdAtLocal,
     this.syncState = SyncState.localOnly,
-  }) : createdAtLocal = createdAtLocal ?? DateTime.now();
+  }) : createdAtLocal = DateTime.now();
 }

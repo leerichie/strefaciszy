@@ -21,7 +21,6 @@ class ProjectLocal {
     required this.name,
     this.serverVersion = 0,
     this.updatedAtServer,
-    DateTime? updatedAtLocal,
     this.syncState = SyncState.synced,
   }) : updatedAtLocal = DateTime.now();
 }

@@ -1,14 +1,20 @@
-import 'package:flutter/material.dart';
-import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:firebase_core/firebase_core.dart';
+import 'package:flutter/foundation.dart' show kReleaseMode;
+import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:strefa_ciszy/services/admin_api.dart';
 import 'package:strefa_ciszy/services/api_service.dart';
-import 'widgets/web_scroll_behaviour.dart';
+
 import 'firebase_options.dart';
+import 'offline/sync_orchestrator_stub.dart'
+    if (dart.library.io) 'offline/sync_orchestrator.dart';
 import 'screens/login_screen.dart';
 import 'screens/main_menu_screen.dart';
+import 'widgets/web_scroll_behaviour.dart';
+
+SyncOrchestrator? _syncOrchestrator;
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -18,6 +24,11 @@ void main() async {
   await AdminApi.init();
 
   await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
+
+  if (!kReleaseMode) {
+    _syncOrchestrator = await SyncOrchestrator.create();
+    _syncOrchestrator!.start();
+  }
 
   await SystemChrome.setPreferredOrientations([
     DeviceOrientation.portraitUp,
@@ -76,6 +87,7 @@ class StrefaCiszyApp extends StatelessWidget {
         );
       },
       home: const AuthGate(),
+      // home: kReleaseMode ? const AuthGate() : const DevOfflineTestScreen(),
     );
   }
 }

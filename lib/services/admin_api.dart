@@ -221,22 +221,91 @@ class AdminApi {
     return (jsonDecode(res.body) as Map).cast<String, dynamic>();
   }
 
-  // --- Catalog with availability (joins v_AppCatalog)
+  static Future<Map<String, dynamic>> reservationSummary({
+    required String itemId,
+    String? projectId,
+  }) async {
+    final uri = _u('/admin/reservations/summary').replace(
+      queryParameters: {
+        'itemId': itemId,
+        if (projectId != null && projectId.isNotEmpty) 'projectId': projectId,
+      },
+    );
+    final res = await http.get(uri);
+    if (res.statusCode != 200) {
+      throw Exception(
+        'reservationSummary failed: ${res.statusCode} ${res.body}',
+      );
+    }
+    return (jsonDecode(res.body) as Map).cast<String, dynamic>();
+  }
+
+  static Future<Map<String, dynamic>> resetItemReservations({
+    required String itemId,
+    String? projectId,
+  }) async {
+    final body = {
+      "itemId": itemId,
+      if (projectId != null && projectId.isNotEmpty) "projectId": projectId,
+    };
+    return await ApiService.postJson("/admin/reservations/reset_item", body);
+  }
+
+  // ---------- Catalog (name search) ----------
   static Future<List<Map<String, dynamic>>> catalog({
     String q = '',
     int top = 100,
   }) async {
-    final uri = _u(
+    await init();
+    final uri1 = _u(
       '/catalog',
     ).replace(queryParameters: {'q': q, 'top': '$top'});
-    final res = await http.get(uri);
-    if (res.statusCode != 200) {
-      throw Exception('GET $uri failed: ${res.statusCode} ${res.body}');
+
+    try {
+      final r1 = await http.get(uri1);
+      if (r1.statusCode == 200) {
+        return (jsonDecode(r1.body) as List).cast<Map<String, dynamic>>();
+      }
+
+      if (r1.statusCode >= 500) {
+        return await _catalogFallbackProducts(q: q, top: top);
+      }
+
+      throw Exception('GET $uri1 failed: ${r1.statusCode} ${r1.body}');
+    } catch (e) {
+      try {
+        return await _catalogFallbackProducts(q: q, top: top);
+      } catch (_) {
+        rethrow;
+      }
     }
-    return (jsonDecode(res.body) as List).cast<Map<String, dynamic>>();
   }
 
-  // --- New reservation flow (stored-procs backend) ---
+  static Future<List<Map<String, dynamic>>> _catalogFallbackProducts({
+    required String q,
+    required int top,
+  }) async {
+    final uri2 = _u(
+      '/products',
+    ).replace(queryParameters: {'q': q, 'limit': '$top'});
+    final r2 = await http.get(uri2);
+    if (r2.statusCode != 200) {
+      throw Exception('GET $uri2 failed: ${r2.statusCode} ${r2.body}');
+    }
+    final list = (jsonDecode(r2.body) as List).cast<Map<String, dynamic>>();
+
+    return list.map((m) {
+      return {
+        'id_artykulu': m['id']?.toString() ?? '',
+        'nazwa': (m['name'] ?? '').toString(),
+        'PRODUCENT': (m['producent'] ?? '').toString(),
+        'sku': (m['sku'] ?? '').toString(),
+        'quantity': m['quantity'],
+        'unit': m['unit'],
+      };
+    }).toList();
+  }
+
   static Future<String> reserve({
     required String projectId,
     required int idArtykulu,
@@ -256,7 +325,6 @@ class AdminApi {
       }),
     );
     if (res.statusCode != 200) {
-      // Proc throws when overbooking is attempted — surface message
       throw Exception('reserve failed: ${res.statusCode} ${res.body}');
     }
     final m = (jsonDecode(res.body) as Map).cast<String, dynamic>();

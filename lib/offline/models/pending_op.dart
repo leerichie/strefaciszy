@@ -27,9 +27,8 @@ class PendingOp {
     required this.opType,
     required this.payloadJson,
     this.dependsOn,
-    DateTime? createdAt,
     this.lastTriedAt,
     this.retryCount = 0,
     this.status = 'PENDING',
-  }) : createdAt = createdAt ?? DateTime.now();
+  }) : createdAt = DateTime.now();
 }

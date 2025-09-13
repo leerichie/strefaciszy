@@ -3,6 +3,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:strefa_ciszy/services/admin_api.dart';
+import 'package:strefa_ciszy/services/api_service.dart';
 
 class ApprovalScreen extends StatefulWidget {
   const ApprovalScreen({super.key});
@@ -71,6 +72,20 @@ class _ApprovalScreenState extends State<ApprovalScreen> {
           appBar: AppBar(
             title: const Text('Projekty do zatwierdzenie (WF-MAG sync)'),
             actions: [
+              IconButton(
+                tooltip: 'Szybkie zwolnienie rezerwacji',
+                icon: const Icon(Icons.lock_open_outlined),
+                onPressed: () {
+                  showModalBottomSheet(
+                    context: context,
+                    isScrollControlled: true,
+                    builder: (_) => QuickReservationResetSheet(
+                      actorEmail:
+                          FirebaseAuth.instance.currentUser?.email ?? 'app',
+                    ),
+                  );
+                },
+              ),
               PopupMenuButton<Duration>(
                 tooltip: 'Zakres',
                 onSelected: (d) => setState(() => _range = d),
@@ -89,10 +104,7 @@ class _ApprovalScreenState extends State<ApprovalScreen> {
                     child: Text('30 dni'),
                   ),
                 ],
-                child: const Padding(
-                  padding: EdgeInsets.symmetric(horizontal: 12),
-                  child: Icon(Icons.filter_alt_outlined),
-                ),
+                icon: const Icon(Icons.filter_alt_outlined),
               ),
             ],
           ),
@@ -168,6 +180,20 @@ class _ApprovalScreenState extends State<ApprovalScreen> {
               );
             },
           ),
+          floatingActionButton: FloatingActionButton.extended(
+            heroTag: 'fab-reset',
+            icon: const Icon(Icons.lock_open),
+            label: const Text('Reset rezerwacji'),
+            onPressed: () {
+              showModalBottomSheet(
+                context: context,
+                isScrollControlled: true,
+                builder: (_) => QuickReservationResetSheet(
+                  actorEmail: FirebaseAuth.instance.currentUser?.email ?? 'app',
+                ),
+              );
+            },
+          ),
         );
       },
     );
@@ -240,45 +266,6 @@ class _ProjectCardState extends State<_ProjectCard> {
     return false;
   }
 
-  // Future<void> _copyToClipboard(String text, String label) async {
-  //   await Clipboard.setData(ClipboardData(text: text));
-  //   if (!mounted) return;
-  //   ScaffoldMessenger.of(
-  //     context,
-  //   ).showSnackBar(SnackBar(content: Text('$label skopiowane')));
-  // }
-
-  // Future<void> _lockForInvoicing() async {
-  //   final rid = widget.reservationId?.trim();
-  //   if (rid == null || rid.isEmpty) {
-  //     ScaffoldMessenger.of(context).showSnackBar(
-  //       const SnackBar(content: Text('Brak reservationId dla projektu.')),
-  //     );
-  //     return;
-  //   }
-
-  //   try {
-  //     ScaffoldMessenger.of(context).showSnackBar(
-  //       const SnackBar(content: Text('Blokuję rezerwację do faktury…')),
-  //     );
-  //     // Lock ALL or just the selected subset?
-  //     // With your current API: lockAll = (_selectedQty.length == _items.length)
-  //     final lockAll =
-  //         _selectedQty.isEmpty || _selectedQty.length == _items.length;
-  //     await AdminApi.confirm(reservationId: rid, lockAll: lockAll);
-
-  //     if (!mounted) return;
-  //     ScaffoldMessenger.of(
-  //       context,
-  //     ).showSnackBar(const SnackBar(content: Text('Zablokowano do faktury.')));
-  //   } catch (e) {
-  //     if (!mounted) return;
-  //     ScaffoldMessenger.of(
-  //       context,
-  //     ).showSnackBar(SnackBar(content: Text('Błąd blokady: $e')));
-  //   }
-  // }
-
   Future<void> _mirrorProjectAndRwDocs(
     List<Map<String, dynamic>> newItems,
   ) async {
@@ -329,260 +316,6 @@ class _ProjectCardState extends State<_ProjectCard> {
       if (!_selectedQty.containsKey(idx)) return;
       _selectedQty[idx] = qty.clamp(1, maxQty);
     });
-  }
-
-  // Future<void> _releaseSelection() async {
-  //   if (_selectedQty.isEmpty) {
-  //     ScaffoldMessenger.of(
-  //       context,
-  //     ).showSnackBar(const SnackBar(content: Text('Nic nie wybrano')));
-  //     return;
-  //   }
-
-  //   final lines = <String>[];
-  //   _selectedQty.forEach((idx, qty) {
-  //     final m = _items[idx];
-  //     final name = (m['name'] as String?) ?? '';
-  //     final producer = (m['producer'] as String?) ?? '';
-  //     final unit = (m['unit'] as String?) ?? 'szt';
-  //     final title = [producer, name].where((s) => s.isNotEmpty).join(' ');
-  //     lines.add('• $title  —  $qty $unit');
-  //   });
-
-  //   final ok = await showDialog<bool>(
-  //     context: context,
-  //     builder: (_) => AlertDialog(
-  //       title: const Text('Na pewno cofac rezerwacja?'),
-  //       content: SizedBox(
-  //         width: 420,
-  //         child: Column(
-  //           mainAxisSize: MainAxisSize.min,
-  //           crossAxisAlignment: CrossAxisAlignment.start,
-  //           children: [
-  //             Text('Pozycji: ${_selectedQty.length}'),
-  //             const SizedBox(height: 8),
-  //             ...lines.map(
-  //               (t) => Padding(
-  //                 padding: const EdgeInsets.symmetric(vertical: 2),
-  //                 child: Text(t, style: const TextStyle(fontSize: 14)),
-  //               ),
-  //             ),
-  //           ],
-  //         ),
-  //       ),
-  //       actions: [
-  //         TextButton(
-  //           onPressed: () => Navigator.pop(context, false),
-  //           child: const Text('Anuluj'),
-  //         ),
-  //         FilledButton.icon(
-  //           icon: const Icon(Icons.lock_open),
-  //           label: const Text('Cofnij'),
-  //           onPressed: () => Navigator.pop(context, true),
-  //         ),
-  //       ],
-  //     ),
-  //   );
-  //   if (ok != true) return;
-
-  //   final email = FirebaseAuth.instance.currentUser?.email ?? 'app';
-  //   ScaffoldMessenger.of(
-  //     context,
-  //   ).showSnackBar(const SnackBar(content: Text('Cofam rezerwacja…')));
-
-  //   int okCount = 0, fail = 0;
-  //   final newQtyByIndex = <int, int>{};
-
-  //   for (final entry in _selectedQty.entries) {
-  //     final i = entry.key;
-  //     final releaseQty = entry.value;
-  //     final m = _items[i];
-
-  //     final itemId = (m['itemId'] as String?)?.trim() ?? '';
-  //     final origQty = (m['quantity'] as num?)?.toInt() ?? 0;
-  //     if (itemId.isEmpty || origQty <= 0) continue;
-
-  //     final newQty = (origQty - releaseQty).clamp(0, origQty);
-
-  //     try {
-  //       await AdminApi.reserveUpsert(
-  //         projectId: widget.projectId,
-  //         customerId: widget.customerId,
-  //         itemId: itemId,
-  //         qty: newQty,
-  //         warehouseId: null,
-  //         actorEmail: email,
-  //       );
-  //       newQtyByIndex[i] = newQty;
-  //       okCount++;
-  //       await _logRelease(m: m, releasedQty: releaseQty, newQty: newQty);
-  //     } catch (_) {
-  //       fail++;
-  //     }
-  //   }
-
-  //   setState(() {
-  //     final toRemove = <int>[];
-  //     newQtyByIndex.forEach((i, q) {
-  //       if (q == 0) {
-  //         toRemove.add(i);
-  //       } else {
-  //         _items[i]['quantity'] = q;
-  //       }
-  //     });
-  //     toRemove.sort((a, b) => b.compareTo(a));
-  //     for (final idx in toRemove) {
-  //       _items.removeAt(idx);
-  //     }
-  //     _selectedQty.clear();
-  //   });
-
-  //   try {
-  //     await _mirrorProjectAndRwDocs(_items);
-  //   } catch (_) {}
-
-  //   if (!mounted) return;
-  //   ScaffoldMessenger.of(context).showSnackBar(
-  //     SnackBar(
-  //       content: Text(
-  //         fail == 0
-  //             ? 'Cofnięto: $okCount'
-  //             : 'Zwolniono: $okCount, błędy: $fail',
-  //       ),
-  //     ),
-  //   );
-  // }
-
-  // Future<void> _releaseAllInProject() async {
-  //   final email = FirebaseAuth.instance.currentUser?.email ?? 'app';
-
-  //   final itemIds = <String>[
-  //     for (final m in _items)
-  //       if ((m['itemId'] as String?)?.isNotEmpty == true)
-  //         (m['itemId'] as String),
-  //   ];
-  //   if (itemIds.isEmpty) {
-  //     ScaffoldMessenger.of(context).showSnackBar(
-  //       const SnackBar(content: Text('Projekt nie ma pozycji z ID.')),
-  //     );
-  //     return;
-  //   }
-
-  //   final confirmed = await showDialog<bool>(
-  //     context: context,
-  //     builder: (_) => AlertDialog(
-  //       title: const Text('Cofac wszystkie rezerwacji?'),
-  //       content: Text(
-  //         'Projekt: ${widget.projectId}\nPozycji: ${itemIds.length}',
-  //       ),
-  //       actions: [
-  //         TextButton(
-  //           onPressed: () => Navigator.pop(context, false),
-  //           child: const Text('Anuluj'),
-  //         ),
-  //         FilledButton(
-  //           onPressed: () => Navigator.pop(context, true),
-  //           child: const Text('Zwolnij'),
-  //         ),
-  //       ],
-  //     ),
-  //   );
-  //   if (confirmed != true) return;
-
-  //   int ok = 0, fail = 0;
-  //   for (int i = 0; i < _items.length; i++) {
-  //     final m = _items[i];
-  //     final id = (m['itemId'] as String?) ?? '';
-  //     if (id.isEmpty) continue;
-
-  //     final released = (m['quantity'] as num?)?.toInt() ?? 0;
-
-  //     try {
-  //       await AdminApi.reserveUpsert(
-  //         projectId: widget.projectId,
-  //         customerId: widget.customerId,
-  //         itemId: id,
-  //         qty: 0,
-  //         warehouseId: null,
-  //         actorEmail: email,
-  //       );
-  //       ok++;
-
-  //       await _logRelease(m: m, releasedQty: released, newQty: 0);
-  //     } catch (_) {
-  //       fail++;
-  //     }
-  //   }
-
-  //   setState(() {
-  //     _items.clear();
-  //     _selectedQty.clear();
-  //   });
-  //   await _mirrorProjectAndRwDocs(_items);
-
-  //   if (_items.isEmpty) {
-  //     await AuditService.logAction(
-  //       action: 'Zwolniono wszystkie rezerwacji',
-  //       customerId: widget.customerId,
-  //       projectId: widget.projectId,
-  //       details: {'Pozycje': '${itemIds.length}', 'RW': 'usuniety (pusty)'},
-  //     );
-  //   }
-
-  //   if (!mounted) return;
-  //   ScaffoldMessenger.of(
-  //     context,
-  //   ).showSnackBar(SnackBar(content: Text('Zwolniono: $ok, błędy: $fail')));
-  // }
-
-  // Future<void> _logRelease({
-  //   required Map<String, dynamic> m,
-  //   required int releasedQty,
-  //   required int newQty,
-  // }) async {
-  //   final unit = (m['unit'] as String?) ?? 'szt';
-  //   final prod = (m['producer'] as String?) ?? '';
-  //   final name = (m['name'] as String?) ?? '';
-  //   final line = [
-  //     prod,
-  //     name,
-  //     '-$releasedQty$unit',
-  //   ].where((x) => x.isNotEmpty).join(' ');
-
-  //   await AuditService.logAction(
-  //     action: 'Zwolniono rezerwacja',
-  //     customerId: widget.customerId,
-  //     projectId: widget.projectId,
-  //     details: {'•': line, 'Pozostał w projekcie': '$newQty $unit'},
-  //   );
-  // }
-
-  Future<String?> _askInvoiceTag() async {
-    final ctrl = TextEditingController();
-    return showDialog<String>(
-      context: context,
-      builder: (_) => AlertDialog(
-        title: const Text('Numer faktury (opcjonalnie)'),
-        content: TextField(
-          controller: ctrl,
-          autofocus: true,
-          decoration: const InputDecoration(
-            hintText: 'Zostaw puste aby wygenerować',
-            border: OutlineInputBorder(),
-          ),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('Anuluj'),
-          ),
-          FilledButton(
-            onPressed: () => Navigator.pop(context, ctrl.text.trim()),
-            child: const Text('OK'),
-          ),
-        ],
-      ),
-    );
   }
 
   Future<void> _invoiceSelected() async {
@@ -741,132 +474,6 @@ class _ProjectCardState extends State<_ProjectCard> {
     }
   }
 
-  // Future<void> _confirmSelection() async {
-  //   final lines = <Map<String, dynamic>>[];
-  //   for (final entry in _selectedQty.entries) {
-  //     final i = entry.key;
-  //     final qty = entry.value;
-  //     final m = _items[i];
-
-  //     final itemId = (m['itemId'] as String?) ?? '';
-  //     final name = (m['name'] as String?) ?? '';
-  //     final unit = (m['unit'] as String?) ?? 'szt';
-  //     final producer = (m['producer'] as String?) ?? '';
-
-  //     lines.add({
-  //       if (itemId.isNotEmpty) 'itemId': itemId,
-  //       'name': name,
-  //       'producer': producer,
-  //       'unit': unit,
-  //       'qty': qty,
-  //     });
-  //   }
-
-  //   if (lines.isEmpty) {
-  //     ScaffoldMessenger.of(
-  //       context,
-  //     ).showSnackBar(const SnackBar(content: Text('Nic nie wybrano')));
-  //     return;
-  //   }
-
-  //   final titleText = await widget.customerNameFuture
-  //       .then((c) => '$c  •  ${widget.title}')
-  //       .catchError((_) => widget.title);
-
-  //   await showDialog<void>(
-  //     context: context,
-  //     builder: (ctx) => AlertDialog(
-  //       title: const Text('Aktualizować baza Wf-Mag?'),
-  //       content: SizedBox(
-  //         width: double.maxFinite,
-  //         child: Column(
-  //           mainAxisSize: MainAxisSize.min,
-  //           crossAxisAlignment: CrossAxisAlignment.start,
-  //           children: [
-  //             Text(
-  //               titleText,
-  //               style: const TextStyle(fontWeight: FontWeight.w600),
-  //             ),
-  //             const SizedBox(height: 8),
-  //             for (final ln in lines)
-  //               Padding(
-  //                 padding: const EdgeInsets.symmetric(vertical: 2),
-  //                 child: Text(
-  //                   '${ln['producer'] ?? ''} ${ln['name']}  —  ${ln['qty']} ${ln['unit']}',
-  //                   style: const TextStyle(fontSize: 14),
-  //                 ),
-  //               ),
-  //             const SizedBox(height: 8),
-  //             Text(
-  //               'Projekt: ${widget.projectId}',
-  //               style: Theme.of(context).textTheme.bodySmall,
-  //             ),
-  //           ],
-  //         ),
-  //       ),
-  //       actions: [
-  //         TextButton(
-  //           onPressed: () => Navigator.pop(ctx),
-  //           child: const Text('Anuluj'),
-  //         ),
-  //         ElevatedButton.icon(
-  //           icon: const Icon(Icons.verified_outlined),
-  //           label: const Text('Potwierdź'),
-  //           onPressed: () async {
-  //             Navigator.pop(ctx);
-
-  //             final email = FirebaseAuth.instance.currentUser?.email ?? '';
-  //             ScaffoldMessenger.of(context).showSnackBar(
-  //               const SnackBar(content: Text('Trwa potwierdzenie…')),
-  //             );
-
-  //             try {
-  //               final resp = await ApiService.commitProjectItems(
-  //                 customerId: widget.customerId,
-  //                 projectId: widget.projectId,
-  //                 items: lines,
-  //                 actorEmail: email,
-  //                 dryRun: false,
-  //               );
-
-  //               final ok = (resp['ok'] == true) || (resp['success'] == true);
-  //               final doc = (resp['docId'] ?? resp['document'] ?? '')
-  //                   .toString();
-
-  //               if (ok) {
-  //                 _selectedQty.clear();
-  //                 if (context.mounted) {
-  //                   ScaffoldMessenger.of(context).showSnackBar(
-  //                     SnackBar(
-  //                       content: Text(
-  //                         doc.isNotEmpty
-  //                             ? 'Zatwierdzono. Dokument: $doc'
-  //                             : 'Zatwierdzono.',
-  //                       ),
-  //                     ),
-  //                   );
-  //                 }
-  //               } else {
-  //                 if (context.mounted) {
-  //                   ScaffoldMessenger.of(context).showSnackBar(
-  //                     SnackBar(content: Text('Błąd: ${resp.toString()}')),
-  //                   );
-  //                 }
-  //               }
-  //             } catch (e) {
-  //               if (context.mounted) {
-  //                 ScaffoldMessenger.of(
-  //                   context,
-  //                 ).showSnackBar(SnackBar(content: Text('Błąd: $e')));
-  //               }
-  //             }
-  //           },
-  //         ),
-  //       ],
-  //     ),
-  //   );
-  // }
-
   @override
   Widget build(BuildContext context) {
     return Card(
@@ -904,6 +511,7 @@ class _ProjectCardState extends State<_ProjectCard> {
                     onCheckedChanged: (v, maxQty) => _toggleIndex(i, v, maxQty),
                     onQtyChanged: (q, maxQty) => _setQty(i, q, maxQty),
                   ),
+
                 const SizedBox(height: 8),
                 Wrap(
                   spacing: 8,
@@ -920,45 +528,12 @@ class _ProjectCardState extends State<_ProjectCard> {
                       label: const Text('Wyczyść'),
                       onPressed: _clearSelection,
                     ),
-                    // ElevatedButton.icon(
-                    //   icon: const Icon(Icons.lock_open),
-                    //   label: const Text('Cofnij rezerwacja'),
-                    //   onPressed: _selectedCount == 0 ? null : _releaseSelection,
-                    // ),
-                    // OutlinedButton.icon(
-                    //   icon: const Icon(Icons.playlist_remove),
-                    //   label: const Text('Cofnij wszystko'),
-                    //   onPressed: _items.isEmpty ? null : _releaseAllInProject,
-                    // ),
 
-                    // OutlinedButton.icon(
-                    //   icon: const Icon(Icons.lock),
-                    //   label: const Text('Zablokuj do faktury'),
-                    //   onPressed:
-                    //       (widget.reservationId == null ||
-                    //           widget.reservationId!.isEmpty)
-                    //       ? null
-                    //       : _lockForInvoicing,
-                    // ),
                     ElevatedButton.icon(
                       icon: const Icon(Icons.receipt_long),
-                      label: const Text('Oznacz fakturowany'),
+                      label: const Text('Gotowy do fakturowanie?'),
                       onPressed: _canInvoice ? _invoiceSelected : null,
                     ),
-
-                    // ConstrainedBox(
-                    //   constraints: const BoxConstraints(minWidth: 160),
-                    //   child: Align(
-                    //     alignment: Alignment.centerRight,
-                    //     child: ElevatedButton.icon(
-                    //       icon: const Icon(Icons.verified_user_outlined),
-                    //       label: Text('Potwierdź ($_selectedCount)'),
-                    //       onPressed: _selectedCount == 0
-                    //           ? null
-                    //           : _confirmSelection,
-                    //     ),
-                    //   ),
-                    // ),
                   ],
                 ),
                 const SizedBox(height: 4),
@@ -972,13 +547,6 @@ class _ProjectCardState extends State<_ProjectCard> {
                       ).textTheme.bodySmall?.copyWith(color: Colors.grey[600]),
                     ),
                     const SizedBox(width: 4),
-                    // IconButton(
-                    //   tooltip: 'Kopiuj',
-                    //   icon: const Icon(Icons.copy),
-                    //   onPressed: () =>
-                    //       _copyToClipboard(widget.projectId, 'ID projektu'),
-                    //   visualDensity: VisualDensity.compact,
-                    // ),
                   ],
                 ),
               ],
@@ -1083,4 +651,252 @@ class _SelectableItemRow extends StatelessWidget {
       onTap: () => onCheckedChanged(!checked, maxQty),
     );
   }
+}
+
+class QuickReservationResetSheet extends StatefulWidget {
+  final String actorEmail;
+  const QuickReservationResetSheet({super.key, required this.actorEmail});
+
+  @override
+  State<QuickReservationResetSheet> createState() =>
+      _QuickReservationResetSheetState();
+}
+
+class _QuickReservationResetSheetState
+    extends State<QuickReservationResetSheet> {
+  final _projectCtrl = TextEditingController();
+  final _itemCtrl = TextEditingController();
+  bool _busy = false;
+  String _error = '';
+  Map<String, dynamic>? _prod;
+  Map<String, dynamic>? _probe;
+
+  Future<void> _probeState() async {
+    setState(() {
+      _busy = true;
+      _error = '';
+      _prod = null;
+      _probe = null;
+    });
+    try {
+      final pid = _projectCtrl.text.trim();
+      final itemId = _itemCtrl.text.trim();
+      if (itemId.isEmpty) {
+        throw Exception('Wpisz id_artykulu z WAPRO');
+      }
+
+      final p = await ApiService.fetchProduct(itemId);
+      _prod = {
+        'name': p?.name ?? '',
+        'quantity': p?.quantity ?? 0,
+        'unit': p?.unit ?? 'szt',
+      };
+
+      final probe = await AdminApi.reservationSummary(
+        itemId: itemId,
+        projectId: pid.isNotEmpty ? pid : null,
+      );
+
+      setState(() {
+        _probe = (probe is Map<String, dynamic>) ? probe : null;
+      });
+    } catch (e) {
+      setState(() {
+        _error = e.toString();
+      });
+    } finally {
+      setState(() {
+        _busy = false;
+      });
+    }
+  }
+
+  Future<void> _resetToZero() async {
+    setState(() {
+      _busy = true;
+      _error = '';
+    });
+    try {
+      final itemId = _itemCtrl.text.trim();
+      final projectId = _projectCtrl.text.trim();
+
+      if (itemId.isEmpty) {
+        throw Exception('Wpisz id_artykulu z WAPRO.');
+      }
+
+      final reserved = (_probe?['reserved_total'] as num?)?.toDouble() ?? 0.0;
+      if (reserved <= 0) {
+        throw Exception('Brak rezerwacji dla tego towaru.');
+      }
+
+      await AdminApi.resetItemReservations(
+        itemId: itemId,
+        projectId: projectId.isNotEmpty ? projectId : null,
+      );
+
+      if (!mounted) return;
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('Rezerwacja zwolniona.')));
+      Navigator.of(context).pop();
+    } catch (e) {
+      setState(() {
+        _error = e.toString();
+      });
+    } finally {
+      setState(() {
+        _busy = false;
+      });
+    }
+  }
+
+  final _nameCtrl = TextEditingController();
+  final List<Map<String, dynamic>> _suggestions = [];
+
+  Future<List<Map<String, dynamic>>> _searchByName(String q) async {
+    if (q.trim().length < 3) return [];
+    try {
+      final res = await AdminApi.catalog(q: q.trim(), top: 20);
+      if (res.isEmpty) {
+        setState(() {
+          _error = 'Brak wyników dla „$q”.';
+        });
+      } else {
+        if (_error.isNotEmpty) _error = '';
+      }
+      return res;
+    } catch (e) {
+      setState(() {
+        _error =
+            'Błąd wyszukiwania: ${e is Exception ? e.toString() : "nieznany błąd"}';
+      });
+      return [];
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final name = _prod?['name']?.toString() ?? '';
+    final qty = _prod?['quantity']?.toString() ?? '';
+    final unit =
+        _prod?['unit']?.toString() ?? _probe?['unit']?.toString() ?? 'szt';
+    final reservedTotal = _probe?['reserved_total']?.toString() ?? '—';
+    final availableAfter = _probe?['available_after']?.toString() ?? '—';
+
+    return SafeArea(
+      child: Padding(
+        padding: EdgeInsets.only(
+          left: 16,
+          right: 16,
+          top: 16,
+          bottom: 16 + MediaQuery.of(context).viewInsets.bottom,
+        ),
+        child: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                'Szybka cofanie rezerwacji',
+                style: Theme.of(context).textTheme.titleLarge,
+              ),
+              const SizedBox(height: 12),
+              TextField(
+                controller: _projectCtrl,
+                decoration: const InputDecoration(
+                  labelText: 'projectId',
+                  border: OutlineInputBorder(),
+                ),
+              ),
+              const SizedBox(height: 12),
+              Autocomplete<Map<String, dynamic>>(
+                displayStringForOption: (m) =>
+                    '${m['nazwa'] ?? ''} • ID=${m['id_artykulu']}',
+                optionsBuilder: (TextEditingValue textEditingValue) async {
+                  return await _searchByName(textEditingValue.text);
+                },
+                onSelected: (m) {
+                  _itemCtrl.text = m['id_artykulu'].toString();
+                  _nameCtrl.text = m['nazwa'] ?? '';
+                },
+                fieldViewBuilder: (ctx, ctrl, focus, onSubmit) {
+                  return TextField(
+                    controller: ctrl,
+                    focusNode: focus,
+                    decoration: const InputDecoration(
+                      labelText: 'Szukaj po nazwie',
+                      border: OutlineInputBorder(),
+                    ),
+                  );
+                },
+              ),
+              const SizedBox(height: 12),
+
+              TextField(
+                controller: _itemCtrl,
+                decoration: const InputDecoration(
+                  labelText: 'WAPRO id_artykulu:',
+                  border: OutlineInputBorder(),
+                ),
+                keyboardType: TextInputType.number,
+              ),
+
+              const SizedBox(height: 12),
+              Row(
+                children: [
+                  Expanded(
+                    child: OutlinedButton.icon(
+                      icon: const Icon(Icons.search),
+                      label: const Text('Podejrzyj'),
+                      onPressed: _busy ? null : _probeState,
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: FilledButton.icon(
+                      icon: const Icon(Icons.lock_open),
+                      label: const Text('Cofnij / Reset'),
+                      onPressed: _busy ? null : _resetToZero,
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 8),
+              if (_busy) const LinearProgressIndicator(),
+              if (_error.isNotEmpty)
+                Padding(
+                  padding: const EdgeInsets.only(top: 8),
+                  child: Text(
+                    _error,
+                    style: TextStyle(
+                      color: Theme.of(context).colorScheme.error,
+                    ),
+                  ),
+                ),
+              if (_prod != null || _probe != null) ...[
+                const Divider(height: 24),
+                _kv('Nazwa', name),
+                _kv('Stan (ilość dostępna)', '$qty $unit'),
+                _kv('Zarezerwowane (łącznie)', '$reservedTotal $unit'),
+                _kv('Dostępne po zwolnieniu', '$availableAfter $unit'),
+              ],
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _kv(String k, String v) => Padding(
+    padding: const EdgeInsets.symmetric(vertical: 4),
+    child: Row(
+      children: [
+        SizedBox(
+          width: 210,
+          child: Text(k, style: const TextStyle(fontWeight: FontWeight.w600)),
+        ),
+        Expanded(child: Text(v, maxLines: 2, overflow: TextOverflow.ellipsis)),
+      ],
+    ),
+  );
 }
