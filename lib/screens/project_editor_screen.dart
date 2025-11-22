@@ -8,10 +8,12 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:collection/collection.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/cupertino.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:strefa_ciszy/models/project_line.dart';
 import 'package:strefa_ciszy/models/stock_item.dart';
+import 'package:strefa_ciszy/offline/reservations_offline.dart';
 import 'package:strefa_ciszy/screens/project_description_screen.dart';
 import 'package:strefa_ciszy/screens/rw_documents_screen.dart';
 import 'package:strefa_ciszy/services/admin_api.dart';
@@ -530,36 +532,63 @@ class _ProjectEditorScreenState extends State<ProjectEditorScreen> {
       final actorEmail = FirebaseAuth.instance.currentUser?.email ?? 'app';
 
       for (final ln in filteredLines.where((l) => l.isStock)) {
-        final r = await AdminApi.reserveUpsert(
+        final res = await reserveOrEnqueue(
           projectId: widget.projectId,
           customerId: widget.customerId,
           itemId: ln.itemRef,
           qty: ln.requestedQty,
           actorEmail: actorEmail,
         );
-        final afterStr =
-            r['available_after'] ?? r['availableAfter'] ?? r['available'];
-        final after = int.tryParse(afterStr?.toString() ?? '');
-        debugPrint('reserveUpsert ${ln.itemRef} -> after=$after resp=$r');
-        if (after != null) _serverAvail[ln.itemRef] = after;
+
+        if (!res.enqueued && res.server != null) {
+          final afterStr =
+              res.server!['available_after'] ??
+              res.server!['availableAfter'] ??
+              res.server!['available'];
+          final after = int.tryParse(afterStr?.toString() ?? '');
+          if (after != null) _serverAvail[ln.itemRef] = after;
+        } else {
+          // queued for later (offline) — optional toast, keep it quiet if you prefer
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(
+                content: Text(
+                  'Rezerwacja zapisana offline — zsynchronizuję później.',
+                ),
+              ),
+            );
+          }
+        }
         if (mounted) setState(() {});
       }
 
       for (final ln in fullLines.where(
         (l) => l.isStock && (l.previousQty ?? 0) > 0 && l.requestedQty <= 0,
       )) {
-        final r = await AdminApi.reserveUpsert(
+        final res = await reserveOrEnqueue(
           projectId: widget.projectId,
           customerId: widget.customerId,
           itemId: ln.itemRef,
           qty: 0,
           actorEmail: actorEmail,
         );
-        final afterStr =
-            r['available_after'] ?? r['availableAfter'] ?? r['available'];
-        final after = int.tryParse(afterStr?.toString() ?? '');
-        debugPrint('reserveUpsert ${ln.itemRef} -> after=$after resp=$r');
-        if (after != null) _serverAvail[ln.itemRef] = after;
+
+        if (!res.enqueued && res.server != null) {
+          final afterStr =
+              res.server!['available_after'] ??
+              res.server!['availableAfter'] ??
+              res.server!['available'];
+          final after = int.tryParse(afterStr?.toString() ?? '');
+          if (after != null) _serverAvail[ln.itemRef] = after;
+        } else {
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(
+                content: Text('Zwolnienie rezerwacji zapisane offline.'),
+              ),
+            );
+          }
+        }
         if (mounted) setState(() {});
       }
       if (mounted) setState(() {});
@@ -678,18 +707,18 @@ class _ProjectEditorScreenState extends State<ProjectEditorScreen> {
         for (final ln in fullLines.where(
           (l) => l.isStock && (l.previousQty ?? 0) > 0,
         )) {
-          await AdminApi.reserveUpsert(
+          await reserveOrEnqueue(
             projectId: widget.projectId,
             customerId: widget.customerId,
             itemId: ln.itemRef,
-            qty: 0, // release
+            qty: 0,
             actorEmail: actorEmail,
           );
         }
       } catch (e) {
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text('Nie udało się zwolnić rezerwacji: $e')),
+            SnackBar(content: Text('Nie udało się cofać rezerwacji: $e')),
           );
         }
       }
@@ -930,7 +959,7 @@ class _ProjectEditorScreenState extends State<ProjectEditorScreen> {
       try {
         await AdminApi.init();
         final email = FirebaseAuth.instance.currentUser?.email ?? 'app';
-        final r = await AdminApi.reserveUpsert(
+        final res = await reserveOrEnqueue(
           projectId: widget.projectId,
           customerId: widget.customerId,
           itemId: line.itemRef,
@@ -938,12 +967,23 @@ class _ProjectEditorScreenState extends State<ProjectEditorScreen> {
           actorEmail: email,
         );
 
-        final afterStr =
-            r['available_after'] ?? r['availableAfter'] ?? r['available'];
-        final after = int.tryParse(afterStr?.toString() ?? '');
-
-        if (after != null && mounted) {
-          setState(() => _serverAvail[line.itemRef] = after);
+        if (!res.enqueued && res.server != null) {
+          final afterStr =
+              res.server!['available_after'] ??
+              res.server!['availableAfter'] ??
+              res.server!['available'];
+          final after = int.tryParse(afterStr?.toString() ?? '');
+          if (after != null && mounted) {
+            setState(() => _serverAvail[line.itemRef] = after);
+          }
+        } else {
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(
+                content: Text('Zwolnienie rezerwacji zapisane offline.'),
+              ),
+            );
+          }
         }
       } catch (e) {
         if (mounted) {
@@ -1806,7 +1846,7 @@ class _ProjectEditorScreenState extends State<ProjectEditorScreen> {
             children: [
               IconButton(
                 icon: const Icon(Icons.density_small_sharp),
-                tooltip: 'Opis projektu',
+                tooltip: kIsWeb ? null : 'Opis projektu',
                 onPressed: () {
                   Navigator.of(context).push(
                     NoSwipeCupertinoRoute(

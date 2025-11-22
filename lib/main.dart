@@ -4,6 +4,7 @@ import 'package:flutter/foundation.dart' show kReleaseMode;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
+import 'package:strefa_ciszy/offline/offline_api.dart';
 import 'package:strefa_ciszy/services/admin_api.dart';
 import 'package:strefa_ciszy/services/api_service.dart';
 
@@ -18,6 +19,7 @@ SyncOrchestrator? _syncOrchestrator;
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  await warmProductCache();
 
   //// for editing backend -----
   await ApiService.init();

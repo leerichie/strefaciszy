@@ -195,7 +195,11 @@ class _CustomerListScreenState extends State<CustomerListScreen> {
     );
   }
 
-  Future<void> _toggleFavouriteCustomer(String customerId, String name) async {
+  Future<void> _toggleFavouriteCustomer(
+    String customerId,
+    String name,
+    String? contactId,
+  ) async {
     final uid = FirebaseAuth.instance.currentUser!.uid;
     final ref = FirebaseFirestore.instance
         .collection('users')
@@ -206,7 +210,7 @@ class _CustomerListScreenState extends State<CustomerListScreen> {
     if (_favCustomerIds.contains(customerId)) {
       await ref.delete();
     } else {
-      await ref.set({'name': name});
+      await ref.set({'name': name, 'contactId': contactId});
     }
   }
 
@@ -470,6 +474,7 @@ class _CustomerListScreenState extends State<CustomerListScreen> {
                           onPressed: () => _toggleFavouriteCustomer(
                             doc.id,
                             data['name'] ?? '',
+                            contactId,
                           ),
                         ),
                         const SizedBox(width: 1),

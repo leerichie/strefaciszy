@@ -3,6 +3,7 @@ import 'package:path_provider/path_provider.dart';
 import 'package:strefa_ciszy/offline/models/note_local.dart';
 import 'package:strefa_ciszy/offline/models/pending_op.dart';
 import 'package:strefa_ciszy/offline/models/photo_local.dart';
+import 'package:strefa_ciszy/offline/models/product_local.dart';
 import 'package:strefa_ciszy/offline/models/project_item_local.dart';
 import 'package:strefa_ciszy/offline/models/project_local.dart';
 
@@ -20,6 +21,7 @@ class IsarDb {
         NoteLocalSchema,
         PhotoLocalSchema,
         PendingOpSchema,
+        ProductLocalSchema,
       ],
       directory: dir.path,
       inspector: false,

@@ -1,29 +1,30 @@
 // lib/screens/project_description_screen.dart
 
-import 'dart:convert';
 import 'dart:async';
+import 'dart:convert';
 import 'dart:io' as io;
+
 import 'package:auto_size_text/auto_size_text.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_core/firebase_core.dart';
+import 'package:firebase_storage/firebase_storage.dart';
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/foundation.dart';
-import 'package:http/http.dart' as http;
 import 'package:flutter/material.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
+import 'package:http/http.dart' as http;
 import 'package:image_picker/image_picker.dart';
-import 'package:firebase_storage/firebase_storage.dart';
 import 'package:open_file/open_file.dart';
 import 'package:path/path.dart' as p;
 import 'package:path_provider/path_provider.dart';
 import 'package:strefa_ciszy/screens/location_picker_screen.dart';
 import 'package:strefa_ciszy/services/storage_service.dart';
 import 'package:strefa_ciszy/utils/keyboard_utils.dart';
+import 'package:strefa_ciszy/widgets/app_drawer.dart';
 import 'package:strefa_ciszy/widgets/app_scaffold.dart';
 import 'package:url_launcher/url_launcher.dart';
-import 'package:strefa_ciszy/widgets/app_drawer.dart';
 
 enum _PhotoSource { camera, gallery }
 
@@ -570,6 +571,32 @@ class _ProjectDescriptionScreenState extends State<ProjectDescriptionScreen> {
   }
 
   Future<void> _openFileFromUrl(String url, String fileName) async {
+    // WEB
+    if (kIsWeb) {
+      try {
+        final uri = Uri.parse(url);
+
+        if (await canLaunchUrl(uri)) {
+          await launchUrl(uri, mode: LaunchMode.externalApplication);
+        } else {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Nie można otworzyć plik w przeglądarce'),
+            ),
+          );
+        }
+      } catch (e) {
+        debugPrint('Failed to open file on web: $e');
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Nie można otworzyć plik w przeglądarce'),
+          ),
+        );
+      }
+      return;
+    }
+
+    // MOBILE
     try {
       final tempDir = await getTemporaryDirectory();
       final filePath = '${tempDir.path}/$fileName';
@@ -583,7 +610,7 @@ class _ProjectDescriptionScreenState extends State<ProjectDescriptionScreen> {
       debugPrint('Failed to open file: $e');
       ScaffoldMessenger.of(
         context,
-      ).showSnackBar(const SnackBar(content: Text('Nie można otwierać plik')));
+      ).showSnackBar(const SnackBar(content: Text('Nie można otworzyć plik')));
     }
   }
 

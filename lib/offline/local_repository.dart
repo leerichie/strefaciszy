@@ -4,6 +4,7 @@ import 'package:isar/isar.dart';
 import 'package:strefa_ciszy/offline/models/note_local.dart';
 import 'package:strefa_ciszy/offline/models/pending_op.dart';
 import 'package:strefa_ciszy/offline/models/photo_local.dart';
+import 'package:strefa_ciszy/offline/models/product_local.dart';
 import 'package:strefa_ciszy/offline/models/project_item_local.dart';
 import 'package:strefa_ciszy/offline/models/project_local.dart';
 import 'package:uuid/uuid.dart';
@@ -19,6 +20,67 @@ class LocalRepository {
   static Future<LocalRepository> create() async {
     final isar = await IsarDb.instance();
     return LocalRepository._(isar);
+  }
+
+  /// products upsert
+  Future<void> upsertProductLocals(List<ProductLocal> rows) async {
+    if (rows.isEmpty) return;
+    for (final r in rows) {
+      r.normalize();
+    }
+    await _isar.writeTxn(() async {
+      await _isar.productLocals.putAll(rows);
+    });
+  }
+
+  // products fetch
+  Future<List<ProductLocal>> searchProductsLocal(
+    String query, {
+    int limit = 80,
+  }) async {
+    final q = query.trim().toLowerCase();
+    if (q.isEmpty) return [];
+
+    final isBarcode =
+        RegExp(r'^\d+$').hasMatch(q) &&
+        const {8, 12, 13, 14}.contains(q.length);
+
+    if (isBarcode) {
+      final hits = await _isar.productLocals
+          .where()
+          .filter()
+          .eanLcContains(q)
+          .limit(limit)
+          .findAll();
+      if (hits.isNotEmpty) return hits;
+      // fallback to reference/name if EAN fails
+    }
+
+    final refHits = await _isar.productLocals
+        .where()
+        .filter()
+        .refLcContains(q)
+        .limit(limit)
+        .findAll();
+
+    if (refHits.length >= limit) return refHits;
+
+    final nameHits = await _isar.productLocals
+        .where()
+        .filter()
+        .nameLcContains(q)
+        .limit(limit)
+        .findAll();
+
+    final byId = <String, ProductLocal>{};
+    for (final p in refHits) {
+      byId[p.productId] = p;
+    }
+    for (final p in nameHits) {
+      byId.putIfAbsent(p.productId, () => p);
+      if (byId.length >= limit) break;
+    }
+    return byId.values.toList();
   }
 
   // ---------- Projects ----------

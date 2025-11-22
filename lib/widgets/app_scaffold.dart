@@ -3,8 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:strefa_ciszy/widgets/app_drawer.dart';
 
 /// - Mobile: BackButton
-/// - Web: Hamburger to open/close drawer
-/// - Outside tap close on web
+/// - Web: Drawer always visible on left
 class AppScaffold extends StatefulWidget {
   final String title;
   final Widget body;
@@ -17,6 +16,7 @@ class AppScaffold extends StatefulWidget {
   final Widget? bottomNavigationBar;
   final bool? centreTitle;
   final Widget? titleWidget;
+  final bool showPersistentDrawerOnWeb;
 
   const AppScaffold({
     super.key,
@@ -31,6 +31,7 @@ class AppScaffold extends StatefulWidget {
     this.bottomNavigationBar,
     this.centreTitle,
     this.titleWidget,
+    this.showPersistentDrawerOnWeb = true,
   });
 
   @override
@@ -40,29 +41,52 @@ class AppScaffold extends StatefulWidget {
 class _AppScaffoldState extends State<AppScaffold> {
   final GlobalKey<ScaffoldState> _scaffoldKey = GlobalKey<ScaffoldState>();
 
-  void _toggleDrawerWeb() {
-    if (_scaffoldKey.currentState?.isDrawerOpen == true) {
-      Navigator.of(context).pop();
-    } else {
-      _scaffoldKey.currentState?.openDrawer();
-    }
-  }
-
   @override
   Widget build(BuildContext context) {
-    final leading = kIsWeb
-        ? IconButton(
-            icon: const Icon(Icons.menu),
-            tooltip: 'Menu',
-            onPressed: _toggleDrawerWeb,
-          )
-        : (widget.showBackOnMobile ? const BackButton() : null);
+    final usePersistentDrawer = kIsWeb && widget.showPersistentDrawerOnWeb;
+
+    // WEB fixed drawer
+    if (usePersistentDrawer) {
+      return Scaffold(
+        body: Row(
+          children: [
+            const SizedBox(width: 240, child: AppDrawer()),
+            const VerticalDivider(width: 1),
+            Expanded(
+              child: Scaffold(
+                backgroundColor: widget.backgroundColor,
+                appBar: AppBar(
+                  leading: null,
+                  title: widget.titleWidget ?? Text(widget.title),
+                  centerTitle: widget.centreTitle,
+                  automaticallyImplyLeading: false,
+                  actions: widget.actions,
+                  bottom: widget.bottom,
+                ),
+                body: widget.body,
+                floatingActionButton: widget.floatingActionButton,
+                floatingActionButtonLocation:
+                    widget.floatingActionButtonLocation,
+                bottomNavigationBar: widget.bottomNavigationBar,
+              ),
+            ),
+          ],
+        ),
+      );
+    }
+
+    final bool isMobile = !kIsWeb;
+    final leading = isMobile && widget.showBackOnMobile
+        ? const BackButton()
+        : null;
 
     return Scaffold(
       key: _scaffoldKey,
       backgroundColor: widget.backgroundColor,
-      drawer: const AppDrawer(),
-      drawerEdgeDragWidth: kIsWeb ? 0 : MediaQuery.of(context).size.width + 0.2,
+      drawer: isMobile ? const AppDrawer() : null, // no drawer on web HOME
+      drawerEdgeDragWidth: isMobile
+          ? MediaQuery.of(context).size.width + 0.2
+          : 0,
       appBar: AppBar(
         leading: leading,
         title: widget.titleWidget ?? Text(widget.title),
@@ -74,7 +98,7 @@ class _AppScaffoldState extends State<AppScaffold> {
       body: GestureDetector(
         behavior: HitTestBehavior.translucent,
         onTap: () {
-          if (kIsWeb && _scaffoldKey.currentState?.isDrawerOpen == true) {
+          if (isMobile && _scaffoldKey.currentState?.isDrawerOpen == true) {
             Navigator.of(context).pop();
           }
         },

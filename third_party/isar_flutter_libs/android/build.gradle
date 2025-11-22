@@ -1,0 +1,24 @@
+plugins {
+    id 'com.android.library'
+}
+
+android {
+    namespace "dev.isar.flutter.libs"
+
+    // Match your app's SDKs (AGP 8 wants this level)
+    compileSdk 34
+
+    defaultConfig {
+        minSdk 23
+    }
+
+    // (optional, quiets old Java 8 warnings)
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_17
+        targetCompatibility JavaVersion.VERSION_17
+    }
+}
+
+dependencies {
+    implementation "androidx.startup:startup-runtime:1.1.1"
+}

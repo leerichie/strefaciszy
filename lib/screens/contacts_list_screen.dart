@@ -330,20 +330,20 @@ class _ContactsListScreenState extends State<ContactsListScreen> {
     }
   }
 
-  Widget _buildCategoryChip(String label) {
-    final selected = _category == label;
-    return Padding(
-      padding: const EdgeInsets.only(right: 8.0),
-      child: ChoiceChip(
-        label: Text(label),
-        selected: selected,
-        onSelected: (_) => setState(() {
-          _category = selected ? '' : label;
-          _updateStream();
-        }),
-      ),
-    );
-  }
+  // Widget _buildCategoryChip(String label) {
+  //   final selected = _category == label;
+  //   return Padding(
+  //     padding: const EdgeInsets.only(right: 8.0),
+  //     child: ChoiceChip(
+  //       label: Text(label),
+  //       selected: selected,
+  //       onSelected: (_) => setState(() {
+  //         _category = selected ? '' : label;
+  //         _updateStream();
+  //       }),
+  //     ),
+  //   );
+  // }
 
   @override
   Widget build(BuildContext context) {
@@ -806,7 +806,15 @@ class _ContactsListScreenState extends State<ContactsListScreen> {
                                       ],
                                     ],
                                   ),
-                                  trailing: Text(contactType),
+                                  trailing: Text(
+                                    contactType,
+                                    style: TextStyle(
+                                      fontSize: 13,
+                                      fontWeight: FontWeight.bold,
+                                      fontStyle: FontStyle.italic,
+                                      color: Colors.grey,
+                                    ),
+                                  ),
                                   onTap: () {
                                     if (contactType.toLowerCase() == 'klient') {
                                       Navigator.of(context).push(

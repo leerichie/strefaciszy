@@ -105,7 +105,6 @@ class _MainMenuScreenState extends State<MainMenuScreen> {
         Image.asset('assets/images/strefa_ciszy_logo.png', width: 200),
         const SizedBox(height: 24),
 
-        // DEV button (only you; doesn’t touch the main FAB)
         if (_isLee && isAdmin) ...[
           // const DebugReserveButton(),
           const SizedBox(height: 16),
@@ -245,6 +244,7 @@ class _MainMenuScreenState extends State<MainMenuScreen> {
       title: '',
       titleWidget: Text(_version, style: const TextStyle(fontSize: 15)),
       showBackOnMobile: false,
+      showPersistentDrawerOnWeb: false,
 
       body: Stack(
         children: [

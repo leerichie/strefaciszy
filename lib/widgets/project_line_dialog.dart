@@ -6,11 +6,36 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:strefa_ciszy/models/project_line.dart';
 import 'package:strefa_ciszy/models/stock_item.dart';
+import 'package:strefa_ciszy/offline/reservations_offline.dart';
 import 'package:strefa_ciszy/screens/scan_screen.dart';
 import 'package:strefa_ciszy/screens/swap_workflow_screen.dart';
-import 'package:strefa_ciszy/services/admin_api.dart';
-import 'package:strefa_ciszy/services/api_service.dart';
+import 'package:strefa_ciszy/services/catalogue_search.dart';
 import 'package:strefa_ciszy/utils/search_utils.dart';
+
+StockItem _stockFromHybrid(Map<String, dynamic> m) {
+  final id = (m['id_artykulu'] ?? '').toString();
+  final name = (m['nazwa'] ?? '').toString();
+  final producent = (m['PRODUCENT'] ?? '').toString();
+  final sku = (m['sku'] ?? '').toString();
+  final barcode = (m['barcode'] ?? '').toString();
+  final unit = ((m['unit'] ?? '') as String).isNotEmpty
+      ? m['unit'] as String
+      : 'szt';
+  final qty = (m['quantity'] is num) ? (m['quantity'] as num).toInt() : 0;
+
+  return StockItem(
+    id: id,
+    name: name,
+    description: '',
+    quantity: qty,
+    producent: producent,
+    sku: sku,
+    barcode: barcode,
+    unit: unit,
+    imageUrl: '',
+    category: '',
+  );
+}
 
 Future<ProjectLine?> showProjectLineDialog(
   BuildContext context,
@@ -76,14 +101,13 @@ Future<ProjectLine?> showProjectLineDialog(
 
     final int mySeq = ++reqSeq;
     try {
-      final results = await ApiService.fetchProducts(
-        search: query,
-        limit: 50,
-        offset: 0,
-      );
+      final rows = await catalogSearchHybrid(query, top: 50);
       if (!ctx.mounted || mySeq != reqSeq) return;
-      setState(() => suggestions = results);
-    } catch (_) {}
+      final list = rows.map(_stockFromHybrid).toList();
+      setState(() => suggestions = list);
+    } catch (_) {
+      // keep previous suggestions on failure
+    }
   }
 
   return showModalBottomSheet<ProjectLine>(
@@ -258,59 +282,48 @@ Future<ProjectLine?> showProjectLineDialog(
                                           code,
                                         );
 
-                                        try {
-                                          final results =
-                                              await ApiService.fetchProducts(
-                                                search: code,
-                                                limit: 50,
-                                                offset: 0,
-                                              );
+                                        final rows = await catalogSearchHybrid(
+                                          code,
+                                          top: 50,
+                                        );
+                                        StockItem? match;
 
-                                          StockItem? match;
-                                          final exact = results.where(
-                                            (s) =>
-                                                s.barcode.trim() == code.trim(),
-                                          );
-                                          match = exact.isNotEmpty
-                                              ? exact.first
-                                              : (results.isNotEmpty
-                                                    ? results.first
-                                                    : null);
+                                        final exact = rows.where(
+                                          (m) =>
+                                              (m['barcode'] ?? '')
+                                                  .toString()
+                                                  .trim() ==
+                                              code.trim(),
+                                        );
+                                        if (exact.isNotEmpty) {
+                                          match = _stockFromHybrid(exact.first);
+                                        } else if (rows.isNotEmpty) {
+                                          match = _stockFromHybrid(rows.first);
+                                        }
 
-                                          if (match != null) {
-                                            final m = match;
-                                            setState(() {
-                                              itemRef = m.id;
-                                              textCtrl.text =
-                                                  '${m.name}, ${m.producent}';
-                                              unit = m.unit.isNotEmpty
-                                                  ? m.unit
-                                                  : 'szt';
-                                              selectedAvailable = m.quantity;
-                                              prevQty =
-                                                  existing?.previousQty ??
-                                                  existingLines[m.id] ??
-                                                  0;
-                                            });
-                                            await checkIfItemInRW(m.id);
-                                          } else {
-                                            ScaffoldMessenger.of(
-                                              context,
-                                            ).showSnackBar(
-                                              SnackBar(
-                                                content: Text(
-                                                  'Nie znaleziono produktu: $code',
-                                                ),
-                                              ),
-                                            );
-                                          }
-                                        } catch (e) {
+                                        if (match != null) {
+                                          final m = match;
+                                          setState(() {
+                                            itemRef = m.id;
+                                            textCtrl.text =
+                                                '${m.name}, ${m.producent}';
+                                            unit = m.unit.isNotEmpty
+                                                ? m.unit
+                                                : 'szt';
+                                            selectedAvailable = m.quantity;
+                                            prevQty =
+                                                existing?.previousQty ??
+                                                existingLines[m.id] ??
+                                                0;
+                                          });
+                                          await checkIfItemInRW(m.id);
+                                        } else {
                                           ScaffoldMessenger.of(
                                             context,
                                           ).showSnackBar(
-                                            SnackBar(
+                                            const SnackBar(
                                               content: Text(
-                                                'Skanowanie nie udany: $e',
+                                                'Nie znaleziono produktu.',
                                               ),
                                             ),
                                           );
@@ -650,9 +663,6 @@ Future<ProjectLine?> showProjectLineDialog(
                               //   },
                               //   child: Text(existing == null ? 'Dodaj' : 'Zapisz'),
                               // ),
-                              // ------------------ end kept commented block -------------------
-
-                              // ✅ Always-visible DODAJ / ZAPISZ button
                               ElevatedButton(
                                 onPressed: () async {
                                   if (!formKey.currentState!.validate()) return;
@@ -710,25 +720,28 @@ Future<ProjectLine?> showProjectLineDialog(
                                   final newQty = prevQty + added;
 
                                   // Reserve in WAPRO for stock items
+                                  // Reserve (online) or queue (offline) for stock items
                                   if (isStock) {
-                                    try {
-                                      await AdminApi.init();
-                                      final email =
-                                          FirebaseAuth
-                                              .instance
-                                              .currentUser
-                                              ?.email ??
-                                          'app';
-                                      final r = await AdminApi.reserveUpsert(
-                                        projectId: projectId,
-                                        customerId: customerId,
-                                        itemId: itemRef,
-                                        qty: newQty,
-                                        actorEmail: email,
-                                      );
+                                    final email =
+                                        FirebaseAuth
+                                            .instance
+                                            .currentUser
+                                            ?.email ??
+                                        'app';
+                                    final res = await reserveOrEnqueue(
+                                      projectId: projectId,
+                                      customerId: customerId,
+                                      itemId: itemRef,
+                                      qty: newQty,
+                                      actorEmail: email,
+                                    );
 
-                                      if (context.mounted) {
-                                        final after = r['available_after'];
+                                    if (context.mounted) {
+                                      if (!res.enqueued && res.server != null) {
+                                        final after =
+                                            res.server!['available_after'] ??
+                                            res.server!['availableAfter'] ??
+                                            res.server!['available'];
                                         ScaffoldMessenger.of(
                                           context,
                                         ).showSnackBar(
@@ -738,20 +751,17 @@ Future<ProjectLine?> showProjectLineDialog(
                                             ),
                                           ),
                                         );
-                                      }
-                                    } catch (e) {
-                                      if (context.mounted) {
+                                      } else {
                                         ScaffoldMessenger.of(
                                           context,
                                         ).showSnackBar(
-                                          SnackBar(
+                                          const SnackBar(
                                             content: Text(
-                                              'Rezerwacja nie powiodła się: $e',
+                                              'Rezerwacja zapisana offline — auto sync.',
                                             ),
                                           ),
                                         );
                                       }
-                                      return;
                                     }
                                   }
 
