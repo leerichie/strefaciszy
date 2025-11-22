@@ -5,10 +5,11 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
+import 'package:strefa_ciszy/screens/add_contact_screen.dart';
 import 'package:strefa_ciszy/utils/keyboard_utils.dart';
 import 'package:strefa_ciszy/widgets/app_scaffold.dart';
 import 'package:url_launcher/url_launcher.dart';
-import 'package:strefa_ciszy/screens/add_contact_screen.dart';
+
 import 'project_editor_screen.dart';
 
 class ContactDetailScreen extends StatefulWidget {
@@ -516,6 +517,7 @@ class _ContactDetailScreenState extends State<ContactDetailScreen> {
               return AnimatedBuilder(
                 animation: tabController,
                 builder: (context, _) => AppScaffold(
+                  showBackOnWeb: true,
                   title: '',
                   // actions: [
                   //   if (widget.isAdmin)

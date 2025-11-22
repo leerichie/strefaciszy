@@ -382,6 +382,7 @@ class _ContactsListScreenState extends State<ContactsListScreen> {
       ),
       floatingActionButtonLocation: FloatingActionButtonLocation.centerFloat,
       title: 'Kontakty',
+      showBackOnWeb: true,
       titleWidget: dynamicTitleWidget,
       centreTitle: true,
 

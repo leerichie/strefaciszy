@@ -41,7 +41,7 @@ target 'Runner' do
   # speeds up rebuilding Firestore by using its pre-built XCFramework
   pod 'FirebaseFirestore',
       :git => 'https://github.com/invertase/firestore-ios-sdk-frameworks.git',
-      :tag => '11.13.0'
+      :tag => '11.15.0'
 
   flutter_install_all_ios_pods File.dirname(File.realpath(__FILE__))
 

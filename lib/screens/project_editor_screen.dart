@@ -1079,6 +1079,7 @@ class _ProjectEditorScreenState extends State<ProjectEditorScreen> {
     return AppScaffold(
       centreTitle: true,
       title: '',
+      showBackOnWeb: true,
       titleWidget: titleGest,
 
       actions: [Padding(padding: const EdgeInsets.symmetric(horizontal: 8.0))],

@@ -1,14 +1,15 @@
 // lib/screens/scan_screen.dart
 
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:mobile_scanner/mobile_scanner.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:strefa_ciszy/screens/inventory_list_screen.dart';
+import 'package:strefa_ciszy/utils/search_utils.dart';
 import 'package:strefa_ciszy/widgets/app_scaffold.dart';
+
 import 'add_item_screen.dart';
 import 'item_detail_screen.dart';
-import 'package:strefa_ciszy/utils/search_utils.dart';
 
 enum ScanPurpose { add, search, projectLine }
 
@@ -286,6 +287,7 @@ class _ScanScreenState extends State<ScanScreen> {
 
     return AppScaffold(
       title: title,
+      showBackOnWeb: true,
       body: SafeArea(
         child: GestureDetector(
           behavior: HitTestBehavior.translucent,

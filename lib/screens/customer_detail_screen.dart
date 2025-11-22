@@ -9,6 +9,7 @@ import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:strefa_ciszy/utils/keyboard_utils.dart';
 import 'package:strefa_ciszy/widgets/app_scaffold.dart';
+
 import 'project_editor_screen.dart';
 
 class CustomerDetailScreen extends StatefulWidget {
@@ -354,6 +355,7 @@ class _CustomerDetailScreenState extends State<CustomerDetailScreen> {
       ),
       floatingActionButtonLocation: FloatingActionButtonLocation.centerFloat,
       title: '',
+      showBackOnWeb: true,
       titleWidget: titleStreamWidget,
       centreTitle: true,
 

@@ -645,6 +645,7 @@ class _ProjectDescriptionScreenState extends State<ProjectDescriptionScreen> {
     );
     return AppScaffold(
       title: '',
+      showBackOnWeb: true,
       titleWidget: titleCol,
       centreTitle: true,
 
@@ -1203,6 +1204,7 @@ class __ImageGalleryScreenState extends State<_ImageGalleryScreen> {
                 context: context,
                 builder: (ctx) => AlertDialog(
                   title: const Text('Usuń fota?'),
+
                   content: const Text('Na pewno chcesz usunąć to zdjęcie?'),
                   actions: [
                     TextButton(

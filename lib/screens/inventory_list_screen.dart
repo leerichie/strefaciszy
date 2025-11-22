@@ -82,6 +82,7 @@ class _InventoryListScreenState extends State<InventoryListScreen> {
 
       centreTitle: true,
       title: title,
+      showBackOnWeb: true,
       bottom: PreferredSize(
         preferredSize: const Size.fromHeight(56),
         child: Padding(

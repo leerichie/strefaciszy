@@ -1,16 +1,18 @@
 // lib/screens/add_contact_screen.dart
 import 'dart:async';
+
 import 'package:auto_size_text/auto_size_text.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
+import 'package:firebase_storage/firebase_storage.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:firebase_storage/firebase_storage.dart';
-import 'package:firebase_auth/firebase_auth.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:intl/intl.dart';
 import 'package:strefa_ciszy/screens/customer_detail_screen.dart';
 import 'package:strefa_ciszy/utils/keyboard_utils.dart';
 import 'package:strefa_ciszy/widgets/app_scaffold.dart';
+
 import 'project_editor_screen.dart';
 
 class AddContactScreen extends StatefulWidget {
@@ -785,6 +787,7 @@ class _AddContactScreenState extends State<AddContactScreen> {
     return WillPopScope(
       onWillPop: _onWillPop,
       child: AppScaffold(
+        showBackOnWeb: true,
         title: _isPrimaryContact
             ? 'Edytuj Klient'
             : _isNewClient
@@ -918,7 +921,8 @@ class _AddContactScreenState extends State<AddContactScreen> {
                               children: [
                                 Expanded(
                                   child: DropdownButtonFormField<String>(
-                                    initialValue: _categories.contains(_category)
+                                    initialValue:
+                                        _categories.contains(_category)
                                         ? _category
                                         : null,
                                     decoration: const InputDecoration(

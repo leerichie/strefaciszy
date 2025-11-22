@@ -47,6 +47,7 @@ class _ManageUsersScreenState extends State<ManageUsersScreen> {
       context: context,
       builder: (ctx) => AlertDialog(
         title: const Text('Dodaj pracownik'),
+
         content: DismissKeyboard(
           child: ConstrainedBox(
             constraints: const BoxConstraints(maxWidth: 400),
@@ -202,6 +203,7 @@ class _ManageUsersScreenState extends State<ManageUsersScreen> {
       floatingActionButtonLocation: FloatingActionButtonLocation.centerFloat,
       centreTitle: true,
       title: title,
+      showBackOnWeb: true,
       actions: [Padding(padding: const EdgeInsets.symmetric(horizontal: 8.0))],
 
       body: DismissKeyboard(

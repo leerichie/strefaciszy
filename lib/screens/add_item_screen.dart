@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
+import 'package:strefa_ciszy/screens/inventory_list_screen.dart';
 import 'package:strefa_ciszy/utils/keyboard_utils.dart';
 import 'package:strefa_ciszy/widgets/app_scaffold.dart';
-import 'package:strefa_ciszy/screens/inventory_list_screen.dart';
 import 'package:strefa_ciszy/widgets/stock_item_form.dart';
 
 class AddItemScreen extends StatelessWidget {
@@ -25,6 +25,7 @@ class AddItemScreen extends StatelessWidget {
 
     return AppScaffold(
       title: 'Dodaj',
+      showBackOnWeb: true,
       centreTitle: true,
       body: DismissKeyboard(
         child: LayoutBuilder(

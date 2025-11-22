@@ -62,6 +62,7 @@ class _ApprovalScreenState extends State<ApprovalScreen> {
         if (!allowed) {
           return Scaffold(
             appBar: AppBar(title: const Text('Potwierdzenia')),
+
             body: const Center(
               child: Text('Brak uprawnień (firestore.console).'),
             ),

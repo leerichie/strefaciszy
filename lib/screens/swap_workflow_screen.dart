@@ -307,6 +307,7 @@ class _SwapWorkflowScreenState extends State<SwapWorkflowScreen>
         builder: (ctx) => Scaffold(
           appBar: AppBar(
             title: const Text('Wybierz produkt'),
+
             leading: IconButton(
               icon: const Icon(Icons.close),
               onPressed: () => Navigator.pop(ctx, null),
@@ -373,6 +374,7 @@ class _SwapWorkflowScreenState extends State<SwapWorkflowScreen>
         context: context,
         builder: (ctx) => AlertDialog(
           title: const Text('Na pewno zamienić?'),
+
           content: RichText(
             text: TextSpan(
               style: Theme.of(context).textTheme.bodyMedium,
@@ -550,7 +552,7 @@ class _SwapWorkflowScreenState extends State<SwapWorkflowScreen>
       }
     }
 
-    // ---- NEW: Update WAPRO reservations if the source RW is today
+    // ---- Update WAPRO reservve
     try {
       final isToday = await _isSourceToday();
       if (isToday) {
@@ -566,9 +568,8 @@ class _SwapWorkflowScreenState extends State<SwapWorkflowScreen>
         }
       }
     } catch (_) {
-      // best-effort; UI message already handled in helper
+      // best-effort;
     }
-    // ----
 
     if (!mounted) return;
 
@@ -717,6 +718,7 @@ class _SwapWorkflowScreenState extends State<SwapWorkflowScreen>
     return Scaffold(
       appBar: AppBar(
         title: const Text('Zamiana / Zwrot'),
+
         bottom: TabBar(
           controller: _tabController,
           tabs: const [

@@ -156,6 +156,7 @@ class ItemDetailScreen extends StatelessWidget {
       floatingActionButtonLocation: FloatingActionButtonLocation.centerFloat,
       centreTitle: true,
       title: title,
+      showBackOnWeb: true,
       bottom: const PreferredSize(
         preferredSize: Size.fromHeight(56),
         child: Padding(

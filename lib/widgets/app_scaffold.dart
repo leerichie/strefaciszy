@@ -17,6 +17,7 @@ class AppScaffold extends StatefulWidget {
   final bool? centreTitle;
   final Widget? titleWidget;
   final bool showPersistentDrawerOnWeb;
+  final bool showBackOnWeb;
 
   const AppScaffold({
     super.key,
@@ -32,6 +33,7 @@ class AppScaffold extends StatefulWidget {
     this.centreTitle,
     this.titleWidget,
     this.showPersistentDrawerOnWeb = true,
+    this.showBackOnWeb = false,
   });
 
   @override
@@ -43,6 +45,8 @@ class _AppScaffoldState extends State<AppScaffold> {
 
   @override
   Widget build(BuildContext context) {
+    final bool isWeb = kIsWeb;
+    final bool isMobile = !kIsWeb;
     final usePersistentDrawer = kIsWeb && widget.showPersistentDrawerOnWeb;
 
     // WEB fixed drawer
@@ -56,7 +60,7 @@ class _AppScaffoldState extends State<AppScaffold> {
               child: Scaffold(
                 backgroundColor: widget.backgroundColor,
                 appBar: AppBar(
-                  leading: null,
+                  leading: widget.showBackOnWeb ? const BackButton() : null,
                   title: widget.titleWidget ?? Text(widget.title),
                   centerTitle: widget.centreTitle,
                   automaticallyImplyLeading: false,
@@ -75,10 +79,14 @@ class _AppScaffoldState extends State<AppScaffold> {
       );
     }
 
-    final bool isMobile = !kIsWeb;
-    final leading = isMobile && widget.showBackOnMobile
-        ? const BackButton()
-        : null;
+    Widget? leading;
+    if (isMobile && widget.showBackOnMobile) {
+      leading = const BackButton();
+    } else if (isWeb && widget.showBackOnWeb) {
+      leading = const BackButton();
+    } else {
+      leading = null;
+    }
 
     return Scaffold(
       key: _scaffoldKey,
