@@ -1,3 +1,4 @@
+// lib/services/admin_api.dart
 import 'dart:convert';
 
 import 'package:flutter/foundation.dart' show debugPrint;
@@ -38,13 +39,13 @@ class AdminApi {
   static Future<void> init() async {
     if (_base.isNotEmpty) return;
 
-    final candidates = <String>[..._fallbacks, _primary];
+    final candidates = <String>[_primary, ..._fallbacks];
 
     for (final b in candidates) {
       try {
         final r = await http
             .get(Uri.parse('$b/health'))
-            .timeout(const Duration(seconds: 3));
+            .timeout(const Duration(milliseconds: 1000));
         if (r.statusCode == 200) {
           _base = b;
           debugPrint('[AdminApi] BASE = $_base');

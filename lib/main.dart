@@ -22,8 +22,15 @@ void main() async {
   await warmProductCache();
 
   //// for editing backend -----
-  await ApiService.init();
-  await AdminApi.init();
+  // await ApiService.init();
+  // await AdminApi.init();
+
+  try {
+    await warmProductCache();
+  } catch (e, st) {
+    debugPrint('warmProductCache error: $e');
+    debugPrint('$st');
+  }
 
   await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
 
@@ -38,6 +45,17 @@ void main() async {
   ]);
 
   runApp(const StrefaCiszyApp());
+  _postBootstrap();
+}
+
+Future<void> _postBootstrap() async {
+  try {
+    await ApiService.init();
+    await AdminApi.init();
+  } catch (e, st) {
+    debugPrint('postBootstrap error: $e');
+    debugPrint('$st');
+  }
 }
 
 class KeyboardHidingNavigatorObserver extends NavigatorObserver {

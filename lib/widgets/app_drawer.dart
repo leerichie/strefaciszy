@@ -11,6 +11,7 @@ import 'package:strefa_ciszy/screens/login_screen.dart';
 import 'package:strefa_ciszy/screens/main_menu_screen.dart';
 import 'package:strefa_ciszy/screens/project_editor_screen.dart';
 import 'package:strefa_ciszy/screens/projects_list_screen.dart';
+import 'package:strefa_ciszy/screens/scan_screen.dart';
 
 class AppDrawer extends StatefulWidget {
   const AppDrawer({super.key});
@@ -405,6 +406,29 @@ class _AppDrawerState extends State<AppDrawer> {
                     ),
 
                   // — Mag
+                  // Theme(
+                  //   data: Theme.of(context).copyWith(
+                  //     dividerColor: Colors.transparent,
+                  //     unselectedWidgetColor: Colors.white70,
+                  //     colorScheme: const ColorScheme.dark(
+                  //       primary: Colors.tealAccent,
+                  //       onSurface: Colors.white,
+                  //     ),
+                  //   ),
+                  //   child: ListTile(
+                  //     leading: const Icon(
+                  //       Icons.inventory_2_outlined,
+                  //       color: Colors.white,
+                  //     ),
+                  //     title: Text('Produkty', style: menuTitles),
+                  //     onTap: () => _openPage(
+                  //       context,
+                  //       const InventoryListScreen(isAdmin: true),
+                  //     ),
+                  //   ),
+                  // ),
+
+                  // Magazyn expansion
                   Theme(
                     data: Theme.of(context).copyWith(
                       dividerColor: Colors.transparent,
@@ -414,16 +438,66 @@ class _AppDrawerState extends State<AppDrawer> {
                         onSurface: Colors.white,
                       ),
                     ),
-                    child: ListTile(
+                    child: ExpansionTile(
+                      controller: _magController,
                       leading: const Icon(
                         Icons.inventory_2_outlined,
                         color: Colors.white,
                       ),
-                      title: Text('Produkty', style: menuTitles),
-                      onTap: () => _openPage(
-                        context,
-                        const InventoryListScreen(isAdmin: true),
-                      ),
+                      title: Text('Magazyn', style: menuTitles),
+                      childrenPadding: const EdgeInsets.only(left: 16),
+                      initiallyExpanded: _magExpanded,
+                      onExpansionChanged: (val) {
+                        setState(() => _magExpanded = val);
+                      },
+                      children: [
+                        ListTile(
+                          leading: const Icon(Icons.list, color: Colors.white),
+                          title: Text('List produktów', style: menuTitles),
+                          onTap: () {
+                            Navigator.of(context).pop();
+                            Navigator.of(context).push(
+                              MaterialPageRoute(
+                                builder: (_) =>
+                                    const InventoryListScreen(isAdmin: true),
+                              ),
+                            );
+                          },
+                        ),
+                        ListTile(
+                          leading: const Icon(
+                            Icons.qr_code_scanner,
+                            color: Colors.white,
+                          ),
+                          title: Text('Dodać produkt', style: menuTitles),
+                          onTap: () {
+                            Navigator.of(context).pop();
+                            Navigator.of(context).push(
+                              MaterialPageRoute(
+                                builder: (_) =>
+                                    const ScanScreen(purpose: ScanPurpose.add),
+                              ),
+                            );
+                          },
+                        ),
+                        ListTile(
+                          leading: const Icon(
+                            Icons.qr_code_scanner,
+                            color: Colors.white,
+                          ),
+                          title: Text('Wyszukaj produkt', style: menuTitles),
+                          onTap: () {
+                            Navigator.of(context).pop();
+                            Navigator.of(context).push(
+                              MaterialPageRoute(
+                                builder: (_) => const ScanScreen(
+                                  purpose: ScanPurpose.search,
+                                ),
+                              ),
+                            );
+                          },
+                        ),
+                      ],
                     ),
                   ),
 
@@ -458,101 +532,16 @@ class _AppDrawerState extends State<AppDrawer> {
                           onSurface: Colors.white,
                         ),
                       ),
-                      child: ExpansionTile(
-                        controller: _projectsController,
-                        leading: const Icon(
-                          Icons.work_outline,
-                          color: Colors.white,
-                        ),
+                      child: ListTile(
+                        leading: const Icon(Icons.person, color: Colors.white),
                         title: Text('Projekty', style: menuTitles),
-                        childrenPadding: const EdgeInsets.only(left: 16),
-                        initiallyExpanded: _projectExpanded,
-                        onExpansionChanged: (val) {
-                          setState(() => _projectExpanded = val);
-                        },
-                        children: [
-                          ListTile(
-                            leading: const Icon(
-                              Icons.list_alt,
-                              color: Colors.white,
-                            ),
-                            title: Text('Lista projektów', style: menuTitles),
-                            onTap: () => _openPage(
-                              context,
-                              const ProjectsListScreen(isAdmin: true),
-                            ),
-                          ),
-                          const SizedBox(height: 4),
-
-                          // gap between proj and fave
-                          SizedBox(
-                            height: 50,
-                            child:
-                                StreamBuilder<
-                                  QuerySnapshot<Map<String, dynamic>>
-                                >(
-                                  stream: FirebaseFirestore.instance
-                                      .collectionGroup('projects')
-                                      .orderBy('createdAt', descending: true)
-                                      .limit(30)
-                                      .snapshots(),
-                                  builder: (ctx, snap) {
-                                    if (snap.connectionState ==
-                                        ConnectionState.waiting) {
-                                      return const Center(
-                                        child: CircularProgressIndicator(),
-                                      );
-                                    }
-                                    final docs = snap.data?.docs ?? [];
-                                    if (docs.isEmpty) {
-                                      return const Center(
-                                        child: Text(
-                                          'Brak projektów',
-                                          style: TextStyle(
-                                            color: Colors.white70,
-                                            fontSize: 12,
-                                          ),
-                                        ),
-                                      );
-                                    }
-
-                                    return ListView.builder(
-                                      itemCount: docs.length,
-                                      itemBuilder: (ctx, i) {
-                                        final doc = docs[i];
-                                        final data = doc.data();
-                                        final title =
-                                            (data['title'] as String?) ?? '–';
-                                        final customerId =
-                                            doc.reference.parent.parent?.id ??
-                                            '';
-
-                                        return ListTile(
-                                          contentPadding: EdgeInsets.zero,
-                                          leading: const SizedBox(width: 24),
-                                          title: Text(
-                                            title,
-                                            style: menuTitles,
-                                            maxLines: 1,
-                                            overflow: TextOverflow.ellipsis,
-                                          ),
-                                          onTap: () => _openPage(
-                                            context,
-                                            ProjectEditorScreen(
-                                              customerId: customerId,
-                                              projectId: doc.id,
-                                              isAdmin: true,
-                                            ),
-                                          ),
-                                        );
-                                      },
-                                    );
-                                  },
-                                ),
-                          ),
-                        ],
+                        onTap: () => _openPage(
+                          context,
+                          const ProjectsListScreen(isAdmin: true),
+                        ),
                       ),
                     ),
+
                   // — Kontakty
                   Theme(
                     data: Theme.of(context).copyWith(
@@ -574,32 +563,6 @@ class _AppDrawerState extends State<AppDrawer> {
                         const ContactsListScreen(isAdmin: true),
                       ),
                     ),
-                    // child: ExpansionTile(
-                    //   controller: _contactsController,
-                    //   leading: const Icon(
-                    //     Icons.contact_phone_outlined,
-                    //     color: Colors.white,
-                    //   ),
-                    //   title: Text('Kontakty', style: menuTitles),
-                    //   childrenPadding: const EdgeInsets.only(left: 16),
-                    //   initiallyExpanded: _kontaktExpanded,
-                    //   onExpansionChanged: (val) {
-                    //     setState(() => _kontaktExpanded = val);
-                    //   },
-                    //   children: [
-                    //     ListTile(
-                    //       leading: const Icon(
-                    //         Icons.people,
-                    //         color: Colors.white,
-                    //       ),
-                    //       title: Text('List kontaktów', style: menuTitles),
-                    //       onTap: () => _openPage(
-                    //         context,
-                    //         const ContactsListScreen(isAdmin: true),
-                    //       ),
-                    //     ),
-                    //   ],
-                    // ),
                   ),
                 ],
               ),

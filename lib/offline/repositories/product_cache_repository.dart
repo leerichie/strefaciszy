@@ -49,12 +49,32 @@ class ProductCacheRepository {
         .toIso8601String();
 
     int total = 0;
+
     for (int page = 1; page < 9999; page++) {
       final url =
           '$baseUrl/products/changed-since?since=$sinceIso&page=$page&limit=$pageSize&fields='
           'id,reference,ean13,name,brand,price,quantity,updated_at';
-      final res = await dio.get(url, options: Options(headers: _headers));
-      if (res.statusCode != 200) break;
+
+      Response res;
+      try {
+        res = await dio.get(url, options: Options(headers: _headers));
+      } on DioException catch (e) {
+        final status = e.response?.statusCode;
+
+        if (status == 404) {
+          break;
+        }
+
+        rethrow;
+      }
+
+      if (res.statusCode == 404) {
+        break;
+      }
+
+      if (res.statusCode != 200) {
+        break;
+      }
 
       final items = _extractList(res.data);
       if (items.isEmpty) break;
@@ -64,6 +84,7 @@ class ProductCacheRepository {
 
       if (items.length < pageSize) break;
     }
+
     return total;
   }
 
