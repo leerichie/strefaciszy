@@ -88,6 +88,7 @@ flutter:
     - assets/images/strefa_ciszy_logo.png
     - assets/favicon/Icon-512.png
     - assets/images/Lee_logo_app_dev.png
+    - assets/images/dev_logo.png
     - version.json
 
   # To add assets to your application, add an assets section, like this:

@@ -11,6 +11,7 @@ import 'package:strefa_ciszy/screens/approval_screen.dart';
 import 'package:strefa_ciszy/screens/contacts_list_screen.dart';
 import 'package:strefa_ciszy/screens/inventory_list_screen.dart';
 import 'package:strefa_ciszy/screens/login_screen.dart';
+import 'package:strefa_ciszy/screens/projects_list_screen.dart';
 import 'package:strefa_ciszy/widgets/app_scaffold.dart';
 import 'package:url_launcher/url_launcher.dart';
 
@@ -159,6 +160,18 @@ class _MainMenuScreenState extends State<MainMenuScreen> {
         ),
 
         ListTile(
+          leading: const Icon(Icons.work_outline),
+          title: const Text("Projekty"),
+          onTap: () {
+            Navigator.of(context).push(
+              MaterialPageRoute(
+                builder: (_) => const ProjectsListScreen(isAdmin: true),
+              ),
+            );
+          },
+        ),
+
+        ListTile(
           leading: const Icon(Icons.qr_code_scanner),
           title: const Text('Skanuj'),
           onTap: () {
@@ -253,7 +266,7 @@ class _MainMenuScreenState extends State<MainMenuScreen> {
             bottom: 60,
             right: 20,
             child: Image.asset(
-              'assets/images/Lee_logo_app_dev.png',
+              'assets/images/dev_logo.png',
               width: 80,
               fit: BoxFit.contain,
             ),

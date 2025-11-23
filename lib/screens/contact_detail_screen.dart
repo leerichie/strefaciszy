@@ -26,19 +26,33 @@ class ContactDetailScreen extends StatefulWidget {
   State<ContactDetailScreen> createState() => _ContactDetailScreenState();
 }
 
-class _ContactDetailScreenState extends State<ContactDetailScreen> {
+class _ContactDetailScreenState extends State<ContactDetailScreen>
+    with SingleTickerProviderStateMixin {
   final _user = FirebaseAuth.instance.currentUser!;
   late final _favProjCol = FirebaseFirestore.instance
       .collection('users')
       .doc(_user.uid)
       .collection('favouriteProjects');
 
+  late final TabController _tabController;
   final Set<String> _favProjectIds = {};
+  bool _isSelectingContacts = false;
+  final Set<String> _selectedContactEmails = {};
 
   @override
   void initState() {
     super.initState();
+    _tabController = TabController(length: 2, vsync: this);
+    _tabController.addListener(() {
+      if (mounted) setState(() {});
+    });
     _loadFavouriteProjects();
+  }
+
+  @override
+  void dispose() {
+    _tabController.dispose();
+    super.dispose();
   }
 
   Future<void> _loadFavouriteProjects() async {
@@ -46,6 +60,26 @@ class _ContactDetailScreenState extends State<ContactDetailScreen> {
     setState(() {
       _favProjectIds.addAll(snap.docs.map((d) => d.id));
     });
+  }
+
+  Future<void> _sendEmailToSelected() async {
+    if (_selectedContactEmails.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Nie wybrano żadnych kontaktów')),
+      );
+      return;
+    }
+
+    final toParam = _selectedContactEmails.join(',');
+    final uri = Uri(scheme: 'mailto', path: toParam);
+
+    if (await canLaunchUrl(uri)) {
+      await launchUrl(uri);
+    } else {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Nie można otworzyć klienta email: $uri')),
+      );
+    }
   }
 
   Future<void> _toggleFavouriteProjects(
@@ -368,15 +402,20 @@ class _ContactDetailScreenState extends State<ContactDetailScreen> {
                 ),
 
                 ...tempSet.map((projId) {
+                  // handle missing projects
+                  final matching = allProjects.where((d) => d.id == projId);
+                  if (matching.isEmpty) {
+                    return const SizedBox.shrink();
+                  }
+
                   final title =
-                      allProjects
-                              .firstWhere((d) => d.id == projId)
-                              .data()['title']
-                          as String;
+                      matching.first.data()['title'] as String? ?? '—';
+
                   return InputChip(
                     label: Text(title),
-                    onDeleted: () =>
-                        setModalState(() => tempSet.remove(projId)),
+                    onDeleted: () => setModalState(() {
+                      tempSet.remove(projId);
+                    }),
                   );
                 }),
               ],
@@ -509,452 +548,422 @@ class _ContactDetailScreenState extends State<ContactDetailScreen> {
             ? List<String>.from(data['extraNumbers'])
             : <String>[];
 
-        return DefaultTabController(
-          length: 2,
-          child: Builder(
-            builder: (context) {
-              final tabController = DefaultTabController.of(context);
-              return AnimatedBuilder(
-                animation: tabController,
-                builder: (context, _) => AppScaffold(
-                  showBackOnWeb: true,
-                  title: '',
-                  // actions: [
-                  //   if (widget.isAdmin)
-                  //     IconButton(
-                  //       icon: const Icon(Icons.delete, color: Colors.red),
-                  //       tooltip: 'Usuń kontakt',
-                  //       onPressed: _deleteContact,
-                  //     ),
-                  // ],
-                  titleWidget: GestureDetector(
-                    onLongPress: () {
-                      Navigator.of(context).push(
-                        MaterialPageRoute(
-                          builder: (_) => AddContactScreen(
-                            isAdmin: widget.isAdmin,
-                            contactId: widget.contactId,
-                            forceAsContact: true,
-                          ),
-                        ),
-                      );
-                    },
-                    child: AutoSizeText(
-                      name,
-                      style: Theme.of(context).textTheme.headlineSmall,
-                      maxLines: 1,
-                      minFontSize: 9,
+        return AnimatedBuilder(
+          animation: _tabController,
+          builder: (context, _) {
+            final isContactsTab = _tabController.index == 1;
+
+            return AppScaffold(
+              showBackOnWeb: true,
+              title: '',
+              actions: [
+                if (isContactsTab) ...[
+                  if (_isSelectingContacts)
+                    IconButton(
+                      tooltip: 'Wyślij email do zaznaczonych',
+                      icon: const Icon(Icons.send),
+                      onPressed: _sendEmailToSelected,
                     ),
+                  IconButton(
+                    tooltip: _isSelectingContacts
+                        ? 'Zakończ wybór'
+                        : 'Zaznacz kontakty',
+                    icon: Icon(
+                      _isSelectingContacts
+                          ? Icons.check_box
+                          : Icons.email_outlined,
+                    ),
+                    onPressed: () {
+                      setState(() {
+                        if (_isSelectingContacts) {
+                          _isSelectingContacts = false;
+                          _selectedContactEmails.clear();
+                        } else {
+                          _isSelectingContacts = true;
+                        }
+                      });
+                    },
                   ),
-                  centreTitle: true,
-                  bottom: const TabBar(
-                    tabs: [
-                      Tab(text: 'Szczegóły'),
-                      Tab(text: 'Kontakty'),
-                    ],
-                  ),
-                  floatingActionButtonLocation:
-                      FloatingActionButtonLocation.centerFloat,
-                  floatingActionButton: custId == null
-                      ? null
-                      : (tabController.index == 0
-                            ? FloatingActionButton(
-                                tooltip: 'Dodaj Projekt',
-                                child: const Icon(Icons.playlist_add),
-                                onPressed: () => _showProjectDialog(
-                                  context: context,
-                                  customerId: custId,
+                ],
+              ],
+              titleWidget: GestureDetector(
+                onLongPress: () {
+                  Navigator.of(context).push(
+                    MaterialPageRoute(
+                      builder: (_) => AddContactScreen(
+                        isAdmin: widget.isAdmin,
+                        contactId: widget.contactId,
+                        forceAsContact: true,
+                      ),
+                    ),
+                  );
+                },
+                child: AutoSizeText(
+                  name,
+                  style: Theme.of(context).textTheme.headlineSmall,
+                  maxLines: 1,
+                  minFontSize: 9,
+                ),
+              ),
+              centreTitle: true,
+              bottom: TabBar(
+                controller: _tabController,
+                tabs: const [
+                  Tab(text: 'Szczegóły'),
+                  Tab(text: 'Kontakty'),
+                ],
+              ),
+              floatingActionButtonLocation:
+                  FloatingActionButtonLocation.centerFloat,
+              floatingActionButton: custId == null
+                  ? null
+                  : (_tabController.index == 0
+                        ? FloatingActionButton(
+                            tooltip: 'Dodaj Projekt',
+                            child: const Icon(Icons.playlist_add),
+                            onPressed: () => _showProjectDialog(
+                              context: context,
+                              customerId: custId,
+                            ),
+                          )
+                        : FloatingActionButton(
+                            tooltip: 'Dodaj Kontakt',
+                            child: const Icon(Icons.person_add_alt),
+                            onPressed: () {
+                              Navigator.of(context).push(
+                                MaterialPageRoute(
+                                  builder: (_) => AddContactScreen(
+                                    isAdmin: widget.isAdmin,
+                                    linkedCustomerId: custId,
+                                    forceAsContact: true,
+                                  ),
                                 ),
-                              )
-                            : FloatingActionButton(
-                                tooltip: 'Dodaj Kontakt',
-                                child: const Icon(Icons.person_add_alt),
-                                onPressed: () {
-                                  Navigator.of(context).push(
-                                    MaterialPageRoute(
-                                      builder: (_) => AddContactScreen(
-                                        isAdmin: widget.isAdmin,
-                                        linkedCustomerId: custId,
-                                        forceAsContact: true,
-                                      ),
-                                    ),
-                                  );
-                                },
-                              )),
-
-                  body: TabBarView(
-                    children: [
-                      // === Szczegóły Tab ===
-                      SingleChildScrollView(
-                        padding: const EdgeInsets.all(16.0),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.stretch,
+                              );
+                            },
+                          )),
+              body: TabBarView(
+                controller: _tabController,
+                children: [
+                  // === Szczegóły Tab ===
+                  SingleChildScrollView(
+                    padding: const EdgeInsets.all(16.0),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        if (data['photoUrl'] != null) ...[
+                          Center(
+                            child: CircleAvatar(
+                              radius: 48,
+                              backgroundImage: NetworkImage(data['photoUrl']),
+                            ),
+                          ),
+                          const SizedBox(height: 16),
+                        ],
+                        Row(
                           children: [
-                            if (data['photoUrl'] != null) ...[
-                              Center(
-                                child: CircleAvatar(
-                                  radius: 48,
-                                  backgroundImage: NetworkImage(
-                                    data['photoUrl'],
+                            Expanded(
+                              child: AutoSizeText(
+                                data['name'] ?? '',
+                                style: const TextStyle(
+                                  fontWeight: FontWeight.bold,
+                                ),
+                                maxLines: 2,
+                                minFontSize: 11,
+                              ),
+                            ),
+                            Text(
+                              data['contactType'] ?? '-',
+                              style: const TextStyle(fontSize: 15),
+                            ),
+                          ],
+                        ),
+                        const Divider(),
+                        Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            if ((data['phone'] ?? '').isNotEmpty) ...[
+                              Padding(
+                                padding: const EdgeInsets.only(left: 20),
+                                child: InkWell(
+                                  onTap: () => openUri(
+                                    Uri.parse('tel:${data['phone']}'),
+                                  ),
+                                  child: Row(
+                                    children: [
+                                      const Icon(
+                                        Icons.phone,
+                                        size: 18,
+                                        color: Colors.green,
+                                      ),
+                                      const SizedBox(width: 10),
+                                      Text(
+                                        data['phone'],
+                                        style: const TextStyle(fontSize: 18),
+                                      ),
+                                    ],
                                   ),
                                 ),
                               ),
-                              const SizedBox(height: 16),
                             ],
-
-                            Row(
-                              children: [
-                                Expanded(
-                                  child: AutoSizeText(
-                                    data['name'] ?? '',
-                                    style: const TextStyle(
-                                      fontWeight: FontWeight.bold,
-                                    ),
-                                    maxLines: 2,
-                                    minFontSize: 11,
+                            if ((data['phone'] ?? '').isNotEmpty &&
+                                (data['email'] ?? '').isNotEmpty) ...[
+                              const SizedBox(height: 4),
+                            ],
+                            if ((data['email'] ?? '').isNotEmpty) ...[
+                              Padding(
+                                padding: const EdgeInsets.only(left: 20),
+                                child: InkWell(
+                                  onTap: () => openUri(
+                                    Uri.parse('mailto:${data['email']}'),
+                                  ),
+                                  child: Row(
+                                    children: [
+                                      const Icon(
+                                        Icons.email,
+                                        size: 18,
+                                        color: Colors.blue,
+                                      ),
+                                      const SizedBox(width: 10),
+                                      Text(
+                                        data['email'],
+                                        style: const TextStyle(fontSize: 18),
+                                      ),
+                                      const Spacer(),
+                                    ],
                                   ),
                                 ),
-                                Text(
-                                  data['contactType'] ?? '-',
-                                  style: const TextStyle(fontSize: 15),
-                                ),
-                              ],
-                            ),
-                            Divider(),
-                            Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                if ((data['phone'] ?? '').isNotEmpty) ...[
-                                  Padding(
-                                    padding: const EdgeInsets.only(left: 20),
-                                    child: InkWell(
-                                      onTap: () => openUri(
-                                        Uri.parse('tel:${data['phone']}'),
-                                      ),
-                                      child: Row(
-                                        children: [
-                                          const Icon(
-                                            Icons.phone,
-                                            size: 18,
-                                            color: Colors.green,
-                                          ),
-                                          const SizedBox(width: 10),
-                                          Text(
-                                            data['phone'],
-                                            style: const TextStyle(
-                                              fontSize: 18,
-                                            ),
-                                          ),
-                                          // const Spacer(),
-                                          // Text(
-                                          //   data['contactType'] ?? '-',
-                                          //   style: const TextStyle(
-                                          //     fontSize: 15,
-                                          //   ),
-                                          // ),
-                                        ],
-                                      ),
-                                    ),
-                                  ),
-                                ],
-                                if ((data['phone'] ?? '').isNotEmpty &&
-                                    (data['email'] ?? '').isNotEmpty) ...[
-                                  const SizedBox(height: 4),
-                                ],
-                                if ((data['email'] ?? '').isNotEmpty) ...[
-                                  Padding(
-                                    padding: const EdgeInsets.only(left: 20),
-                                    child: InkWell(
-                                      onTap: () => openUri(
-                                        Uri.parse('mailto:${data['email']}'),
-                                      ),
-                                      child: Row(
-                                        children: [
-                                          const Icon(
-                                            Icons.email,
-                                            size: 18,
-                                            color: Colors.blue,
-                                          ),
-                                          const SizedBox(width: 10),
-                                          Text(
-                                            data['email'],
-                                            style: const TextStyle(
-                                              fontSize: 18,
-                                            ),
-                                          ),
-                                          const Spacer(),
-                                        ],
-                                      ),
-                                    ),
-                                  ),
-                                ],
-                                // Drugi numer
-                                if (extraNumbers.isNotEmpty) ...[
-                                  const SizedBox(height: 12),
-                                  Padding(
-                                    padding: const EdgeInsets.only(left: 20),
-                                    child: InkWell(
-                                      onTap: () => openUri(
-                                        Uri.parse('tel:${extraNumbers.first}'),
-                                      ),
-                                      child: Row(
-                                        children: [
-                                          const Icon(
-                                            Icons.phone_android,
-                                            size: 18,
-                                            color: Colors.green,
-                                          ),
-                                          const SizedBox(width: 10),
-                                          Text(
-                                            extraNumbers.first,
-                                            style: const TextStyle(
-                                              fontSize: 18,
-                                            ),
-                                          ),
-                                        ],
-                                      ),
-                                    ),
-                                  ),
-                                ],
-
-                                // Adres
-                                if ((data['address'] ?? '')
-                                    .toString()
-                                    .isNotEmpty) ...[
-                                  ListTile(
-                                    contentPadding: const EdgeInsets.only(
-                                      left: 20,
-                                    ),
-                                    leading: const Icon(Icons.location_on),
-                                    title: Text(data['address']!),
-                                    onTap: () => openUri(
-                                      Uri.parse(
-                                        'geo:0,0?q=${Uri.encodeComponent(data['address']!)}',
-                                      ),
-                                    ),
-                                  ),
-                                ],
-
-                                // WWW
-                                if ((data['www'] ?? '')
-                                    .toString()
-                                    .isNotEmpty) ...[
-                                  ListTile(
-                                    contentPadding: const EdgeInsets.only(
-                                      left: 20,
-                                    ),
-                                    leading: const Icon(Icons.link),
-                                    title: Text(data['www']!),
-                                    onTap: () => openUri(
-                                      Uri.parse(
-                                        data['www']!.startsWith('http')
-                                            ? data['www']!
-                                            : 'https://${data['www']}',
-                                      ),
-                                      mode: LaunchMode.externalApplication,
-                                    ),
-                                  ),
-                                ],
-
-                                // Notatka
-                                if ((data['note'] ?? '')
-                                    .toString()
-                                    .isNotEmpty) ...[
-                                  const SizedBox(height: 12),
-                                  Padding(
-                                    padding: const EdgeInsets.only(left: 20),
-                                    child: Text(
-                                      data['note']!,
-                                      style: const TextStyle(
-                                        fontStyle: FontStyle.italic,
-                                      ),
-                                    ),
-                                  ),
-                                ],
-                              ],
-                            ),
-
-                            const SizedBox(height: 15),
-                            Divider(),
-
-                            AutoSizeText(
-                              'Projekty',
-                              style: const TextStyle(
-                                fontWeight: FontWeight.bold,
                               ),
-                              minFontSize: 15,
-                            ),
+                            ],
+                            // Drugi numer
+                            if (extraNumbers.isNotEmpty) ...[
+                              const SizedBox(height: 12),
+                              Padding(
+                                padding: const EdgeInsets.only(left: 20),
+                                child: InkWell(
+                                  onTap: () => openUri(
+                                    Uri.parse('tel:${extraNumbers.first}'),
+                                  ),
+                                  child: Row(
+                                    children: [
+                                      const Icon(
+                                        Icons.phone_android,
+                                        size: 18,
+                                        color: Colors.green,
+                                      ),
+                                      const SizedBox(width: 10),
+                                      Text(
+                                        extraNumbers.first,
+                                        style: const TextStyle(fontSize: 18),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              ),
+                            ],
+                            // Adres
+                            if ((data['address'] ?? '')
+                                .toString()
+                                .isNotEmpty) ...[
+                              ListTile(
+                                contentPadding: const EdgeInsets.only(left: 20),
+                                leading: const Icon(Icons.location_on),
+                                title: Text(data['address']!),
+                                onTap: () => openUri(
+                                  Uri.parse(
+                                    'geo:0,0?q=${Uri.encodeComponent(data['address']!)}',
+                                  ),
+                                ),
+                              ),
+                            ],
+                            // WWW
+                            if ((data['www'] ?? '').toString().isNotEmpty) ...[
+                              ListTile(
+                                contentPadding: const EdgeInsets.only(left: 20),
+                                leading: const Icon(Icons.link),
+                                title: Text(data['www']!),
+                                onTap: () => openUri(
+                                  Uri.parse(
+                                    data['www']!.startsWith('http')
+                                        ? data['www']!
+                                        : 'https://${data['www']}',
+                                  ),
+                                  mode: LaunchMode.externalApplication,
+                                ),
+                              ),
+                            ],
+                            // Notatka
+                            if ((data['note'] ?? '').toString().isNotEmpty) ...[
+                              const SizedBox(height: 12),
+                              Padding(
+                                padding: const EdgeInsets.only(left: 20),
+                                child: Text(
+                                  data['note']!,
+                                  style: const TextStyle(
+                                    fontStyle: FontStyle.italic,
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ],
+                        ),
+                        const SizedBox(height: 15),
+                        const Divider(),
+                        const AutoSizeText(
+                          'Projekty',
+                          style: TextStyle(fontWeight: FontWeight.bold),
+                          minFontSize: 15,
+                        ),
+                        if (custId != null)
+                          StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
+                            stream: FirebaseFirestore.instance
+                                .collectionGroup('projects')
+                                .where('customerId', isEqualTo: custId)
+                                .orderBy('createdAt', descending: true)
+                                .snapshots(),
+                            builder: (ctx, projSnap) {
+                              if (projSnap.connectionState ==
+                                  ConnectionState.waiting) {
+                                return const Center(
+                                  child: CircularProgressIndicator(),
+                                );
+                              }
+                              final docs = projSnap.data?.docs ?? [];
+                              if (docs.isEmpty) {
+                                return const Text('Brak projektów.');
+                              }
 
-                            if (custId != null)
-                              StreamBuilder<
-                                QuerySnapshot<Map<String, dynamic>>
-                              >(
-                                stream: FirebaseFirestore.instance
-                                    .collectionGroup('projects')
-                                    .where('customerId', isEqualTo: custId)
-                                    .orderBy('createdAt', descending: true)
-                                    .snapshots(),
-                                builder: (ctx, projSnap) {
-                                  if (projSnap.connectionState ==
-                                      ConnectionState.waiting) {
-                                    return const Center(
-                                      child: CircularProgressIndicator(),
+                              return NotificationListener<ScrollNotification>(
+                                onNotification: (notif) {
+                                  if (notif is ScrollStartNotification) {
+                                    FocusScope.of(context).unfocus();
+                                  }
+                                  return false;
+                                },
+                                child: ListView.separated(
+                                  shrinkWrap: true,
+                                  physics: const NeverScrollableScrollPhysics(),
+                                  keyboardDismissBehavior:
+                                      ScrollViewKeyboardDismissBehavior.onDrag,
+                                  itemCount: docs.length,
+                                  separatorBuilder: (_, __) =>
+                                      const Divider(height: 1),
+                                  itemBuilder: (_, i) {
+                                    final d = docs[i];
+                                    final pm = d.data();
+                                    final title = pm['title'] as String? ?? '—';
+                                    final dateText = formatTimestamp(
+                                      pm['createdAt'],
                                     );
-                                  }
-                                  final docs = projSnap.data?.docs ?? [];
-                                  if (docs.isEmpty) {
-                                    return const Text('Brak projektów.');
-                                  }
+                                    final isFav = _favProjectIds.contains(d.id);
 
-                                  return NotificationListener<
-                                    ScrollNotification
-                                  >(
-                                    onNotification: (notif) {
-                                      if (notif is ScrollStartNotification) {
-                                        FocusScope.of(context).unfocus();
-                                      }
-                                      return false;
-                                    },
-                                    child: ListView.separated(
-                                      shrinkWrap: true,
-                                      physics:
-                                          const NeverScrollableScrollPhysics(),
-                                      keyboardDismissBehavior:
-                                          ScrollViewKeyboardDismissBehavior
-                                              .onDrag,
-                                      itemCount: docs.length,
-                                      separatorBuilder: (_, __) =>
-                                          const Divider(height: 1),
-                                      itemBuilder: (_, i) {
-                                        final d = docs[i];
-                                        final pm = d.data();
-                                        final title =
-                                            pm['title'] as String? ?? '—';
-                                        final dateText = formatTimestamp(
-                                          pm['createdAt'],
-                                        );
-                                        final isFav = _favProjectIds.contains(
-                                          d.id,
-                                        );
-
-                                        return ListTile(
-                                          contentPadding:
-                                              const EdgeInsets.symmetric(
-                                                horizontal: 1.0,
-                                              ),
-                                          title: AutoSizeText(
-                                            title,
-                                            overflow: TextOverflow.ellipsis,
-                                            minFontSize: 9,
-                                            maxLines: 2,
+                                    return ListTile(
+                                      contentPadding:
+                                          const EdgeInsets.symmetric(
+                                            horizontal: 1.0,
                                           ),
-                                          subtitle: Text(dateText),
-                                          onTap: () =>
-                                              Navigator.of(context).push(
-                                                MaterialPageRoute(
-                                                  builder: (_) =>
-                                                      ProjectEditorScreen(
-                                                        customerId: custId,
-                                                        projectId: d.id,
-                                                        isAdmin: widget.isAdmin,
-                                                      ),
+                                      title: AutoSizeText(
+                                        title,
+                                        overflow: TextOverflow.ellipsis,
+                                        minFontSize: 9,
+                                        maxLines: 2,
+                                      ),
+                                      subtitle: Text(dateText),
+                                      onTap: () => Navigator.of(context).push(
+                                        MaterialPageRoute(
+                                          builder: (_) => ProjectEditorScreen(
+                                            customerId: custId,
+                                            projectId: d.id,
+                                            isAdmin: widget.isAdmin,
+                                          ),
+                                        ),
+                                      ),
+                                      onLongPress: widget.isAdmin
+                                          ? () => _showProjectDialog(
+                                              context: context,
+                                              customerId: custId,
+                                              projectId: d.id,
+                                              existingData: pm,
+                                            )
+                                          : null,
+                                      trailing: Row(
+                                        mainAxisSize: MainAxisSize.min,
+                                        children: [
+                                          const SizedBox(width: 1),
+                                          IconButton(
+                                            icon: Icon(
+                                              isFav
+                                                  ? Icons.star
+                                                  : Icons.star_border,
+                                              color: Colors.amber,
+                                            ),
+                                            onPressed: () =>
+                                                _toggleFavouriteProjects(
+                                                  d.id,
+                                                  title,
+                                                  custId,
                                                 ),
-                                              ),
-                                          onLongPress: widget.isAdmin
-                                              ? () => _showProjectDialog(
-                                                  context: context,
-                                                  customerId: custId,
-                                                  projectId: d.id,
-                                                  existingData: pm,
-                                                )
-                                              : null,
-
-                                          trailing: Row(
-                                            mainAxisSize: MainAxisSize.min,
-                                            children: [
-                                              // ★ / ☆
-                                              const SizedBox(width: 1),
-                                              IconButton(
-                                                icon: Icon(
-                                                  isFav
-                                                      ? Icons.star
-                                                      : Icons.star_border,
-                                                  color: Colors.amber,
-                                                ),
-                                                onPressed: () =>
-                                                    _toggleFavouriteProjects(
-                                                      d.id,
-                                                      title,
-                                                      custId,
-                                                    ),
-                                                padding: EdgeInsets.zero,
-                                                constraints: BoxConstraints(),
-                                                iconSize: 20,
-                                                visualDensity:
-                                                    VisualDensity.compact,
-                                              ),
-
-                                              const SizedBox(width: 1),
-                                              // RW count badge
-                                              FutureBuilder<QuerySnapshot>(
-                                                future: d.reference
-                                                    .collection('rw_documents')
-                                                    .get(),
-                                                builder: (ctx2, s2) {
-                                                  if (s2.connectionState ==
-                                                      ConnectionState.waiting) {
-                                                    return const SizedBox(
-                                                      width: 10,
-                                                      height: 10,
-                                                      child:
-                                                          CircularProgressIndicator(
-                                                            strokeWidth: 2,
-                                                          ),
-                                                    );
-                                                  }
-                                                  final cnt =
-                                                      s2.data?.docs.length ?? 0;
-                                                  return Container(
-                                                    padding:
-                                                        const EdgeInsets.symmetric(
-                                                          horizontal: 4,
-                                                          vertical: 2,
-                                                        ),
-                                                    decoration: BoxDecoration(
-                                                      color: Colors.grey,
-                                                      borderRadius:
-                                                          BorderRadius.circular(
-                                                            12,
-                                                          ),
-                                                    ),
-                                                    child: Text(
-                                                      'R:$cnt',
-                                                      style: const TextStyle(
-                                                        fontSize: 14,
-
-                                                        color: Colors.white,
+                                            padding: EdgeInsets.zero,
+                                            constraints: const BoxConstraints(),
+                                            iconSize: 20,
+                                            visualDensity:
+                                                VisualDensity.compact,
+                                          ),
+                                          const SizedBox(width: 1),
+                                          FutureBuilder<QuerySnapshot>(
+                                            future: d.reference
+                                                .collection('rw_documents')
+                                                .get(),
+                                            builder: (ctx2, s2) {
+                                              if (s2.connectionState ==
+                                                  ConnectionState.waiting) {
+                                                return const SizedBox(
+                                                  width: 10,
+                                                  height: 10,
+                                                  child:
+                                                      CircularProgressIndicator(
+                                                        strokeWidth: 2,
                                                       ),
+                                                );
+                                              }
+                                              final cnt =
+                                                  s2.data?.docs.length ?? 0;
+                                              return Container(
+                                                padding:
+                                                    const EdgeInsets.symmetric(
+                                                      horizontal: 4,
+                                                      vertical: 2,
                                                     ),
-                                                  );
-                                                },
-                                              ),
-                                              const SizedBox(width: 1),
-                                              // delete
-                                              if (widget.isAdmin) ...[
-                                                const SizedBox(width: 1),
-                                                IconButton(
-                                                  icon: const Icon(
-                                                    Icons.delete,
-                                                    color: Colors.red,
+                                                decoration: BoxDecoration(
+                                                  color: Colors.grey,
+                                                  borderRadius:
+                                                      BorderRadius.circular(12),
+                                                ),
+                                                child: Text(
+                                                  'R:$cnt',
+                                                  style: const TextStyle(
+                                                    fontSize: 14,
+                                                    color: Colors.white,
                                                   ),
-                                                  onPressed: () async {
-                                                    final ok = await showDialog<bool>(
-                                                      context: context,
-                                                      builder: (ctx3) => AlertDialog(
+                                                ),
+                                              );
+                                            },
+                                          ),
+                                          const SizedBox(width: 1),
+                                          if (widget.isAdmin) ...[
+                                            const SizedBox(width: 1),
+                                            IconButton(
+                                              icon: const Icon(
+                                                Icons.delete,
+                                                color: Colors.red,
+                                              ),
+                                              onPressed: () async {
+                                                final ok = await showDialog<bool>(
+                                                  context: context,
+                                                  builder: (ctx3) =>
+                                                      AlertDialog(
                                                         title: const Text(
                                                           'Usuń projekt?',
                                                         ),
-
                                                         content: Text(title),
                                                         actions: [
                                                           TextButton(
@@ -967,7 +976,6 @@ class _ContactDetailScreenState extends State<ContactDetailScreen> {
                                                               'Anuluj',
                                                             ),
                                                           ),
-
                                                           ElevatedButton(
                                                             onPressed: () =>
                                                                 Navigator.pop(
@@ -984,152 +992,267 @@ class _ContactDetailScreenState extends State<ContactDetailScreen> {
                                                           ),
                                                         ],
                                                       ),
-                                                    );
-                                                    if (ok == true) {
-                                                      await d.reference
-                                                          .delete();
-                                                      ScaffoldMessenger.of(
-                                                        context,
-                                                      ).showSnackBar(
-                                                        const SnackBar(
-                                                          content: Text(
-                                                            'Projekt usunięty',
-                                                          ),
-                                                        ),
-                                                      );
-                                                    }
-                                                  },
-                                                  padding: EdgeInsets.zero,
-                                                  constraints: BoxConstraints(),
-                                                  iconSize: 25,
-                                                  visualDensity:
-                                                      VisualDensity.compact,
-                                                ),
-                                              ],
-                                            ],
-                                          ),
-                                        );
-                                      },
-                                    ),
-                                  );
-                                },
-                              ),
-                          ],
-                        ),
-                      ),
+                                                );
+                                                if (ok == true) {
+                                                  await d.reference.delete();
+                                                  ScaffoldMessenger.of(
+                                                    context,
+                                                  ).showSnackBar(
+                                                    const SnackBar(
+                                                      content: Text(
+                                                        'Projekt usunięty',
+                                                      ),
+                                                    ),
+                                                  );
+                                                }
+                                              },
+                                              padding: EdgeInsets.zero,
+                                              constraints:
+                                                  const BoxConstraints(),
+                                              iconSize: 25,
+                                              visualDensity:
+                                                  VisualDensity.compact,
+                                            ),
+                                          ],
+                                        ],
+                                      ),
+                                    );
+                                  },
+                                ),
+                              );
+                            },
+                          ),
+                      ],
+                    ),
+                  ),
 
-                      // === Kontakty Tab ===
-                      // === Kontakty Tab ===
-                      custId == null
-                          ? const Center(
-                              child: Text('Brak powiązanego klienta'),
-                            )
-                          : StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
-                              stream: (() {
-                                try {
-                                  return FirebaseFirestore.instance
-                                      .collectionGroup('projects')
-                                      .where('customerId', isEqualTo: custId)
-                                      .get()
-                                      .asStream();
-                                } catch (e, st) {
-                                  debugPrint('FIRESTORE ERROR: $e\n$st');
-                                  rethrow;
-                                }
-                              })(),
-                              builder: (context, projectSnap) {
-                                if (projectSnap.connectionState ==
+                  // === Kontakty Tab ===
+                  custId == null
+                      ? const Center(child: Text('Brak powiązanego klienta'))
+                      : StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
+                          stream: (() {
+                            try {
+                              return FirebaseFirestore.instance
+                                  .collectionGroup('projects')
+                                  .where('customerId', isEqualTo: custId)
+                                  .get()
+                                  .asStream();
+                            } catch (e, st) {
+                              debugPrint('FIRESTORE ERROR: $e\n$st');
+                              rethrow;
+                            }
+                          })(),
+                          builder: (context, projectSnap) {
+                            if (projectSnap.connectionState ==
+                                ConnectionState.waiting) {
+                              return const Center(
+                                child: CircularProgressIndicator(),
+                              );
+                            }
+                            if (projectSnap.hasError) {
+                              return Center(
+                                child: Text('Error: ${projectSnap.error}'),
+                              );
+                            }
+                            final projectIds = projectSnap.data!.docs
+                                .map((d) => d.id)
+                                .toList();
+
+                            return StreamBuilder<
+                              QuerySnapshot<Map<String, dynamic>>
+                            >(
+                              stream: FirebaseFirestore.instance
+                                  .collection('contacts')
+                                  .orderBy('name')
+                                  .snapshots(),
+                              builder: (context, contactSnap) {
+                                if (contactSnap.connectionState ==
                                     ConnectionState.waiting) {
                                   return const Center(
                                     child: CircularProgressIndicator(),
                                   );
                                 }
-                                if (projectSnap.hasError) {
+                                if (contactSnap.hasError) {
                                   return Center(
-                                    child: Text('Error: ${projectSnap.error}'),
+                                    child: Text('Error: ${contactSnap.error}'),
                                   );
                                 }
-                                final projectIds = projectSnap.data!.docs
-                                    .map((d) => d.id)
-                                    .toList();
 
-                                return StreamBuilder<
-                                  QuerySnapshot<Map<String, dynamic>>
-                                >(
-                                  stream: FirebaseFirestore.instance
-                                      .collection('contacts')
-                                      .orderBy('name')
-                                      .snapshots(),
-                                  builder: (context, contactSnap) {
-                                    if (contactSnap.connectionState ==
-                                        ConnectionState.waiting) {
-                                      return const Center(
-                                        child: CircularProgressIndicator(),
-                                      );
-                                    }
-                                    if (contactSnap.hasError) {
-                                      return Center(
-                                        child: Text(
-                                          'Error: ${contactSnap.error}',
-                                        ),
-                                      );
-                                    }
+                                final allContacts = contactSnap.data!.docs;
 
-                                    final docs = contactSnap.data!.docs.where((
-                                      doc,
-                                    ) {
-                                      final data = doc.data();
-                                      if (doc.id == widget.contactId) {
-                                        return false;
-                                      }
-                                      final linkedCustomerId =
-                                          data['linkedCustomerId'] as String?;
-                                      final linkedProjects = List<String>.from(
-                                        data['linkedProjectIds'] ?? [],
-                                      );
-                                      final directLink =
-                                          linkedCustomerId == custId;
-                                      final projectLink = linkedProjects.any(
-                                        (id) => projectIds.contains(id),
-                                      );
-                                      return directLink || projectLink;
-                                    }).toList();
+                                QueryDocumentSnapshot<Map<String, dynamic>>?
+                                mainContactDoc;
+                                final otherDocs =
+                                    <
+                                      QueryDocumentSnapshot<
+                                        Map<String, dynamic>
+                                      >
+                                    >[];
 
-                                    if (docs.isEmpty) {
-                                      return const Center(
-                                        child: Text('Brak kontaktów.'),
-                                      );
-                                    }
+                                for (final doc in allContacts) {
+                                  final cdata = doc.data();
+                                  final linkedCustomerId =
+                                      cdata['linkedCustomerId'] as String?;
+                                  final linkedProjects = List<String>.from(
+                                    cdata['linkedProjectIds'] ?? [],
+                                  );
+                                  final directLink = linkedCustomerId == custId;
+                                  final projectLink = linkedProjects.any(
+                                    (id) => projectIds.contains(id),
+                                  );
 
-                                    return ListView.separated(
-                                      itemCount: docs.length,
-                                      separatorBuilder: (_, __) =>
-                                          const Divider(height: 1),
-                                      itemBuilder: (_, i) {
-                                        final contact = docs[i].data();
-                                        final phone =
-                                            (contact['phone'] ?? '') as String;
-                                        final email =
-                                            (contact['email'] ?? '') as String;
+                                  if (!(directLink || projectLink)) continue;
 
-                                        return ListTile(
-                                          title: Text(
-                                            contact['name'] ?? '',
-                                            style: const TextStyle(
-                                              fontWeight: FontWeight.bold,
-                                              fontSize: 20,
+                                  if (doc.id == widget.contactId) {
+                                    mainContactDoc = doc;
+                                  } else {
+                                    otherDocs.add(doc);
+                                  }
+                                }
+                                final docs =
+                                    <
+                                      QueryDocumentSnapshot<
+                                        Map<String, dynamic>
+                                      >
+                                    >[
+                                      if (mainContactDoc != null)
+                                        mainContactDoc,
+                                      ...otherDocs,
+                                    ];
+
+                                return ListView.separated(
+                                  itemCount: docs.length,
+                                  separatorBuilder: (_, __) =>
+                                      const Divider(height: 1),
+                                  itemBuilder: (_, i) {
+                                    final contact = docs[i].data();
+                                    final phone =
+                                        (contact['phone'] ?? '') as String;
+                                    final email =
+                                        (contact['email'] ?? '') as String;
+                                    final canSelect = email.isNotEmpty;
+                                    final selected = _selectedContactEmails
+                                        .contains(email);
+                                    final isMainContact =
+                                        docs[i].id == widget.contactId;
+                                    final theme = Theme.of(context);
+
+                                    return Container(
+                                      decoration: isMainContact
+                                          ? BoxDecoration(
+                                              color: theme.colorScheme.primary
+                                                  .withOpacity(0.06),
+                                              border: Border(
+                                                left: BorderSide(
+                                                  color:
+                                                      theme.colorScheme.primary,
+                                                  width: 4,
+                                                ),
+                                              ),
+                                            )
+                                          : null,
+                                      child: ListTile(
+                                        leading: _isSelectingContacts
+                                            ? Checkbox(
+                                                value: canSelect && selected,
+                                                onChanged: canSelect
+                                                    ? (val) {
+                                                        final nowSelected =
+                                                            val ?? false;
+
+                                                        if (!nowSelected &&
+                                                            !selected &&
+                                                            !canSelect) {
+                                                          messenger.showSnackBar(
+                                                            const SnackBar(
+                                                              content: Text(
+                                                                'Kontakt nie ma emailu przeciez :/',
+                                                              ),
+                                                            ),
+                                                          );
+                                                          return;
+                                                        }
+
+                                                        setState(() {
+                                                          if (nowSelected) {
+                                                            _selectedContactEmails
+                                                                .add(email);
+                                                          } else {
+                                                            _selectedContactEmails
+                                                                .remove(email);
+                                                          }
+                                                        });
+                                                      }
+                                                    : null,
+                                              )
+                                            : (isMainContact
+                                                  ? const Icon(
+                                                      Icons.person_pin_circle,
+                                                      color: Colors.deepOrange,
+                                                    )
+                                                  : null),
+
+                                        title: Row(
+                                          children: [
+                                            if (isMainContact)
+                                              Container(
+                                                margin: const EdgeInsets.only(
+                                                  right: 8,
+                                                ),
+                                                padding:
+                                                    const EdgeInsets.symmetric(
+                                                      horizontal: 6,
+                                                      vertical: 2,
+                                                    ),
+                                                decoration: BoxDecoration(
+                                                  color: Colors.deepOrange
+                                                      .withValues(alpha: 0.15),
+                                                  borderRadius:
+                                                      BorderRadius.circular(8),
+                                                ),
+                                                child: const Text(
+                                                  'GŁÓWNY',
+                                                  style: TextStyle(
+                                                    fontSize: 10,
+                                                    fontWeight: FontWeight.bold,
+                                                    letterSpacing: 0.5,
+                                                  ),
+                                                ),
+                                              ),
+                                            Expanded(
+                                              child: Text(
+                                                contact['name'] ?? '',
+                                                style: TextStyle(
+                                                  fontWeight: FontWeight.bold,
+                                                  fontSize: 20,
+                                                  color: isMainContact
+                                                      ? theme
+                                                            .colorScheme
+                                                            .primary
+                                                      : null,
+                                                ),
+                                              ),
                                             ),
-                                          ),
-                                          subtitle: Column(
-                                            crossAxisAlignment:
-                                                CrossAxisAlignment.start,
-                                            children: [
-                                              if (phone.isNotEmpty)
-                                                Padding(
-                                                  padding:
-                                                      const EdgeInsets.only(
-                                                        left: 20,
-                                                      ),
+                                          ],
+                                        ),
+
+                                        subtitle: Column(
+                                          crossAxisAlignment:
+                                              CrossAxisAlignment.start,
+                                          children: [
+                                            if (phone.isNotEmpty)
+                                              Padding(
+                                                padding: const EdgeInsets.only(
+                                                  left: 20,
+                                                ),
+                                                child: InkWell(
+                                                  onTap: _isSelectingContacts
+                                                      ? null
+                                                      : () => openUri(
+                                                          Uri.parse(
+                                                            'tel:$phone',
+                                                          ),
+                                                        ),
                                                   child: Row(
                                                     mainAxisSize:
                                                         MainAxisSize.min,
@@ -1149,15 +1272,24 @@ class _ContactDetailScreenState extends State<ContactDetailScreen> {
                                                     ],
                                                   ),
                                                 ),
-                                              if (phone.isNotEmpty &&
-                                                  email.isNotEmpty)
-                                                const SizedBox(height: 4),
-                                              if (email.isNotEmpty)
-                                                Padding(
-                                                  padding:
-                                                      const EdgeInsets.only(
-                                                        left: 20,
-                                                      ),
+                                              ),
+
+                                            if (phone.isNotEmpty &&
+                                                email.isNotEmpty)
+                                              const SizedBox(height: 4),
+                                            if (email.isNotEmpty)
+                                              Padding(
+                                                padding: const EdgeInsets.only(
+                                                  left: 20,
+                                                ),
+                                                child: InkWell(
+                                                  onTap: _isSelectingContacts
+                                                      ? null
+                                                      : () => openUri(
+                                                          Uri.parse(
+                                                            'mailto:$email',
+                                                          ),
+                                                        ),
                                                   child: Row(
                                                     mainAxisSize:
                                                         MainAxisSize.min,
@@ -1177,69 +1309,76 @@ class _ContactDetailScreenState extends State<ContactDetailScreen> {
                                                     ],
                                                   ),
                                                 ),
-                                            ],
-                                          ),
-                                          trailing: Text(
-                                            contact['contactType'] ?? '-',
-                                            style: const TextStyle(
-                                              fontSize: 15,
+                                              ),
+                                          ],
+                                        ),
+
+                                        trailing: Column(
+                                          mainAxisAlignment:
+                                              MainAxisAlignment.center,
+                                          crossAxisAlignment:
+                                              CrossAxisAlignment.end,
+                                          children: [
+                                            Text(
+                                              contact['contactType'] ?? '-',
+                                              style: const TextStyle(
+                                                fontSize: 15,
+                                              ),
                                             ),
-                                          ),
-                                          onTap: () => _showEditContactDialog(
-                                            context,
-                                            docs[i],
-                                          ),
-                                        );
-                                      },
+                                            if (isMainContact)
+                                              const SizedBox(height: 2),
+                                            if (isMainContact)
+                                              Text(
+                                                'Główny kontakt',
+                                                style: TextStyle(
+                                                  fontSize: 11,
+                                                  color:
+                                                      theme.colorScheme.primary,
+                                                  fontStyle: FontStyle.italic,
+                                                ),
+                                              ),
+                                          ],
+                                        ),
+
+                                        onTap: _isSelectingContacts
+                                            ? () {
+                                                if (email.isEmpty) {
+                                                  messenger.showSnackBar(
+                                                    const SnackBar(
+                                                      content: Text(
+                                                        'Ten kontakt nie ma emailu',
+                                                      ),
+                                                    ),
+                                                  );
+                                                  return;
+                                                }
+                                                setState(() {
+                                                  if (selected) {
+                                                    _selectedContactEmails
+                                                        .remove(email);
+                                                  } else {
+                                                    _selectedContactEmails.add(
+                                                      email,
+                                                    );
+                                                  }
+                                                });
+                                              }
+                                            : () => _showEditContactDialog(
+                                                context,
+                                                docs[i],
+                                              ),
+                                      ),
                                     );
                                   },
                                 );
                               },
-                            ),
-                    ],
-                  ),
-
-                  // bottomNavigationBar: SafeArea(
-                  //   child: BottomAppBar(
-                  //     shape: const CircularNotchedRectangle(),
-                  //     notchMargin: 6,
-                  //     child: Padding(
-                  //       padding: const EdgeInsets.symmetric(horizontal: 32.0),
-                  //       child: Row(
-                  //         mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  //         children: [
-                  //           IconButton(
-                  //             tooltip: 'Klienci',
-                  //             icon: const Icon(Icons.people),
-                  //             onPressed: () => Navigator.of(context).push(
-                  //               MaterialPageRoute(
-                  //                 builder: (_) => CustomerListScreen(isAdmin: isAdmin),
-                  //               ),
-                  //             ),
-                  //           ),
-                  //           IconButton(
-                  //             tooltip: 'Projekty',
-                  //             icon: const Icon(Icons.folder_open),
-                  //             onPressed: custId == null
-                  //                 ? null
-                  //                 : () => Navigator.of(context).push(
-                  //                     MaterialPageRoute(
-                  //                       builder: (_) => ContactDetailScreen(
-                  //                         contactId: contactId,
-                  //                         isAdmin: isAdmin,
-                  //                       ),
-                  //                     ),
-                  //                   ),
-                  //           ),
-                  //         ],
-                  //       ),
-                  //     ),
-                  //   ),
-                  // ),
-                ),
-              );
-            },
-          ),
+                            );
+                          },
+                        ),
+                ],
+              ),
+            );
+          },
         );
       },
     );

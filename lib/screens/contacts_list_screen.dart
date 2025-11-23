@@ -211,11 +211,15 @@ class _ContactsListScreenState extends State<ContactsListScreen> {
                 const SizedBox(height: 2),
 
                 ...tempSet.map((projId) {
+                  // skip if missing project
+                  final matching = allProjects.where((d) => d.id == projId);
+                  if (matching.isEmpty) {
+                    return const SizedBox.shrink();
+                  }
+
                   final title =
-                      allProjects
-                              .firstWhere((d) => d.id == projId)
-                              .data()['title']
-                          as String;
+                      matching.first.data()['title'] as String? ?? '—';
+
                   return Padding(
                     padding: const EdgeInsets.only(bottom: 1),
                     child: InputChip(
@@ -637,7 +641,25 @@ class _ContactsListScreenState extends State<ContactsListScreen> {
                                           ],
                                         ],
                                       ),
-                                      trailing: Text(contactType),
+                                      trailing: ConstrainedBox(
+                                        constraints: const BoxConstraints(
+                                          maxWidth: 100,
+                                        ),
+                                        child: Text(
+                                          contactType,
+                                          textAlign: TextAlign.right,
+                                          softWrap: true,
+                                          maxLines: 3,
+                                          overflow: TextOverflow.ellipsis,
+                                          style: const TextStyle(
+                                            fontSize: 13,
+                                            fontWeight: FontWeight.bold,
+                                            fontStyle: FontStyle.italic,
+                                            color: Colors.grey,
+                                          ),
+                                        ),
+                                      ),
+
                                       onTap: () {
                                         if (contactType.toLowerCase() ==
                                             'klient') {
@@ -807,15 +829,25 @@ class _ContactsListScreenState extends State<ContactsListScreen> {
                                       ],
                                     ],
                                   ),
-                                  trailing: Text(
-                                    contactType,
-                                    style: TextStyle(
-                                      fontSize: 13,
-                                      fontWeight: FontWeight.bold,
-                                      fontStyle: FontStyle.italic,
-                                      color: Colors.grey,
+                                  trailing: ConstrainedBox(
+                                    constraints: const BoxConstraints(
+                                      maxWidth: 100,
+                                    ),
+                                    child: Text(
+                                      contactType.replaceAll(' ', '\n'),
+                                      textAlign: TextAlign.right,
+                                      softWrap: true,
+                                      maxLines: 3,
+                                      overflow: TextOverflow.ellipsis,
+                                      style: const TextStyle(
+                                        fontSize: 12,
+                                        fontWeight: FontWeight.bold,
+                                        fontStyle: FontStyle.italic,
+                                        color: Colors.grey,
+                                      ),
                                     ),
                                   ),
+
                                   onTap: () {
                                     if (contactType.toLowerCase() == 'klient') {
                                       Navigator.of(context).push(

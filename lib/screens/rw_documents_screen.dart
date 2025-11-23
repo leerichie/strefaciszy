@@ -15,8 +15,8 @@ import 'package:strefa_ciszy/services/file_saver.dart';
 import 'package:strefa_ciszy/utils/colour_utils.dart';
 import 'package:strefa_ciszy/utils/keyboard_utils.dart';
 import 'package:strefa_ciszy/widgets/app_scaffold.dart';
-import 'package:syncfusion_flutter_xlsio/xlsio.dart' as xlsio;
 import 'package:strefa_ciszy/widgets/audit_log_list.dart';
+import 'package:syncfusion_flutter_xlsio/xlsio.dart' as xlsio;
 
 class RWDocumentsScreen extends StatefulWidget {
   final String? customerId;
@@ -160,7 +160,7 @@ class _RWDocumentsScreenState extends State<RWDocumentsScreen> {
       //   child: const Icon(Icons.swap_horiz, size: 32),
       // ),
       floatingActionButtonLocation: FloatingActionButtonLocation.centerFloat,
-
+      showBackOnWeb: true,
       title: '',
       titleWidget: titleWidg,
       centreTitle: true,
@@ -491,8 +491,6 @@ class _RWDocumentsScreenState extends State<RWDocumentsScreen> {
                                         ),
 
                                         const SizedBox(width: 8),
-
-                                       
                                       ],
                                     ),
 

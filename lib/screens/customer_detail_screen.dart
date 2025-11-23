@@ -354,6 +354,7 @@ class _CustomerDetailScreenState extends State<CustomerDetailScreen> {
         child: const Icon(Icons.playlist_add),
       ),
       floatingActionButtonLocation: FloatingActionButtonLocation.centerFloat,
+
       title: '',
       showBackOnWeb: true,
       titleWidget: titleStreamWidget,

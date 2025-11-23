@@ -1,5 +1,5 @@
-import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:flutter/material.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 import 'package:strefa_ciszy/screens/main_menu_screen.dart';
 
@@ -173,7 +173,7 @@ class _LoginScreenState extends State<LoginScreen> {
               bottom: 8,
               right: 12,
               child: Image.asset(
-                'assets/images/Lee_logo_app_dev.png',
+                'assets/images/dev_logo.png',
                 width: 80,
                 fit: BoxFit.contain,
               ),

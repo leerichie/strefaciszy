@@ -29,6 +29,7 @@ class _ReportsScreenState extends State<ReportsScreen> {
   @override
   Widget build(BuildContext context) {
     return AppScaffold(
+      showBackOnWeb: true,
       title: title,
       centreTitle: true,
 

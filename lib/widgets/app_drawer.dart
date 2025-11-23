@@ -2,7 +2,6 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
-import 'package:strefa_ciszy/screens/add_contact_screen.dart';
 import 'package:strefa_ciszy/screens/contact_detail_screen.dart';
 import 'package:strefa_ciszy/screens/contacts_list_screen.dart';
 import 'package:strefa_ciszy/screens/customer_detail_screen.dart';
@@ -11,7 +10,7 @@ import 'package:strefa_ciszy/screens/inventory_list_screen.dart';
 import 'package:strefa_ciszy/screens/login_screen.dart';
 import 'package:strefa_ciszy/screens/main_menu_screen.dart';
 import 'package:strefa_ciszy/screens/project_editor_screen.dart';
-import 'package:strefa_ciszy/screens/scan_screen.dart';
+import 'package:strefa_ciszy/screens/projects_list_screen.dart';
 
 class AppDrawer extends StatefulWidget {
   const AppDrawer({super.key});
@@ -24,10 +23,41 @@ class AppDrawer extends StatefulWidget {
 }
 
 class _AppDrawerState extends State<AppDrawer> {
+  static bool _magExpanded = false;
+  static bool _klientExpanded = false;
+  static bool _klientFavExpanded = false;
+  static bool _kontaktExpanded = false;
+  static bool _projectExpanded = false;
+  static bool _projectFavExpanded = false;
+  final _favProjectsController = ExpansibleController();
+  final _favCustomersController = ExpansibleController();
+  final _magController = ExpansibleController();
+  final _clientsController = ExpansibleController();
+  final _contactsController = ExpansibleController();
+  final _projectsController = ExpansibleController();
+
   @override
   void initState() {
     super.initState();
     _cleanupFavorites();
+  }
+
+  void _collapseAll() {
+    _favProjectsController.collapse();
+    _favCustomersController.collapse();
+    _magController.collapse();
+    _clientsController.collapse();
+    _contactsController.collapse();
+    _projectsController.collapse();
+
+    setState(() {
+      _magExpanded = false;
+      _klientExpanded = false;
+      _klientFavExpanded = false;
+      _kontaktExpanded = false;
+      _projectExpanded = false;
+      _projectFavExpanded = false;
+    });
   }
 
   // remove flicker for screen change
@@ -194,12 +224,16 @@ class _AppDrawerState extends State<AppDrawer> {
               child: ListView(
                 padding: EdgeInsets.zero,
                 children: [
-                  Container(
-                    height: 100,
-                    decoration: const BoxDecoration(
-                      image: DecorationImage(
-                        image: AssetImage('assets/favicon/Icon-512.png'),
-                        fit: BoxFit.scaleDown,
+                  // tap to collapse all submenus
+                  InkWell(
+                    onTap: _collapseAll,
+                    child: Container(
+                      height: 100,
+                      decoration: const BoxDecoration(
+                        image: DecorationImage(
+                          image: AssetImage('assets/favicon/Icon-512.png'),
+                          fit: BoxFit.scaleDown,
+                        ),
                       ),
                     ),
                   ),
@@ -213,213 +247,7 @@ class _AppDrawerState extends State<AppDrawer> {
                         _openPage(context, const MainMenuScreen(role: 'admin')),
                   ),
 
-                  // — Magazyn expansion
-                  Theme(
-                    data: Theme.of(context).copyWith(
-                      dividerColor: Colors.transparent,
-                      unselectedWidgetColor: Colors.white70,
-                      colorScheme: const ColorScheme.dark(
-                        primary: Colors.tealAccent,
-                        onSurface: Colors.white,
-                      ),
-                    ),
-                    child: ExpansionTile(
-                      leading: const Icon(
-                        Icons.inventory_2_outlined,
-                        color: Colors.white,
-                      ),
-                      title: Text('Magazyn', style: menuTitles),
-                      childrenPadding: const EdgeInsets.only(left: 16),
-                      children: [
-                        ListTile(
-                          leading: const Icon(Icons.list, color: Colors.white),
-                          title: Text('List produktów', style: menuTitles),
-                          onTap: () => _openPage(
-                            context,
-                            const InventoryListScreen(isAdmin: true),
-                          ),
-                        ),
-
-                        ListTile(
-                          leading: const Icon(
-                            Icons.qr_code_scanner,
-                            color: Colors.white,
-                          ),
-                          title: Text('Dodać produkt', style: menuTitles),
-                          onTap: () => _openPage(
-                            context,
-                            const ScanScreen(purpose: ScanPurpose.add),
-                          ),
-                        ),
-                        ListTile(
-                          leading: const Icon(
-                            Icons.qr_code_scanner,
-                            color: Colors.white,
-                          ),
-                          title: Text('Wyszukaj produkt', style: menuTitles),
-                          onTap: () => _openPage(
-                            context,
-                            const ScanScreen(purpose: ScanPurpose.search),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-
-                  // — Klienci
-                  Theme(
-                    data: Theme.of(context).copyWith(
-                      dividerColor: Colors.transparent,
-                      unselectedWidgetColor: Colors.white70,
-                      colorScheme: const ColorScheme.dark(
-                        primary: Colors.tealAccent,
-                        onSurface: Colors.white,
-                      ),
-                    ),
-                    child: ExpansionTile(
-                      leading: const Icon(
-                        Icons.person_2_outlined,
-                        color: Colors.white,
-                      ),
-                      title: Text('Klienci', style: menuTitles),
-                      childrenPadding: const EdgeInsets.only(left: 16),
-                      children: [
-                        ListTile(
-                          leading: const Icon(
-                            Icons.my_library_books_rounded,
-                            color: Colors.white,
-                          ),
-                          title: Text('List klientów', style: menuTitles),
-                          onTap: () => _openPage(
-                            context,
-                            const CustomerListScreen(isAdmin: true),
-                          ),
-                        ),
-                        ListTile(
-                          leading: const Icon(
-                            Icons.person_add,
-                            color: Colors.white,
-                          ),
-                          title: Text('Dodaj klient', style: menuTitles),
-                          onTap: () => _openPage(
-                            context,
-                            const AddContactScreen(isAdmin: true),
-                          ),
-                        ),
-
-                        if (uid != null)
-                          StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
-                            stream: FirebaseFirestore.instance
-                                .collection('users')
-                                .doc(uid)
-                                .collection(AppDrawer.favCustomer)
-                                .orderBy('name')
-                                .snapshots(),
-                            builder: (ctx, snap) {
-                              if (snap.connectionState ==
-                                  ConnectionState.waiting) {
-                                return const Padding(
-                                  padding: EdgeInsets.symmetric(vertical: 8),
-                                  child: Center(
-                                    child: CircularProgressIndicator(),
-                                  ),
-                                );
-                              }
-                              final favDocs = snap.data?.docs ?? [];
-                              if (favDocs.isEmpty) {
-                                return const SizedBox.shrink();
-                              }
-
-                              return ExpansionTile(
-                                leading: const Icon(
-                                  Icons.star,
-                                  color: Colors.amber,
-                                ),
-                                title: Text(
-                                  'Ulubione klienci',
-                                  style: menuTitles,
-                                ),
-                                childrenPadding: const EdgeInsets.only(
-                                  left: 16,
-                                ),
-                                children: favDocs.map((d) {
-                                  final data = d.data();
-                                  final name = data['name'] as String? ?? '—';
-                                  // final contactId =
-                                  //     (data['contactId'] as String?)?.trim();
-
-                                  return ListTile(
-                                    contentPadding: EdgeInsets.zero,
-                                    leading: const SizedBox(width: 24),
-                                    title: Text(name, style: menuTitles),
-                                    onTap: () => _openCustomerFromFavourite(
-                                      context,
-                                      d.id,
-                                    ),
-                                    onLongPress: () => _removeFavourite(
-                                      context,
-                                      uid: uid,
-                                      collection: AppDrawer.favCustomer,
-                                      docId: d.id,
-                                      name: name,
-                                    ),
-                                  );
-                                }).toList(),
-                              );
-                            },
-                          ),
-                      ],
-                    ),
-                  ),
-
-                  // — Kontakty expansion
-                  Theme(
-                    data: Theme.of(context).copyWith(
-                      dividerColor: Colors.transparent,
-                      unselectedWidgetColor: Colors.white70,
-                      colorScheme: const ColorScheme.dark(
-                        primary: Colors.tealAccent,
-                        onSurface: Colors.white,
-                      ),
-                    ),
-                    child: ExpansionTile(
-                      leading: const Icon(
-                        Icons.contact_phone_outlined,
-                        color: Colors.white,
-                      ),
-                      title: Text('Kontakty', style: menuTitles),
-                      childrenPadding: const EdgeInsets.only(left: 16),
-                      children: [
-                        ListTile(
-                          leading: const Icon(
-                            Icons.people,
-                            color: Colors.white,
-                          ),
-                          title: Text('List kontaktów', style: menuTitles),
-                          onTap: () => _openPage(
-                            context,
-                            const ContactsListScreen(isAdmin: true),
-                          ),
-                        ),
-                        ListTile(
-                          leading: const Icon(
-                            Icons.person_add_alt,
-                            color: Colors.white,
-                          ),
-                          title: Text('Dodaj kontakt', style: menuTitles),
-                          onTap: () => _openPage(
-                            context,
-                            const AddContactScreen(
-                              isAdmin: true,
-                              forceAsContact: true,
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-
-                  // — Ulubione projekty
+                  // — Ulubione projekt
                   if (uid != null)
                     Theme(
                       data: Theme.of(context).copyWith(
@@ -451,12 +279,20 @@ class _AppDrawerState extends State<AppDrawer> {
                           }
 
                           return ExpansionTile(
+                            controller: _favProjectsController,
                             leading: const Icon(
                               Icons.star,
                               color: Colors.amber,
                             ),
-                            title: Text('Ulubione projekty', style: menuTitles),
+                            title: Text(
+                              'Oznaczone projekty',
+                              style: menuTitles,
+                            ),
                             childrenPadding: const EdgeInsets.only(left: 16),
+                            initiallyExpanded: _projectFavExpanded,
+                            onExpansionChanged: (val) {
+                              setState(() => _projectFavExpanded = val);
+                            },
                             children: docs.isEmpty
                                 ? [
                                     ListTile(
@@ -499,6 +335,272 @@ class _AppDrawerState extends State<AppDrawer> {
                         },
                       ),
                     ),
+
+                  if (uid != null)
+                    Theme(
+                      data: Theme.of(context).copyWith(
+                        dividerColor: Colors.transparent,
+                        unselectedWidgetColor: Colors.white70,
+                        colorScheme: const ColorScheme.dark(
+                          primary: Colors.tealAccent,
+                          onSurface: Colors.white,
+                        ),
+                      ),
+
+                      child: StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
+                        stream: FirebaseFirestore.instance
+                            .collection('users')
+                            .doc(uid)
+                            .collection(AppDrawer.favCustomer)
+                            .orderBy('name')
+                            .snapshots(),
+                        builder: (ctx, snap) {
+                          if (snap.connectionState == ConnectionState.waiting) {
+                            return const Padding(
+                              padding: EdgeInsets.symmetric(vertical: 8),
+                              child: Center(child: CircularProgressIndicator()),
+                            );
+                          }
+                          final favDocs = snap.data?.docs ?? [];
+                          if (favDocs.isEmpty) {
+                            return const SizedBox.shrink();
+                          }
+
+                          return ExpansionTile(
+                            controller: _favCustomersController,
+                            leading: const Icon(
+                              Icons.star,
+                              color: Colors.amber,
+                            ),
+                            title: Text('Oznaczeni klienci', style: menuTitles),
+                            childrenPadding: const EdgeInsets.only(left: 16),
+                            initiallyExpanded: _klientFavExpanded,
+                            onExpansionChanged: (val) {
+                              setState(() => _klientFavExpanded = val);
+                            },
+                            children: favDocs.map((d) {
+                              final data = d.data();
+                              final name = data['name'] as String? ?? '—';
+                              // final contactId =
+                              //     (data['contactId'] as String?)?.trim();
+
+                              return ListTile(
+                                contentPadding: EdgeInsets.zero,
+                                leading: const SizedBox(width: 24),
+                                title: Text(name, style: menuTitles),
+                                onTap: () =>
+                                    _openCustomerFromFavourite(context, d.id),
+                                onLongPress: () => _removeFavourite(
+                                  context,
+                                  uid: uid,
+                                  collection: AppDrawer.favCustomer,
+                                  docId: d.id,
+                                  name: name,
+                                ),
+                              );
+                            }).toList(),
+                          );
+                        },
+                      ),
+                    ),
+
+                  // — Mag
+                  Theme(
+                    data: Theme.of(context).copyWith(
+                      dividerColor: Colors.transparent,
+                      unselectedWidgetColor: Colors.white70,
+                      colorScheme: const ColorScheme.dark(
+                        primary: Colors.tealAccent,
+                        onSurface: Colors.white,
+                      ),
+                    ),
+                    child: ListTile(
+                      leading: const Icon(
+                        Icons.inventory_2_outlined,
+                        color: Colors.white,
+                      ),
+                      title: Text('Produkty', style: menuTitles),
+                      onTap: () => _openPage(
+                        context,
+                        const InventoryListScreen(isAdmin: true),
+                      ),
+                    ),
+                  ),
+
+                  // — Klienci
+                  Theme(
+                    data: Theme.of(context).copyWith(
+                      dividerColor: Colors.transparent,
+                      unselectedWidgetColor: Colors.white70,
+                      colorScheme: const ColorScheme.dark(
+                        primary: Colors.tealAccent,
+                        onSurface: Colors.white,
+                      ),
+                    ),
+                    child: ListTile(
+                      leading: const Icon(Icons.person, color: Colors.white),
+                      title: Text('Klienci', style: menuTitles),
+                      onTap: () => _openPage(
+                        context,
+                        const CustomerListScreen(isAdmin: true),
+                      ),
+                    ),
+                  ),
+
+                  // — Projekty
+                  if (uid != null)
+                    Theme(
+                      data: Theme.of(context).copyWith(
+                        dividerColor: Colors.transparent,
+                        unselectedWidgetColor: Colors.white70,
+                        colorScheme: const ColorScheme.dark(
+                          primary: Colors.tealAccent,
+                          onSurface: Colors.white,
+                        ),
+                      ),
+                      child: ExpansionTile(
+                        controller: _projectsController,
+                        leading: const Icon(
+                          Icons.work_outline,
+                          color: Colors.white,
+                        ),
+                        title: Text('Projekty', style: menuTitles),
+                        childrenPadding: const EdgeInsets.only(left: 16),
+                        initiallyExpanded: _projectExpanded,
+                        onExpansionChanged: (val) {
+                          setState(() => _projectExpanded = val);
+                        },
+                        children: [
+                          ListTile(
+                            leading: const Icon(
+                              Icons.list_alt,
+                              color: Colors.white,
+                            ),
+                            title: Text('Lista projektów', style: menuTitles),
+                            onTap: () => _openPage(
+                              context,
+                              const ProjectsListScreen(isAdmin: true),
+                            ),
+                          ),
+                          const SizedBox(height: 4),
+
+                          // gap between proj and fave
+                          SizedBox(
+                            height: 50,
+                            child:
+                                StreamBuilder<
+                                  QuerySnapshot<Map<String, dynamic>>
+                                >(
+                                  stream: FirebaseFirestore.instance
+                                      .collectionGroup('projects')
+                                      .orderBy('createdAt', descending: true)
+                                      .limit(30)
+                                      .snapshots(),
+                                  builder: (ctx, snap) {
+                                    if (snap.connectionState ==
+                                        ConnectionState.waiting) {
+                                      return const Center(
+                                        child: CircularProgressIndicator(),
+                                      );
+                                    }
+                                    final docs = snap.data?.docs ?? [];
+                                    if (docs.isEmpty) {
+                                      return const Center(
+                                        child: Text(
+                                          'Brak projektów',
+                                          style: TextStyle(
+                                            color: Colors.white70,
+                                            fontSize: 12,
+                                          ),
+                                        ),
+                                      );
+                                    }
+
+                                    return ListView.builder(
+                                      itemCount: docs.length,
+                                      itemBuilder: (ctx, i) {
+                                        final doc = docs[i];
+                                        final data = doc.data();
+                                        final title =
+                                            (data['title'] as String?) ?? '–';
+                                        final customerId =
+                                            doc.reference.parent.parent?.id ??
+                                            '';
+
+                                        return ListTile(
+                                          contentPadding: EdgeInsets.zero,
+                                          leading: const SizedBox(width: 24),
+                                          title: Text(
+                                            title,
+                                            style: menuTitles,
+                                            maxLines: 1,
+                                            overflow: TextOverflow.ellipsis,
+                                          ),
+                                          onTap: () => _openPage(
+                                            context,
+                                            ProjectEditorScreen(
+                                              customerId: customerId,
+                                              projectId: doc.id,
+                                              isAdmin: true,
+                                            ),
+                                          ),
+                                        );
+                                      },
+                                    );
+                                  },
+                                ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  // — Kontakty
+                  Theme(
+                    data: Theme.of(context).copyWith(
+                      dividerColor: Colors.transparent,
+                      unselectedWidgetColor: Colors.white70,
+                      colorScheme: const ColorScheme.dark(
+                        primary: Colors.tealAccent,
+                        onSurface: Colors.white,
+                      ),
+                    ),
+                    child: ListTile(
+                      leading: const Icon(
+                        Icons.contact_phone_outlined,
+                        color: Colors.white,
+                      ),
+                      title: Text('Kontakty', style: menuTitles),
+                      onTap: () => _openPage(
+                        context,
+                        const ContactsListScreen(isAdmin: true),
+                      ),
+                    ),
+                    // child: ExpansionTile(
+                    //   controller: _contactsController,
+                    //   leading: const Icon(
+                    //     Icons.contact_phone_outlined,
+                    //     color: Colors.white,
+                    //   ),
+                    //   title: Text('Kontakty', style: menuTitles),
+                    //   childrenPadding: const EdgeInsets.only(left: 16),
+                    //   initiallyExpanded: _kontaktExpanded,
+                    //   onExpansionChanged: (val) {
+                    //     setState(() => _kontaktExpanded = val);
+                    //   },
+                    //   children: [
+                    //     ListTile(
+                    //       leading: const Icon(
+                    //         Icons.people,
+                    //         color: Colors.white,
+                    //       ),
+                    //       title: Text('List kontaktów', style: menuTitles),
+                    //       onTap: () => _openPage(
+                    //         context,
+                    //         const ContactsListScreen(isAdmin: true),
+                    //       ),
+                    //     ),
+                    //   ],
+                    // ),
+                  ),
                 ],
               ),
             ),
@@ -512,17 +614,10 @@ class _AppDrawerState extends State<AppDrawer> {
               child: Align(
                 alignment: Alignment.bottomRight,
                 child: Image.asset(
-                  'assets/images/Lee_logo_app_dev.png',
+                  'assets/images/dev_logo.png',
                   width: 80,
                   fit: BoxFit.contain,
                 ),
-                // child: Text(
-                //   'developed by LEE',
-                //   style: TextStyle(
-                //     color: Colors.blueGrey,
-                //     fontWeight: FontWeight.bold,
-                //   ),
-                // ),
               ),
             ),
           ],
