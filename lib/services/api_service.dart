@@ -23,9 +23,10 @@ class PagedItems {
 }
 
 class ApiService {
-  static const String _primary = "https://wapro-api.tail52a6fb.ts.net/api";
+  static const String _primary = "https://wapro-api.tail269f3b.ts.net/api";
 
   static const List<String> _nativeFallbacks = [
+    'http://100.66.158.35:9103/api',
     'http://192.168.1.103:9103/api',
     'http://192.168.1.151:9103/api',
     'http://10.0.2.2:9103/api',

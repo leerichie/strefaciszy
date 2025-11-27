@@ -24,9 +24,10 @@ class SetEanResult {
 }
 
 class AdminApi {
-  static const String _primary = 'https://wapro-api.tail52a6fb.ts.net/api';
+  static const String _primary = "https://wapro-api.tail269f3b.ts.net/api";
 
   static const List<String> _fallbacks = [
+    'http://100.66.158.35:9103/api',
     'http://192.168.1.103:9103/api', // Waitress
     'http://192.168.1.151:9103/api', // LAN IP
     'http://10.0.2.2:9103/api', // Android

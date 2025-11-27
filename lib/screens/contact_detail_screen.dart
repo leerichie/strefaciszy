@@ -70,8 +70,8 @@ class _ContactDetailScreenState extends State<ContactDetailScreen>
       return;
     }
 
-    final toParam = _selectedContactEmails.join(',');
-    final uri = Uri(scheme: 'mailto', path: toParam);
+    final toParam = _selectedContactEmails.join(';');
+    final uri = Uri.parse('mailto:$toParam');
 
     if (await canLaunchUrl(uri)) {
       await launchUrl(uri);
@@ -644,7 +644,7 @@ class _ContactDetailScreenState extends State<ContactDetailScreen>
               body: TabBarView(
                 controller: _tabController,
                 children: [
-                  // === Szczegóły Tab ===
+                  //  Szczegóły tab
                   SingleChildScrollView(
                     padding: const EdgeInsets.all(16.0),
                     child: Column(
@@ -1185,12 +1185,7 @@ class _ContactDetailScreenState extends State<ContactDetailScreen>
                                                       }
                                                     : null,
                                               )
-                                            : (isMainContact
-                                                  ? const Icon(
-                                                      Icons.person_pin_circle,
-                                                      color: Colors.deepOrange,
-                                                    )
-                                                  : null),
+                                            : null,
 
                                         title: Row(
                                           children: [
@@ -1224,7 +1219,7 @@ class _ContactDetailScreenState extends State<ContactDetailScreen>
                                                 contact['name'] ?? '',
                                                 style: TextStyle(
                                                   fontWeight: FontWeight.bold,
-                                                  fontSize: 20,
+                                                  fontSize: 17,
                                                   color: isMainContact
                                                       ? theme
                                                             .colorScheme
@@ -1243,7 +1238,7 @@ class _ContactDetailScreenState extends State<ContactDetailScreen>
                                             if (phone.isNotEmpty)
                                               Padding(
                                                 padding: const EdgeInsets.only(
-                                                  left: 20,
+                                                  left: 5,
                                                 ),
                                                 child: InkWell(
                                                   onTap: _isSelectingContacts
@@ -1266,7 +1261,7 @@ class _ContactDetailScreenState extends State<ContactDetailScreen>
                                                       Text(
                                                         phone,
                                                         style: const TextStyle(
-                                                          fontSize: 18,
+                                                          fontSize: 16,
                                                         ),
                                                       ),
                                                     ],
@@ -1280,7 +1275,7 @@ class _ContactDetailScreenState extends State<ContactDetailScreen>
                                             if (email.isNotEmpty)
                                               Padding(
                                                 padding: const EdgeInsets.only(
-                                                  left: 20,
+                                                  left: 5,
                                                 ),
                                                 child: InkWell(
                                                   onTap: _isSelectingContacts
@@ -1300,10 +1295,15 @@ class _ContactDetailScreenState extends State<ContactDetailScreen>
                                                         color: Colors.blue,
                                                       ),
                                                       const SizedBox(width: 10),
-                                                      Text(
-                                                        email,
-                                                        style: const TextStyle(
-                                                          fontSize: 18,
+                                                      Flexible(
+                                                        child: Text(
+                                                          email,
+                                                          style: const TextStyle(
+                                                            fontSize: 16,
+                                                            overflow:
+                                                                TextOverflow
+                                                                    .ellipsis,
+                                                          ),
                                                         ),
                                                       ),
                                                     ],
@@ -1313,31 +1313,25 @@ class _ContactDetailScreenState extends State<ContactDetailScreen>
                                           ],
                                         ),
 
-                                        trailing: Column(
-                                          mainAxisAlignment:
-                                              MainAxisAlignment.center,
-                                          crossAxisAlignment:
-                                              CrossAxisAlignment.end,
-                                          children: [
-                                            Text(
-                                              contact['contactType'] ?? '-',
-                                              style: const TextStyle(
-                                                fontSize: 15,
-                                              ),
+                                        trailing: ConstrainedBox(
+                                          constraints: const BoxConstraints(
+                                            maxWidth: 100,
+                                          ),
+                                          child: Text(
+                                            (contact['contactType'] ?? '-')
+                                                .toString()
+                                                .replaceAll(' ', '\n'),
+                                            textAlign: TextAlign.right,
+                                            softWrap: true,
+                                            maxLines: 3,
+                                            overflow: TextOverflow.ellipsis,
+                                            style: const TextStyle(
+                                              fontSize: 12,
+                                              fontWeight: FontWeight.bold,
+                                              fontStyle: FontStyle.italic,
+                                              color: Colors.grey,
                                             ),
-                                            if (isMainContact)
-                                              const SizedBox(height: 2),
-                                            if (isMainContact)
-                                              Text(
-                                                'Główny kontakt',
-                                                style: TextStyle(
-                                                  fontSize: 11,
-                                                  color:
-                                                      theme.colorScheme.primary,
-                                                  fontStyle: FontStyle.italic,
-                                                ),
-                                              ),
-                                          ],
+                                          ),
                                         ),
 
                                         onTap: _isSelectingContacts

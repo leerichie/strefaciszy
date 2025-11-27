@@ -19,18 +19,6 @@ SyncOrchestrator? _syncOrchestrator;
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  await warmProductCache();
-
-  //// for editing backend -----
-  // await ApiService.init();
-  // await AdminApi.init();
-
-  try {
-    await warmProductCache();
-  } catch (e, st) {
-    debugPrint('warmProductCache error: $e');
-    debugPrint('$st');
-  }
 
   await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
 
@@ -49,6 +37,13 @@ void main() async {
 }
 
 Future<void> _postBootstrap() async {
+  try {
+    await warmProductCache();
+  } catch (e, st) {
+    debugPrint('warmProductCache error: $e');
+    debugPrint('$st');
+  }
+
   try {
     await ApiService.init();
     await AdminApi.init();
