@@ -1846,7 +1846,7 @@ class _ProjectEditorScreenState extends State<ProjectEditorScreen> {
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
               IconButton(
-                icon: const Icon(Icons.density_small_sharp),
+                icon: const Icon(Icons.map_outlined),
                 tooltip: kIsWeb ? null : 'Opis projektu',
                 onPressed: () {
                   Navigator.of(context).push(

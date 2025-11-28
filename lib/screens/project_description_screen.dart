@@ -13,6 +13,7 @@ import 'package:firebase_storage/firebase_storage.dart';
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_dropzone/flutter_dropzone.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:http/http.dart' as http;
 import 'package:image_picker/image_picker.dart';
@@ -20,13 +21,17 @@ import 'package:open_file/open_file.dart';
 import 'package:path/path.dart' as p;
 import 'package:path_provider/path_provider.dart';
 import 'package:strefa_ciszy/screens/location_picker_screen.dart';
+import 'package:strefa_ciszy/services/one_drive_link.dart';
 import 'package:strefa_ciszy/services/storage_service.dart';
 import 'package:strefa_ciszy/utils/keyboard_utils.dart';
 import 'package:strefa_ciszy/widgets/app_drawer.dart';
 import 'package:strefa_ciszy/widgets/app_scaffold.dart';
+import 'package:strefa_ciszy/widgets/one_drive_link_button.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 enum _PhotoSource { camera, gallery }
+
+enum _FileSort { original, dateNewest, type }
 
 class NoSwipeCupertinoRoute<T> extends CupertinoPageRoute<T> {
   NoSwipeCupertinoRoute({required super.builder});
@@ -60,6 +65,8 @@ class _ProjectDescriptionScreenState extends State<ProjectDescriptionScreen> {
   bool _loading = true;
   final bool _saving = false;
   bool _uploading = false;
+  DropzoneViewController? _dropzoneController;
+  bool _dropHighlight = false;
   final _addressCtrl = TextEditingController();
   GoogleMapController? _mapController;
   String _customerName = '';
@@ -72,6 +79,9 @@ class _ProjectDescriptionScreenState extends State<ProjectDescriptionScreen> {
   final _storageService = StorageService();
   Timer? _descDebounce;
   late final VoidCallback _descListener;
+  String? _oneDriveUrl;
+
+  _FileSort _fileSort = _FileSort.original;
 
   StreamSubscription<DocumentSnapshot<Map<String, dynamic>>>? _locSub;
 
@@ -108,6 +118,518 @@ class _ProjectDescriptionScreenState extends State<ProjectDescriptionScreen> {
             });
           }
         });
+  }
+
+  Future<void> _downloadFile(String url, String fileName) async {
+    if (kIsWeb) {
+      // On web, open in new tab as well; the viewer will give a download button.
+      // (If the server forces attachment, this will just download directly.)
+      final uri = Uri.parse(url);
+      await launchUrl(
+        uri,
+        mode: LaunchMode.platformDefault,
+        webOnlyWindowName: '_blank',
+      );
+      return;
+    }
+
+    try {
+      final tempDir = await getTemporaryDirectory();
+      final filePath = '${tempDir.path}/$fileName';
+
+      final response = await http.get(Uri.parse(url));
+      final file = io.File(filePath);
+      await file.writeAsBytes(response.bodyBytes);
+
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('Zapisano do pliku: $fileName')));
+    } catch (e) {
+      debugPrint('Failed to download file: $e');
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('Nie można pobrać pliku')));
+    }
+  }
+
+  List<int> _getFileOrder() {
+    final idxs = List<int>.generate(_files.length, (i) => i);
+
+    switch (_fileSort) {
+      case _FileSort.original:
+        return idxs;
+
+      case _FileSort.dateNewest:
+        idxs.sort((a, b) => b.compareTo(a));
+        return idxs;
+
+      case _FileSort.type:
+        idxs.sort((a, b) {
+          final nameA = _files[a]['name'] ?? '';
+          final nameB = _files[b]['name'] ?? '';
+
+          final extA = p.extension(nameA).toLowerCase();
+          final extB = p.extension(nameB).toLowerCase();
+
+          final cmpExt = extA.compareTo(extB);
+          if (cmpExt != 0) return cmpExt;
+
+          return nameA.toLowerCase().compareTo(nameB.toLowerCase());
+        });
+        return idxs;
+    }
+  }
+
+  Future<void> _onOneDriveLinkPressed() async {
+    final controller = TextEditingController(text: _oneDriveUrl ?? '');
+
+    await showDialog<void>(
+      context: context,
+      builder: (ctx) {
+        return AlertDialog(
+          title: const Text('Link do OneDrive'),
+          content: TextField(
+            controller: controller,
+            keyboardType: TextInputType.url,
+            decoration: const InputDecoration(
+              labelText: 'URL',
+              hintText: 'https://...',
+              border: OutlineInputBorder(),
+            ),
+            autofocus: true,
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(ctx).pop(),
+              child: const Text('Anuluj'),
+            ),
+            if ((controller.text.trim().isNotEmpty) ||
+                ((_oneDriveUrl ?? '').trim().isNotEmpty))
+              TextButton(
+                onPressed: () async {
+                  final url = controller.text.trim().isEmpty
+                      ? (_oneDriveUrl ?? '').trim()
+                      : controller.text.trim();
+
+                  if (url.isEmpty) return;
+
+                  try {
+                    final uri = Uri.parse(url);
+                    if (await canLaunchUrl(uri)) {
+                      await launchUrl(
+                        uri,
+                        mode: LaunchMode.externalApplication,
+                      );
+                    } else {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(
+                          content: Text('Nie można otworzyć linku'),
+                        ),
+                      );
+                    }
+                  } catch (_) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(content: Text('Nieprawidłowy adres URL')),
+                    );
+                  }
+                },
+                child: const Text('Otwórz'),
+              ),
+            ElevatedButton(
+              onPressed: () async {
+                final text = controller.text.trim();
+
+                try {
+                  await OneDriveLink.setOneDriveUrl(
+                    widget.customerId,
+                    widget.projectId,
+                    text.isEmpty ? null : text,
+                  );
+                  setState(() {
+                    _oneDriveUrl = text.isEmpty ? null : text;
+                  });
+                  Navigator.of(ctx).pop();
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(
+                      content: Text(
+                        text.isEmpty
+                            ? 'Link OneDrive usunięty'
+                            : 'Link OneDrive zapisany',
+                      ),
+                    ),
+                  );
+                } catch (e) {
+                  Navigator.of(ctx).pop();
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(
+                      content: Text('Nie udało się zapisać linku'),
+                    ),
+                  );
+                }
+              },
+              child: const Text('Zapisz'),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  Future<void> _handleWebDropFiles(List<DropzoneFileInterface> files) async {
+    if (!kIsWeb) return;
+    if (_dropzoneController == null) {
+      debugPrint('Dropzone controller is null');
+      return;
+    }
+    if (files.isEmpty) return;
+
+    setState(() => _fileUploading = true);
+
+    try {
+      final bucket = Firebase.app().options.storageBucket;
+      final storage = FirebaseStorage.instanceFor(bucket: 'gs://$bucket');
+
+      final docRef = FirebaseFirestore.instance
+          .collection('customers')
+          .doc(widget.customerId)
+          .collection('projects')
+          .doc(widget.projectId);
+
+      final List<Map<String, String>> newFiles = [];
+
+      for (final file in files) {
+        final name = await _dropzoneController!.getFilename(file);
+        final bytes = await _dropzoneController!.getFileData(file);
+
+        final ref = storage.ref().child(
+          'project_files/${widget.projectId}/$name',
+        );
+
+        await ref.putData(bytes);
+        final url = await ref.getDownloadURL();
+
+        newFiles.add({'url': url, 'name': name});
+      }
+
+      if (newFiles.isNotEmpty) {
+        await docRef.update({'files': FieldValue.arrayUnion(newFiles)});
+
+        if (mounted) {
+          setState(() {
+            _files.addAll(newFiles);
+          });
+        }
+      }
+    } catch (e) {
+      debugPrint('Drop upload error: $e');
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Nie udało się wysłać pliku')),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _fileUploading = false);
+    }
+  }
+
+  Widget _buildFilesSection() {
+    if (_fileUploading) {
+      return const Center(child: CircularProgressIndicator());
+    }
+
+    if (_files.isEmpty) {
+      final box = GestureDetector(
+        onTap: _pickAndUploadFiles,
+        child: Container(
+          height: 80,
+          alignment: Alignment.center,
+          decoration: BoxDecoration(
+            border: Border.all(
+              color: _dropHighlight ? Colors.blueAccent : Colors.grey,
+            ),
+            borderRadius: BorderRadius.circular(6),
+            color: _dropHighlight
+                ? Colors.blue.withValues(alpha: 0.05)
+                : Colors.transparent,
+          ),
+          child: Text(
+            kIsWeb ? 'Kliknij lub upuść pliki tutaj' : 'Dotknij aby dodać plik',
+          ),
+        ),
+      );
+
+      if (!kIsWeb) {
+        return box;
+      }
+
+      return Stack(
+        children: [
+          Positioned.fill(
+            child: DropzoneView(
+              onCreated: (c) => _dropzoneController = c,
+              operation: DragOperation.copy,
+              onDropFiles: (files) {
+                if (files == null || files.isEmpty) return;
+                _handleWebDropFiles(files);
+              },
+              onHover: () => setState(() => _dropHighlight = true),
+              onLeave: () => setState(() => _dropHighlight = false),
+            ),
+          ),
+          box,
+        ],
+      );
+    }
+
+    final order = _getFileOrder();
+
+    final Widget listBody;
+
+    if (kIsWeb) {
+      // WEB: compact grid
+      listBody = Padding(
+        padding: const EdgeInsets.all(6),
+        child: Wrap(
+          spacing: 8,
+          runSpacing: 8,
+          children: List.generate(order.length, (i) {
+            final idx = order[i];
+            return _buildFileTile(_files[idx], idx);
+          }),
+        ),
+      );
+    } else {
+      // MOBILE
+      listBody = ListView.separated(
+        shrinkWrap: true,
+        physics: const ClampingScrollPhysics(),
+        itemCount: order.length,
+        separatorBuilder: (_, __) => const Divider(height: 1),
+        itemBuilder: (ctx, i) {
+          final idx = order[i];
+          final file = _files[idx];
+          final name = file['name'] ?? '';
+
+          return InkWell(
+            onTap: () => _previewFile(file['url']!, file['name'] ?? 'plik'),
+
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: Tooltip(
+                      message: name,
+                      waitDuration: const Duration(milliseconds: 500),
+                      child: Text(
+                        name,
+                        style: const TextStyle(
+                          fontSize: 14,
+                          fontWeight: FontWeight.w600,
+                        ),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ),
+                  ),
+                  IconButton(
+                    tooltip: 'Pobierz',
+                    icon: const Icon(Icons.download, size: 18),
+                    onPressed: () => _downloadFile(file['url']!, name),
+                  ),
+                  if (widget.isAdmin)
+                    GestureDetector(
+                      onTap: () => _deleteFile(idx),
+                      child: Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 8.0),
+                        child: Container(
+                          decoration: const BoxDecoration(
+                            color: Colors.red,
+                            shape: BoxShape.circle,
+                          ),
+                          padding: const EdgeInsets.all(6),
+                          child: const Icon(
+                            Icons.close,
+                            size: 14,
+                            color: Colors.white,
+                          ),
+                        ),
+                      ),
+                    ),
+                ],
+              ),
+            ),
+          );
+        },
+      );
+    }
+
+    //  SORT
+
+    final listContent = Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Padding(
+          padding: const EdgeInsets.only(bottom: 4),
+          child: Wrap(
+            spacing: 8,
+            crossAxisAlignment: WrapCrossAlignment.center,
+            children: [
+              const Text(
+                'Sortuj:',
+                style: TextStyle(fontSize: 12, fontWeight: FontWeight.w500),
+              ),
+              ChoiceChip(
+                label: const Text('Domyślnie'),
+                selected: _fileSort == _FileSort.original,
+                onSelected: (_) {
+                  setState(() => _fileSort = _FileSort.original);
+                },
+              ),
+              ChoiceChip(
+                label: const Text('Data'),
+                selected: _fileSort == _FileSort.dateNewest,
+                onSelected: (_) {
+                  setState(() => _fileSort = _FileSort.dateNewest);
+                },
+              ),
+              ChoiceChip(
+                label: const Text('Typ pliku'),
+                selected: _fileSort == _FileSort.type,
+                onSelected: (_) {
+                  setState(() => _fileSort = _FileSort.type);
+                },
+              ),
+            ],
+          ),
+        ),
+
+        Container(
+          constraints: kIsWeb
+              ? const BoxConstraints()
+              : const BoxConstraints(maxHeight: 140),
+          decoration: BoxDecoration(
+            border: Border.all(color: Colors.grey.shade300),
+            borderRadius: BorderRadius.circular(6),
+          ),
+          child: listBody,
+        ),
+        const SizedBox(height: 4),
+        GestureDetector(
+          onTap: _pickAndUploadFiles,
+          child: Container(
+            padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 12),
+            decoration: BoxDecoration(
+              border: Border.all(color: Colors.blueAccent),
+              borderRadius: BorderRadius.circular(6),
+              color: Colors.blue.withValues(alpha: 0.05),
+            ),
+            child: const Row(
+              mainAxisSize: MainAxisSize.min,
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Icon(Icons.add, size: 16),
+                SizedBox(width: 6),
+                Text(
+                  'dodaj pliki',
+                  style: TextStyle(fontWeight: FontWeight.w600),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ],
+    );
+
+    if (!kIsWeb) {
+      // Mobile
+      return listContent;
+    }
+
+    // Web: list/grid
+    return Stack(
+      children: [
+        Positioned.fill(
+          child: DropzoneView(
+            onCreated: (c) => _dropzoneController = c,
+            operation: DragOperation.copy,
+            onDropFiles: (files) {
+              if (files == null || files.isEmpty) return;
+              _handleWebDropFiles(files);
+            },
+            onHover: () => setState(() => _dropHighlight = true),
+            onLeave: () => setState(() => _dropHighlight = false),
+          ),
+        ),
+        AnimatedContainer(
+          duration: const Duration(milliseconds: 120),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(6),
+            border: _dropHighlight
+                ? Border.all(color: Colors.blueAccent, width: 1.5)
+                : null,
+          ),
+          padding: _dropHighlight ? const EdgeInsets.all(2) : EdgeInsets.zero,
+          child: listContent,
+        ),
+      ],
+    );
+  }
+
+  Widget _buildFileTile(Map<String, String> file, int index) {
+    final name = file['name'] ?? '';
+
+    return SizedBox(
+      width: 260,
+      child: Material(
+        color: Colors.white,
+        elevation: 1,
+        borderRadius: BorderRadius.circular(6),
+        child: InkWell(
+          onTap: () => _previewFile(file['url']!, name),
+          borderRadius: BorderRadius.circular(6),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+            child: Row(
+              children: [
+                const Icon(Icons.insert_drive_file, size: 18),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Tooltip(
+                    message: name,
+                    waitDuration: const Duration(milliseconds: 500),
+                    child: Text(
+                      name,
+                      style: const TextStyle(
+                        fontSize: 13,
+                        fontWeight: FontWeight.w600,
+                      ),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ),
+                ),
+
+                IconButton(
+                  tooltip: 'Pobierz',
+                  icon: const Icon(Icons.download, size: 18),
+                  onPressed: () => _downloadFile(file['url']!, name),
+                ),
+
+                if (widget.isAdmin)
+                  GestureDetector(
+                    onTap: () => _deleteFile(index),
+                    child: const Padding(
+                      padding: EdgeInsets.only(left: 4),
+                      child: Icon(Icons.close, size: 16, color: Colors.red),
+                    ),
+                  ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
   }
 
   void _onDescChanged(String value) {
@@ -172,6 +694,12 @@ class _ProjectDescriptionScreenState extends State<ProjectDescriptionScreen> {
         _files = List<Map<String, String>>.from(
           (data['files'] as List).map((e) => Map<String, String>.from(e)),
         );
+      }
+      final oneDrive = data['oneDriveUrl'];
+      if (oneDrive is String && oneDrive.trim().isNotEmpty) {
+        _oneDriveUrl = oneDrive.trim();
+      } else {
+        _oneDriveUrl = null;
       }
 
       _photoUrls = List<String>.from(data['photos'] ?? []);
@@ -340,13 +868,11 @@ class _ProjectDescriptionScreenState extends State<ProjectDescriptionScreen> {
     final lat = _location!.latitude;
     final lng = _location!.longitude;
 
-    // Android navi; fallback to web
     final googleNavUrl = Uri.parse('google.navigation:q=$lat,$lng&mode=d');
     final googleMapsWebUrl = Uri.parse(
       'https://www.google.com/maps/dir/?api=1&destination=$lat,$lng',
     );
 
-    // iOS: Apple Maps, fallback to web
     final appleNavUrl = Uri.parse('maps://?daddr=$lat,$lng&dirflg=d');
     final appleMapsWebUrl = Uri.parse(
       'https://maps.apple.com/?daddr=$lat,$lng',
@@ -443,7 +969,7 @@ class _ProjectDescriptionScreenState extends State<ProjectDescriptionScreen> {
       try {
         bytes = await xfile.readAsBytes();
       } catch (e) {
-        debugPrint('⚠️ Failed to read "${xfile.name}": $e');
+        debugPrint('Failed to read "${xfile.name}": $e');
         continue;
       }
 
@@ -458,7 +984,7 @@ class _ProjectDescriptionScreenState extends State<ProjectDescriptionScreen> {
         final url = await ref.getDownloadURL();
         newUrls.add(url);
       } catch (e) {
-        debugPrint('❌ Upload failed for $fileName: $e');
+        debugPrint('Upload failed for $fileName: $e');
       }
     }
 
@@ -476,7 +1002,7 @@ class _ProjectDescriptionScreenState extends State<ProjectDescriptionScreen> {
           _photoUrls.addAll(newUrls);
         });
       } catch (e) {
-        debugPrint('❌ Firestore update error → $e');
+        debugPrint('Firestore update error → $e');
       }
     }
 
@@ -570,33 +1096,32 @@ class _ProjectDescriptionScreenState extends State<ProjectDescriptionScreen> {
     });
   }
 
-  Future<void> _openFileFromUrl(String url, String fileName) async {
-    // WEB
+  Future<void> _previewFile(String url, String fileName) async {
+    // WEB open in new tab
     if (kIsWeb) {
       try {
         final uri = Uri.parse(url);
 
         if (await canLaunchUrl(uri)) {
-          await launchUrl(uri, mode: LaunchMode.externalApplication);
+          await launchUrl(
+            uri,
+            mode: LaunchMode.platformDefault,
+            webOnlyWindowName: '_blank',
+          );
         } else {
           ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text('Nie można otworzyć plik w przeglądarce'),
-            ),
+            const SnackBar(content: Text('Nie można otworzyć pliku')),
           );
         }
       } catch (e) {
         debugPrint('Failed to open file on web: $e');
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Nie można otworzyć plik w przeglądarce'),
-          ),
+          const SnackBar(content: Text('Nie można otworzyć pliku')),
         );
       }
       return;
     }
 
-    // MOBILE
     try {
       final tempDir = await getTemporaryDirectory();
       final filePath = '${tempDir.path}/$fileName';
@@ -649,8 +1174,15 @@ class _ProjectDescriptionScreenState extends State<ProjectDescriptionScreen> {
       titleWidget: titleCol,
       centreTitle: true,
 
-      actions: [Padding(padding: const EdgeInsets.symmetric(horizontal: 8.0))],
+      actions: [
+        OneDriveLinkButton(
+          url: _oneDriveUrl,
+          onPressed: _onOneDriveLinkPressed,
+        ),
+        const SizedBox(width: 4),
+      ],
 
+      // actions: [Padding(padding: const EdgeInsets.symmetric(horizontal: 8.0))],
       body: _loading
           ? const Center(child: CircularProgressIndicator())
           : DismissKeyboard(
@@ -683,265 +1215,10 @@ class _ProjectDescriptionScreenState extends State<ProjectDescriptionScreen> {
                         },
                       ),
 
-                      // gap for files
                       const SizedBox(height: 8),
 
                       // files
-                      _fileUploading
-                          ? const Center(child: CircularProgressIndicator())
-                          : _files.isEmpty
-                          ? GestureDetector(
-                              onTap: _pickAndUploadFiles,
-                              child: Container(
-                                height: 80,
-                                alignment: Alignment.center,
-                                decoration: BoxDecoration(
-                                  border: Border.all(color: Colors.grey),
-                                  borderRadius: BorderRadius.circular(6),
-                                ),
-                                child: const Text('Dotnij aby dodać plik'),
-                              ),
-                            )
-                          : Column(
-                              crossAxisAlignment: CrossAxisAlignment.stretch,
-                              children: [
-                                Container(
-                                  constraints: const BoxConstraints(
-                                    maxHeight: 140,
-                                  ),
-                                  decoration: BoxDecoration(
-                                    border: Border.all(
-                                      color: Colors.grey.shade300,
-                                    ),
-                                    borderRadius: BorderRadius.circular(6),
-                                  ),
-                                  child: ListView.separated(
-                                    shrinkWrap: true,
-                                    physics: const ClampingScrollPhysics(),
-                                    itemCount: _files.length,
-                                    separatorBuilder: (_, __) =>
-                                        const Divider(height: 1),
-                                    itemBuilder: (ctx, i) {
-                                      final file = _files[i];
-                                      final name = file['name'] ?? '';
-                                      return InkWell(
-                                        onTap: () => _openFileFromUrl(
-                                          file['url']!,
-                                          file['name'] ?? 'plik',
-                                        ),
-
-                                        child: Padding(
-                                          padding: const EdgeInsets.symmetric(
-                                            horizontal: 12,
-                                            vertical: 10,
-                                          ),
-                                          child: Row(
-                                            children: [
-                                              Expanded(
-                                                child: Tooltip(
-                                                  message: name,
-                                                  waitDuration: const Duration(
-                                                    milliseconds: 500,
-                                                  ),
-                                                  child: Text(
-                                                    name,
-                                                    style: const TextStyle(
-                                                      fontSize: 14,
-                                                      fontWeight:
-                                                          FontWeight.w600,
-                                                    ),
-                                                    maxLines: 1,
-                                                    overflow:
-                                                        TextOverflow.ellipsis,
-                                                  ),
-                                                ),
-                                              ),
-                                              if (widget.isAdmin)
-                                                GestureDetector(
-                                                  onTap: () => _deleteFile(i),
-                                                  child: Padding(
-                                                    padding:
-                                                        const EdgeInsets.symmetric(
-                                                          horizontal: 8.0,
-                                                        ),
-                                                    child: Container(
-                                                      decoration:
-                                                          const BoxDecoration(
-                                                            color: Colors.red,
-                                                            shape:
-                                                                BoxShape.circle,
-                                                          ),
-                                                      padding:
-                                                          const EdgeInsets.all(
-                                                            6,
-                                                          ),
-                                                      child: const Icon(
-                                                        Icons.close,
-                                                        size: 14,
-                                                        color: Colors.white,
-                                                      ),
-                                                    ),
-                                                  ),
-                                                ),
-                                            ],
-                                          ),
-                                        ),
-                                      );
-                                    },
-                                  ),
-                                ),
-                                const SizedBox(height: 4),
-                                GestureDetector(
-                                  onTap: _pickAndUploadFiles,
-                                  child: Container(
-                                    padding: const EdgeInsets.symmetric(
-                                      vertical: 8,
-                                      horizontal: 12,
-                                    ),
-                                    decoration: BoxDecoration(
-                                      border: Border.all(
-                                        color: Colors.blueAccent,
-                                      ),
-                                      borderRadius: BorderRadius.circular(6),
-                                      color: Colors.blue.withValues(
-                                        alpha: 0.05,
-                                      ),
-                                    ),
-                                    child: Row(
-                                      mainAxisSize: MainAxisSize.min,
-                                      mainAxisAlignment:
-                                          MainAxisAlignment.center,
-                                      children: const [
-                                        Icon(Icons.add, size: 16),
-                                        SizedBox(width: 6),
-                                        Text(
-                                          'dodaj pliki',
-                                          style: TextStyle(
-                                            fontWeight: FontWeight.w600,
-                                          ),
-                                        ),
-                                      ],
-                                    ),
-                                  ),
-                                ),
-                              ],
-                            ),
-
-                      const SizedBox(height: 6),
-                      // images
-                      _uploading
-                          ? const Center(child: CircularProgressIndicator())
-                          : _photoUrls.isEmpty
-                          ? GestureDetector(
-                              onTap: _showPhotoSourceDialog,
-                              child: Container(
-                                height: 80,
-                                alignment: Alignment.center,
-                                decoration: BoxDecoration(
-                                  border: Border.all(color: Colors.grey),
-                                  borderRadius: BorderRadius.circular(6),
-                                ),
-                                child: const Text('Dotknij aby dodać fotka'),
-                              ),
-                            )
-                          : Column(
-                              crossAxisAlignment: CrossAxisAlignment.stretch,
-                              children: [
-                                // unlimited grid that grows with content
-                                GridView.builder(
-                                  padding: EdgeInsets.zero,
-                                  shrinkWrap: true,
-                                  physics: const NeverScrollableScrollPhysics(),
-                                  gridDelegate:
-                                      const SliverGridDelegateWithFixedCrossAxisCount(
-                                        crossAxisCount: 3,
-                                        crossAxisSpacing: 6,
-                                        mainAxisSpacing: 6,
-                                        childAspectRatio:
-                                            2, // rectangular (width is twice height)
-                                      ),
-                                  itemCount: _photoUrls.length,
-                                  itemBuilder: (ctx, i) {
-                                    final url = _photoUrls[i];
-                                    return GestureDetector(
-                                      onTap: () => _openGallery(i),
-                                      child: Stack(
-                                        clipBehavior: Clip.none,
-                                        children: [
-                                          ClipRRect(
-                                            borderRadius: BorderRadius.circular(
-                                              8,
-                                            ),
-                                            child: Image.network(
-                                              url,
-                                              width: double.infinity,
-                                              height: double.infinity,
-                                              fit: BoxFit.cover,
-                                            ),
-                                          ),
-                                          if (widget.isAdmin)
-                                            Positioned(
-                                              top: 4,
-                                              right: 4,
-                                              child: GestureDetector(
-                                                onTap: () => _deletePhoto(url),
-                                                child: Container(
-                                                  decoration:
-                                                      const BoxDecoration(
-                                                        color: Colors.red,
-                                                        shape: BoxShape.circle,
-                                                      ),
-                                                  padding: const EdgeInsets.all(
-                                                    4,
-                                                  ),
-                                                  child: const Icon(
-                                                    Icons.close,
-                                                    size: 12,
-                                                    color: Colors.white,
-                                                  ),
-                                                ),
-                                              ),
-                                            ),
-                                        ],
-                                      ),
-                                    );
-                                  },
-                                ),
-
-                                const SizedBox(height: 4),
-                                GestureDetector(
-                                  onTap: _showPhotoSourceDialog,
-                                  child: Container(
-                                    padding: const EdgeInsets.symmetric(
-                                      vertical: 8,
-                                      horizontal: 12,
-                                    ),
-                                    decoration: BoxDecoration(
-                                      border: Border.all(color: Colors.green),
-                                      borderRadius: BorderRadius.circular(6),
-                                      color: Colors.green.withValues(
-                                        alpha: 0.05,
-                                      ),
-                                    ),
-                                    child: Row(
-                                      mainAxisSize: MainAxisSize.min,
-                                      mainAxisAlignment:
-                                          MainAxisAlignment.center,
-                                      children: const [
-                                        Icon(Icons.add_a_photo, size: 16),
-                                        SizedBox(width: 6),
-                                        Text(
-                                          'dodaj fotki',
-                                          style: TextStyle(
-                                            fontWeight: FontWeight.w600,
-                                          ),
-                                        ),
-                                      ],
-                                    ),
-                                  ),
-                                ),
-                              ],
-                            ),
+                      _buildFilesSection(),
 
                       const Divider(),
 
@@ -1089,70 +1366,6 @@ class _ProjectDescriptionScreenState extends State<ProjectDescriptionScreen> {
                   ),
                 ),
               ),
-
-              // floatingActionButton: FloatingActionButton(
-              //   tooltip: 'Dodaj…',
-              //   onPressed: () {
-              //     showModalBottomSheet<void>(
-              //       context: context,
-              //       builder: (ctx) => Column(
-              //         mainAxisSize: MainAxisSize.min,
-              //         children: [
-              //           ListTile(
-              //             leading: const Icon(Icons.add_a_photo),
-              //             title: const Text('Dodaj fota'),
-              //             onTap: () {
-              //               Navigator.pop(ctx);
-              //               _showPhotoSourceDialog();
-              //             },
-              //           ),
-              //           ListTile(
-              //             leading: const Icon(Icons.attach_file),
-              //             title: const Text('Dodaj plik'),
-              //             onTap: () {
-              //               Navigator.pop(ctx);
-              //               _pickAndUploadFiles();
-              //             },
-              //           ),
-              //         ],
-              //       ),
-              //     );
-              //   },
-              //   child: const Icon(Icons.add),
-              // ),
-
-              // floatingActionButtonLocation: FloatingActionButtonLocation.centerFloat,
-              // bottomNavigationBar: SafeArea(
-              //   child: BottomAppBar(
-              //     shape: const CircularNotchedRectangle(),
-              //     notchMargin: 6,
-              //     child: Padding(
-              //       padding: const EdgeInsets.symmetric(horizontal: 32),
-              //       child: Row(
-              //         mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              //         children: [
-              //           IconButton(
-              //             tooltip: 'Kontakty',
-              //             icon: const Icon(Icons.contact_mail_outlined),
-              //             onPressed: () => Navigator.of(context).push(
-              //               MaterialPageRoute(builder: (_) => ContactsListScreen()),
-              //             ),
-              //           ),
-              //           IconButton(
-              //             tooltip: 'Klienci',
-              //             icon: const Icon(Icons.people),
-              //             onPressed: () => Navigator.of(context).push(
-              //               MaterialPageRoute(
-              //                 builder: (_) =>
-              //                     CustomerListScreen(isAdmin: widget.isAdmin),
-              //               ),
-              //             ),
-              //           ),
-              //         ],
-              //       ),
-              //     ),
-              //   ),
-              // ),
             ),
     );
   }

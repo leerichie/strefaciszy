@@ -7,13 +7,17 @@ service firebase.storage {
 
     // Images
     match /project_images/{projectId}/{fileName} {
-      allow read, write: if request.auth != null;
+       allow read: if true;
+       allow write: if request.auth != null;
     }
+
     // Arbitrary files (PDFs, docs, etc.)
     match /project_files/{projectId}/{fileName} {
-      allow read, write: if request.auth != null;
+       allow read: if true;
+       allow write: if request.auth != null;
     }
-    // Other existing buckets
+
+    //  existing buckets
     match /stock_images/{fileName} {
       allow read, write: if request.auth != null;
     }
