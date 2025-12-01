@@ -14,6 +14,7 @@ import 'package:image_picker/image_picker.dart';
 import 'package:strefa_ciszy/models/project_line.dart';
 import 'package:strefa_ciszy/models/stock_item.dart';
 import 'package:strefa_ciszy/offline/reservations_offline.dart';
+import 'package:strefa_ciszy/screens/project_contacts_screen.dart';
 import 'package:strefa_ciszy/screens/project_description_screen.dart';
 import 'package:strefa_ciszy/screens/rw_documents_screen.dart';
 import 'package:strefa_ciszy/services/admin_api.dart';
@@ -60,6 +61,10 @@ class _ProjectEditorScreenState extends State<ProjectEditorScreen> {
   final List<String> _imageUrls = [];
   final List<String> _localPreviews = [];
   List<Note> _notes = [];
+
+  final TextEditingController _currentCtrl = TextEditingController();
+  String _currentText = '';
+  Timer? _currentDebounce;
 
   bool _loading = true;
   bool _saving = false;
@@ -112,16 +117,6 @@ class _ProjectEditorScreenState extends State<ProjectEditorScreen> {
             created.month != today.month ||
             created.day != today.day);
 
-    // _stockSub = FirebaseFirestore.instance
-    //     .collection('stock_items')
-    //     .withConverter<StockItem>(
-    //       fromFirestore: (snap, _) => StockItem.fromMap(snap.data()!, snap.id),
-    //       toFirestore: (item, _) => item.toMap(),
-    //     )
-    //     .snapshots()
-    //     .listen((snap) {
-    //       setState(() => _stockItems = snap.docs.map((d) => d.data()).toList());
-    //     });
     if (kUseFirestoreStock) {
       _stockSub = FirebaseFirestore.instance
           .collection('stock_items')
@@ -210,10 +205,17 @@ class _ProjectEditorScreenState extends State<ProjectEditorScreen> {
           .where((l) => l.requestedQty > 0)
           .toList();
 
+      final serverCurrentText = (data['currentText'] as String?) ?? '';
+
       setState(() {
         _notes = todayNotes;
         _lines = freshLines;
         _title = (data['title'] as String?) ?? _title;
+
+        if (_currentCtrl.text.isEmpty) {
+          _currentText = serverCurrentText;
+          _currentCtrl.text = serverCurrentText;
+        }
       });
     });
 
@@ -228,6 +230,8 @@ class _ProjectEditorScreenState extends State<ProjectEditorScreen> {
     _stockSub?.cancel();
     _notesSub.cancel();
     _midnightRolloverTimer?.cancel();
+    _currentDebounce?.cancel();
+    _currentCtrl.dispose();
     super.dispose();
   }
 
@@ -239,7 +243,6 @@ class _ProjectEditorScreenState extends State<ProjectEditorScreen> {
     }
     if (!_stockHasMore) return;
 
-    // pull a chunk (tune size as you like)
     const int pageSize = 200;
     try {
       final page = await ApiService.fetchProductsPaged(
@@ -253,7 +256,6 @@ class _ProjectEditorScreenState extends State<ProjectEditorScreen> {
       });
     } catch (e) {
       debugPrint('API stock load failed: $e');
-      // fail-soft: keep whatever we already have
     }
   }
 
@@ -548,7 +550,6 @@ class _ProjectEditorScreenState extends State<ProjectEditorScreen> {
           final after = int.tryParse(afterStr?.toString() ?? '');
           if (after != null) _serverAvail[ln.itemRef] = after;
         } else {
-          // queued for later (offline) — optional toast, keep it quiet if you prefer
           if (mounted) {
             ScaffoldMessenger.of(context).showSnackBar(
               const SnackBar(
@@ -723,19 +724,6 @@ class _ProjectEditorScreenState extends State<ProjectEditorScreen> {
         }
       }
 
-      // if (kUseFirestoreStock) {
-      //   for (final ln in fullLines.where(
-      //     (l) => l.previousQty > 0 && l.isStock,
-      //   )) {
-      //     try {
-      //       await StockService.increaseQty(ln.itemRef, ln.previousQty);
-      //       debugPrint('🔄 Restored ${ln.previousQty} for ${ln.itemRef}');
-      //     } catch (e) {
-      //       debugPrint('⚠️ Couldn\'t restore ${ln.itemRef}: $e');
-      //     }
-      //   }
-      // }
-      ////
       final custSnap2 = await FirebaseFirestore.instance
           .collection('customers')
           .doc(widget.customerId)
@@ -795,16 +783,6 @@ class _ProjectEditorScreenState extends State<ProjectEditorScreen> {
     try {
       final batch = FirebaseFirestore.instance.batch();
 
-      // for (var ln in filteredLines) {
-      //   final prev = ln.previousQty ?? 0;
-      //   final diff = ln.requestedQty - prev;
-      //   if (diff != 0) {
-      //     final stockRef = FirebaseFirestore.instance
-      //         .collection('stock_items')
-      //         .doc(ln.itemRef);
-      //     batch.update(stockRef, {'quantity': FieldValue.increment(-diff)});
-      //   }
-      // }
       if (kUseFirestoreStock) {
         for (var ln in filteredLines) {
           final prev = ln.previousQty ?? 0;
@@ -1081,8 +1059,24 @@ class _ProjectEditorScreenState extends State<ProjectEditorScreen> {
       title: '',
       showBackOnWeb: true,
       titleWidget: titleGest,
-
-      actions: [Padding(padding: const EdgeInsets.symmetric(horizontal: 8.0))],
+      actions: [
+        IconButton(
+          icon: const Icon(Icons.contacts_outlined),
+          tooltip: 'Kontakty projektu',
+          onPressed: () {
+            Navigator.of(context).push(
+              MaterialPageRoute(
+                builder: (_) => ProjectContactsScreen(
+                  customerId: widget.customerId,
+                  projectId: widget.projectId,
+                  isAdmin: widget.isAdmin,
+                ),
+              ),
+            );
+          },
+        ),
+        const SizedBox(width: 8),
+      ],
 
       body: Stack(
         children: [
@@ -1090,205 +1084,265 @@ class _ProjectEditorScreenState extends State<ProjectEditorScreen> {
             padding: const EdgeInsets.all(16),
             child: Form(
               key: _formKey,
-              child: Column(
-                children: [
-                  if (_rwLocked)
-                    Padding(
-                      padding: const EdgeInsets.only(bottom: 8),
+              child: SingleChildScrollView(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    if (_rwLocked)
+                      Padding(
+                        padding: const EdgeInsets.only(bottom: 8),
+                        child: Text(
+                          'Dokument RW jest zablokowany do edycji.',
+                          style: TextStyle(
+                            color: Colors.red,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                      ),
+
+                    Divider(),
+
+                    // --- NOTES
+                    NotesSection(
+                      notes: _notes,
+
+                      onAddNote: (ctx) async {
+                        final authUser = FirebaseAuth.instance.currentUser!;
+                        String userName = authUser.displayName ?? '';
+                        if (userName.isEmpty) {
+                          final userDoc = await FirebaseFirestore.instance
+                              .collection('users')
+                              .doc(authUser.uid)
+                              .get();
+                          userName =
+                              userDoc.data()?['name'] as String? ??
+                              authUser.email!;
+                        }
+                        final result = await showNoteDialog(
+                          ctx,
+                          userName: userName,
+                        );
+                        if (result == null) return null;
+
+                        final noteMap = {
+                          'text': result.trim(),
+                          'userName': userName,
+                          'createdAt': Timestamp.now(),
+                        };
+
+                        await projRef.update({
+                          'notesList': FieldValue.arrayUnion([noteMap]),
+                        });
+
+                        final rwRef = await _todayRwRef();
+                        if (rwRef != null) {
+                          await rwRef.update({
+                            'notesList': FieldValue.arrayUnion([noteMap]),
+                          });
+                        } else {
+                          final now = DateTime.now();
+                          final newRwRef = projRef
+                              .collection('rw_documents')
+                              .doc();
+                          await newRwRef.set({
+                            'type': 'RW',
+                            'customerId': widget.customerId,
+                            'projectId': widget.projectId,
+                            'customerName': _customerName,
+                            'projectName': _title,
+                            'createdDay': DateTime(
+                              now.year,
+                              now.month,
+                              now.day,
+                            ),
+                            'createdAt': FieldValue.serverTimestamp(),
+                            'createdBy': authUser.uid,
+                            'createdByName': userName,
+                            'items': <Map<String, dynamic>>[],
+                            'notesList': [noteMap],
+                          });
+                        }
+
+                        await AuditService.logAction(
+                          action: 'Zapisana notatka',
+                          customerId: widget.customerId,
+                          projectId: widget.projectId,
+                          details: {'Notatka': result.trim()},
+                        );
+
+                        return null;
+                      },
+
+                      onEdit: (i, _) async {
+                        final old = _notes[i];
+                        final existingText = old.text;
+
+                        final updated = await showNoteDialog(
+                          context,
+                          userName: old.userName,
+                          createdAt: old.createdAt,
+                          initial: existingText,
+                        );
+
+                        if (updated == null || updated.trim() == existingText) {
+                          return;
+                        }
+
+                        final oldMap = {
+                          'text': old.text,
+                          'userName': old.userName,
+                          'createdAt': Timestamp.fromDate(old.createdAt),
+                        };
+
+                        final authUser = FirebaseAuth.instance.currentUser!;
+                        String userName = authUser.displayName ?? '';
+                        if (userName.isEmpty) {
+                          final userDoc = await FirebaseFirestore.instance
+                              .collection('users')
+                              .doc(authUser.uid)
+                              .get();
+                          userName =
+                              userDoc.data()?['name'] as String? ??
+                              authUser.email!;
+                        }
+
+                        final newMap = {
+                          'text': updated.trim(),
+                          'userName': userName,
+                          'createdAt': Timestamp.now(),
+                        };
+
+                        await projRef.update({
+                          'notesList': FieldValue.arrayRemove([oldMap]),
+                        });
+                        await projRef.update({
+                          'notesList': FieldValue.arrayUnion([newMap]),
+                        });
+
+                        final rwRef2 = await _todayRwRef();
+                        if (rwRef2 != null) {
+                          await rwRef2.update({
+                            'notesList': FieldValue.arrayRemove([oldMap]),
+                          });
+                          await rwRef2.update({
+                            'notesList': FieldValue.arrayUnion([newMap]),
+                          });
+                        }
+                        return;
+                      },
+
+                      // USER cannot delete; ADMIN can
+                      onDelete: (i) async {
+                        if (!widget.isAdmin) {
+                          // Optionally show message here
+                          // ScaffoldMessenger.of(context).showSnackBar(
+                          //   const SnackBar(
+                          //     content: Text('Tylko administrator może usuwać notatki'),
+                          //   ),
+                          // );
+                          return;
+                        }
+
+                        final note = _notes[i];
+
+                        final map = {
+                          'text': note.text,
+                          'userName': note.userName,
+                          'createdAt': Timestamp.fromDate(note.createdAt),
+                        };
+
+                        await projRef.update({
+                          'notesList': FieldValue.arrayRemove([map]),
+                        });
+
+                        final rwRef3 = await _todayRwRef();
+                        if (rwRef3 != null) {
+                          await rwRef3.update({
+                            'notesList': FieldValue.arrayRemove([map]),
+                          });
+                        }
+
+                        await AuditService.logAction(
+                          action: 'Usunięto notatka',
+                          customerId: widget.customerId,
+                          projectId: widget.projectId,
+                          details: {'Notatka': note.text},
+                        );
+                      },
+                    ),
+
+                    const SizedBox(height: 8),
+
+                    // --- BIEŻĄCE
+                    Align(
+                      alignment: Alignment.centerLeft,
                       child: Text(
-                        'Dokument RW jest zablokowany do edycji.',
+                        'BIEŻĄCE',
                         style: TextStyle(
-                          color: Colors.red,
                           fontWeight: FontWeight.bold,
+                          fontSize: 14,
                         ),
                       ),
                     ),
-
-                  Divider(),
-
-                  // --- NOTES
-                  NotesSection(
-                    notes: _notes,
-
-                    onAddNote: (ctx) async {
-                      final authUser = FirebaseAuth.instance.currentUser!;
-                      String userName = authUser.displayName ?? '';
-                      if (userName.isEmpty) {
-                        final userDoc = await FirebaseFirestore.instance
-                            .collection('users')
-                            .doc(authUser.uid)
-                            .get();
-                        userName =
-                            userDoc.data()?['name'] as String? ??
-                            authUser.email!;
-                      }
-                      final result = await showNoteDialog(
-                        ctx,
-                        userName: userName,
-                      );
-                      if (result == null) return null;
-
-                      final noteMap = {
-                        'text': result.trim(),
-                        'userName': userName,
-                        'createdAt': Timestamp.now(),
-                      };
-
-                      await projRef.update({
-                        'notesList': FieldValue.arrayUnion([noteMap]),
-                      });
-                      final rwRef = await _todayRwRef();
-                      if (rwRef != null) {
-                        await rwRef.update({
-                          'notesList': FieldValue.arrayUnion([noteMap]),
-                        });
-                      } else {
-                        final now = DateTime.now();
-                        final newRwRef = projRef
-                            .collection('rw_documents')
-                            .doc();
-                        await newRwRef.set({
-                          'type': 'RW',
-                          'customerId': widget.customerId,
-                          'projectId': widget.projectId,
-                          'customerName': _customerName,
-                          'projectName': _title,
-                          'createdDay': DateTime(now.year, now.month, now.day),
-                          'createdAt': FieldValue.serverTimestamp(),
-                          'createdBy': authUser.uid,
-                          'createdByName': userName,
-                          'items': <Map<String, dynamic>>[],
-                          'notesList': [noteMap],
-                        });
-                      }
-                      await AuditService.logAction(
-                        action: 'Zapisana notatka',
-                        customerId: widget.customerId,
-                        projectId: widget.projectId,
-                        details: {'Notatka': result.trim()},
-                      );
-
-                      return null;
-                    },
-
-                    onEdit: (i, _) async {
-                      final old = _notes[i];
-                      final existingText = old.text;
-                      final updated = await showNoteDialog(
-                        context,
-                        userName: old.userName,
-                        createdAt: old.createdAt,
-                        initial: existingText,
-                      );
-                      if (updated == null || updated.trim() == existingText) {
-                        return;
-                      }
-
-                      final oldMap = {
-                        'text': old.text,
-                        'userName': old.userName,
-                        'createdAt': Timestamp.fromDate(old.createdAt),
-                      };
-
-                      final authUser = FirebaseAuth.instance.currentUser!;
-                      String userName = authUser.displayName ?? '';
-                      if (userName.isEmpty) {
-                        final userDoc = await FirebaseFirestore.instance
-                            .collection('users')
-                            .doc(authUser.uid)
-                            .get();
-                        userName =
-                            userDoc.data()?['name'] as String? ??
-                            authUser.email!;
-                      }
-                      final newMap = {
-                        'text': updated.trim(),
-                        'userName': userName,
-                        'createdAt': Timestamp.now(),
-                      };
-
-                      await projRef.update({
-                        'notesList': FieldValue.arrayRemove([oldMap]),
-                      });
-                      await projRef.update({
-                        'notesList': FieldValue.arrayUnion([newMap]),
-                      });
-
-                      final rwRef2 = await _todayRwRef();
-                      if (rwRef2 != null) {
-                        await rwRef2.update({
-                          'notesList': FieldValue.arrayRemove([oldMap]),
-                        });
-                        await rwRef2.update({
-                          'notesList': FieldValue.arrayUnion([newMap]),
-                        });
-                      }
-                      return;
-                    },
-
-                    onDelete: (i) async {
-                      final note = _notes[i];
-
-                      // Remove note from arrays
-                      final map = {
-                        'text': note.text,
-                        'userName': note.userName,
-                        'createdAt': Timestamp.fromDate(note.createdAt),
-                      };
-                      await projRef.update({
-                        'notesList': FieldValue.arrayRemove([map]),
-                      });
-                      final rwRef3 = await _todayRwRef();
-                      if (rwRef3 != null) {
-                        await rwRef3.update({
-                          'notesList': FieldValue.arrayRemove([map]),
-                        });
-                      }
-
-                      await AuditService.logAction(
-                        action: 'Usunięto notatka',
-                        customerId: widget.customerId,
-                        projectId: widget.projectId,
-                        details: {'Notatka': note.text},
-                      );
-                    },
-                  ),
-                  Divider(),
-
-                  if (_lines.any(
-                    (l) =>
-                        l.requestedQty > 0 && l.requestedQty != l.previousQty,
-                  ))
-                    Container(
-                      padding: EdgeInsets.all(8),
-                      margin: EdgeInsets.only(bottom: 8),
-                      decoration: BoxDecoration(
-                        color: Colors.orange.withValues(alpha: 0.15),
-                        borderRadius: BorderRadius.circular(6),
-                        border: Border.all(color: Colors.orange),
+                    const SizedBox(height: 4),
+                    TextFormField(
+                      controller: _currentCtrl,
+                      maxLines: null,
+                      minLines: 2,
+                      decoration: const InputDecoration(
+                        border: OutlineInputBorder(),
+                        hintText: 'Bieżące informacje o projekcie...',
                       ),
-                      child: Row(
-                        children: [
-                          Icon(Icons.warning_amber, color: Colors.orange),
-                          SizedBox(width: 8),
-                          Expanded(
-                            child: Text(
-                              'Preview. Kliknij "Zapisz Raport" aby dodać do Raporty.',
-                              style: TextStyle(color: Colors.orange[900]),
-                            ),
-                          ),
-                        ],
-                      ),
+                      onChanged: (value) {
+                        _currentText = value;
+                        _currentDebounce?.cancel();
+                        _currentDebounce = Timer(
+                          const Duration(milliseconds: 600),
+                          () {
+                            projRef.update({'currentText': _currentText});
+                          },
+                        );
+                      },
                     ),
 
-                  if (_lines.isNotEmpty)
-                    Expanded(
-                      child: ListView.builder(
-                        itemCount: _lines.length,
+                    const SizedBox(height: 12),
+                    Divider(),
 
+                    if (_lines.any(
+                      (l) =>
+                          l.requestedQty > 0 && l.requestedQty != l.previousQty,
+                    ))
+                      Container(
+                        padding: const EdgeInsets.all(8),
+                        margin: const EdgeInsets.only(bottom: 8),
+                        decoration: BoxDecoration(
+                          color: Colors.orange.withValues(alpha: 0.15),
+                          borderRadius: BorderRadius.circular(6),
+                          border: Border.all(color: Colors.orange),
+                        ),
+                        child: Row(
+                          children: [
+                            Icon(Icons.warning_amber, color: Colors.orange),
+                            SizedBox(width: 8),
+                            Expanded(
+                              child: Text(
+                                'Preview. Kliknij "Zapisz Raport" aby dodać do Raporty.',
+                                style: TextStyle(color: Colors.orange[900]),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+
+                    if (_lines.isNotEmpty)
+                      ListView.builder(
+                        itemCount: _lines.length,
+                        shrinkWrap: true,
+                        physics: const NeverScrollableScrollPhysics(),
                         itemBuilder: (ctx, i) {
                           final today = DateTime.now();
                           final ln = _lines[i];
+
                           final stock = ln.isStock
                               ? _stockItems.firstWhereOrNull(
                                   (s) => s.id == ln.itemRef,
@@ -1313,7 +1367,6 @@ class _ProjectEditorScreenState extends State<ProjectEditorScreen> {
 
                           final int previewDefault = stockQty - delta;
 
-                          // Prefer the server-reported availability if we have it
                           final int previewQty =
                               ln.isStock && _serverAvail.containsKey(ln.itemRef)
                               ? _serverAvail[ln.itemRef]!
@@ -1332,6 +1385,7 @@ class _ProjectEditorScreenState extends State<ProjectEditorScreen> {
                           final isSynced =
                               ln.requestedQty == ln.previousQty &&
                               ln.requestedQty > 0;
+
                           final isLineLocked =
                               _rwLocked || (!isToday && !widget.isAdmin);
 
@@ -1419,52 +1473,6 @@ class _ProjectEditorScreenState extends State<ProjectEditorScreen> {
                                             color: Colors.green,
                                           ),
                                         ),
-                                      // IconButton(
-                                      //   icon: Icon(
-                                      //     Icons.edit,
-                                      //     color: isLineLocked
-                                      //         ? Colors.grey
-                                      //         : Colors.blue,
-                                      //   ),
-                                      //   onPressed: isLineLocked
-                                      //       ? () {
-                                      //           ScaffoldMessenger.of(
-                                      //             context,
-                                      //           ).showSnackBar(
-                                      //             const SnackBar(
-                                      //               content: Text(
-                                      //                 'Tylko administrator może edytować',
-                                      //               ),
-                                      //             ),
-                                      //           );
-                                      //         }
-                                      //       : () async {
-                                      //           final updated =
-                                      //               await showProjectLineDialog(
-                                      //                 context,
-                                      //                 _stockItems,
-                                      //                 existing: ln,
-                                      //               );
-                                      //           if (updated != null) {
-                                      //             setState(
-                                      //               () => _lines[i] = updated,
-                                      //             );
-                                      //             try {
-                                      //               await _saveRWDocument('RW');
-                                      //             } catch (e) {
-                                      //               ScaffoldMessenger.of(
-                                      //                 context,
-                                      //               ).showSnackBar(
-                                      //                 SnackBar(
-                                      //                   content: Text(
-                                      //                     'Update Raport - nie udało się: $e',
-                                      //                   ),
-                                      //                 ),
-                                      //               );
-                                      //             }
-                                      //           }
-                                      //         },
-                                      // ),
                                       IconButton(
                                         icon: Icon(
                                           Icons.delete,
@@ -1520,6 +1528,7 @@ class _ProjectEditorScreenState extends State<ProjectEditorScreen> {
                                                 if (shouldDelete != true) {
                                                   return;
                                                 }
+
                                                 final removedLine = _lines
                                                     .removeAt(i);
                                                 setState(() {});
@@ -1549,7 +1558,6 @@ class _ProjectEditorScreenState extends State<ProjectEditorScreen> {
 
                           return Container(
                             margin: const EdgeInsets.symmetric(vertical: 0),
-
                             child: ClipRRect(
                               borderRadius: BorderRadius.circular(4),
                               child: ListTile(
@@ -1615,52 +1623,6 @@ class _ProjectEditorScreenState extends State<ProjectEditorScreen> {
                                           color: Colors.green,
                                         ),
                                       ),
-                                    // IconButton(
-                                    //   icon: Icon(
-                                    //     Icons.edit,
-                                    //     color: isLineLocked
-                                    //         ? Colors.grey
-                                    //         : Colors.blue,
-                                    //   ),
-                                    //   onPressed: isLineLocked
-                                    //       ? () {
-                                    //           ScaffoldMessenger.of(
-                                    //             context,
-                                    //           ).showSnackBar(
-                                    //             const SnackBar(
-                                    //               content: Text(
-                                    //                 'Tylko administrator może edytować',
-                                    //               ),
-                                    //             ),
-                                    //           );
-                                    //         }
-                                    //       : () async {
-                                    //           final updated =
-                                    //               await showProjectLineDialog(
-                                    //                 context,
-                                    //                 _stockItems,
-                                    //                 existing: ln,
-                                    //               );
-                                    //           if (updated != null) {
-                                    //             setState(
-                                    //               () => _lines[i] = updated,
-                                    //             );
-                                    //             try {
-                                    //               await _saveRWDocument('RW');
-                                    //             } catch (e) {
-                                    //               ScaffoldMessenger.of(
-                                    //                 context,
-                                    //               ).showSnackBar(
-                                    //                 SnackBar(
-                                    //                   content: Text(
-                                    //                     'Update RW - nie udało się: $e',
-                                    //                   ),
-                                    //                 ),
-                                    //               );
-                                    //             }
-                                    //           }
-                                    //         },
-                                    // ),
                                     IconButton(
                                       icon: Icon(
                                         Icons.delete,
@@ -1715,7 +1677,10 @@ class _ProjectEditorScreenState extends State<ProjectEditorScreen> {
                                                       ],
                                                     ),
                                                   );
-                                              if (shouldDelete != true) return;
+                                              if (shouldDelete != true) {
+                                                return;
+                                              }
+
                                               final removedLine = _lines
                                                   .removeAt(i);
                                               setState(() {});
@@ -1743,8 +1708,10 @@ class _ProjectEditorScreenState extends State<ProjectEditorScreen> {
                           );
                         },
                       ),
-                    ),
-                ],
+
+                    const SizedBox(height: 80),
+                  ],
+                ),
               ),
             ),
           ),

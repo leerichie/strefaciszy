@@ -30,110 +30,175 @@ class NotesSection extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    // sort newest
     final sorted = List<Note>.from(notes)
       ..sort((a, b) => b.createdAt.compareTo(a.createdAt));
 
-    return GestureDetector(
-      onTap: () async => await onAddNote(context),
-      behavior: HitTestBehavior.opaque,
-      child: SizedBox(
-        height: 70,
-        child: sorted.isEmpty
-            ? Center(
-                child: Text(
-                  'Dotknij aby dodać notatka',
-                  style: TextStyle(color: Colors.grey),
-                ),
-              )
-            : ListView.builder(
-                scrollDirection: Axis.horizontal,
-                itemCount: sorted.length + 1,
-                itemBuilder: (ctx, i) {
-                  if (i < sorted.length) {
-                    final note = sorted[i];
-                    final header = note.userName;
-                    return Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: 4),
-                      child: Stack(
-                        children: [
-                          InkWell(
-                            onTap: () async {
-                              final updated = await showNoteDialog(
-                                context,
-                                userName: note.userName,
-                                createdAt: note.createdAt,
-                                initial: note.text,
-                              );
-                              if (updated != null &&
-                                  updated.trim() != note.text) {
-                                await onEdit(i, updated.trim());
-                              }
-                            },
-                            child: Container(
-                              width: 64,
-                              height: 70,
-                              padding: const EdgeInsets.all(8),
-                              decoration: BoxDecoration(
-                                color: Colors.grey.shade200,
-                                borderRadius: BorderRadius.circular(6),
-                              ),
-                              child: AutoSizeText(
-                                header,
-                                maxLines: 2,
-                                minFontSize: 10,
-                                style: const TextStyle(
-                                  fontWeight: FontWeight.bold,
-                                ),
-                              ),
-                            ),
-                          ),
-                          Positioned(
-                            top: 0,
-                            right: 0,
-                            child: InkWell(
-                              onTap: () => onDelete(i),
-                              child: Container(
-                                padding: const EdgeInsets.all(2),
-                                decoration: BoxDecoration(
-                                  color: Colors.black45,
-                                  shape: BoxShape.circle,
-                                ),
-                                child: const Icon(
-                                  Icons.close,
-                                  size: 14,
-                                  color: Colors.white,
-                                ),
-                              ),
-                            ),
-                          ),
-                        ],
-                      ),
-                    );
-                  }
-                  // trailing placeholder
-                  return Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 4),
-                    child: GestureDetector(
-                      onTap: () async => await onAddNote(context),
-                      child: Container(
-                        width: 80,
-                        height: 70,
-                        alignment: Alignment.center,
-                        decoration: BoxDecoration(
-                          color: Colors.transparent,
-                          borderRadius: BorderRadius.circular(6),
-                        ),
-                        child: Text(
-                          'Dotknij aby dodać notatka',
-                          textAlign: TextAlign.center,
-                          style: TextStyle(color: Colors.grey),
-                        ),
-                      ),
+    const double tileHeight = 70;
+    const double addButtonSize = 22.0;
+
+    if (sorted.isEmpty) {
+      return SizedBox(
+        height: tileHeight,
+        child: Stack(
+          children: [
+            Center(
+              child: GestureDetector(
+                onTap: () async => await onAddNote(context),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(Icons.add, size: addButtonSize, color: Colors.black),
+                    const SizedBox(width: 6),
+                    Text(
+                      'Dotknij aby dodać notatka',
+                      style: TextStyle(color: Colors.grey[600]),
                     ),
-                  );
-                },
+                  ],
+                ),
               ),
+            ),
+            Positioned(
+              top: 4,
+              right: 4,
+              child: _AddNoteButton(
+                size: addButtonSize,
+                onTap: () async => await onAddNote(context),
+              ),
+            ),
+          ],
+        ),
+      );
+    }
+
+    return SizedBox(
+      height: tileHeight,
+      child: Stack(
+        children: [
+          Positioned.fill(
+            child: SingleChildScrollView(
+              scrollDirection: Axis.vertical,
+              child: Padding(
+                padding: const EdgeInsets.only(right: 36.0),
+                child: Wrap(
+                  spacing: 3,
+                  runSpacing: 3,
+                  children: [
+                    for (int i = 0; i < sorted.length; i++)
+                      _NoteTile(
+                        note: sorted[i],
+                        index: i,
+                        onEdit: onEdit,
+                        onDelete: onDelete,
+                      ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+
+          //   "+"
+          Positioned(
+            top: 4,
+            right: 4,
+            child: _AddNoteButton(
+              size: addButtonSize,
+              onTap: () async => await onAddNote(context),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _NoteTile extends StatelessWidget {
+  final Note note;
+  final int index;
+  final OnNoteEdited onEdit;
+  final OnNoteDeleted onDelete;
+
+  const _NoteTile({
+    required this.note,
+    required this.index,
+    required this.onEdit,
+    required this.onDelete,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final header = note.userName;
+
+    return SizedBox(
+      width: 64,
+      height: 70,
+      child: Stack(
+        children: [
+          InkWell(
+            onTap: () async {
+              final updated = await showNoteDialog(
+                context,
+                userName: note.userName,
+                createdAt: note.createdAt,
+                initial: note.text,
+              );
+              if (updated != null && updated.trim() != note.text) {
+                await onEdit(index, updated.trim());
+              }
+            },
+            child: Container(
+              padding: const EdgeInsets.all(8),
+              decoration: BoxDecoration(
+                color: Colors.grey.shade200,
+                borderRadius: BorderRadius.circular(6),
+              ),
+              child: AutoSizeText(
+                header,
+                maxLines: 2,
+                minFontSize: 10,
+                style: const TextStyle(fontWeight: FontWeight.bold),
+              ),
+            ),
+          ),
+          Positioned(
+            top: 0,
+            right: 0,
+            child: InkWell(
+              onTap: () => onDelete(index),
+              child: Container(
+                padding: const EdgeInsets.all(2),
+                decoration: const BoxDecoration(
+                  color: Colors.black45,
+                  shape: BoxShape.circle,
+                ),
+                child: const Icon(Icons.close, size: 14, color: Colors.white),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _AddNoteButton extends StatelessWidget {
+  final double size;
+  final VoidCallback onTap;
+
+  const _AddNoteButton({required this.size, required this.onTap});
+
+  @override
+  Widget build(BuildContext context) {
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(size),
+      child: Container(
+        width: size + 6,
+        height: size + 6,
+        decoration: BoxDecoration(
+          color: Colors.grey.shade300,
+          shape: BoxShape.circle,
+        ),
+        child: Icon(Icons.add, size: size, color: Colors.grey[800]),
       ),
     );
   }

@@ -1,5 +1,4 @@
 // lib/widgets/project_files_section.dart
-
 import 'dart:io' as io;
 
 import 'package:desktop_drop/desktop_drop.dart';
@@ -36,17 +35,33 @@ class ProjectFilesSection extends StatefulWidget {
 }
 
 class _ProjectFilesSectionState extends State<ProjectFilesSection> {
-  final List<Map<String, String>> _files = [];
+  // Separate lists for normal files and images
+  final List<Map<String, String>> _fileItems = [];
+  final List<Map<String, String>> _imageItems = [];
+
   bool _fileUploading = false;
   DropzoneViewController? _dropzoneController;
   bool _dropHighlight = false;
   bool _dragging = false;
   _FileSort _fileSort = _FileSort.original;
 
+  static const Set<String> _imageExtensions = {
+    '.jpg',
+    '.jpeg',
+    '.png',
+    '.gif',
+    '.webp',
+    '.bmp',
+    '.heic',
+    '.heif',
+  };
+
   @override
   void initState() {
     super.initState();
-    _files.addAll(widget.initialFiles);
+    for (final f in widget.initialFiles) {
+      _addItemToCorrectList(f);
+    }
   }
 
   bool get _isDesktop {
@@ -57,28 +72,40 @@ class _ProjectFilesSectionState extends State<ProjectFilesSection> {
         platform == TargetPlatform.linux;
   }
 
-  List<int> _getFileOrder() {
-    final idxs = List<int>.generate(_files.length, (i) => i);
+  bool _isImageName(String name) {
+    final ext = p.extension(name).toLowerCase();
+    return _imageExtensions.contains(ext);
+  }
+
+  void _addItemToCorrectList(Map<String, String> item) {
+    final name = item['name'] ?? '';
+    if (_isImageName(name)) {
+      _imageItems.add(item);
+    } else {
+      _fileItems.add(item);
+    }
+  }
+
+  List<int> _getOrder(List<Map<String, String>> items) {
+    final idxs = List<int>.generate(items.length, (i) => i);
 
     switch (_fileSort) {
       case _FileSort.original:
         return idxs;
 
       case _FileSort.dateNewest:
+        // Newest by insertion order – last added first
         idxs.sort((a, b) => b.compareTo(a));
         return idxs;
 
       case _FileSort.type:
         idxs.sort((a, b) {
-          final nameA = _files[a]['name'] ?? '';
-          final nameB = _files[b]['name'] ?? '';
-
+          final nameA = items[a]['name'] ?? '';
+          final nameB = items[b]['name'] ?? '';
           final extA = p.extension(nameA).toLowerCase();
           final extB = p.extension(nameB).toLowerCase();
-
           final cmpExt = extA.compareTo(extB);
           if (cmpExt != 0) return cmpExt;
-
           return nameA.toLowerCase().compareTo(nameB.toLowerCase());
         });
         return idxs;
@@ -107,9 +134,12 @@ class _ProjectFilesSectionState extends State<ProjectFilesSection> {
         projectId: widget.projectId,
         files: entries,
       );
+
       if (mounted && newFiles.isNotEmpty) {
         setState(() {
-          _files.addAll(newFiles);
+          for (final f in newFiles) {
+            _addItemToCorrectList(f);
+          }
         });
       }
     }
@@ -119,10 +149,12 @@ class _ProjectFilesSectionState extends State<ProjectFilesSection> {
 
   Future<void> _handleWebDropFiles(List<DropzoneFileInterface> files) async {
     if (!kIsWeb) return;
+
     if (_dropzoneController == null) {
       debugPrint('Dropzone controller is null');
       return;
     }
+
     if (files.isEmpty) return;
 
     setState(() => _fileUploading = true);
@@ -149,7 +181,9 @@ class _ProjectFilesSectionState extends State<ProjectFilesSection> {
 
         if (mounted && newFiles.isNotEmpty) {
           setState(() {
-            _files.addAll(newFiles);
+            for (final f in newFiles) {
+              _addItemToCorrectList(f);
+            }
           });
         }
       }
@@ -176,9 +210,7 @@ class _ProjectFilesSectionState extends State<ProjectFilesSection> {
     for (final file in result.files) {
       try {
         final name = file.name;
-        final bytes =
-            file.bytes ??
-            await io.File(file.path!).readAsBytes(); // mobile / desktop path
+        final bytes = file.bytes ?? await io.File(file.path!).readAsBytes();
         entries.add(MapEntry(name, bytes));
       } catch (e) {
         debugPrint('Failed to read picked file "${file.name}": $e');
@@ -191,9 +223,12 @@ class _ProjectFilesSectionState extends State<ProjectFilesSection> {
         projectId: widget.projectId,
         files: entries,
       );
+
       if (mounted && newFiles.isNotEmpty) {
         setState(() {
-          _files.addAll(newFiles);
+          for (final f in newFiles) {
+            _addItemToCorrectList(f);
+          }
         });
       }
     }
@@ -201,8 +236,9 @@ class _ProjectFilesSectionState extends State<ProjectFilesSection> {
     if (mounted) setState(() => _fileUploading = false);
   }
 
-  Future<void> _deleteFile(int index) async {
-    final file = _files[index];
+  Future<void> _deleteItem({required bool isImage, required int index}) async {
+    final list = isImage ? _imageItems : _fileItems;
+    final file = list[index];
     final url = file['url']!;
     final name = file['name']!;
 
@@ -223,6 +259,7 @@ class _ProjectFilesSectionState extends State<ProjectFilesSection> {
         ],
       ),
     );
+
     if (confirmed != true) return;
 
     setState(() => _fileUploading = true);
@@ -236,7 +273,7 @@ class _ProjectFilesSectionState extends State<ProjectFilesSection> {
       );
 
       setState(() {
-        _files.removeAt(index);
+        list.removeAt(index);
       });
     } catch (e) {
       debugPrint('Failed to delete file: $e');
@@ -285,11 +322,9 @@ class _ProjectFilesSectionState extends State<ProjectFilesSection> {
   }
 
   Future<void> _previewFile(String url, String fileName) async {
-    // WEB open in new tab
     if (kIsWeb) {
       try {
         final uri = Uri.parse(url);
-
         if (await canLaunchUrl(uri)) {
           await launchUrl(
             uri,
@@ -388,7 +423,7 @@ class _ProjectFilesSectionState extends State<ProjectFilesSection> {
                 ),
                 if (widget.isAdmin)
                   GestureDetector(
-                    onTap: () => _deleteFile(index),
+                    onTap: () => _deleteItem(isImage: false, index: index),
                     child: const Padding(
                       padding: EdgeInsets.only(left: 4),
                       child: Icon(Icons.close, size: 16, color: Colors.red),
@@ -402,19 +437,155 @@ class _ProjectFilesSectionState extends State<ProjectFilesSection> {
     );
   }
 
+  Widget _buildImageTile(Map<String, String> file, int index) {
+    final name = file['name'] ?? '';
+    final url = file['url']!;
+
+    return SizedBox(
+      width: 180,
+      child: Material(
+        color: Colors.white,
+        elevation: 1,
+        borderRadius: BorderRadius.circular(6),
+        child: InkWell(
+          onTap: () => _previewFile(url, name),
+          borderRadius: BorderRadius.circular(6),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              AspectRatio(
+                aspectRatio: 4 / 3,
+                child: ClipRRect(
+                  borderRadius: const BorderRadius.vertical(
+                    top: Radius.circular(6),
+                  ),
+                  child: Image.network(
+                    url,
+                    fit: BoxFit.cover,
+                    errorBuilder: (_, __, ___) =>
+                        const Center(child: Icon(Icons.broken_image)),
+                  ),
+                ),
+              ),
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+                child: Row(
+                  children: [
+                    Expanded(
+                      child: Tooltip(
+                        message: name,
+                        waitDuration: const Duration(milliseconds: 500),
+                        child: Text(
+                          name,
+                          style: const TextStyle(
+                            fontSize: 12,
+                            fontWeight: FontWeight.w600,
+                          ),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
+                    ),
+                    IconButton(
+                      tooltip: 'Pobierz',
+                      icon: const Icon(Icons.download, size: 18),
+                      onPressed: () => _downloadFile(url, name),
+                    ),
+                    if (widget.isAdmin)
+                      GestureDetector(
+                        onTap: () => _deleteItem(isImage: true, index: index),
+                        child: const Padding(
+                          padding: EdgeInsets.only(left: 4),
+                          child: Icon(Icons.close, size: 16, color: Colors.red),
+                        ),
+                      ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildFilesSection() {
+    if (_fileItems.isEmpty) return const SizedBox.shrink();
+
+    final order = _getOrder(_fileItems);
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const Padding(
+          padding: EdgeInsets.fromLTRB(6, 4, 6, 0),
+          child: Text(
+            'Pliki',
+            style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600),
+          ),
+        ),
+        Padding(
+          padding: const EdgeInsets.all(6),
+          child: Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            children: List.generate(order.length, (i) {
+              final idx = order[i];
+              return _buildFileTile(_fileItems[idx], idx);
+            }),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildImagesSection() {
+    if (_imageItems.isEmpty) return const SizedBox.shrink();
+
+    final order = _getOrder(_imageItems);
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const Padding(
+          padding: EdgeInsets.fromLTRB(6, 8, 6, 0),
+          child: Text(
+            'Zdjęcia',
+            style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600),
+          ),
+        ),
+        Padding(
+          padding: const EdgeInsets.all(6),
+          child: Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            children: List.generate(order.length, (i) {
+              final idx = order[i];
+              return _buildImageTile(_imageItems[idx], idx);
+            }),
+          ),
+        ),
+      ],
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     if (_fileUploading) {
       return const Center(child: CircularProgressIndicator());
     }
 
-    if (_files.isEmpty) {
+    final hasFiles = _fileItems.isNotEmpty;
+    final hasImages = _imageItems.isNotEmpty;
+
+    // EMPTY STATE – no files or images yet
+    if (!hasFiles && !hasImages) {
       final isHighlighted = _dropHighlight || _dragging;
 
       final box = GestureDetector(
         onTap: _pickAndUploadFiles,
         child: Container(
-          height: 80,
+          height: kIsWeb ? 120 : 80,
           alignment: Alignment.center,
           decoration: BoxDecoration(
             border: Border.all(
@@ -426,13 +597,14 @@ class _ProjectFilesSectionState extends State<ProjectFilesSection> {
                 : Colors.transparent,
           ),
           child: Text(
-            kIsWeb ? 'Kliknij lub upuść pliki tutaj' : 'Dotknij aby dodać plik',
+            kIsWeb
+                ? 'Kliknij lub upuść pliki / zdjęcia tutaj'
+                : 'Dotknij aby dodać plik / zdjęcie',
           ),
         ),
       );
 
       if (!kIsWeb) {
-        // MOBILE + DESKTOP (no web): desktop gets DropTarget, mobile just box
         return _wrapWithDesktopDropTarget(box);
       }
 
@@ -455,91 +627,10 @@ class _ProjectFilesSectionState extends State<ProjectFilesSection> {
       );
     }
 
-    final order = _getFileOrder();
-
-    final Widget listBody;
-
-    if (kIsWeb) {
-      // WEB: compact grid
-      listBody = Padding(
-        padding: const EdgeInsets.all(6),
-        child: Wrap(
-          spacing: 8,
-          runSpacing: 8,
-          children: List.generate(order.length, (i) {
-            final idx = order[i];
-            return _buildFileTile(_files[idx], idx);
-          }),
-        ),
-      );
-    } else {
-      // MOBILE
-      listBody = ListView.separated(
-        shrinkWrap: true,
-        physics: const ClampingScrollPhysics(),
-        itemCount: order.length,
-        separatorBuilder: (_, __) => const Divider(height: 1),
-        itemBuilder: (ctx, i) {
-          final idx = order[i];
-          final file = _files[idx];
-          final name = file['name'] ?? '';
-
-          return InkWell(
-            onTap: () => _previewFile(file['url']!, file['name'] ?? 'plik'),
-            child: Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-              child: Row(
-                children: [
-                  Expanded(
-                    child: Tooltip(
-                      message: name,
-                      waitDuration: const Duration(milliseconds: 500),
-                      child: Text(
-                        name,
-                        style: const TextStyle(
-                          fontSize: 14,
-                          fontWeight: FontWeight.w600,
-                        ),
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                      ),
-                    ),
-                  ),
-                  IconButton(
-                    tooltip: 'Pobierz',
-                    icon: const Icon(Icons.download, size: 18),
-                    onPressed: () => _downloadFile(file['url']!, name),
-                  ),
-                  if (widget.isAdmin)
-                    GestureDetector(
-                      onTap: () => _deleteFile(idx),
-                      child: Padding(
-                        padding: const EdgeInsets.symmetric(horizontal: 8.0),
-                        child: Container(
-                          decoration: const BoxDecoration(
-                            color: Colors.red,
-                            shape: BoxShape.circle,
-                          ),
-                          padding: const EdgeInsets.all(6),
-                          child: const Icon(
-                            Icons.close,
-                            size: 14,
-                            color: Colors.white,
-                          ),
-                        ),
-                      ),
-                    ),
-                ],
-              ),
-            ),
-          );
-        },
-      );
-    }
-
     final listContent = Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
+        // Sort chips – apply to both files & images
         Padding(
           padding: const EdgeInsets.only(bottom: 4),
           child: Wrap(
@@ -574,10 +665,9 @@ class _ProjectFilesSectionState extends State<ProjectFilesSection> {
             ],
           ),
         ),
+        // Main bordered container with scrollable files + images
         Container(
-          constraints: kIsWeb
-              ? const BoxConstraints()
-              : const BoxConstraints(maxHeight: 140),
+          constraints: BoxConstraints(maxHeight: kIsWeb ? 280 : 160),
           decoration: BoxDecoration(
             border: Border.all(
               color: (_dropHighlight || _dragging)
@@ -589,9 +679,23 @@ class _ProjectFilesSectionState extends State<ProjectFilesSection> {
                 ? Colors.blue.withValues(alpha: 0.02)
                 : Colors.transparent,
           ),
-          child: listBody,
+          child: Scrollbar(
+            thumbVisibility: kIsWeb,
+            child: SingleChildScrollView(
+              padding: const EdgeInsets.symmetric(vertical: 4),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  if (hasFiles) _buildFilesSection(),
+                  if (hasFiles && hasImages) const SizedBox(height: 8),
+                  if (hasImages) _buildImagesSection(),
+                ],
+              ),
+            ),
+          ),
         ),
         const SizedBox(height: 4),
+        // Add button – same for both, auto-routing by extension
         GestureDetector(
           onTap: _pickAndUploadFiles,
           child: Container(
@@ -608,7 +712,7 @@ class _ProjectFilesSectionState extends State<ProjectFilesSection> {
                 Icon(Icons.add, size: 16),
                 SizedBox(width: 6),
                 Text(
-                  'dodaj pliki',
+                  'dodaj pliki / zdjęcia',
                   style: TextStyle(fontWeight: FontWeight.w600),
                 ),
               ],
@@ -619,11 +723,9 @@ class _ProjectFilesSectionState extends State<ProjectFilesSection> {
     );
 
     if (!kIsWeb) {
-      // Mobile + Desktop
       return _wrapWithDesktopDropTarget(listContent);
     }
 
-    // Web: list/grid
     return Stack(
       children: [
         Positioned.fill(
