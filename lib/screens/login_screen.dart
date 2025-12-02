@@ -31,9 +31,7 @@ class _LoginScreenState extends State<LoginScreen> {
       setState(() {
         _version = 'v.${info.version} _${info.buildNumber}';
       });
-    } catch (_) {
-      // swallow; fallback placeholder will show
-    }
+    } catch (_) {}
   }
 
   @override
@@ -80,7 +78,7 @@ class _LoginScreenState extends State<LoginScreen> {
       final friendly = _friendlyMessageForCode(e.code);
       setState(() => _error = friendly);
     } catch (_) {
-      setState(() => _error = 'Nieoczekiwany błąd. Spróbuj ponownie.');
+      setState(() => _error = 'Mega error. Spróbuj znowu...');
     } finally {
       if (mounted) setState(() => _isLoading = false);
     }
@@ -90,93 +88,124 @@ class _LoginScreenState extends State<LoginScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       body: SafeArea(
-        child: Stack(
+        child: LayoutBuilder(
+          builder: (context, constraints) {
+            final bool isWide = constraints.maxWidth >= 700;
+
+            return Stack(
+              children: [
+                Center(
+                  child: SingleChildScrollView(
+                    child: ConstrainedBox(
+                      constraints: BoxConstraints(
+                        maxWidth: isWide ? 420 : double.infinity,
+                      ),
+                      child: _LoginCard(
+                        emailCtrl: _emailCtrl,
+                        passCtrl: _passCtrl,
+                        error: _error,
+                        isLoading: _isLoading,
+                        onSignIn: _signIn,
+                      ),
+                    ),
+                  ),
+                ),
+
+                Positioned(
+                  bottom: 8,
+                  left: 12,
+                  child: Text(
+                    _version.isNotEmpty ? _version : 'v.?_?',
+                    style: const TextStyle(fontSize: 12, color: Colors.black54),
+                  ),
+                ),
+
+                Positioned(
+                  bottom: 8,
+                  right: 12,
+                  child: Image.asset(
+                    'assets/images/dev_logo.png',
+                    width: 80,
+                    fit: BoxFit.contain,
+                  ),
+                ),
+              ],
+            );
+          },
+        ),
+      ),
+    );
+  }
+}
+
+class _LoginCard extends StatelessWidget {
+  final TextEditingController emailCtrl;
+  final TextEditingController passCtrl;
+  final String? error;
+  final bool isLoading;
+  final VoidCallback onSignIn;
+
+  const _LoginCard({
+    required this.emailCtrl,
+    required this.passCtrl,
+    required this.error,
+    required this.isLoading,
+    required this.onSignIn,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Card(
+      elevation: 4,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 40),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
           children: [
-            // main content
-            Center(
-              child: SingleChildScrollView(
-                padding: const EdgeInsets.symmetric(horizontal: 32),
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    const SizedBox(height: 40),
-                    Image.asset(
-                      'assets/images/strefa_ciszy_logo.png',
-                      width: 200,
-                    ),
-                    const SizedBox(height: 8),
-                    const Text(
-                      '_Inventory',
-                      style: TextStyle(
-                        fontSize: 16,
-                        fontWeight: FontWeight.w500,
-                      ),
-                    ),
-                    const SizedBox(height: 48),
-                    if (_error != null) ...[
-                      Text(_error!, style: const TextStyle(color: Colors.red)),
-                      const SizedBox(height: 16),
-                    ],
-                    TextField(
-                      controller: _emailCtrl,
-                      decoration: const InputDecoration(labelText: 'Email'),
-                      keyboardType: TextInputType.emailAddress,
-                      textInputAction: TextInputAction.next,
-                      onSubmitted: (_) => FocusScope.of(context).nextFocus(),
-                    ),
-                    const SizedBox(height: 16),
-                    TextField(
-                      controller: _passCtrl,
-                      decoration: const InputDecoration(labelText: 'Hasło'),
-                      obscureText: true,
-                      textInputAction: TextInputAction.done,
-                      onSubmitted: (_) {
-                        if (!_isLoading) _signIn();
-                      },
-                    ),
-                    const SizedBox(height: 32),
-                    ElevatedButton(
-                      onPressed: _isLoading ? null : _signIn,
-                      style: ElevatedButton.styleFrom(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 32,
-                          vertical: 14,
-                        ),
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(24),
-                        ),
-                      ),
-                      child: _isLoading
-                          ? const SizedBox(
-                              width: 24,
-                              height: 24,
-                              child: CircularProgressIndicator(strokeWidth: 2),
-                            )
-                          : const Text('Zaloguj się'),
-                    ),
-                    const SizedBox(height: 120),
-                  ],
+            const SizedBox(height: 8),
+            Image.asset('assets/images/strefa_ciszy_logo.png', width: 200),
+            const SizedBox(height: 8),
+            const Text(
+              '_Inventory',
+              style: TextStyle(fontSize: 16, fontWeight: FontWeight.w500),
+            ),
+            const SizedBox(height: 32),
+            TextField(
+              controller: emailCtrl,
+              decoration: const InputDecoration(labelText: 'Email'),
+              keyboardType: TextInputType.emailAddress,
+              textInputAction: TextInputAction.next,
+            ),
+            const SizedBox(height: 16),
+            TextField(
+              controller: passCtrl,
+              decoration: const InputDecoration(labelText: 'Hasło'),
+              obscureText: true,
+              textInputAction: TextInputAction.done,
+              onSubmitted: (_) {
+                if (!isLoading) onSignIn();
+              },
+            ),
+            const SizedBox(height: 32),
+            ElevatedButton(
+              onPressed: isLoading ? null : onSignIn,
+              style: ElevatedButton.styleFrom(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 32,
+                  vertical: 14,
+                ),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(24),
                 ),
               ),
-            ),
-
-            Positioned(
-              bottom: 8,
-              left: 12,
-              child: Text(
-                _version.isNotEmpty ? _version : 'v.?_?',
-                style: const TextStyle(fontSize: 12, color: Colors.black54),
-              ),
-            ),
-
-            Positioned(
-              bottom: 8,
-              right: 12,
-              child: Image.asset(
-                'assets/images/dev_logo.png',
-                width: 80,
-                fit: BoxFit.contain,
-              ),
+              child: isLoading
+                  ? const SizedBox(
+                      width: 24,
+                      height: 24,
+                      child: CircularProgressIndicator(strokeWidth: 2),
+                    )
+                  : const Text('Zaloguj się'),
             ),
           ],
         ),

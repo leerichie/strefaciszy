@@ -16,6 +16,8 @@ import 'package:url_launcher/url_launcher.dart';
 
 enum _FileSort { original, dateNewest, type }
 
+enum _ClearScope { all, files, images, select }
+
 class ProjectFilesSection extends StatefulWidget {
   final String customerId;
   final String projectId;
@@ -44,6 +46,8 @@ class _ProjectFilesSectionState extends State<ProjectFilesSection> {
   bool _dropHighlight = false;
   bool _dragging = false;
   _FileSort _fileSort = _FileSort.original;
+  bool _selectionMode = false;
+  final Set<String> _selectedUrls = {};
 
   static const Set<String> _imageExtensions = {
     '.jpg',
@@ -62,6 +66,16 @@ class _ProjectFilesSectionState extends State<ProjectFilesSection> {
     for (final f in widget.initialFiles) {
       _addItemToCorrectList(f);
     }
+  }
+
+  void _toggleSelection(String url) {
+    setState(() {
+      if (_selectedUrls.contains(url)) {
+        _selectedUrls.remove(url);
+      } else {
+        _selectedUrls.add(url);
+      }
+    });
   }
 
   bool get _isDesktop {
@@ -83,6 +97,193 @@ class _ProjectFilesSectionState extends State<ProjectFilesSection> {
       _imageItems.add(item);
     } else {
       _fileItems.add(item);
+    }
+  }
+
+  Future<void> _clearItems() async {
+    if (!widget.isAdmin) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Tylko admin może skasować')),
+      );
+      return;
+    }
+    if (_fileItems.isEmpty && _imageItems.isEmpty) return;
+
+    if (_selectionMode) {
+      if (_selectedUrls.isEmpty) {
+        setState(() {
+          _selectionMode = false;
+        });
+        return;
+      }
+
+      final confirmed = await showDialog<bool>(
+        context: context,
+        builder: (ctx) => AlertDialog(
+          title: const Text('Usuń zaznaczone'),
+          content: Text(
+            'Na pewno chcesz usunąć ${_selectedUrls.length} tych elementów?',
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(ctx, false),
+              child: const Text('Anuluj'),
+            ),
+            ElevatedButton(
+              onPressed: () => Navigator.pop(ctx, true),
+              child: const Text('Usuń'),
+            ),
+          ],
+        ),
+      );
+
+      if (confirmed != true) return;
+
+      setState(() => _fileUploading = true);
+
+      try {
+        Future<void> deleteList(List<Map<String, String>> list) async {
+          final copy = List<Map<String, String>>.from(list);
+          for (final f in copy) {
+            final url = f['url']!;
+            if (!_selectedUrls.contains(url)) continue;
+
+            await ProjectFilesService.deleteProjectFile(
+              customerId: widget.customerId,
+              projectId: widget.projectId,
+              url: url,
+              name: f['name']!,
+            );
+            list.remove(f);
+          }
+        }
+
+        await deleteList(_fileItems);
+        await deleteList(_imageItems);
+
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Zaznaczone pliki usunięte')),
+          );
+        }
+      } catch (e) {
+        debugPrint('Bulk delete selected error: $e');
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Nie udało się skasować plików')),
+          );
+        }
+      } finally {
+        if (mounted) {
+          setState(() {
+            _fileUploading = false;
+            _selectionMode = false;
+            _selectedUrls.clear();
+          });
+        }
+      }
+
+      return;
+    }
+
+    // Normal mode → ask what to delete / or enter selection mode
+    final choice = await showDialog<_ClearScope>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Usuń pliki / fotki'),
+        content: const Text('Co chcesz usunąć?'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, null),
+            child: const Text('Anuluj'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, _ClearScope.files),
+            child: const Text('Tylko pliki'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, _ClearScope.images),
+            child: const Text('Tylko zdjęcia'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, _ClearScope.select),
+            child: const Text('Wybierz kilka'),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.pop(ctx, _ClearScope.all),
+            child: const Text('Wszystko'),
+          ),
+        ],
+      ),
+    );
+
+    if (choice == null) return;
+
+    if (choice == _ClearScope.select) {
+      setState(() {
+        _selectionMode = true;
+        _selectedUrls.clear();
+      });
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text(
+              'Wybierz pliki / foty do usunecie, '
+              'potem ponownie kliknij Wyczyść',
+            ),
+          ),
+        );
+      }
+      return;
+    }
+
+    final clearFiles = choice == _ClearScope.all || choice == _ClearScope.files;
+    final clearImages =
+        choice == _ClearScope.all || choice == _ClearScope.images;
+
+    setState(() => _fileUploading = true);
+
+    try {
+      if (clearFiles && _fileItems.isNotEmpty) {
+        final filesCopy = List<Map<String, String>>.from(_fileItems);
+        for (final f in filesCopy) {
+          await ProjectFilesService.deleteProjectFile(
+            customerId: widget.customerId,
+            projectId: widget.projectId,
+            url: f['url']!,
+            name: f['name']!,
+          );
+        }
+        _fileItems.clear();
+      }
+
+      if (clearImages && _imageItems.isNotEmpty) {
+        final imagesCopy = List<Map<String, String>>.from(_imageItems);
+        for (final f in imagesCopy) {
+          await ProjectFilesService.deleteProjectFile(
+            customerId: widget.customerId,
+            projectId: widget.projectId,
+            url: f['url']!,
+            name: f['name']!,
+          );
+        }
+        _imageItems.clear();
+      }
+
+      if (mounted) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(const SnackBar(content: Text('Pliki usunięte')));
+      }
+    } catch (e) {
+      debugPrint('Bulk clear error: $e');
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Nie udało się skasować plików')),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _fileUploading = false);
     }
   }
 
@@ -237,6 +438,12 @@ class _ProjectFilesSectionState extends State<ProjectFilesSection> {
   }
 
   Future<void> _deleteItem({required bool isImage, required int index}) async {
+    if (!widget.isAdmin) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Tylko admin może skasować')),
+      );
+      return;
+    }
     final list = isImage ? _imageItems : _fileItems;
     final file = list[index];
     final url = file['url']!;
@@ -279,7 +486,7 @@ class _ProjectFilesSectionState extends State<ProjectFilesSection> {
       debugPrint('Failed to delete file: $e');
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Nie udało się usunąć pliku')),
+          const SnackBar(content: Text('Nie udało się usunąć plik')),
         );
       }
     } finally {
@@ -316,7 +523,7 @@ class _ProjectFilesSectionState extends State<ProjectFilesSection> {
       if (mounted) {
         ScaffoldMessenger.of(
           context,
-        ).showSnackBar(const SnackBar(content: Text('Nie można pobrać pliku')));
+        ).showSnackBar(const SnackBar(content: Text('Nie można pobrać plik')));
       }
     }
   }
@@ -333,13 +540,13 @@ class _ProjectFilesSectionState extends State<ProjectFilesSection> {
           );
         } else {
           ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('Nie można otworzyć pliku')),
+            const SnackBar(content: Text('Nie można otworzyć plik')),
           );
         }
       } catch (e) {
         debugPrint('Failed to open file on web: $e');
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Nie można otworzyć pliku')),
+          const SnackBar(content: Text('Nie można otworzyć plik')),
         );
       }
       return;
@@ -383,53 +590,65 @@ class _ProjectFilesSectionState extends State<ProjectFilesSection> {
     );
   }
 
+  // files box
   Widget _buildFileTile(Map<String, String> file, int index) {
     final name = file['name'] ?? '';
+    final url = file['url']!;
+
+    final bool isWeb = kIsWeb;
+    final bool isSelected = _selectionMode && _selectedUrls.contains(url);
+
+    double tileWidth;
+    if (isWeb) {
+      tileWidth = 260.0;
+    } else {
+      final screenWidth = MediaQuery.of(context).size.width;
+      final availableWidth = screenWidth - 32.0;
+      tileWidth = (availableWidth - 8.0) / 2; // 2 per row
+    }
+
+    final double textSize = isWeb ? 13.0 : 11.0;
+    final double vPadding = isWeb ? 8.0 : 4.0;
+    final double hPadding = isWeb ? 12.0 : 8.0;
 
     return SizedBox(
-      width: 260,
+      width: tileWidth,
       child: Material(
         color: Colors.white,
         elevation: 1,
         borderRadius: BorderRadius.circular(6),
         child: InkWell(
-          onTap: () => _previewFile(file['url']!, name),
+          onTap: () {
+            if (_selectionMode) {
+              _toggleSelection(url);
+            } else {
+              _previewFile(url, name);
+            }
+          },
           borderRadius: BorderRadius.circular(6),
-          child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-            child: Row(
-              children: [
-                const Icon(Icons.insert_drive_file, size: 18),
-                const SizedBox(width: 8),
-                Expanded(
-                  child: Tooltip(
-                    message: name,
-                    waitDuration: const Duration(milliseconds: 500),
-                    child: Text(
-                      name,
-                      style: const TextStyle(
-                        fontSize: 13,
-                        fontWeight: FontWeight.w600,
-                      ),
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                  ),
+          child: Container(
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(6),
+              border: isSelected
+                  ? Border.all(color: Colors.redAccent, width: 2)
+                  : null,
+            ),
+            padding: EdgeInsets.symmetric(
+              horizontal: hPadding,
+              vertical: vPadding,
+            ),
+            child: Tooltip(
+              message: name,
+              waitDuration: const Duration(milliseconds: 500),
+              child: Text(
+                name,
+                style: TextStyle(
+                  fontSize: textSize,
+                  fontWeight: FontWeight.w600,
                 ),
-                IconButton(
-                  tooltip: 'Pobierz',
-                  icon: const Icon(Icons.download, size: 18),
-                  onPressed: () => _downloadFile(file['url']!, name),
-                ),
-                if (widget.isAdmin)
-                  GestureDetector(
-                    onTap: () => _deleteItem(isImage: false, index: index),
-                    child: const Padding(
-                      padding: EdgeInsets.only(left: 4),
-                      child: Icon(Icons.close, size: 16, color: Colors.red),
-                    ),
-                  ),
-              ],
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+              ),
             ),
           ),
         ),
@@ -437,79 +656,69 @@ class _ProjectFilesSectionState extends State<ProjectFilesSection> {
     );
   }
 
+  // images box
   Widget _buildImageTile(Map<String, String> file, int index) {
     final name = file['name'] ?? '';
     final url = file['url']!;
+    final bool isWeb = kIsWeb;
+    final bool isSelected = _selectionMode && _selectedUrls.contains(url);
+
+    double tileWidth;
+    if (isWeb) {
+      tileWidth = 80.0;
+    } else {
+      final screenWidth = MediaQuery.of(context).size.width;
+      final tilesPerRow = screenWidth < 360 ? 3 : 4;
+      final availableWidth = screenWidth - 32.0;
+      tileWidth =
+          (availableWidth - 8.0 * (tilesPerRow - 1)) /
+          tilesPerRow; // 3–4 per row
+    }
+
+    final double aspect = isWeb ? (4 / 3) : (3 / 2);
 
     return SizedBox(
-      width: 180,
+      width: tileWidth,
       child: Material(
         color: Colors.white,
         elevation: 1,
         borderRadius: BorderRadius.circular(6),
         child: InkWell(
-          onTap: () => _previewFile(url, name),
+          onTap: () {
+            if (_selectionMode) {
+              _toggleSelection(url);
+            } else {
+              _previewFile(url, name);
+            }
+          },
           borderRadius: BorderRadius.circular(6),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              AspectRatio(
-                aspectRatio: 4 / 3,
-                child: ClipRRect(
-                  borderRadius: const BorderRadius.vertical(
-                    top: Radius.circular(6),
-                  ),
-                  child: Image.network(
-                    url,
-                    fit: BoxFit.cover,
-                    errorBuilder: (_, __, ___) =>
-                        const Center(child: Icon(Icons.broken_image)),
-                  ),
+          child: Container(
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(6),
+              border: isSelected
+                  ? Border.all(color: Colors.redAccent, width: 2)
+                  : null,
+            ),
+            child: ClipRRect(
+              borderRadius: BorderRadius.circular(6),
+              child: AspectRatio(
+                aspectRatio: aspect,
+                child: Image.network(
+                  url,
+                  fit: BoxFit.cover,
+                  errorBuilder: (_, __, ___) =>
+                      const Center(child: Icon(Icons.broken_image)),
                 ),
               ),
-              Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
-                child: Row(
-                  children: [
-                    Expanded(
-                      child: Tooltip(
-                        message: name,
-                        waitDuration: const Duration(milliseconds: 500),
-                        child: Text(
-                          name,
-                          style: const TextStyle(
-                            fontSize: 12,
-                            fontWeight: FontWeight.w600,
-                          ),
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                        ),
-                      ),
-                    ),
-                    IconButton(
-                      tooltip: 'Pobierz',
-                      icon: const Icon(Icons.download, size: 18),
-                      onPressed: () => _downloadFile(url, name),
-                    ),
-                    if (widget.isAdmin)
-                      GestureDetector(
-                        onTap: () => _deleteItem(isImage: true, index: index),
-                        child: const Padding(
-                          padding: EdgeInsets.only(left: 4),
-                          child: Icon(Icons.close, size: 16, color: Colors.red),
-                        ),
-                      ),
-                  ],
-                ),
-              ),
-            ],
+            ),
           ),
         ),
       ),
     );
   }
 
-  Widget _buildFilesSection() {
+  /// FILES
+  Widget _buildFilesSection(double boxHeight) {
     if (_fileItems.isEmpty) return const SizedBox.shrink();
 
     final order = _getOrder(_fileItems);
@@ -517,29 +726,41 @@ class _ProjectFilesSectionState extends State<ProjectFilesSection> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        const Padding(
-          padding: EdgeInsets.fromLTRB(6, 4, 6, 0),
-          child: Text(
-            'Pliki',
-            style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600),
+        if (kIsWeb) ...[
+          const Padding(
+            padding: EdgeInsets.fromLTRB(6, 4, 6, 0),
+            child: Text(
+              'Pliki',
+              style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600),
+            ),
           ),
-        ),
-        Padding(
-          padding: const EdgeInsets.all(6),
-          child: Wrap(
-            spacing: 8,
-            runSpacing: 8,
-            children: List.generate(order.length, (i) {
-              final idx = order[i];
-              return _buildFileTile(_fileItems[idx], idx);
-            }),
+          const SizedBox(height: 4),
+        ],
+        SizedBox(
+          height: boxHeight,
+          child: Scrollbar(
+            thumbVisibility: kIsWeb,
+            child: ListView(
+              padding: const EdgeInsets.all(6),
+              children: [
+                Wrap(
+                  spacing: 8,
+                  runSpacing: 8,
+                  children: List.generate(order.length, (i) {
+                    final idx = order[i];
+                    return _buildFileTile(_fileItems[idx], idx);
+                  }),
+                ),
+              ],
+            ),
           ),
         ),
       ],
     );
   }
 
-  Widget _buildImagesSection() {
+  /// IMAGES
+  Widget _buildImagesSection(double boxHeight) {
     if (_imageItems.isEmpty) return const SizedBox.shrink();
 
     final order = _getOrder(_imageItems);
@@ -547,22 +768,33 @@ class _ProjectFilesSectionState extends State<ProjectFilesSection> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        const Padding(
-          padding: EdgeInsets.fromLTRB(6, 8, 6, 0),
-          child: Text(
-            'Zdjęcia',
-            style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600),
+        if (kIsWeb) ...[
+          const Padding(
+            padding: EdgeInsets.fromLTRB(6, 4, 6, 0),
+            child: Text(
+              'Zdjęcia',
+              style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600),
+            ),
           ),
-        ),
-        Padding(
-          padding: const EdgeInsets.all(6),
-          child: Wrap(
-            spacing: 8,
-            runSpacing: 8,
-            children: List.generate(order.length, (i) {
-              final idx = order[i];
-              return _buildImageTile(_imageItems[idx], idx);
-            }),
+          const SizedBox(height: 4),
+        ],
+        SizedBox(
+          height: boxHeight,
+          child: Scrollbar(
+            thumbVisibility: kIsWeb,
+            child: ListView(
+              padding: const EdgeInsets.all(6),
+              children: [
+                Wrap(
+                  spacing: 8,
+                  runSpacing: 8,
+                  children: List.generate(order.length, (i) {
+                    final idx = order[i];
+                    return _buildImageTile(_imageItems[idx], idx);
+                  }),
+                ),
+              ],
+            ),
           ),
         ),
       ],
@@ -627,47 +859,78 @@ class _ProjectFilesSectionState extends State<ProjectFilesSection> {
       );
     }
 
+    //  filters
     final listContent = Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        // Sort chips – apply to both files & images
         Padding(
           padding: const EdgeInsets.only(bottom: 4),
           child: Wrap(
             spacing: 8,
             crossAxisAlignment: WrapCrossAlignment.center,
             children: [
-              const Text(
-                'Sortuj:',
-                style: TextStyle(fontSize: 12, fontWeight: FontWeight.w500),
-              ),
               ChoiceChip(
-                label: const Text('Domyślnie'),
+                label: const Icon(Icons.refresh),
                 selected: _fileSort == _FileSort.original,
                 onSelected: (_) {
                   setState(() => _fileSort = _FileSort.original);
                 },
               ),
               ChoiceChip(
-                label: const Text('Data'),
+                label: const Text('Date'),
                 selected: _fileSort == _FileSort.dateNewest,
                 onSelected: (_) {
                   setState(() => _fileSort = _FileSort.dateNewest);
                 },
               ),
               ChoiceChip(
-                label: const Text('Typ pliku'),
+                label: const Text('Typ'),
                 selected: _fileSort == _FileSort.type,
                 onSelected: (_) {
                   setState(() => _fileSort = _FileSort.type);
                 },
               ),
+
+              // CLEAR (admin)
+              if (widget.isAdmin)
+                ChoiceChip(
+                  // avatar: Icon(
+                  //   Icons.delete_outline,
+                  //   size: 16,
+                  //   color: _selectionMode ? Colors.red : Colors.black54,
+                  // ),
+                  // label: const SizedBox.shrink(),
+                  label: Text('Skasuj', style: TextStyle(color: Colors.red)),
+                  labelPadding: EdgeInsets.zero,
+                  selected: _selectionMode,
+                  onSelected: (_fileItems.isEmpty && _imageItems.isEmpty)
+                      ? null
+                      : (_) => _clearItems(),
+                  backgroundColor: Colors.transparent,
+                  selectedColor: Colors.red.withValues(alpha: 0.08),
+                  side: BorderSide(
+                    color: _selectionMode ? Colors.red : Colors.grey.shade400,
+                  ),
+                ),
+
+              // ADD
+              ChoiceChip(
+                // avatar: const Icon(Icons.add, size: 16),
+                label: Text(
+                  'Dodaj',
+                  style: TextStyle(color: Colors.green.shade800),
+                ),
+                labelPadding: EdgeInsets.zero,
+                selected: false,
+                onSelected: (_) => _pickAndUploadFiles(),
+                backgroundColor: Colors.transparent,
+                side: BorderSide(color: Colors.blueAccent),
+              ),
             ],
           ),
         ),
-        // Main bordered container with scrollable files + images
+
         Container(
-          constraints: BoxConstraints(maxHeight: kIsWeb ? 280 : 160),
           decoration: BoxDecoration(
             border: Border.all(
               color: (_dropHighlight || _dragging)
@@ -679,46 +942,50 @@ class _ProjectFilesSectionState extends State<ProjectFilesSection> {
                 ? Colors.blue.withValues(alpha: 0.02)
                 : Colors.transparent,
           ),
-          child: Scrollbar(
-            thumbVisibility: kIsWeb,
-            child: SingleChildScrollView(
-              padding: const EdgeInsets.symmetric(vertical: 4),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  if (hasFiles) _buildFilesSection(),
-                  if (hasFiles && hasImages) const SizedBox(height: 8),
-                  if (hasImages) _buildImagesSection(),
-                ],
-              ),
-            ),
+          padding: const EdgeInsets.all(8),
+          child: LayoutBuilder(
+            builder: (context, constraints) {
+              final isWide = constraints.maxWidth > 700;
+              final boxHeight = kIsWeb ? 240.0 : 70.0;
+
+              final filesBox = hasFiles
+                  ? _buildFilesSection(boxHeight)
+                  : const SizedBox.shrink();
+              final imagesBox = hasImages
+                  ? _buildImagesSection(boxHeight)
+                  : const SizedBox.shrink();
+
+              if (isWide) {
+                // 2 boxes side by side
+                return Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    if (hasFiles) Expanded(child: filesBox),
+                    if (hasFiles && hasImages) const SizedBox(width: 12),
+                    if (hasImages) Expanded(child: imagesBox),
+                  ],
+                );
+              } else {
+                // PHONE: boxes stacked
+                return Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    if (hasFiles) filesBox,
+                    if (hasFiles && hasImages)
+                      kIsWeb
+                          ? const SizedBox(height: 18)
+                          : const Padding(
+                              padding: EdgeInsets.symmetric(vertical: 8.0),
+                              child: Divider(height: 1, thickness: 0.8),
+                            ),
+                    if (hasImages) imagesBox,
+                  ],
+                );
+              }
+            },
           ),
         ),
         const SizedBox(height: 4),
-        // Add button – same for both, auto-routing by extension
-        GestureDetector(
-          onTap: _pickAndUploadFiles,
-          child: Container(
-            padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 12),
-            decoration: BoxDecoration(
-              border: Border.all(color: Colors.blueAccent),
-              borderRadius: BorderRadius.circular(6),
-              color: Colors.blue.withValues(alpha: 0.05),
-            ),
-            child: const Row(
-              mainAxisSize: MainAxisSize.min,
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                Icon(Icons.add, size: 16),
-                SizedBox(width: 6),
-                Text(
-                  'dodaj pliki / zdjęcia',
-                  style: TextStyle(fontWeight: FontWeight.w600),
-                ),
-              ],
-            ),
-          ),
-        ),
       ],
     );
 
@@ -726,6 +993,7 @@ class _ProjectFilesSectionState extends State<ProjectFilesSection> {
       return _wrapWithDesktopDropTarget(listContent);
     }
 
+    // WEB: dropzone
     return Stack(
       children: [
         Positioned.fill(
