@@ -1,3 +1,5 @@
+// lib/widgets/note_dialogue
+
 import 'package:auto_size_text/auto_size_text.dart';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
@@ -21,6 +23,7 @@ Future<String?> showNoteDialog(
     ),
     builder: (ctx) {
       final bottomInset = MediaQuery.of(ctx).viewInsets.bottom;
+
       return AnimatedPadding(
         padding: EdgeInsets.only(bottom: bottomInset),
         duration: const Duration(milliseconds: 100),
@@ -29,50 +32,61 @@ Future<String?> showNoteDialog(
           initialChildSize: 0.95,
           minChildSize: 0.5,
           maxChildSize: 1.0,
-          expand: true,
+          expand: false,
           builder: (_, scrollController) {
             return GestureDetector(
               behavior: HitTestBehavior.opaque,
               onTap: () => FocusScope.of(ctx).unfocus(),
-              child: SingleChildScrollView(
-                controller: scrollController,
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 16,
-                  vertical: 24,
-                ),
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Text(
-                      initial.isEmpty ? 'Dodaj notatka' : 'Edytuj notatka',
-                      style: Theme.of(ctx).textTheme.titleLarge,
-                    ),
-                    Divider(),
-
-                    AutoSizeText(
-                      '$userName  ·  $formatted',
-                      style: TextStyle(
-                        fontWeight: FontWeight.bold,
-                        color: Colors.blueGrey,
+              child: Column(
+                mainAxisSize: MainAxisSize.max,
+                children: [
+                  Expanded(
+                    child: SingleChildScrollView(
+                      controller: scrollController,
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 16,
+                        vertical: 24,
                       ),
-                      maxLines: 1,
-                      minFontSize: 8,
-                    ),
-
-                    const SizedBox(height: 16),
-                    TextField(
-                      controller: controller,
-                      autofocus: true,
-                      minLines: 3,
-                      maxLines: null,
-                      keyboardType: TextInputType.multiline,
-                      decoration: const InputDecoration(
-                        hintText: 'Treść notatki…',
-                        border: OutlineInputBorder(),
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: [
+                          Text(
+                            initial.isEmpty
+                                ? 'Dodaj notatka'
+                                : 'Edytuj notatka',
+                            style: Theme.of(ctx).textTheme.titleLarge,
+                          ),
+                          const Divider(),
+                          AutoSizeText(
+                            '$userName  ·  $formatted',
+                            style: const TextStyle(
+                              fontWeight: FontWeight.bold,
+                              color: Colors.blueGrey,
+                            ),
+                            maxLines: 1,
+                            minFontSize: 8,
+                          ),
+                          const SizedBox(height: 16),
+                          TextField(
+                            controller: controller,
+                            autofocus: true,
+                            minLines: 3,
+                            maxLines: null,
+                            keyboardType: TextInputType.multiline,
+                            decoration: const InputDecoration(
+                              hintText: 'Treść notatki…',
+                              border: OutlineInputBorder(),
+                            ),
+                          ),
+                        ],
                       ),
                     ),
-                    const SizedBox(height: 24),
-                    Row(
+                  ),
+
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
+                    child: Row(
                       mainAxisAlignment: MainAxisAlignment.spaceEvenly,
                       children: [
                         TextButton(
@@ -89,8 +103,8 @@ Future<String?> showNoteDialog(
                         ),
                       ],
                     ),
-                  ],
-                ),
+                  ),
+                ],
               ),
             );
           },

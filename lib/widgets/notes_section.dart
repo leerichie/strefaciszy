@@ -1,3 +1,5 @@
+// lib/widgets/notes_section.dart
+
 import 'package:auto_size_text/auto_size_text.dart';
 import 'package:flutter/material.dart';
 import 'package:strefa_ciszy/widgets/note_dialogue.dart';
@@ -83,10 +85,16 @@ class NotesSection extends StatelessWidget {
                   spacing: 3,
                   runSpacing: 3,
                   children: [
-                    for (int i = 0; i < sorted.length; i++)
+                    // 🔴 OLD (buggy):
+                    // for (int i = 0; i < sorted.length; i++)
+                    //   _NoteTile(
+                    //     note: sorted[i],
+                    //     index: i,
+                    //     ...
+                    for (final note in sorted)
                       _NoteTile(
-                        note: sorted[i],
-                        index: i,
+                        note: note,
+                        index: notes.indexOf(note),
                         onEdit: onEdit,
                         onDelete: onDelete,
                       ),
@@ -96,7 +104,7 @@ class NotesSection extends StatelessWidget {
             ),
           ),
 
-          //   "+"
+          // "+"
           Positioned(
             top: 4,
             right: 4,

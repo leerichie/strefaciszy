@@ -1193,18 +1193,12 @@ class _ProjectEditorScreenState extends State<ProjectEditorScreen> {
                         return null;
                       },
 
-                      onEdit: (i, _) async {
+                      onEdit: (i, newText) async {
+                        final trimmed = newText.trim();
                         final old = _notes[i];
-                        final existingText = old.text;
 
-                        final updated = await showNoteDialog(
-                          context,
-                          userName: old.userName,
-                          createdAt: old.createdAt,
-                          initial: existingText,
-                        );
-
-                        if (updated == null || updated.trim() == existingText) {
+                        // nothing changed / empty → do nothing
+                        if (trimmed.isEmpty || trimmed == old.text) {
                           return;
                         }
 
@@ -1226,12 +1220,24 @@ class _ProjectEditorScreenState extends State<ProjectEditorScreen> {
                               authUser.email!;
                         }
 
+                        final now = DateTime.now();
+
+                        // optimistic local update so the user sees the change immediately
+                        setState(() {
+                          _notes[i] = Note(
+                            text: trimmed,
+                            userName: userName,
+                            createdAt: now,
+                          );
+                        });
+
                         final newMap = {
-                          'text': updated.trim(),
+                          'text': trimmed,
                           'userName': userName,
-                          'createdAt': Timestamp.now(),
+                          'createdAt': Timestamp.fromDate(now),
                         };
 
+                        // project notes
                         await projRef.update({
                           'notesList': FieldValue.arrayRemove([oldMap]),
                         });
@@ -1239,6 +1245,7 @@ class _ProjectEditorScreenState extends State<ProjectEditorScreen> {
                           'notesList': FieldValue.arrayUnion([newMap]),
                         });
 
+                        // RW notes for today (if exists)
                         final rwRef2 = await _todayRwRef();
                         if (rwRef2 != null) {
                           await rwRef2.update({
@@ -1248,18 +1255,18 @@ class _ProjectEditorScreenState extends State<ProjectEditorScreen> {
                             'notesList': FieldValue.arrayUnion([newMap]),
                           });
                         }
-                        return;
                       },
 
-                      // USER cannot delete; ADMIN can
+                      // ADMIN only delete
                       onDelete: (i) async {
                         if (!widget.isAdmin) {
-                          // Optionally show message here
-                          // ScaffoldMessenger.of(context).showSnackBar(
-                          //   const SnackBar(
-                          //     content: Text('Tylko administrator może usuwać notatki'),
-                          //   ),
-                          // );
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(
+                              content: Text(
+                                'Tylko administrator może skasować!',
+                              ),
+                            ),
+                          );
                           return;
                         }
 
@@ -1293,7 +1300,7 @@ class _ProjectEditorScreenState extends State<ProjectEditorScreen> {
 
                     const SizedBox(height: 8),
 
-                    // --- BIEŻĄCE
+                    // --- current notes
                     Align(
                       alignment: Alignment.centerLeft,
                       child: Text(
