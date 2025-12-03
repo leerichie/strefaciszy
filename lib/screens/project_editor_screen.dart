@@ -321,10 +321,11 @@ class _ProjectEditorScreenState extends State<ProjectEditorScreen> {
             child: const Text('Anuluj'),
           ),
           ElevatedButton(
-            onPressed: () {
+            onPressed: () async {
               if (newTitle.isNotEmpty && newTitle != _title) {
                 projRef.update({'title': newTitle});
                 setState(() => _title = newTitle);
+                await _updateTodaysRwProjectName(newTitle);
               }
               Navigator.pop(ctx);
             },
@@ -333,6 +334,30 @@ class _ProjectEditorScreenState extends State<ProjectEditorScreen> {
         ],
       ),
     );
+  }
+
+  Future<void> _updateTodaysRwProjectName(String newTitle) async {
+    final now = DateTime.now();
+    final startOfDay = DateTime(now.year, now.month, now.day);
+    final tomorrow = startOfDay.add(const Duration(days: 1));
+
+    final projRef = FirebaseFirestore.instance
+        .collection('customers')
+        .doc(widget.customerId)
+        .collection('projects')
+        .doc(widget.projectId);
+
+    final rwCol = projRef.collection('rw_documents');
+
+    final snap = await rwCol
+        .where('type', isEqualTo: 'RW')
+        .where('createdAt', isGreaterThanOrEqualTo: startOfDay)
+        .where('createdAt', isLessThan: tomorrow)
+        .get();
+
+    for (final doc in snap.docs) {
+      await doc.reference.update({'projectName': newTitle});
+    }
   }
 
   Future<DocumentReference<Map<String, dynamic>>?> _todayRwRef() async {
@@ -387,12 +412,6 @@ class _ProjectEditorScreenState extends State<ProjectEditorScreen> {
             final qty = (m['quantity'] as num?)?.toInt() ?? 0;
             final unit = m['unit'] as String? ?? '';
             final name = m['name'] as String? ?? '';
-            // final isStock = _stockItems.any((s) => s.id == itemId);
-
-            // final originalStock = isStock
-            //     ? _stockItems.firstWhere((s) => s.id == itemId).quantity
-            //     : qty;
-
             final idx = _stockItems.indexWhere((s) => s.id == itemId);
             final isStock = itemId.isNotEmpty;
             final originalStock = idx == -1 ? qty : _stockItems[idx].quantity;
@@ -410,8 +429,9 @@ class _ProjectEditorScreenState extends State<ProjectEditorScreen> {
           .where((l) => l.requestedQty > 0)
           .toList();
 
-      _title = data['projectName'] as String? ?? '';
-
+      final projSnapForTitle = await projRef.get();
+      final projData = projSnapForTitle.data() ?? <String, dynamic>{};
+      _title = projData['title'] as String? ?? '';
       setState(() {
         _loading = false;
         _initialized = true;

@@ -688,6 +688,48 @@ class _AddContactScreenState extends State<AddContactScreen> {
     Navigator.pop(context);
   }
 
+  Future<void> _handleCancel() async {
+    _debounce?.cancel();
+
+    if (_isEditing) {
+      if (mounted) {
+        Navigator.of(context).pop();
+      }
+      return;
+    }
+
+    try {
+      if (_contactId != null) {
+        await FirebaseFirestore.instance
+            .collection('contacts')
+            .doc(_contactId)
+            .delete();
+      }
+
+      if (_customerId != null) {
+        final custRef = FirebaseFirestore.instance
+            .collection('customers')
+            .doc(_customerId);
+
+        final projSnap = await custRef.collection('projects').limit(1).get();
+
+        if (projSnap.docs.isEmpty) {
+          await custRef.delete();
+        }
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Nie udało się anulować kontakt')),
+        );
+      }
+    }
+
+    if (mounted) {
+      Navigator.of(context).pop();
+    }
+  }
+
   Future<void> _showProjectMultiSelectDialog() async {
     final tempSet = Set<String>.from(_selectedProjectIds);
 
@@ -798,14 +840,16 @@ class _AddContactScreenState extends State<AddContactScreen> {
 
         centreTitle: true,
 
+        // floatingActionButtonLocation: FloatingActionButtonLocation.centerFloat,
+        // floatingActionButton: _isEditing
+        //     ? FloatingActionButton(
+        //         tooltip: 'Usuń kontakt',
+        //         onPressed: _deleteContact,
+        //         child: const Icon(Icons.delete, color: Colors.red),
+        //       )
+        //     : null,
         floatingActionButtonLocation: FloatingActionButtonLocation.centerFloat,
-        floatingActionButton: _isEditing
-            ? FloatingActionButton(
-                tooltip: 'Usuń kontakt',
-                onPressed: _deleteContact,
-                child: const Icon(Icons.delete, color: Colors.red),
-              )
-            : null,
+        floatingActionButton: null,
 
         body: _loading
             ? const Center(child: CircularProgressIndicator())
@@ -1114,6 +1158,58 @@ class _AddContactScreenState extends State<AddContactScreen> {
 
                           const SizedBox(height: 24),
 
+                          //  save / delete buttons
+                          Align(
+                            alignment: Alignment.center,
+                            child: Wrap(
+                              spacing: 8,
+                              runSpacing: 8,
+                              children: [
+                                OutlinedButton(
+                                  onPressed: _handleCancel,
+                                  child: const Text(
+                                    'Anuluj',
+                                    style: TextStyle(color: Colors.red),
+                                  ),
+                                ),
+
+                                // Delete WHILE editing existing
+                                if (_isEditing)
+                                  OutlinedButton.icon(
+                                    icon: const Icon(
+                                      Icons.delete_outline,
+                                      size: 18,
+                                      color: Colors.red,
+                                    ),
+                                    label: const Text(
+                                      'Usuń',
+                                      style: TextStyle(color: Colors.red),
+                                    ),
+                                    style: OutlinedButton.styleFrom(
+                                      side: const BorderSide(color: Colors.red),
+                                    ),
+                                    onPressed: _deleteContact,
+                                  ),
+
+                                // Save
+                                ElevatedButton.icon(
+                                  icon: const Icon(Icons.check, size: 18),
+                                  label: Text(
+                                    _isEditing ? 'Zapisz' : 'Zapisz i nara..',
+                                  ),
+                                  onPressed: () async {
+                                    if (!_formKey.currentState!.validate()) {
+                                      return;
+                                    }
+                                    await _legacySaveAndPop();
+                                  },
+                                ),
+                              ],
+                            ),
+                          ),
+
+                          const SizedBox(height: 16),
+
                           if (!_isEditing && _customerId != null) ...[
                             AutoSizeText(
                               'Projekty',
@@ -1184,7 +1280,6 @@ class _AddContactScreenState extends State<AddContactScreen> {
                                 );
                               },
                             ),
-                            const SizedBox(height: 80),
                           ],
                         ],
                       ),

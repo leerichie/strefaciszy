@@ -5,22 +5,17 @@ import 'dart:convert';
 
 import 'package:auto_size_text/auto_size_text.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:firebase_auth/firebase_auth.dart';
-import 'package:firebase_core/firebase_core.dart';
-import 'package:firebase_storage/firebase_storage.dart';
 import 'package:flutter/cupertino.dart';
-import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:http/http.dart' as http;
-import 'package:image_picker/image_picker.dart';
-import 'package:path/path.dart' as p;
 import 'package:strefa_ciszy/screens/location_picker_screen.dart';
 import 'package:strefa_ciszy/services/one_drive_link.dart';
 import 'package:strefa_ciszy/utils/keyboard_utils.dart';
 import 'package:strefa_ciszy/widgets/app_scaffold.dart';
 import 'package:strefa_ciszy/widgets/one_drive_link_button.dart';
-import 'package:strefa_ciszy/widgets/project_files_section.dart';
+import 'package:strefa_ciszy/widgets/project_files_only_section.dart';
+import 'package:strefa_ciszy/widgets/project_images_section.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 enum _PhotoSource { camera, gallery }
@@ -50,22 +45,22 @@ class ProjectDescriptionScreen extends StatefulWidget {
 }
 
 class _ProjectDescriptionScreenState extends State<ProjectDescriptionScreen> {
-  List<Map<String, String>> _initialFiles = [];
   final _formKey = GlobalKey<FormState>();
   final _descCtrl = TextEditingController();
-  bool _loading = true;
   final _addressCtrl = TextEditingController();
+
+  bool _loading = true;
   GoogleMapController? _mapController;
   String _customerName = '';
   String _projectName = '';
-
   LatLng? _location;
+
+  List<Map<String, String>> _initialFiles = [];
   List<String> _photoUrls = [];
-  final ImagePicker _picker = ImagePicker();
+
   Timer? _descDebounce;
   late final VoidCallback _descListener;
   String? _oneDriveUrl;
-  bool _uploading = false;
 
   StreamSubscription<DocumentSnapshot<Map<String, dynamic>>>? _locSub;
 
@@ -75,7 +70,6 @@ class _ProjectDescriptionScreenState extends State<ProjectDescriptionScreen> {
     _loadDescription();
     _descListener = () => _onDescChanged(_descCtrl.text);
     _descCtrl.addListener(_descListener);
-
     _loadNames();
 
     _locSub = FirebaseFirestore.instance
@@ -102,101 +96,6 @@ class _ProjectDescriptionScreenState extends State<ProjectDescriptionScreen> {
             });
           }
         });
-  }
-
-  Future<void> _onOneDriveLinkPressed() async {
-    final controller = TextEditingController(text: _oneDriveUrl ?? '');
-
-    await showDialog<void>(
-      context: context,
-      builder: (ctx) {
-        return AlertDialog(
-          title: const Text('Link do OneDrive'),
-          content: TextField(
-            controller: controller,
-            keyboardType: TextInputType.url,
-            decoration: const InputDecoration(
-              labelText: 'URL',
-              hintText: 'https://...',
-              border: OutlineInputBorder(),
-            ),
-            autofocus: true,
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.of(ctx).pop(),
-              child: const Text('Anuluj'),
-            ),
-            if ((controller.text.trim().isNotEmpty) ||
-                ((_oneDriveUrl ?? '').trim().isNotEmpty))
-              TextButton(
-                onPressed: () async {
-                  final url = controller.text.trim().isEmpty
-                      ? (_oneDriveUrl ?? '').trim()
-                      : controller.text.trim();
-
-                  if (url.isEmpty) return;
-
-                  try {
-                    final uri = Uri.parse(url);
-                    if (await canLaunchUrl(uri)) {
-                      await launchUrl(
-                        uri,
-                        mode: LaunchMode.externalApplication,
-                      );
-                    } else {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(
-                          content: Text('Nie można otworzyć linku'),
-                        ),
-                      );
-                    }
-                  } catch (_) {
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(content: Text('Nieprawidłowy adres URL')),
-                    );
-                  }
-                },
-                child: const Text('Otwórz'),
-              ),
-            ElevatedButton(
-              onPressed: () async {
-                final text = controller.text.trim();
-
-                try {
-                  await OneDriveLink.setOneDriveUrl(
-                    widget.customerId,
-                    widget.projectId,
-                    text.isEmpty ? null : text,
-                  );
-                  setState(() {
-                    _oneDriveUrl = text.isEmpty ? null : text;
-                  });
-                  Navigator.of(ctx).pop();
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(
-                      content: Text(
-                        text.isEmpty
-                            ? 'Link OneDrive usunięty'
-                            : 'Link OneDrive zapisany',
-                      ),
-                    ),
-                  );
-                } catch (e) {
-                  Navigator.of(ctx).pop();
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(
-                      content: Text('Nie udało się zapisać linku'),
-                    ),
-                  );
-                }
-              },
-              child: const Text('Zapisz'),
-            ),
-          ],
-        );
-      },
-    );
   }
 
   void _onDescChanged(String value) {
@@ -234,16 +133,6 @@ class _ProjectDescriptionScreenState extends State<ProjectDescriptionScreen> {
     });
   }
 
-  String _fileNameFromUrl(String url) {
-    final uri = Uri.tryParse(url);
-    if (uri == null || uri.pathSegments.isEmpty) return url;
-    final lastSeg = uri.pathSegments.last;
-    final decoded = Uri.decodeComponent(lastSeg);
-    final parts = decoded.split('/');
-
-    return parts.isNotEmpty ? parts.last : decoded;
-  }
-
   Future<void> _loadDescription() async {
     final doc = await FirebaseFirestore.instance
         .collection('customers')
@@ -270,7 +159,7 @@ class _ProjectDescriptionScreenState extends State<ProjectDescriptionScreen> {
         _location = LatLng(gp.latitude, gp.longitude);
       }
 
-      //   RAW PHOTOS
+      // RAW PHOTOS
       final rawPhotos = data['photos'];
       List<String> photoUrls = [];
       if (rawPhotos is List) {
@@ -294,7 +183,7 @@ class _ProjectDescriptionScreenState extends State<ProjectDescriptionScreen> {
         }
       }
 
-      // merge old files and phots
+      // OLD FILES + PHOTOS backward compatibility
       final existingUrls = initialFiles
           .map((m) => m['url'])
           .whereType<String>()
@@ -307,9 +196,7 @@ class _ProjectDescriptionScreenState extends State<ProjectDescriptionScreen> {
         initialFiles.add({'url': url, 'name': name});
       }
 
-      _initialFiles = initialFiles;
-
-      // BACKWARD comp.
+      // If older docs only had photos
       if (initialFiles.isEmpty && photoUrls.isNotEmpty) {
         for (final url in photoUrls) {
           if (url.isEmpty) continue;
@@ -335,6 +222,16 @@ class _ProjectDescriptionScreenState extends State<ProjectDescriptionScreen> {
 
     if (!mounted) return;
     setState(() => _loading = false);
+  }
+
+  String _fileNameFromUrl(String url) {
+    final uri = Uri.tryParse(url);
+    if (uri == null || uri.pathSegments.isEmpty) return url;
+    final lastSeg = uri.pathSegments.last;
+    final decoded = Uri.decodeComponent(lastSeg);
+    final parts = decoded.split('/');
+
+    return parts.isNotEmpty ? parts.last : decoded;
   }
 
   Future<void> _pickLocation() async {
@@ -464,131 +361,6 @@ class _ProjectDescriptionScreenState extends State<ProjectDescriptionScreen> {
     }
   }
 
-  Future<void> _showPhotoSourceDialog() async {
-    final source = await showModalBottomSheet<_PhotoSource>(
-      context: context,
-      isScrollControlled: true,
-      useSafeArea: true,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(12)),
-      ),
-      builder: (ctx) => Padding(
-        padding: EdgeInsets.only(bottom: MediaQuery.of(ctx).viewInsets.bottom),
-        child: SafeArea(
-          top: false,
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              ListTile(
-                leading: const Icon(Icons.camera_alt),
-                title: const Text('Zrób fota'),
-                onTap: () => Navigator.pop(ctx, _PhotoSource.camera),
-              ),
-              ListTile(
-                leading: const Icon(Icons.photo_library),
-                title: const Text('Wybierz z galerii'),
-                onTap: () => Navigator.pop(ctx, _PhotoSource.gallery),
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-
-    if (source == _PhotoSource.camera) {
-      final photo = await _picker.pickImage(
-        source: ImageSource.camera,
-        imageQuality: 70,
-        maxWidth: 1024,
-        maxHeight: 1024,
-      );
-      if (photo != null) await _uploadPickedImages([photo]);
-    } else if (source == _PhotoSource.gallery) {
-      final photos = await _picker.pickMultiImage(
-        imageQuality: 70,
-        maxWidth: 1024,
-        maxHeight: 1024,
-      );
-      if (photos.isNotEmpty) {
-        await _uploadPickedImages(photos);
-      }
-    }
-  }
-
-  Future<void> _uploadPickedImages(List<XFile> files) async {
-    setState(() => _uploading = true);
-
-    final user = FirebaseAuth.instance.currentUser;
-    if (user != null) await user.getIdToken(true);
-
-    final bucketName = Firebase.app().options.storageBucket;
-    final storage = FirebaseStorage.instanceFor(
-      app: Firebase.app(),
-      bucket: 'gs://$bucketName',
-    );
-
-    final List<String> newUrls = [];
-
-    for (final xfile in files) {
-      final ext = p.extension(xfile.name);
-      final fileName = '${DateTime.now().millisecondsSinceEpoch}$ext';
-      final ref = storage.ref().child(
-        'project_images/${widget.projectId}/$fileName',
-      );
-
-      Uint8List bytes;
-      try {
-        bytes = await xfile.readAsBytes();
-      } catch (e) {
-        debugPrint('Failed to read "${xfile.name}": $e');
-        continue;
-      }
-
-      final uploadTask = ref.putData(
-        bytes,
-        SettableMetadata(contentType: 'image/jpeg'),
-      );
-
-      try {
-        final snapshot = await uploadTask;
-        if (snapshot.state != TaskState.success) continue;
-        final url = await ref.getDownloadURL();
-        newUrls.add(url);
-      } catch (e) {
-        debugPrint('Upload failed for $fileName: $e');
-      }
-    }
-
-    if (newUrls.isNotEmpty) {
-      try {
-        final docRef = FirebaseFirestore.instance
-            .collection('customers')
-            .doc(widget.customerId)
-            .collection('projects')
-            .doc(widget.projectId);
-
-        final newFileMaps = newUrls.map((url) {
-          final name = _fileNameFromUrl(url);
-          return {'url': url, 'name': name};
-        }).toList();
-
-        await docRef.update({
-          'photos': FieldValue.arrayUnion(newUrls),
-          'files': FieldValue.arrayUnion(newFileMaps),
-        });
-
-        setState(() {
-          _photoUrls.addAll(newUrls);
-          _initialFiles.addAll(newFileMaps);
-        });
-      } catch (e) {
-        debugPrint('Firestore update error → $e');
-      }
-    }
-
-    if (mounted) setState(() => _uploading = false);
-  }
-
   Future<void> _openOneDriveLink() async {
     final url = _oneDriveUrl?.trim();
     if (url == null || url.isEmpty) {
@@ -679,7 +451,176 @@ class _ProjectDescriptionScreenState extends State<ProjectDescriptionScreen> {
     _descCtrl.removeListener(_descListener);
     _descDebounce?.cancel();
     _descCtrl.dispose();
+    _addressCtrl.dispose();
     super.dispose();
+  }
+
+  Widget _buildOpisTab() {
+    return SingleChildScrollView(
+      keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
+      padding: const EdgeInsets.all(16),
+      child: Form(
+        key: _formKey,
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            TextFormField(
+              controller: _descCtrl,
+              decoration: const InputDecoration(
+                labelText: 'Opis projektu',
+                alignLabelWithHint: true,
+                border: OutlineInputBorder(),
+              ),
+              keyboardType: TextInputType.multiline,
+              minLines: 4,
+              maxLines: null,
+              readOnly: !widget.isAdmin,
+              validator: (v) {
+                if (widget.isAdmin && (v == null || v.trim().isEmpty)) {
+                  return 'Wpisz opis';
+                }
+                return null;
+              },
+            ),
+            const SizedBox(height: 16),
+            SizedBox(
+              height: 200,
+              child: Stack(
+                children: [
+                  GoogleMap(
+                    onMapCreated: (controller) => _mapController = controller,
+                    initialCameraPosition: CameraPosition(
+                      target: _location ?? const LatLng(52.237, 21.017),
+                      zoom: 14,
+                    ),
+                    markers: _location == null
+                        ? {}
+                        : {
+                            Marker(
+                              markerId: const MarkerId('projectLoc'),
+                              position: _location!,
+                            ),
+                          },
+                    onTap: (pos) async {
+                      _mapController?.animateCamera(
+                        CameraUpdate.newLatLng(pos),
+                      );
+                      final docRef = FirebaseFirestore.instance
+                          .collection('customers')
+                          .doc(widget.customerId)
+                          .collection('projects')
+                          .doc(widget.projectId);
+                      await docRef.set({
+                        'location': GeoPoint(pos.latitude, pos.longitude),
+                      }, SetOptions(merge: true));
+                      final url = Uri.https(
+                        'maps.googleapis.com',
+                        '/maps/api/geocode/json',
+                        {
+                          'latlng': '${pos.latitude},${pos.longitude}',
+                          'key': 'AIzaSyDkXiS4JP9iySRXxzOiI1oN0_EmI6Tx208',
+                        },
+                      );
+                      final resp = await http.get(url);
+                      final body =
+                          jsonDecode(resp.body) as Map<String, dynamic>;
+                      if (body['status'] == 'OK' &&
+                          (body['results'] as List).isNotEmpty) {
+                        final formatted =
+                            body['results'][0]['formatted_address'] as String;
+                        await docRef.set({
+                          'address': formatted,
+                        }, SetOptions(merge: true));
+                        setState(() => _addressCtrl.text = formatted);
+                      }
+                    },
+                    myLocationEnabled: true,
+                    myLocationButtonEnabled: true,
+                  ),
+                  Positioned(
+                    top: 50,
+                    left: 1,
+                    child: ElevatedButton.icon(
+                      label: const Text(
+                        'Map',
+                        style: TextStyle(
+                          color: Colors.red,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                      style: ElevatedButton.styleFrom(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 12,
+                          vertical: 8,
+                        ),
+                        backgroundColor: Colors.white.withValues(alpha: 0.9),
+                        elevation: 2,
+                      ),
+                      onPressed: _pickLocation,
+                      icon: const SizedBox.shrink(),
+                    ),
+                  ),
+                  Positioned(
+                    top: 1,
+                    left: 1,
+                    child: ElevatedButton.icon(
+                      label: const Text(
+                        'Jedź',
+                        style: TextStyle(
+                          color: Colors.green,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                      style: ElevatedButton.styleFrom(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 12,
+                          vertical: 8,
+                        ),
+                        backgroundColor: Colors.white.withValues(alpha: 0.9),
+                        elevation: 2,
+                      ),
+                      onPressed: _launchNavigation,
+                      icon: const SizedBox.shrink(),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 8),
+            TextFormField(
+              controller: _addressCtrl,
+              decoration: InputDecoration(
+                hintText: 'Nazwa budynku, adres, kod lub URL',
+                suffixIcon: IconButton(
+                  icon: const Icon(Icons.search),
+                  onPressed: _searchAddress,
+                ),
+              ),
+              textInputAction: TextInputAction.search,
+              onFieldSubmitted: (_) => _searchAddress(),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildFotkiTab() {
+    return ProjectImagesSection(
+      customerId: widget.customerId,
+      projectId: widget.projectId,
+      isAdmin: widget.isAdmin,
+      initialFiles: _initialFiles,
+    );
+  }
+
+  Widget _buildPlikiTab() {
+    return ProjectFilesOnlySection(
+      customerId: widget.customerId,
+      projectId: widget.projectId,
+      isAdmin: widget.isAdmin,
+      initialFiles: _initialFiles,
+    );
   }
 
   @override
@@ -702,211 +643,83 @@ class _ProjectDescriptionScreenState extends State<ProjectDescriptionScreen> {
         ),
       ],
     );
-    return AppScaffold(
-      title: '',
-      showBackOnWeb: true,
-      titleWidget: titleCol,
-      centreTitle: true,
 
-      actions: [
-        OneDriveLinkButton(
-          url: _oneDriveUrl,
-          onTap: _openOneDriveLink,
-          onLongPress: _editOneDriveLink,
-        ),
-        const SizedBox(width: 4),
-      ],
-
-      // actions: [Padding(padding: const EdgeInsets.symmetric(horizontal: 8.0))],
-      body: _loading
-          ? const Center(child: CircularProgressIndicator())
-          : DismissKeyboard(
-              child: SingleChildScrollView(
-                keyboardDismissBehavior:
-                    ScrollViewKeyboardDismissBehavior.onDrag,
-                padding: const EdgeInsets.all(16),
-                child: Form(
-                  key: _formKey,
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.stretch,
-                    children: [
-                      TextFormField(
-                        controller: _descCtrl,
-                        decoration: const InputDecoration(
-                          labelText: 'Opis projektu',
-                          alignLabelWithHint: true,
-                          border: OutlineInputBorder(),
-                        ),
-                        keyboardType: TextInputType.multiline,
-                        minLines: 4,
-                        maxLines: null,
-                        readOnly: !widget.isAdmin,
-                        validator: (v) {
-                          if (widget.isAdmin &&
-                              (v == null || v.trim().isEmpty)) {
-                            return 'Wpisz opis';
-                          }
-                          return null;
-                        },
+    return DefaultTabController(
+      length: 3,
+      child: AppScaffold(
+        title: '',
+        showBackOnWeb: true,
+        titleWidget: titleCol,
+        centreTitle: true,
+        actions: [
+          OneDriveLinkButton(
+            url: _oneDriveUrl,
+            onTap: _openOneDriveLink,
+            onLongPress: _editOneDriveLink,
+          ),
+          const SizedBox(width: 4),
+        ],
+        body: _loading
+            ? const Center(child: CircularProgressIndicator())
+            : DismissKeyboard(
+                child: Column(
+                  children: const [
+                    TabBar(
+                      tabs: [
+                        Tab(text: 'Opis'),
+                        Tab(text: 'Fotki'),
+                        Tab(text: 'Pliki'),
+                      ],
+                    ),
+                    Expanded(
+                      child: TabBarView(
+                        children: [
+                          // opis
+                          _OpisTabProxy(),
+                          // fotki
+                          _FotkiTabProxy(),
+                          // pliki
+                          _PlikiTabProxy(),
+                        ],
                       ),
-
-                      const SizedBox(height: 8),
-
-                      // files
-                      ProjectFilesSection(
-                        customerId: widget.customerId,
-                        projectId: widget.projectId,
-                        isAdmin: widget.isAdmin,
-                        initialFiles: _initialFiles,
-                      ),
-
-                      const Divider(),
-
-                      // — MAP
-                      SizedBox(
-                        height: 200,
-                        child: Stack(
-                          children: [
-                            GoogleMap(
-                              onMapCreated: (controller) =>
-                                  _mapController = controller,
-                              initialCameraPosition: CameraPosition(
-                                target:
-                                    _location ?? const LatLng(52.237, 21.017),
-                                zoom: 14,
-                              ),
-                              markers: _location == null
-                                  ? {}
-                                  : {
-                                      Marker(
-                                        markerId: const MarkerId('projectLoc'),
-                                        position: _location!,
-                                      ),
-                                    },
-                              onTap: (pos) async {
-                                _mapController?.animateCamera(
-                                  CameraUpdate.newLatLng(pos),
-                                );
-                                final docRef = FirebaseFirestore.instance
-                                    .collection('customers')
-                                    .doc(widget.customerId)
-                                    .collection('projects')
-                                    .doc(widget.projectId);
-                                await docRef.set({
-                                  'location': GeoPoint(
-                                    pos.latitude,
-                                    pos.longitude,
-                                  ),
-                                }, SetOptions(merge: true));
-                                final url = Uri.https(
-                                  'maps.googleapis.com',
-                                  '/maps/api/geocode/json',
-                                  {
-                                    'latlng':
-                                        '${pos.latitude},${pos.longitude}',
-                                    'key':
-                                        'AIzaSyDkXiS4JP9iySRXxzOiI1oN0_EmI6Tx208',
-                                  },
-                                );
-                                final resp = await http.get(url);
-                                final body =
-                                    jsonDecode(resp.body)
-                                        as Map<String, dynamic>;
-                                if (body['status'] == 'OK' &&
-                                    (body['results'] as List).isNotEmpty) {
-                                  final formatted =
-                                      body['results'][0]['formatted_address']
-                                          as String;
-                                  await docRef.set({
-                                    'address': formatted,
-                                  }, SetOptions(merge: true));
-                                  setState(() => _addressCtrl.text = formatted);
-                                }
-                              },
-                              myLocationEnabled: true,
-                              myLocationButtonEnabled: true,
-                            ),
-
-                            Positioned(
-                              top: 50,
-                              left: 1,
-                              child: ElevatedButton.icon(
-                                // icon: const Icon(
-                                //   Icons.map,
-                                //   color: Colors.lightBlue,
-                                //   size: 20,
-                                // ),
-                                label: const Text(
-                                  'Map',
-                                  style: TextStyle(
-                                    color: Colors.red,
-                                    fontWeight: FontWeight.bold,
-                                  ),
-                                ),
-                                style: ElevatedButton.styleFrom(
-                                  padding: const EdgeInsets.symmetric(
-                                    horizontal: 12,
-                                    vertical: 8,
-                                  ),
-                                  backgroundColor: Colors.white.withValues(
-                                    alpha: 0.9,
-                                  ),
-                                  elevation: 2,
-                                ),
-                                onPressed: _pickLocation,
-                              ),
-                            ),
-
-                            Positioned(
-                              top: 1,
-                              left: 1,
-                              child: ElevatedButton.icon(
-                                // icon: const Icon(
-                                //   Icons.roundabout_left,
-                                //   color: Color.fromARGB(255, 5, 190, 11),
-                                //   size: 20,
-                                // ),
-                                label: const Text(
-                                  'Jedź',
-                                  style: TextStyle(
-                                    color: Colors.green,
-                                    fontWeight: FontWeight.bold,
-                                  ),
-                                ),
-                                style: ElevatedButton.styleFrom(
-                                  padding: const EdgeInsets.symmetric(
-                                    horizontal: 12,
-                                    vertical: 8,
-                                  ),
-                                  backgroundColor: Colors.white.withValues(
-                                    alpha: 0.9,
-                                  ),
-                                  elevation: 2,
-                                ),
-                                onPressed: _launchNavigation,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-
-                      TextFormField(
-                        controller: _addressCtrl,
-                        decoration: InputDecoration(
-                          hintText: 'Nazwa budynku, adres, kod lub URL',
-                          suffixIcon: IconButton(
-                            icon: const Icon(Icons.search),
-                            onPressed: _searchAddress,
-                          ),
-                        ),
-                        textInputAction: TextInputAction.search,
-                        onFieldSubmitted: (_) => _searchAddress(),
-                      ),
-                    ],
-                  ),
+                    ),
+                  ],
                 ),
               ),
-            ),
+      ),
     );
+  }
+}
+
+class _OpisTabProxy extends StatelessWidget {
+  const _OpisTabProxy();
+
+  @override
+  Widget build(BuildContext context) {
+    final state = context
+        .findAncestorStateOfType<_ProjectDescriptionScreenState>()!;
+    return state._buildOpisTab();
+  }
+}
+
+class _FotkiTabProxy extends StatelessWidget {
+  const _FotkiTabProxy();
+
+  @override
+  Widget build(BuildContext context) {
+    final state = context
+        .findAncestorStateOfType<_ProjectDescriptionScreenState>()!;
+    return state._buildFotkiTab();
+  }
+}
+
+class _PlikiTabProxy extends StatelessWidget {
+  const _PlikiTabProxy();
+
+  @override
+  Widget build(BuildContext context) {
+    final state = context
+        .findAncestorStateOfType<_ProjectDescriptionScreenState>()!;
+    return state._buildPlikiTab();
   }
 }
