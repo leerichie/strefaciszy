@@ -370,6 +370,97 @@ class _ProjectImagesSectionState extends State<ProjectImagesSection> {
     }
   }
 
+  Future<void> _takePhotoAndUpload() async {
+    if (kIsWeb) return; // camera only on mobile/desktop apps
+
+    final picker = ImagePicker();
+    final picked = await picker.pickImage(
+      source: ImageSource.camera,
+      // optional: let your compression handle size, so keep maxQuality-ish
+      imageQuality: 95,
+    );
+
+    if (picked == null) return;
+
+    setState(() => _uploading = true);
+
+    try {
+      final bytes = await picked.readAsBytes();
+      final name = picked.name.isNotEmpty
+          ? picked.name
+          : 'photo_${DateTime.now().millisecondsSinceEpoch}.jpg';
+
+      await _uploadEntries([MapEntry(name, bytes)]);
+    } catch (e) {
+      debugPrint('Camera capture error: $e');
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Nie udało się zrobić zdjęcia')),
+        );
+      }
+    } finally {
+      if (mounted) {
+        setState(() => _uploading = false);
+      }
+    }
+  }
+
+  Future<void> _handleAddPressed() async {
+    // WEB or DESKTOP → keep existing file picker behaviour
+    if (kIsWeb || _isDesktop) {
+      await _pickAndUploadFiles();
+      return;
+    }
+
+    // MOBILE (Android / iOS) → show options: camera / gallery
+    final platform = defaultTargetPlatform;
+    final isMobile =
+        platform == TargetPlatform.android || platform == TargetPlatform.iOS;
+
+    if (!isMobile) {
+      // fallback – e.g. on other platforms
+      await _pickAndUploadFiles();
+      return;
+    }
+
+    final choice = await showModalBottomSheet<String>(
+      context: context,
+      builder: (ctx) {
+        return SafeArea(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              ListTile(
+                leading: const Icon(Icons.camera_alt),
+                title: const Text('Zrób fotka'),
+                onTap: () => Navigator.of(ctx).pop('camera'),
+              ),
+              ListTile(
+                leading: const Icon(Icons.photo_library),
+                title: const Text('Z galerii'),
+                onTap: () => Navigator.of(ctx).pop('gallery'),
+              ),
+              const Divider(height: 0),
+              ListTile(
+                leading: const Icon(Icons.close),
+                title: const Text('Anuluj'),
+                onTap: () => Navigator.of(ctx).pop('cancel'),
+              ),
+            ],
+          ),
+        );
+      },
+    );
+
+    if (!mounted || choice == null || choice == 'cancel') return;
+
+    if (choice == 'camera') {
+      await _takePhotoAndUpload();
+    } else if (choice == 'gallery') {
+      await _pickAndUploadFiles();
+    }
+  }
+
   Future<void> _pickAndUploadFiles() async {
     final result = await FilePicker.platform.pickFiles(
       allowMultiple: true,
@@ -636,7 +727,7 @@ class _ProjectImagesSectionState extends State<ProjectImagesSection> {
       final isHighlighted = _dropHighlight || _dragging;
 
       final box = GestureDetector(
-        onTap: _pickAndUploadFiles,
+        onTap: _handleAddPressed,
         child: Container(
           height: kIsWeb ? 120 : 80,
           alignment: Alignment.center,
@@ -717,7 +808,7 @@ class _ProjectImagesSectionState extends State<ProjectImagesSection> {
               });
             },
             onClear: _imageItems.isEmpty ? null : _clearImages,
-            onAdd: _pickAndUploadFiles,
+            onAdd: _handleAddPressed,
           ),
         ),
 
