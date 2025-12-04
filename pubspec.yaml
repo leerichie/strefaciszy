@@ -6,7 +6,7 @@ publish_to: "none" # Remove this line if you wish to publish to pub.dev
 
 # change build '+'
 # and in xcode
-version: 1.0.0+21
+version: 1.0.0+22
 
 environment:
   sdk: ^3.8.1
@@ -57,6 +57,7 @@ dependencies:
   shared_preferences: ^2.5.3
   flutter_dropzone: ^4.2.1
   desktop_drop: ^0.7.0
+  image: ^4.3.0
 
 dependency_overrides:
   isar_flutter_libs:

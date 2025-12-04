@@ -12,6 +12,7 @@ import 'package:open_file/open_file.dart';
 import 'package:path/path.dart' as p;
 import 'package:path_provider/path_provider.dart';
 import 'package:strefa_ciszy/services/project_files_service.dart';
+import 'package:strefa_ciszy/widgets/project_filter_row.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 enum _FileSort { original, dateNewest, type }
@@ -668,77 +669,58 @@ class _ProjectFilesOnlySectionState extends State<ProjectFilesOnlySection> {
       children: [
         Padding(
           padding: const EdgeInsets.only(bottom: 4),
-          child: Wrap(
-            spacing: 8,
-            crossAxisAlignment: WrapCrossAlignment.center,
-            children: [
-              ChoiceChip(
-                label: const Icon(Icons.refresh),
-                selected: _fileSort == _FileSort.original,
-                onSelected: (_) {
-                  setState(() {
-                    _fileSort = _FileSort.original;
-                    _searchQuery = '';
-                  });
-                },
-              ),
-
-              ChoiceChip(
-                label: const Text('Date'),
-                selected: _fileSort == _FileSort.dateNewest,
-                onSelected: (_) {
-                  setState(() => _fileSort = _FileSort.dateNewest);
-                },
-              ),
-              ChoiceChip(
-                label: const Text('Typ'),
-                selected: _fileSort == _FileSort.type,
-                onSelected: (_) {
-                  setState(() => _fileSort = _FileSort.type);
-                },
-              ),
-
-              ChoiceChip(
-                label: const Icon(Icons.search, size: 18),
-                labelPadding: EdgeInsets.zero,
-                selected: false,
-                onSelected: (_) => _openSearchDialog(),
-                backgroundColor: Colors.transparent,
-                side: BorderSide(color: Colors.grey.shade400),
-              ),
-
-              if (widget.isAdmin)
-                ChoiceChip(
-                  label: Text(
-                    'Skasuj',
-                    style: TextStyle(
-                      color: _selectionMode ? Colors.red : Colors.red.shade700,
-                    ),
-                  ),
-                  labelPadding: EdgeInsets.zero,
-                  selected: _selectionMode,
-                  onSelected: _fileItems.isEmpty ? null : (_) => _clearFiles(),
-                  backgroundColor: Colors.transparent,
-                  selectedColor: Colors.red.withValues(alpha: 0.08),
-                  side: BorderSide(
-                    color: _selectionMode ? Colors.red : Colors.grey.shade400,
-                  ),
-                ),
-
-              ChoiceChip(
-                label: Text(
-                  'Dodaj',
-                  style: TextStyle(color: Colors.green.shade800),
-                ),
-                labelPadding: EdgeInsets.zero,
-                selected: false,
-                onSelected: (_) => _pickAndUploadFiles(),
-                backgroundColor: Colors.transparent,
-                side: const BorderSide(color: Colors.blueAccent),
-              ),
-            ],
+          child: ProjectFilterRow(
+            sortIsOriginal: _fileSort == _FileSort.original,
+            sortIsDateNewest: _fileSort == _FileSort.dateNewest,
+            sortIsType: _fileSort == _FileSort.type,
+            isAdmin: widget.isAdmin,
+            selectionMode: _selectionMode,
+            hasItems: _fileItems.isNotEmpty,
+            onReset: () {
+              setState(() {
+                _fileSort = _FileSort.original;
+                _searchQuery = '';
+              });
+            },
+            onSortOriginal: () {
+              setState(() {
+                _fileSort = _FileSort.original;
+              });
+            },
+            onSortDateNewest: () {
+              setState(() {
+                _fileSort = _FileSort.dateNewest;
+              });
+            },
+            onSortType: () {
+              setState(() {
+                _fileSort = _FileSort.type;
+              });
+            },
+            onClear: _fileItems.isEmpty ? null : _clearFiles,
+            onAdd: _pickAndUploadFiles,
           ),
         ),
+
+        Padding(
+          padding: const EdgeInsets.only(bottom: 8),
+          child: TextField(
+            decoration: InputDecoration(
+              prefixIcon: const Icon(Icons.search),
+              hintText: 'Szukaj plików',
+              isDense: true,
+              border: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(6),
+              ),
+            ),
+            onChanged: (value) {
+              setState(() {
+                _searchQuery = value.trim().toLowerCase();
+              });
+            },
+          ),
+        ),
+
         Container(
           decoration: BoxDecoration(
             border: Border.all(
@@ -752,17 +734,25 @@ class _ProjectFilesOnlySectionState extends State<ProjectFilesOnlySection> {
           padding: const EdgeInsets.all(8),
           child: LayoutBuilder(
             builder: (context, constraints) {
-              final boxHeight = kIsWeb ? 240.0 : 120.0;
+              final screenHeight = MediaQuery.of(context).size.height;
+
+              final boxHeight = kIsWeb ? 240.0 : screenHeight * 0.6;
+
               return _buildFilesGrid(boxHeight);
             },
           ),
         ),
+
         const SizedBox(height: 4),
       ],
     );
 
     if (!kIsWeb) {
-      return _wrapWithDesktopDropTarget(content);
+      final scrollable = SingleChildScrollView(
+        padding: EdgeInsets.zero,
+        child: content,
+      );
+      return _wrapWithDesktopDropTarget(scrollable);
     }
 
     return Stack(

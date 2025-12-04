@@ -6,9 +6,11 @@ import 'package:file_picker/file_picker.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_dropzone/flutter_dropzone.dart';
+import 'package:image/image.dart' as img;
 import 'package:image_picker/image_picker.dart';
 import 'package:path/path.dart' as p;
 import 'package:strefa_ciszy/services/project_files_service.dart';
+import 'package:strefa_ciszy/widgets/project_filter_row.dart';
 
 enum _ImageSort { original, dateNewest, type }
 
@@ -180,10 +182,8 @@ class _ProjectImagesSectionState extends State<ProjectImagesSection> {
       final confirmed = await showDialog<bool>(
         context: context,
         builder: (ctx) => AlertDialog(
-          title: const Text('Usuń zaznaczone zdjęcia'),
-          content: Text(
-            'Na pewno chcesz usunąć ${_selectedUrls.length} zdjęć?',
-          ),
+          title: const Text('Usuń zaznaczone fotek'),
+          content: Text('Usunąć ${_selectedUrls.length} fotek?'),
           actions: [
             TextButton(
               onPressed: () => Navigator.pop(ctx, false),
@@ -218,14 +218,14 @@ class _ProjectImagesSectionState extends State<ProjectImagesSection> {
 
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('Zaznaczone zdjęcia usunięte')),
+            const SnackBar(content: Text('Zaznaczone fotek usunięte')),
           );
         }
       } catch (e) {
         debugPrint('Bulk delete selected images error: $e');
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('Nie udało się skasować zdjęć')),
+            const SnackBar(content: Text('Nie udało się skasować fotek')),
           );
         }
       } finally {
@@ -245,8 +245,8 @@ class _ProjectImagesSectionState extends State<ProjectImagesSection> {
     final choice = await showDialog<_ImageClearScope>(
       context: context,
       builder: (ctx) => AlertDialog(
-        title: const Text('Usuń zdjęcia'),
-        content: const Text('Co chcesz usunąć?'),
+        title: const Text('Usuń fotek'),
+        content: const Text('Co chcesz usunać?'),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(ctx, null),
@@ -274,9 +274,7 @@ class _ProjectImagesSectionState extends State<ProjectImagesSection> {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
-            content: Text(
-              'Wybierz zdjęcia do usunięcia, potem ponownie kliknij Skasuj',
-            ),
+            content: Text('Wybierz fotek do usunięcia, potem tap Skasuj'),
           ),
         );
       }
@@ -300,14 +298,14 @@ class _ProjectImagesSectionState extends State<ProjectImagesSection> {
 
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Wszystkie zdjęcia usunięte')),
+          const SnackBar(content: Text('Wszystkie fotek usunięty')),
         );
       }
     } catch (e) {
       debugPrint('Bulk clear images error: $e');
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Nie udało się skasować zdjęć')),
+          const SnackBar(content: Text('Nie udało się skasować fotek')),
         );
       }
     } finally {
@@ -373,7 +371,10 @@ class _ProjectImagesSectionState extends State<ProjectImagesSection> {
   }
 
   Future<void> _pickAndUploadFiles() async {
-    final result = await FilePicker.platform.pickFiles(allowMultiple: true);
+    final result = await FilePicker.platform.pickFiles(
+      allowMultiple: true,
+      type: FileType.image,
+    );
     if (result == null) return;
 
     setState(() => _uploading = true);
@@ -395,10 +396,47 @@ class _ProjectImagesSectionState extends State<ProjectImagesSection> {
     if (mounted) setState(() => _uploading = false);
   }
 
+  Future<Uint8List> _compressImageSmart(Uint8List bytes, String name) async {
+    if (kIsWeb) return bytes;
+
+    if (bytes.lengthInBytes < 120 * 1024) return bytes;
+
+    final ext = p.extension(name).toLowerCase();
+    if (!_imageExtensions.contains(ext)) return bytes;
+
+    try {
+      final decoded = img.decodeImage(bytes);
+      if (decoded == null) return bytes;
+
+      const maxSide = 1024;
+      const quality = 60;
+
+      img.Image resized;
+      if (decoded.width >= decoded.height) {
+        resized = img.copyResize(
+          decoded,
+          width: maxSide,
+          height: (decoded.height * maxSide / decoded.width).round(),
+        );
+      } else {
+        resized = img.copyResize(
+          decoded,
+          height: maxSide,
+          width: (decoded.width * maxSide / decoded.height).round(),
+        );
+      }
+
+      final jpgBytes = img.encodeJpg(resized, quality: quality);
+      return Uint8List.fromList(jpgBytes);
+    } catch (e) {
+      debugPrint('Compression error for $name: $e');
+      return bytes;
+    }
+  }
+
   Future<void> _uploadEntries(List<MapEntry<String, Uint8List>> entries) async {
     if (entries.isEmpty) return;
 
-    // existing image names (lowercased)
     final existingNames = _imageItems
         .map((f) => (f['name'] ?? '').toLowerCase())
         .where((n) => n.isNotEmpty)
@@ -424,10 +462,17 @@ class _ProjectImagesSectionState extends State<ProjectImagesSection> {
 
     if (uniqueEntries.isEmpty) return;
 
+    final compressedEntries = <MapEntry<String, Uint8List>>[];
+
+    for (final e in uniqueEntries) {
+      final compressed = await _compressImageSmart(e.value, e.key);
+      compressedEntries.add(MapEntry(e.key, compressed));
+    }
+
     final newFiles = await ProjectFilesService.uploadProjectFilesFromBytes(
       customerId: widget.customerId,
       projectId: widget.projectId,
-      files: uniqueEntries,
+      files: compressedEntries,
     );
 
     if (mounted && newFiles.isNotEmpty) {
@@ -606,8 +651,8 @@ class _ProjectImagesSectionState extends State<ProjectImagesSection> {
           ),
           child: Text(
             kIsWeb
-                ? 'Kliknij lub upuść zdjęcia tutaj'
-                : 'Dotknij aby dodać zdjęcia',
+                ? 'Kliknij lub upuść fotek tutaj'
+                : 'Dotknij aby dodać fotek',
           ),
         ),
       );
@@ -642,81 +687,59 @@ class _ProjectImagesSectionState extends State<ProjectImagesSection> {
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         Padding(
-          padding: const EdgeInsets.only(bottom: 10),
-          child: Wrap(
-            spacing: 8,
-            crossAxisAlignment: WrapCrossAlignment.center,
-            children: [
-              ChoiceChip(
-                label: const Icon(Icons.refresh),
-                selected: _sort == _ImageSort.original,
-                onSelected: (_) {
-                  setState(() {
-                    _sort = _ImageSort.original;
-                    _searchQuery = '';
-                  });
-                },
-              ),
-              ChoiceChip(
-                label: const Text('Date'),
-                selected: _sort == _ImageSort.dateNewest,
-                onSelected: (_) {
-                  setState(() => _sort = _ImageSort.dateNewest);
-                },
-              ),
-              ChoiceChip(
-                label: const Text('Typ'),
-                selected: _sort == _ImageSort.type,
-                onSelected: (_) {
-                  setState(() => _sort = _ImageSort.type);
-                },
-              ),
-              // SEARCH
-              ChoiceChip(
-                label: const Icon(Icons.search, size: 18),
-                labelPadding: EdgeInsets.zero,
-                selected: false,
-                onSelected: (_) => _openSearchDialog(),
-                backgroundColor: Colors.transparent,
-                side: BorderSide(color: Colors.grey.shade400),
-              ),
-
-              // CLEAR (admin)
-              if (widget.isAdmin)
-                ChoiceChip(
-                  label: Text(
-                    'Skasuj',
-                    style: TextStyle(
-                      color: _selectionMode ? Colors.red : Colors.red.shade700,
-                    ),
-                  ),
-                  labelPadding: EdgeInsets.zero,
-                  selected: _selectionMode,
-                  onSelected: _imageItems.isEmpty
-                      ? null
-                      : (_) => _clearImages(),
-                  backgroundColor: Colors.transparent,
-                  selectedColor: Colors.red.withValues(alpha: 0.08),
-                  side: BorderSide(
-                    color: _selectionMode ? Colors.red : Colors.grey.shade400,
-                  ),
-                ),
-
-              // ADD
-              ChoiceChip(
-                label: Text(
-                  'Dodaj',
-                  style: TextStyle(color: Colors.green.shade800),
-                ),
-                labelPadding: EdgeInsets.zero,
-                selected: false,
-                onSelected: (_) => _pickAndUploadFiles(),
-                backgroundColor: Colors.transparent,
-                side: const BorderSide(color: Colors.blueAccent),
-              ),
-            ],
+          padding: const EdgeInsets.only(bottom: 8),
+          child: ProjectFilterRow(
+            sortIsOriginal: _sort == _ImageSort.original,
+            sortIsDateNewest: _sort == _ImageSort.dateNewest,
+            sortIsType: _sort == _ImageSort.type,
+            isAdmin: widget.isAdmin,
+            selectionMode: _selectionMode,
+            hasItems: _imageItems.isNotEmpty,
+            onReset: () {
+              setState(() {
+                _sort = _ImageSort.original;
+                _searchQuery = '';
+              });
+            },
+            onSortOriginal: () {
+              setState(() {
+                _sort = _ImageSort.original;
+              });
+            },
+            onSortDateNewest: () {
+              setState(() {
+                _sort = _ImageSort.dateNewest;
+              });
+            },
+            onSortType: () {
+              setState(() {
+                _sort = _ImageSort.type;
+              });
+            },
+            onClear: _imageItems.isEmpty ? null : _clearImages,
+            onAdd: _pickAndUploadFiles,
           ),
         ),
+
+        Padding(
+          padding: const EdgeInsets.only(bottom: 10),
+          child: TextField(
+            decoration: InputDecoration(
+              prefixIcon: const Icon(Icons.search),
+              hintText: 'Szukaj fotek',
+              isDense: true,
+              border: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(6),
+              ),
+            ),
+            onChanged: (value) {
+              setState(() {
+                _searchQuery = value.trim().toLowerCase();
+              });
+            },
+          ),
+        ),
+
         Container(
           decoration: BoxDecoration(
             border: Border.all(
@@ -730,20 +753,27 @@ class _ProjectImagesSectionState extends State<ProjectImagesSection> {
           padding: const EdgeInsets.all(8),
           child: LayoutBuilder(
             builder: (context, constraints) {
-              final boxHeight = kIsWeb ? 240.0 : 120.0;
+              final screenHeight = MediaQuery.of(context).size.height;
+
+              final boxHeight = kIsWeb ? 240.0 : screenHeight * 0.6;
+
               return _buildImagesGrid(boxHeight);
             },
           ),
         ),
+
         const SizedBox(height: 4),
       ],
     );
 
     if (!kIsWeb) {
-      return _wrapWithDesktopDropTarget(content);
+      final scrollable = SingleChildScrollView(
+        padding: EdgeInsets.zero,
+        child: content,
+      );
+      return _wrapWithDesktopDropTarget(scrollable);
     }
 
-    // WEB: overlay dropzone
     return Stack(
       children: [
         Positioned.fill(

@@ -46,9 +46,8 @@ class ProjectFilesService {
 
     final bucket = Firebase.app().options.storageBucket;
     final storage = FirebaseStorage.instanceFor(bucket: 'gs://$bucket');
-    final newFiles = <Map<String, String>>[];
 
-    for (final entry in files) {
+    final uploadFutures = files.map((entry) async {
       final name = entry.key;
       final data = entry.value;
 
@@ -67,11 +66,17 @@ class ProjectFilesService {
         }
 
         final url = await ref.getDownloadURL();
-        newFiles.add({'url': url, 'name': name});
+        return {'url': url, 'name': name};
       } catch (e) {
         debugPrint('Failed to upload file "$name": $e');
+        return null;
       }
-    }
+    }).toList();
+
+    final results = await Future.wait(uploadFutures);
+    final newFiles = results.whereType<Map<String, String>>().toList(
+      growable: false,
+    );
 
     if (newFiles.isEmpty) return const [];
 
