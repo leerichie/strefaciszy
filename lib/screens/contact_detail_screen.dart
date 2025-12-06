@@ -8,6 +8,7 @@ import 'package:intl/intl.dart';
 import 'package:strefa_ciszy/screens/add_contact_screen.dart';
 import 'package:strefa_ciszy/utils/keyboard_utils.dart';
 import 'package:strefa_ciszy/widgets/app_scaffold.dart';
+import 'package:strefa_ciszy/widgets/chip_contact_role.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import 'project_editor_screen.dart';
@@ -547,6 +548,9 @@ class _ContactDetailScreenState extends State<ContactDetailScreen>
         final extraNumbers = (data['extraNumbers'] is List)
             ? List<String>.from(data['extraNumbers'])
             : <String>[];
+        final extraRoles = List<String>.from(
+          data['extraContactTypes'] ?? const <String>[],
+        );
 
         return AnimatedBuilder(
           animation: _tabController,
@@ -608,6 +612,7 @@ class _ContactDetailScreenState extends State<ContactDetailScreen>
               centreTitle: true,
               bottom: TabBar(
                 controller: _tabController,
+                // TAB ------
                 tabs: const [
                   Tab(text: 'Szczegóły'),
                   Tab(text: 'Kontakty'),
@@ -806,7 +811,26 @@ class _ContactDetailScreenState extends State<ContactDetailScreen>
                             ],
                           ],
                         ),
-                        const SizedBox(height: 15),
+                        Divider(),
+
+                        // extra role
+                        if (extraRoles.isNotEmpty) ...[
+                          // const SizedBox(height: 10),
+                          // const Text(
+                          //   'Dodatkowa ROLA',
+                          //   style: TextStyle(fontWeight: FontWeight.bold),
+                          // ),
+                          const SizedBox(height: 5),
+                          Wrap(
+                            spacing: 4,
+                            runSpacing: 4,
+                            children: extraRoles
+                                .map((r) => ContactRoleChip(label: r))
+                                .toList(),
+                          ),
+                        ],
+
+                        const SizedBox(height: 5),
                         const Divider(),
                         const AutoSizeText(
                           'Projekty',

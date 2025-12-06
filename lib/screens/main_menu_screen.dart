@@ -266,7 +266,7 @@ class _MainMenuScreenState extends State<MainMenuScreen> {
             bottom: 60,
             right: 20,
             child: Image.asset(
-              'assets/images/dev_logo.png',
+              'assets/images/dev_logo_PILL.png',
               width: 80,
               fit: BoxFit.contain,
             ),

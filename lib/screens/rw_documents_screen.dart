@@ -1,11 +1,14 @@
 // lib/screens/rw_documents_screen.dart
 
+import 'dart:convert';
+
 import 'package:auto_size_text/auto_size_text.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:http/http.dart' as http;
 import 'package:intl/intl.dart';
 import 'package:open_file/open_file.dart';
 import 'package:strefa_ciszy/screens/project_editor_screen.dart';
@@ -42,9 +45,37 @@ class _RWDocumentsScreenState extends State<RWDocumentsScreen> {
 
   late final TextEditingController _searchController;
 
+  // Stream<QuerySnapshot> get _stream {
+  //   final db = FirebaseFirestore.instance;
+
+  //   if (widget.customerId != null && widget.projectId != null) {
+  //     return db
+  //         .collection('customers')
+  //         .doc(widget.customerId)
+  //         .collection('projects')
+  //         .doc(widget.projectId)
+  //         .collection('rw_documents')
+  //         .orderBy('createdDay', descending: true)
+  //         .snapshots();
+  //   }
+
+  //   if (widget.customerId != null) {
+  //     return db
+  //         .collectionGroup('rw_documents')
+  //         .where('customerId', isEqualTo: widget.customerId)
+  //         .orderBy('createdDay', descending: true)
+  //         .snapshots();
+  //   }
+
+  //   return db
+  //       .collectionGroup('rw_documents')
+  //       .orderBy('createdDay', descending: true)
+  //       .snapshots();
+  // }
   Stream<QuerySnapshot> get _stream {
     final db = FirebaseFirestore.instance;
 
+    // INSIDE project view
     if (widget.customerId != null && widget.projectId != null) {
       return db
           .collection('customers')
@@ -52,21 +83,26 @@ class _RWDocumentsScreenState extends State<RWDocumentsScreen> {
           .collection('projects')
           .doc(widget.projectId)
           .collection('rw_documents')
-          .orderBy('createdDay', descending: true)
+          // use createdAt again – NOT createdDay
+          .orderBy('createdAt', descending: true)
           .snapshots();
     }
 
+    // CLIENT view – all RW for this customer
     if (widget.customerId != null) {
       return db
           .collectionGroup('rw_documents')
           .where('customerId', isEqualTo: widget.customerId)
-          .orderBy('createdDay', descending: true)
+          // use createdAt again – NOT createdDay
+          .orderBy('createdAt', descending: true)
           .snapshots();
     }
 
+    // ADMIN view – all RW everywhere
     return db
         .collectionGroup('rw_documents')
-        .orderBy('createdDay', descending: true)
+        // use createdAt again – NOT createdDay
+        .orderBy('createdAt', descending: true)
         .snapshots();
   }
 
@@ -80,6 +116,100 @@ class _RWDocumentsScreenState extends State<RWDocumentsScreen> {
   void dispose() {
     _searchController.dispose();
     super.dispose();
+  }
+
+  // Future<void> _sendTodayRwReport() async {
+  //   try {
+  //     final user = FirebaseAuth.instance.currentUser;
+  //     if (user == null) {
+  //       ScaffoldMessenger.of(
+  //         context,
+  //       ).showSnackBar(const SnackBar(content: Text('Musisz być zalogowany')));
+  //       return;
+  //     }
+
+  //     final idToken = await user.getIdToken();
+  //     // Gen1 URL (same pattern as your other HTTP functions)
+  //     final uri = Uri.parse(
+  //       'https://us-central1-strefa-ciszy.cloudfunctions.net/sendDailyRwReportHttp',
+  //     );
+
+  //     final resp = await http.post(
+  //       uri,
+  //       headers: {
+  //         'Authorization': 'Bearer $idToken',
+  //         'Content-Type': 'application/json',
+  //       },
+  //       body: jsonEncode({
+  //         // optional: specify dayKey
+  //         // 'dayKey': '2025-12-05',
+  //       }),
+  //     );
+
+  //     if (resp.statusCode == 200) {
+  //       ScaffoldMessenger.of(
+  //         context,
+  //       ).showSnackBar(const SnackBar(content: Text('Raport będzie na email')));
+  //     } else {
+  //       ScaffoldMessenger.of(context).showSnackBar(
+  //         SnackBar(
+  //           content: Text('Błąd raport: ${resp.statusCode} ${resp.body}'),
+  //         ),
+  //       );
+  //     }
+  //   } catch (e) {
+  //     ScaffoldMessenger.of(
+  //       context,
+  //     ).showSnackBar(SnackBar(content: Text('Błąd wysyłania raportu: $e')));
+  //   }
+  // }
+  Future<void> _sendTodayRwReport() async {
+    try {
+      final user = FirebaseAuth.instance.currentUser;
+      if (user == null) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(const SnackBar(content: Text('Musisz być zalogowany')));
+        return;
+      }
+
+      final idToken = await user.getIdToken();
+
+      // today key: 2025-12-06
+      final now = DateTime.now();
+      final dayKey = DateFormat('yyyy-MM-dd').format(now);
+
+      final uri = Uri.parse(
+        'https://us-central1-strefa-ciszy.cloudfunctions.net/sendDailyRwReportHttp',
+      );
+
+      final resp = await http.post(
+        uri,
+        headers: {
+          'Authorization': 'Bearer $idToken',
+          'Content-Type': 'application/json',
+        },
+        body: jsonEncode({
+          'dayKey': dayKey, // <<--- IMPORTANT
+        }),
+      );
+
+      if (resp.statusCode == 200) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(const SnackBar(content: Text('Raport będzie na email')));
+      } else {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Błąd raport: ${resp.statusCode} ${resp.body}'),
+          ),
+        );
+      }
+    } catch (e) {
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('Błąd wysyłania raportu: $e')));
+    }
   }
 
   @override
@@ -144,28 +274,20 @@ class _RWDocumentsScreenState extends State<RWDocumentsScreen> {
         : const SizedBox.shrink(); // no “Raport” when not inside a project
 
     return AppScaffold(
-      // floatingActionButton: FloatingActionButton(
-      //   tooltip: 'Swap',
-      //   onPressed: () {
-      //     Navigator.of(context).push(
-      //       MaterialPageRoute(
-      //         builder: (_) => SwapWorkflowScreen(
-      //           customerId: widget.customerId!,
-      //           projectId: widget.projectId!,
-      //           isAdmin: widget.isAdmin,
-      //         ),
-      //       ),
-      //     );
-      //   },
-      //   child: const Icon(Icons.swap_horiz, size: 32),
-      // ),
       floatingActionButtonLocation: FloatingActionButtonLocation.centerFloat,
       showBackOnWeb: true,
       title: '',
       titleWidget: titleWidg,
       centreTitle: true,
 
-      actions: [Padding(padding: const EdgeInsets.symmetric(horizontal: 8.0))],
+      actions: [
+        IconButton(
+          icon: const Icon(Icons.email_outlined),
+          tooltip: 'Wyślij TEST raport (day) RW',
+          onPressed: _sendTodayRwReport,
+        ),
+        const SizedBox(width: 8),
+      ],
 
       body: Column(
         children: [
@@ -589,50 +711,6 @@ class _RWDocumentsScreenState extends State<RWDocumentsScreen> {
           ],
         ],
       ),
-
-      // floatingActionButton: !kIsWeb
-      //     ? FloatingActionButton(
-      //         tooltip: 'Skanuj',
-      //         onPressed: () => Navigator.of(
-      //           context,
-      //         ).push(MaterialPageRoute(builder: (_) => const ScanScreen())),
-      //         child: const Icon(Icons.qr_code_scanner, size: 32),
-      //       )
-      //     : null,
-      // floatingActionButtonLocation: FloatingActionButtonLocation.centerFloat,
-
-      // bottomNavigationBar: SafeArea(
-      //   child: BottomAppBar(
-      //     shape: const CircularNotchedRectangle(),
-      //     notchMargin: 6,
-      //     child: Padding(
-      //       padding: const EdgeInsets.symmetric(horizontal: 32),
-      //       child: Row(
-      //         mainAxisAlignment: MainAxisAlignment.spaceBetween,
-      //         children: [
-      //           IconButton(
-      //             tooltip: 'Inwentaryzacja',
-      //             icon: const Icon(Icons.inventory_2),
-      //             onPressed: () => Navigator.of(context).push(
-      //               MaterialPageRoute(
-      //                 builder: (_) => InventoryListScreen(isAdmin: true),
-      //               ),
-      //             ),
-      //           ),
-      //           IconButton(
-      //             tooltip: 'Klienci',
-      //             icon: const Icon(Icons.group),
-      //             onPressed: () => Navigator.of(context).push(
-      //               MaterialPageRoute(
-      //                 builder: (_) => CustomerListScreen(isAdmin: true),
-      //               ),
-      //             ),
-      //           ),
-      //         ],
-      //       ),
-      //     ),
-      //   ),
-      // ),
     );
   }
 

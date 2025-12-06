@@ -114,7 +114,6 @@ class _ProjectsListScreenState extends State<ProjectsListScreen> {
                 return const Center(child: Text('Brak projektów.'));
               }
 
-              // Already sorted newest→oldest from Firestore, but make sure:
               projects.sort((a, b) {
                 final ad =
                     a.createdAt ?? DateTime.fromMillisecondsSinceEpoch(0);
@@ -150,12 +149,13 @@ class _ProjectsListScreenState extends State<ProjectsListScreen> {
                     children: [
                       // customer header
                       Padding(
-                        padding: const EdgeInsets.fromLTRB(16, 12, 16, 4),
+                        padding: const EdgeInsets.fromLTRB(16, 5, 16, 1),
                         child: Text(
                           customerName,
                           style: const TextStyle(
-                            fontWeight: FontWeight.bold,
+                            fontWeight: FontWeight.w400,
                             fontSize: 15,
+                            color: Colors.blueGrey,
                           ),
                         ),
                       ),
@@ -165,7 +165,10 @@ class _ProjectsListScreenState extends State<ProjectsListScreen> {
                             : null;
                         return ListTile(
                           dense: false,
-                          title: Text(p.title),
+                          title: Text(
+                            p.title,
+                            style: TextStyle(fontWeight: FontWeight.bold),
+                          ),
                           subtitle: dateText != null ? Text(dateText) : null,
                           onTap: () {
                             Navigator.of(context).push(

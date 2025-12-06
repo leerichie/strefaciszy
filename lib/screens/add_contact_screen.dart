@@ -12,6 +12,8 @@ import 'package:intl/intl.dart';
 import 'package:strefa_ciszy/screens/customer_detail_screen.dart';
 import 'package:strefa_ciszy/utils/keyboard_utils.dart';
 import 'package:strefa_ciszy/widgets/app_scaffold.dart';
+import 'package:strefa_ciszy/widgets/chip_contact_role.dart';
+import 'package:strefa_ciszy/widgets/chip_project.dart';
 
 import 'project_editor_screen.dart';
 
@@ -20,12 +22,15 @@ class AddContactScreen extends StatefulWidget {
   final String? contactId;
   final String? linkedCustomerId;
   final bool forceAsContact;
+  final String? initialProjectId;
+
   const AddContactScreen({
     super.key,
     this.isAdmin = false,
     this.contactId,
     this.linkedCustomerId,
     this.forceAsContact = false,
+    this.initialProjectId,
   });
 
   @override
@@ -82,6 +87,8 @@ class _AddContactScreenState extends State<AddContactScreen> {
 
   List<String> _selectedProjectIds = [];
 
+  List<String> _extraContactTypes = [];
+
   @override
   void initState() {
     super.initState();
@@ -97,9 +104,10 @@ class _AddContactScreenState extends State<AddContactScreen> {
     }
     _loadCustomerSuggestions();
     _attachAutoSaveListeners();
+    _loadAllProjects();
 
-    if (widget.linkedCustomerId == null) {
-      _loadAllProjects();
+    if (widget.contactId == null && widget.initialProjectId != null) {
+      _selectedProjectIds = [widget.initialProjectId!];
     }
   }
 
@@ -170,19 +178,15 @@ class _AddContactScreenState extends State<AddContactScreen> {
       if (_addedExtraFields.contains('WWW')) 'www': _websiteCtrl.text.trim(),
       if (_addedExtraFields.contains('Notatka')) 'note': _noteCtrl.text.trim(),
       'contactType': (_isPrimaryContact || _isNewClient) ? 'Klient' : _category,
+      'extraContactTypes': _extraContactTypes,
       if (_customerId != null) 'linkedCustomerId': _customerId,
       'updatedAt': FieldValue.serverTimestamp(),
-      // if (_selectedProjectId != null) 'linkedProjectId': _selectedProjectId,
       'linkedProjectIds': _selectedProjectIds,
-
-      if (_customerId != null) 'linkedCustomerId': _customerId,
     };
 
     if (_customerId == null && _selectedProjectIds.isNotEmpty) {
-      // find that project in our in‐memory list
       final projId = _selectedProjectIds.first;
       final projDoc = _allProjects.firstWhere((d) => d.id == projId);
-      // its parent is customers/{custId}/projects
       _customerId = projDoc.reference.parent.parent!.id;
       data['linkedCustomerId'] = _customerId;
     } else if (_customerId != null) {
@@ -323,6 +327,9 @@ class _AddContactScreenState extends State<AddContactScreen> {
       _websiteCtrl.text = data['www'] ?? '';
       _noteCtrl.text = data['note'] ?? '';
       _category = data['contactType'];
+      _extraContactTypes = List<String>.from(
+        data['extraContactTypes'] ?? const [],
+      );
       _existingPhotoUrl = data['photoUrl'];
       _customerId = data['linkedCustomerId'] as String?;
       _addedExtraFields.clear();
@@ -367,7 +374,7 @@ class _AddContactScreenState extends State<AddContactScreen> {
     return await ref.getDownloadURL();
   }
 
-  Future<void> _addCategory() async {
+  Future<String?> _addCategory({bool setAsMain = true}) async {
     String temp = '';
     await showDialog<void>(
       context: context,
@@ -387,7 +394,9 @@ class _AddContactScreenState extends State<AddContactScreen> {
               if (temp.isNotEmpty) {
                 setState(() {
                   _categories.add(temp);
-                  _category = temp;
+                  if (setAsMain) {
+                    _category = temp; // old behaviour
+                  }
                 });
               }
               Navigator.pop(ctx);
@@ -397,7 +406,9 @@ class _AddContactScreenState extends State<AddContactScreen> {
         ],
       ),
     );
-    if (temp.isEmpty) return;
+
+    if (temp.isEmpty) return null;
+
     final ref = FirebaseFirestore.instance
         .collection('metadata')
         .doc('contactTypes');
@@ -405,6 +416,8 @@ class _AddContactScreenState extends State<AddContactScreen> {
       'types': FieldValue.arrayUnion([temp]),
     });
     _scheduleAutoSave();
+
+    return temp;
   }
 
   Future<void> _addProject() async {
@@ -942,8 +955,8 @@ class _AddContactScreenState extends State<AddContactScreen> {
                                                 padding: const EdgeInsets.only(
                                                   bottom: 1,
                                                 ),
-                                                child: InputChip(
-                                                  label: Text(title),
+                                                child: ProjectChip(
+                                                  label: title,
                                                   onDeleted: () {
                                                     setState(
                                                       () => _selectedProjectIds
@@ -998,6 +1011,100 @@ class _AddContactScreenState extends State<AddContactScreen> {
                             ),
                             const SizedBox(height: 12),
                           ],
+
+                          Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              // const Text(
+                              //   'Dodatkowa ROLA',
+                              //   style: TextStyle(fontWeight: FontWeight.bold),
+                              // ),
+                              // const SizedBox(height: 4),
+                              if (_extraContactTypes.isNotEmpty)
+                                Wrap(
+                                  spacing: 4,
+                                  runSpacing: 4,
+                                  children: _extraContactTypes
+                                      .map(
+                                        (t) => ContactRoleChip(
+                                          label: t,
+                                          onDeleted: () {
+                                            setState(() {
+                                              _extraContactTypes.remove(t);
+                                            });
+                                            _scheduleAutoSave();
+                                          },
+                                        ),
+                                      )
+                                      .toList(),
+                                )
+                              else
+                                // const Text(
+                                //   'Brak dodatkowych ról',
+                                //   style: TextStyle(
+                                //     fontSize: 13,
+                                //     color: Colors.grey,
+                                //   ),
+                                // ),
+                                const SizedBox(height: 8),
+
+                              Row(
+                                children: [
+                                  Expanded(
+                                    child: DropdownButtonFormField<String>(
+                                      key: ValueKey(
+                                        'extra-roles-add-${_extraContactTypes.length}',
+                                      ),
+                                      initialValue: null,
+                                      decoration: const InputDecoration(
+                                        labelText: 'Dodatkowa rola',
+                                      ),
+                                      items: _categories
+                                          .where(
+                                            (c) =>
+                                                c != _category &&
+                                                !_extraContactTypes.contains(c),
+                                          )
+                                          .map(
+                                            (c) => DropdownMenuItem(
+                                              value: c,
+                                              child: Text(c),
+                                            ),
+                                          )
+                                          .toList(),
+                                      onChanged: (v) {
+                                        if (v == null) return;
+                                        setState(() {
+                                          _extraContactTypes.add(v);
+                                        });
+                                        _scheduleAutoSave();
+                                      },
+                                    ),
+                                  ),
+
+                                  IconButton(
+                                    icon: const Icon(Icons.add_circle_outline),
+                                    tooltip: 'Dodaj nowa rola',
+                                    onPressed: () async {
+                                      final created = await _addCategory(
+                                        setAsMain: false,
+                                      );
+                                      if (created != null &&
+                                          !_extraContactTypes.contains(
+                                            created,
+                                          )) {
+                                        setState(() {
+                                          _extraContactTypes.add(created);
+                                        });
+                                        _scheduleAutoSave();
+                                      }
+                                    },
+                                  ),
+                                ],
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: 12),
 
                           // === Name Field (always) ===
                           if (widget.contactId == null) ...[
@@ -1065,9 +1172,9 @@ class _AddContactScreenState extends State<AddContactScreen> {
                               labelText: 'Telefon',
                             ),
                             keyboardType: TextInputType.phone,
-                            validator: (v) => v == null || v.trim().isEmpty
-                                ? 'Wpisz numer'
-                                : null,
+                            // validator: (v) => v == null || v.trim().isEmpty
+                            //     ? 'Wpisz numer'
+                            //     : null,
                             onChanged: (_) => _scheduleAutoSave(),
                           ),
                           const SizedBox(height: 12),
@@ -1079,9 +1186,9 @@ class _AddContactScreenState extends State<AddContactScreen> {
                               labelText: 'Email',
                             ),
                             keyboardType: TextInputType.emailAddress,
-                            validator: (v) => v == null || v.trim().isEmpty
-                                ? 'Wpisz email'
-                                : null,
+                            // validator: (v) => v == null || v.trim().isEmpty
+                            //     ? 'Wpisz email'
+                            //     : null,
                             onChanged: (_) => _scheduleAutoSave(),
                           ),
                           const SizedBox(height: 12),

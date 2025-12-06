@@ -3,6 +3,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/foundation.dart';
 import 'package:strefa_ciszy/models/stock_item.dart';
 import 'package:strefa_ciszy/utils/search_utils.dart';
+
 import '../models/project_line.dart';
 
 class StockService {
@@ -316,6 +317,12 @@ class StockService {
     String oldItemName = oldItemId;
     String newItemName = newItemId;
 
+    // --- we will need these refs/snaps for safe updates ---
+    final oldStockRef = db.collection('stock_items').doc(oldItemId);
+    final oldStockSnap = await oldStockRef.get(); // may or may not exist
+
+    DocumentSnapshot<Map<String, dynamic>>? newItemDoc;
+
     final oldMatch = items.firstWhere(
       (m) => m['itemId'] == oldItemId,
       orElse: () => {},
@@ -324,14 +331,11 @@ class StockService {
       final prod = (oldMatch['producent'] ?? '').toString();
       final name = (oldMatch['name'] ?? '').toString();
       oldItemName = prod.isNotEmpty ? '$prod $name' : name;
-    } else {
-      final oldDoc = await db.collection('stock_items').doc(oldItemId).get();
-      if (oldDoc.exists) {
-        final d = oldDoc.data()!;
-        final prod = (d['producent'] ?? '').toString();
-        final name = (d['name'] ?? '').toString();
-        oldItemName = prod.isNotEmpty ? '$prod $name' : name;
-      }
+    } else if (oldStockSnap.exists) {
+      final d = oldStockSnap.data()!;
+      final prod = (d['producent'] ?? '').toString();
+      final name = (d['name'] ?? '').toString();
+      oldItemName = prod.isNotEmpty ? '$prod $name' : name;
     }
 
     final newMatch = items.firstWhere(
@@ -343,19 +347,21 @@ class StockService {
       final name = (newMatch['name'] ?? '').toString();
       newItemName = prod.isNotEmpty ? '$prod $name' : name;
     } else {
-      final newDoc = await db.collection('stock_items').doc(newItemId).get();
-      if (newDoc.exists) {
-        final d = newDoc.data()!;
+      newItemDoc = await db.collection('stock_items').doc(newItemId).get();
+      if (newItemDoc.exists) {
+        final d = newItemDoc.data()!;
         final prod = (d['producent'] ?? '').toString();
         final name = (d['name'] ?? '').toString();
         newItemName = prod.isNotEmpty ? '$prod $name' : name;
       }
     }
 
+    // nic się nie zmienia -> nic nie rób
     if (oldItemId == newItemId && oldQty == newQty) {
       return;
     }
 
+    // --------- PROJEKT + STAN MAGAZYNU ---------
     if (oldQty > 0) {
       final oldIdx = items.indexWhere((m) => m['itemId'] == oldItemId);
       if (oldIdx != -1) {
@@ -368,21 +374,27 @@ class StockService {
           items.removeAt(oldIdx);
         }
       }
-      batch.update(db.collection('stock_items').doc(oldItemId), {
-        'quantity': FieldValue.increment(oldQty),
-        'updatedAt': FieldValue.serverTimestamp(),
-      });
+
+      // 🔴 kluczowa zmiana: aktualizuj stan tylko jeśli dokument istnieje
+      if (oldStockSnap.exists) {
+        batch.update(oldStockRef, {
+          'quantity': FieldValue.increment(oldQty),
+          'updatedAt': FieldValue.serverTimestamp(),
+        });
+      } else {
+        debugPrint(
+          'applySwapOnExistingRw: stock_items/$oldItemId missing – skipping stock revert',
+        );
+      }
     }
 
     if (newQty > 0) {
-      final newItemDoc = await db
-          .collection('stock_items')
-          .doc(newItemId)
-          .get();
+      newItemDoc ??= await db.collection('stock_items').doc(newItemId).get();
       if (!newItemDoc.exists) {
         throw Exception('Produkt $newItemId nie istnieje');
       }
       final newItemData = newItemDoc.data()!;
+
       final newIdx = items.indexWhere((m) => m['itemId'] == newItemId);
       if (newIdx != -1) {
         final existing = Map<String, dynamic>.from(items[newIdx]);
@@ -399,12 +411,14 @@ class StockService {
           'producent': newItemData['producent'] ?? '',
         });
       }
+
       batch.update(db.collection('stock_items').doc(newItemId), {
         'quantity': FieldValue.increment(-newQty),
         'updatedAt': FieldValue.serverTimestamp(),
       });
     }
 
+    // --------- NOTATKA + UPDATE RW + PROJEKT ---------
     String action;
     String noteText;
     if (oldQty > 0 && newQty > 0) {

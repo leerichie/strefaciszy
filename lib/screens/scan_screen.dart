@@ -1,14 +1,14 @@
 // lib/screens/scan_screen.dart
 import 'dart:async';
+
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:mobile_scanner/mobile_scanner.dart';
-
 import 'package:strefa_ciszy/models/stock_item.dart';
+import 'package:strefa_ciszy/screens/item_detail_screen.dart';
 import 'package:strefa_ciszy/services/admin_api.dart';
 import 'package:strefa_ciszy/services/api_service.dart';
-import 'package:strefa_ciszy/screens/item_detail_screen.dart';
 import 'package:strefa_ciszy/utils/web_fullscreen_guard_stub.dart'
     if (dart.library.js_interop) 'package:strefa_ciszy/utils/web_fullscreen_guard_web.dart'
     as webfs;

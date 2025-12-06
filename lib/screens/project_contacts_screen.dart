@@ -1,6 +1,7 @@
 // lib/screens/project_contacts_screen.dart
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
+import 'package:strefa_ciszy/services/user_functions.dart';
 import 'package:strefa_ciszy/widgets/app_scaffold.dart';
 import 'package:url_launcher/url_launcher.dart';
 
@@ -24,16 +25,135 @@ class ProjectContactsScreen extends StatefulWidget {
 }
 
 class _ProjectContactsScreenState extends State<ProjectContactsScreen> {
-  String? _mainContactId; // kontakt główny
+  String? _mainContactId; // główny
   bool _loadingMain = true;
+
+  String? _projectTitle;
+  bool _loadingProjectTitle = true;
 
   bool _isSelectingContacts = false;
   final Set<String> _selectedContactEmails = {};
+
+  final UserFunctions _userSvc = UserFunctions();
+
+  bool _kadraLoading = true;
+  bool _kadraExpanded = false;
+  List<Map<String, dynamic>> _kadraUsers = [];
 
   @override
   void initState() {
     super.initState();
     _loadMainContact();
+    _loadKadraUsers();
+    _loadProjectTitle();
+  }
+
+  Future<void> _loadProjectTitle() async {
+    try {
+      final snap = await FirebaseFirestore.instance
+          .collection('customers')
+          .doc(widget.customerId)
+          .collection('projects')
+          .doc(widget.projectId)
+          .get();
+
+      setState(() {
+        _projectTitle = snap.data()?['title'] as String?;
+        _loadingProjectTitle = false;
+      });
+    } catch (_) {
+      setState(() => _loadingProjectTitle = false);
+    }
+  }
+
+  Future<void> _loadKadraUsers() async {
+    try {
+      final users = await _userSvc.listUsers();
+      setState(() {
+        _kadraUsers = users;
+        _kadraLoading = false;
+      });
+    } catch (_) {
+      setState(() => _kadraLoading = false);
+    }
+  }
+
+  Widget _buildKadraSection(ThemeData theme) {
+    if (_kadraLoading) {
+      return const ListTile(
+        title: Text('STREFA ZIOMKI'),
+        trailing: SizedBox(
+          width: 18,
+          height: 15,
+          child: CircularProgressIndicator(strokeWidth: 2),
+        ),
+      );
+    }
+
+    if (_kadraUsers.isEmpty) {
+      return const SizedBox.shrink();
+    }
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        ListTile(
+          title: const Text(
+            'STREFA ZIOMKI',
+            style: TextStyle(fontWeight: FontWeight.bold, letterSpacing: 0.8),
+          ),
+          trailing: Icon(
+            _kadraExpanded ? Icons.expand_less : Icons.expand_more,
+          ),
+          onTap: () {
+            setState(() => _kadraExpanded = !_kadraExpanded);
+          },
+        ),
+        if (_kadraExpanded)
+          ..._kadraUsers.map((u) {
+            final email = (u['email'] ?? '') as String;
+            final name = (u['name'] ?? '') as String;
+            final canSelect = email.isNotEmpty;
+            final selected = _selectedContactEmails.contains(email);
+
+            return ListTile(
+              leading: _isSelectingContacts
+                  ? Checkbox(
+                      value: canSelect && selected,
+                      onChanged: canSelect
+                          ? (val) {
+                              final now = val ?? false;
+                              setState(() {
+                                if (now) {
+                                  _selectedContactEmails.add(email);
+                                } else {
+                                  _selectedContactEmails.remove(email);
+                                }
+                              });
+                            }
+                          : null,
+                    )
+                  : const Icon(Icons.person_outline),
+              title: Text(
+                name.isEmpty ? email : name,
+                style: const TextStyle(fontWeight: FontWeight.w500),
+              ),
+              subtitle: email.isEmpty ? null : Text(email),
+              onTap: !_isSelectingContacts || !canSelect
+                  ? null
+                  : () {
+                      setState(() {
+                        if (selected) {
+                          _selectedContactEmails.remove(email);
+                        } else {
+                          _selectedContactEmails.add(email);
+                        }
+                      });
+                    },
+            );
+          }),
+      ],
+    );
   }
 
   Future<void> _loadMainContact() async {
@@ -97,9 +217,13 @@ class _ProjectContactsScreenState extends State<ProjectContactsScreen> {
       showBackOnWeb: true,
       centreTitle: true,
       title: '',
-      titleWidget: const Text(
-        'Kontakty projektu',
-        style: TextStyle(fontSize: 20),
+      titleWidget: Text(
+        (_projectTitle == null || _projectTitle!.isEmpty)
+            ? 'Kontakty projektu'
+            : 'Kontakty - ${_projectTitle!}',
+        style: const TextStyle(fontSize: 20),
+        overflow: TextOverflow.ellipsis,
+        maxLines: 2,
       ),
       actions: [
         if (_isSelectingContacts)
@@ -136,6 +260,7 @@ class _ProjectContactsScreenState extends State<ProjectContactsScreen> {
                 isAdmin: widget.isAdmin,
                 linkedCustomerId: widget.customerId,
                 forceAsContact: true,
+                initialProjectId: widget.projectId,
               ),
             ),
           );
@@ -203,18 +328,41 @@ class _ProjectContactsScreenState extends State<ProjectContactsScreen> {
                   ...related.where((d) => d.id != mainDoc.id),
                 ];
 
+                final theme = Theme.of(context);
+                final hasKadraRow = _kadraUsers.isNotEmpty || _kadraLoading;
+                final totalRows = docs.length + (hasKadraRow ? 1 : 0);
+
                 return ListView.separated(
-                  itemCount: docs.length,
+                  itemCount: totalRows,
                   separatorBuilder: (_, __) => const Divider(height: 1),
-                  itemBuilder: (_, i) {
-                    final doc = docs[i];
+                  itemBuilder: (_, index) {
+                    if (hasKadraRow && index == 1) {
+                      return _buildKadraSection(theme);
+                    }
+
+                    final docIndex = (hasKadraRow && index > 1)
+                        ? index - 1
+                        : index;
+                    final doc = docs[docIndex];
                     final contact = doc.data();
                     final phone = (contact['phone'] ?? '') as String;
                     final email = (contact['email'] ?? '') as String;
                     final canSelect = email.isNotEmpty;
                     final selected = _selectedContactEmails.contains(email);
                     final isMainContact = doc.id == _mainContactId;
-                    final theme = Theme.of(context);
+
+                    // return ListView.separated(
+                    //   itemCount: docs.length,
+                    //   separatorBuilder: (_, __) => const Divider(height: 1),
+                    //   itemBuilder: (_, i) {
+                    //     final doc = docs[i];
+                    //     final contact = doc.data();
+                    //     final phone = (contact['phone'] ?? '') as String;
+                    //     final email = (contact['email'] ?? '') as String;
+                    //     final canSelect = email.isNotEmpty;
+                    //     final selected = _selectedContactEmails.contains(email);
+                    //     final isMainContact = doc.id == _mainContactId;
+                    //     final theme = Theme.of(context);
 
                     return Container(
                       decoration: isMainContact

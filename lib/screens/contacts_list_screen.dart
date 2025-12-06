@@ -8,12 +8,20 @@ import 'package:strefa_ciszy/screens/contact_detail_screen.dart';
 import 'package:strefa_ciszy/screens/customer_detail_screen.dart';
 import 'package:strefa_ciszy/utils/keyboard_utils.dart';
 import 'package:strefa_ciszy/widgets/app_scaffold.dart';
+import 'package:strefa_ciszy/widgets/chip_contact_role.dart';
+import 'package:strefa_ciszy/widgets/chip_project.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 class ContactsListScreen extends StatefulWidget {
   final bool isAdmin;
   final String? customerId;
-  const ContactsListScreen({super.key, this.isAdmin = false, this.customerId});
+  final String? projectId;
+  const ContactsListScreen({
+    super.key,
+    this.isAdmin = false,
+    this.customerId,
+    this.projectId,
+  });
 
   @override
   State<ContactsListScreen> createState() => _ContactsListScreenState();
@@ -57,6 +65,8 @@ class _ContactsListScreenState extends State<ContactsListScreen> {
         .doc('contactTypes')
         .get();
     final types = List<String>.from((snap.data()!['types'] as List));
+    final uniqueTypes = types.toSet().toList();
+
     setState(() {
       _categories = ['Wszyscy', ...types];
     });
@@ -93,6 +103,12 @@ class _ContactsListScreenState extends State<ContactsListScreen> {
     var phone = data['phone'] as String? ?? '';
     var email = data['email'] as String? ?? '';
     var type = data['contactType'] as String? ?? '';
+    var extraTypes = List<String>.from(
+      data['extraContactTypes'] ?? const <String>[],
+    );
+
+    final allTypes = _categories.where((c) => c != 'Wszyscy').toSet().toList();
+    String? extraDropdownValue;
 
     await showDialog<void>(
       context: context,
@@ -123,11 +139,87 @@ class _ContactsListScreenState extends State<ContactsListScreen> {
                   keyboardType: TextInputType.emailAddress,
                   onChanged: (v) => email = v.trim(),
                 ),
-                TextFormField(
-                  initialValue: type,
-                  decoration: const InputDecoration(labelText: 'Typ kontaktu'),
-                  onChanged: (v) => type = v.trim(),
-                ),
+                // === MAIN contact type ===
+                if (allTypes.isEmpty) ...[
+                  TextFormField(
+                    initialValue: type,
+                    decoration: const InputDecoration(
+                      labelText: 'Typ kontaktu',
+                    ),
+                    onChanged: (v) => type = v.trim(),
+                  ),
+                ] else ...[
+                  DropdownButtonFormField<String>(
+                    initialValue: allTypes.contains(type) ? type : null,
+                    decoration: const InputDecoration(
+                      labelText: 'Typ kontaktu',
+                    ),
+                    items: allTypes
+                        .map((t) => DropdownMenuItem(value: t, child: Text(t)))
+                        .toList(),
+                    onChanged: (v) => setModalState(() => type = v ?? ''),
+                  ),
+                ],
+
+                const SizedBox(height: 8),
+
+                // === EXTRA roles
+                if (allTypes.isNotEmpty) ...[
+                  const SizedBox(height: 8),
+
+                  if (extraTypes.isNotEmpty)
+                    Padding(
+                      padding: const EdgeInsets.only(bottom: 8),
+                      child: Wrap(
+                        spacing: 4,
+                        runSpacing: 4,
+                        children: extraTypes.map((t) {
+                          return ContactRoleChip(
+                            label: t,
+                            onDeleted: () {
+                              setModalState(() {
+                                extraTypes.remove(t);
+                              });
+                            },
+                          );
+                        }).toList(),
+                      ),
+                    ),
+
+                  Builder(
+                    builder: (_) {
+                      final availableExtraTypes = allTypes
+                          .where((t) => t != type && !extraTypes.contains(t))
+                          .toList();
+
+                      if (availableExtraTypes.isEmpty) {
+                        return const SizedBox.shrink();
+                      }
+
+                      return DropdownButtonFormField<String>(
+                        key: ValueKey('extra-roles-${extraTypes.length}'),
+                        initialValue: extraDropdownValue,
+                        decoration: const InputDecoration(
+                          labelText: 'Dodatkowa rola',
+                        ),
+                        items: availableExtraTypes
+                            .map(
+                              (t) => DropdownMenuItem(value: t, child: Text(t)),
+                            )
+                            .toList(),
+                        onChanged: (v) {
+                          if (v == null) return;
+                          setModalState(() {
+                            extraDropdownValue = null;
+                            extraTypes.add(v);
+                          });
+                        },
+                      );
+                    },
+                  ),
+
+                  const SizedBox(height: 8),
+                ],
 
                 // ─── ONLY show  iFFFFFF
                 // if (custId != null) ...[
@@ -148,21 +240,22 @@ class _ContactsListScreenState extends State<ContactsListScreen> {
                         showModalBottomSheet<void>(
                           context: ctx,
                           isScrollControlled: true,
-                          builder: (_) => StatefulBuilder(
-                            builder: (_, sheetSetState) =>
-                                DraggableScrollableSheet(
-                                  expand: false,
-                                  initialChildSize: 0.7,
-                                  builder: (_, controller) => Column(
+                          builder: (_) {
+                            return SafeArea(
+                              child: SizedBox(
+                                height: MediaQuery.of(ctx).size.height * 0.8,
+                                child: StatefulBuilder(
+                                  builder: (_, sheetSetState) => Column(
                                     children: [
                                       AppBar(
                                         title: const Text('Wybierz projekty:'),
                                         automaticallyImplyLeading: true,
                                         elevation: 1,
                                       ),
+
+                                      // scrollable list
                                       Expanded(
                                         child: ListView.builder(
-                                          controller: controller,
                                           itemCount: allProjects.length,
                                           itemBuilder: (_, i) {
                                             final p = allProjects[i];
@@ -192,16 +285,53 @@ class _ContactsListScreenState extends State<ContactsListScreen> {
                                                     tempSet.remove(p.id);
                                                   }
                                                 });
-                                                setModalState(() {});
+                                                setModalState(
+                                                  () {},
+                                                ); // refresh chips in dialog
                                               },
                                             );
                                           },
                                         ),
                                       ),
+
+                                      // fixed bottom bar
+                                      Container(
+                                        width: double.infinity,
+                                        color: Theme.of(
+                                          context,
+                                        ).scaffoldBackgroundColor,
+                                        padding: const EdgeInsets.fromLTRB(
+                                          16,
+                                          8,
+                                          16,
+                                          16,
+                                        ),
+                                        child: Row(
+                                          mainAxisAlignment:
+                                              MainAxisAlignment.center,
+                                          children: [
+                                            TextButton(
+                                              onPressed: () =>
+                                                  Navigator.pop(ctx),
+                                              child: const Text('Anuluj'),
+                                            ),
+                                            const SizedBox(width: 12),
+                                            ElevatedButton(
+                                              onPressed: () {
+                                                setModalState(() {});
+                                                Navigator.pop(ctx);
+                                              },
+                                              child: const Text('OK'),
+                                            ),
+                                          ],
+                                        ),
+                                      ),
                                     ],
                                   ),
                                 ),
-                          ),
+                              ),
+                            );
+                          },
                         );
                       },
                     ),
@@ -222,8 +352,8 @@ class _ContactsListScreenState extends State<ContactsListScreen> {
 
                   return Padding(
                     padding: const EdgeInsets.only(bottom: 1),
-                    child: InputChip(
-                      label: Text(title),
+                    child: ProjectChip(
+                      label: title,
                       onDeleted: () => setModalState(() {
                         tempSet.remove(projId);
                       }),
@@ -276,6 +406,7 @@ class _ContactsListScreenState extends State<ContactsListScreen> {
                   'phone': phone,
                   'email': email,
                   'contactType': type,
+                  'extraContactTypes': extraTypes,
                   'linkedProjectIds': tempSet.toList(),
                   'updatedAt': FieldValue.serverTimestamp(),
                 };
@@ -535,6 +666,10 @@ class _ContactsListScreenState extends State<ContactsListScreen> {
                                   final data = doc.data();
                                   final contactType =
                                       (data['contactType'] as String?) ?? '';
+                                  final extraTypes = List<String>.from(
+                                    data['extraContactTypes'] ??
+                                        const <String>[],
+                                  );
 
                                   return GestureDetector(
                                     behavior: HitTestBehavior.translucent,
@@ -639,8 +774,35 @@ class _ContactsListScreenState extends State<ContactsListScreen> {
                                               ),
                                             ),
                                           ],
+                                          if (extraTypes.isNotEmpty) ...[
+                                            const SizedBox(height: 4),
+                                            SizedBox(
+                                              width: double.infinity,
+                                              child: SingleChildScrollView(
+                                                scrollDirection:
+                                                    Axis.horizontal,
+                                                child: Row(
+                                                  children: extraTypes
+                                                      .map(
+                                                        (t) => Padding(
+                                                          padding:
+                                                              const EdgeInsets.only(
+                                                                right: 4,
+                                                              ),
+                                                          child:
+                                                              ContactRoleChip(
+                                                                label: t,
+                                                              ),
+                                                        ),
+                                                      )
+                                                      .toList(),
+                                                ),
+                                              ),
+                                            ),
+                                          ],
                                         ],
                                       ),
+
                                       trailing: ConstrainedBox(
                                         constraints: const BoxConstraints(
                                           maxWidth: 100,
@@ -735,6 +897,10 @@ class _ContactsListScreenState extends State<ContactsListScreen> {
                               final contactType =
                                   (data['contactType'] as String?) ?? '';
 
+                              final extraTypes = List<String>.from(
+                                data['extraContactTypes'] ?? const <String>[],
+                              );
+
                               return GestureDetector(
                                 behavior: HitTestBehavior.translucent,
                                 onTap: () {
@@ -823,6 +989,30 @@ class _ContactsListScreenState extends State<ContactsListScreen> {
                                                   ),
                                                 ),
                                               ],
+                                            ),
+                                          ),
+                                        ),
+                                      ],
+                                      if (extraTypes.isNotEmpty) ...[
+                                        const SizedBox(height: 4),
+                                        SizedBox(
+                                          width: double.infinity,
+                                          child: SingleChildScrollView(
+                                            scrollDirection: Axis.horizontal,
+                                            child: Row(
+                                              children: extraTypes
+                                                  .map(
+                                                    (t) => Padding(
+                                                      padding:
+                                                          const EdgeInsets.only(
+                                                            right: 4,
+                                                          ),
+                                                      child: ContactRoleChip(
+                                                        label: t,
+                                                      ),
+                                                    ),
+                                                  )
+                                                  .toList(),
                                             ),
                                           ),
                                         ),

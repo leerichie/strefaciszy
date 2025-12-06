@@ -92,6 +92,11 @@ flutter:
     - assets/favicon/Icon-512.png
     - assets/images/Lee_logo_app_dev.png
     - assets/images/dev_logo.png
+    - assets/images/dev_logo_BOLD.png
+    - assets/images/dev_logo_DARK.png
+    - assets/images/dev_logo_HOLLOW.png
+    - assets/images/dev_logo_LIGHT.png
+    - assets/images/dev_logo_PILL.png
     - version.json
 
   # To add assets to your application, add an assets section, like this:

@@ -4,14 +4,8 @@
       "collectionGroup": "contacts",
       "queryScope": "COLLECTION",
       "fields": [
-        {
-          "fieldPath": "category",
-          "order": "ASCENDING"
-        },
-        {
-          "fieldPath": "name",
-          "order": "ASCENDING"
-        }
+        { "fieldPath": "category", "order": "ASCENDING" },
+        { "fieldPath": "name", "order": "ASCENDING" }
       ],
       "density": "SPARSE_ALL"
     },
@@ -19,18 +13,9 @@
       "collectionGroup": "contacts",
       "queryScope": "COLLECTION",
       "fields": [
-        {
-          "fieldPath": "contactType",
-          "order": "ASCENDING"
-        },
-        {
-          "fieldPath": "linkedCustomerId",
-          "order": "ASCENDING"
-        },
-        {
-          "fieldPath": "name",
-          "order": "ASCENDING"
-        }
+        { "fieldPath": "contactType", "order": "ASCENDING" },
+        { "fieldPath": "linkedCustomerId", "order": "ASCENDING" },
+        { "fieldPath": "name", "order": "ASCENDING" }
       ],
       "density": "SPARSE_ALL"
     },
@@ -38,14 +23,8 @@
       "collectionGroup": "contacts",
       "queryScope": "COLLECTION",
       "fields": [
-        {
-          "fieldPath": "contactType",
-          "order": "ASCENDING"
-        },
-        {
-          "fieldPath": "name",
-          "order": "ASCENDING"
-        }
+        { "fieldPath": "contactType", "order": "ASCENDING" },
+        { "fieldPath": "name", "order": "ASCENDING" }
       ],
       "density": "SPARSE_ALL"
     },
@@ -53,14 +32,8 @@
       "collectionGroup": "contacts",
       "queryScope": "COLLECTION",
       "fields": [
-        {
-          "fieldPath": "linkedCustomerId",
-          "order": "ASCENDING"
-        },
-        {
-          "fieldPath": "name",
-          "order": "ASCENDING"
-        }
+        { "fieldPath": "linkedCustomerId", "order": "ASCENDING" },
+        { "fieldPath": "name", "order": "ASCENDING" }
       ],
       "density": "SPARSE_ALL"
     },
@@ -68,14 +41,8 @@
       "collectionGroup": "projects",
       "queryScope": "COLLECTION_GROUP",
       "fields": [
-        {
-          "fieldPath": "contactId",
-          "order": "ASCENDING"
-        },
-        {
-          "fieldPath": "createdAt",
-          "order": "DESCENDING"
-        }
+        { "fieldPath": "contactId", "order": "ASCENDING" },
+        { "fieldPath": "createdAt", "order": "DESCENDING" }
       ],
       "density": "SPARSE_ALL"
     },
@@ -83,18 +50,9 @@
       "collectionGroup": "projects",
       "queryScope": "COLLECTION_GROUP",
       "fields": [
-        {
-          "fieldPath": "contactId",
-          "order": "ASCENDING"
-        },
-        {
-          "fieldPath": "customerId",
-          "order": "ASCENDING"
-        },
-        {
-          "fieldPath": "createdAt",
-          "order": "DESCENDING"
-        }
+        { "fieldPath": "contactId", "order": "ASCENDING" },
+        { "fieldPath": "customerId", "order": "ASCENDING" },
+        { "fieldPath": "createdAt", "order": "DESCENDING" }
       ],
       "density": "SPARSE_ALL"
     },
@@ -102,14 +60,8 @@
       "collectionGroup": "projects",
       "queryScope": "COLLECTION_GROUP",
       "fields": [
-        {
-          "fieldPath": "customerId",
-          "order": "ASCENDING"
-        },
-        {
-          "fieldPath": "createdAt",
-          "order": "DESCENDING"
-        }
+        { "fieldPath": "customerId", "order": "ASCENDING" },
+        { "fieldPath": "createdAt", "order": "DESCENDING" }
       ],
       "density": "SPARSE_ALL"
     },
@@ -117,14 +69,8 @@
       "collectionGroup": "projects",
       "queryScope": "COLLECTION",
       "fields": [
-        {
-          "fieldPath": "status",
-          "order": "ASCENDING"
-        },
-        {
-          "fieldPath": "createdAt",
-          "order": "DESCENDING"
-        }
+        { "fieldPath": "status", "order": "ASCENDING" },
+        { "fieldPath": "createdAt", "order": "DESCENDING" }
       ],
       "density": "SPARSE_ALL"
     },
@@ -132,14 +78,8 @@
       "collectionGroup": "rw_documents",
       "queryScope": "COLLECTION_GROUP",
       "fields": [
-        {
-          "fieldPath": "type",
-          "order": "ASCENDING"
-        },
-        {
-          "fieldPath": "createdAt",
-          "order": "ASCENDING"
-        }
+        { "fieldPath": "type", "order": "ASCENDING" },
+        { "fieldPath": "createdAt", "order": "ASCENDING" }
       ],
       "density": "SPARSE_ALL"
     },
@@ -147,14 +87,8 @@
       "collectionGroup": "rw_documents",
       "queryScope": "COLLECTION_GROUP",
       "fields": [
-        {
-          "fieldPath": "type",
-          "order": "ASCENDING"
-        },
-        {
-          "fieldPath": "createdAt",
-          "order": "DESCENDING"
-        }
+        { "fieldPath": "type", "order": "ASCENDING" },
+        { "fieldPath": "createdAt", "order": "DESCENDING" }
       ],
       "density": "SPARSE_ALL"
     },
@@ -162,14 +96,8 @@
       "collectionGroup": "stock_items",
       "queryScope": "COLLECTION",
       "fields": [
-        {
-          "fieldPath": "category",
-          "order": "ASCENDING"
-        },
-        {
-          "fieldPath": "name",
-          "order": "ASCENDING"
-        }
+        { "fieldPath": "category", "order": "ASCENDING" },
+        { "fieldPath": "name", "order": "ASCENDING" }
       ],
       "density": "SPARSE_ALL"
     }
@@ -180,22 +108,10 @@
       "fieldPath": "customerId",
       "ttl": false,
       "indexes": [
-        {
-          "order": "ASCENDING",
-          "queryScope": "COLLECTION"
-        },
-        {
-          "order": "DESCENDING",
-          "queryScope": "COLLECTION"
-        },
-        {
-          "arrayConfig": "CONTAINS",
-          "queryScope": "COLLECTION"
-        },
-        {
-          "order": "ASCENDING",
-          "queryScope": "COLLECTION_GROUP"
-        }
+        { "order": "ASCENDING", "queryScope": "COLLECTION" },
+        { "order": "DESCENDING", "queryScope": "COLLECTION" },
+        { "arrayConfig": "CONTAINS", "queryScope": "COLLECTION" },
+        { "order": "ASCENDING", "queryScope": "COLLECTION_GROUP" }
       ]
     },
     {
@@ -203,38 +119,31 @@
       "fieldPath": "title",
       "ttl": false,
       "indexes": [
-        {
-          "order": "ASCENDING",
-          "queryScope": "COLLECTION"
-        },
-        {
-          "order": "DESCENDING",
-          "queryScope": "COLLECTION"
-        },
-        {
-          "arrayConfig": "CONTAINS",
-          "queryScope": "COLLECTION"
-        },
-        {
-          "order": "ASCENDING",
-          "queryScope": "COLLECTION_GROUP"
-        }
+        { "order": "ASCENDING", "queryScope": "COLLECTION" },
+        { "order": "DESCENDING", "queryScope": "COLLECTION" },
+        { "arrayConfig": "CONTAINS", "queryScope": "COLLECTION" },
+        { "order": "ASCENDING", "queryScope": "COLLECTION_GROUP" }
       ]
     },
     {
-    "collectionGroup": "projects",
-    "fieldPath": "createdAt",
-    "ttl": false,
-    "indexes": [
-      {
-        "order": "DESCENDING",
-        "queryScope": "COLLECTION_GROUP"
-      },
-      {
-        "order": "DESCENDING",
-        "queryScope": "COLLECTION"
-      }
-    ]
-  }
+      "collectionGroup": "projects",
+      "fieldPath": "createdAt",
+      "ttl": false,
+      "indexes": [
+        { "order": "DESCENDING", "queryScope": "COLLECTION_GROUP" },
+        { "order": "DESCENDING", "queryScope": "COLLECTION" }
+      ]
+    },
+    {
+      "collectionGroup": "rw_documents",
+      "fieldPath": "createdDay",
+      "ttl": false,
+      "indexes": [
+        { "order": "ASCENDING",  "queryScope": "COLLECTION_GROUP" },
+        { "order": "DESCENDING", "queryScope": "COLLECTION_GROUP" },
+        { "order": "ASCENDING", "queryScope": "COLLECTION" },
+        { "order": "DESCENDING", "queryScope": "COLLECTION" }
+      ]
+    }
   ]
 }

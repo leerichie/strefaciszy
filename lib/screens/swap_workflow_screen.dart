@@ -79,10 +79,11 @@ class _SwapWorkflowScreenState extends State<SwapWorkflowScreen>
           });
         }
       });
-    } else {
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        _startOldScan();
-      });
+      // camera off
+      // } else {
+      //   WidgetsBinding.instance.addPostFrameCallback((_) {
+      //     _startOldScan();
+      //   });
     }
   }
 
@@ -415,71 +416,24 @@ class _SwapWorkflowScreenState extends State<SwapWorkflowScreen>
       if (proceed != true) return;
 
       try {
-        if (_oldItemId == _newItemId) {
-          final diff = _newQty - _oldQty;
-          if (diff == 0) {
-            if (!mounted) return;
-            ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(content: Text('Brak zmian do wymiany')),
-            );
-            return;
-          }
-          if (_sourceRwRef != null) {
-            if (diff > 0) {
-              await StockService.applySwapAsNewRw(
-                sourceRwRef: _sourceRwRef!,
-                customerId: widget.customerId,
-                projectId: widget.projectId,
-                oldItemId: _oldItemId!,
-                oldQty: 0,
-                newItemId: _newItemId!,
-                newQty: diff,
-              );
-            } else {
-              await StockService.applySwapAsNewRw(
-                sourceRwRef: _sourceRwRef!,
-                customerId: widget.customerId,
-                projectId: widget.projectId,
-                oldItemId: _oldItemId!,
-                oldQty: -diff,
-                newItemId: _newItemId!,
-                newQty: 0,
-              );
-            }
-          } else {
-            await StockService.applySwapAsNewRw(
-              sourceRwRef: _sourceRwRef!,
-              customerId: widget.customerId,
-              projectId: widget.projectId,
-              oldItemId: _oldItemId!,
-              oldQty: diff > 0 ? 0 : -diff,
-              newItemId: _newItemId!,
-              newQty: diff > 0 ? diff : 0,
-            );
-          }
-        } else {
-          if (_sourceRwRef != null) {
-            await StockService.applySwapAsNewRw(
-              sourceRwRef: _sourceRwRef!,
-              customerId: widget.customerId,
-              projectId: widget.projectId,
-              oldItemId: _oldItemId!,
-              oldQty: _oldQty,
-              newItemId: _newItemId!,
-              newQty: _newQty,
-            );
-          } else {
-            await StockService.applySwapAsNewRw(
-              sourceRwRef: _sourceRwRef!,
-              customerId: widget.customerId,
-              projectId: widget.projectId,
-              oldItemId: _oldItemId!,
-              oldQty: _oldQty,
-              newItemId: _newItemId!,
-              newQty: _newQty,
-            );
-          }
+        // jeśli nic się nie zmienia – nic nie rób
+        if (_oldItemId == _newItemId && _oldQty == _newQty) {
+          if (!mounted) return;
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Brak zmian do wymiany')),
+          );
+          return;
         }
+
+        await StockService.applySwapOnExistingRw(
+          sourceRwRef: _sourceRwRef!, // istniejący dokument RW
+          customerId: widget.customerId,
+          projectId: widget.projectId,
+          oldItemId: _oldItemId!,
+          oldQty: _oldQty,
+          newItemId: _newItemId!,
+          newQty: _newQty,
+        );
       } catch (e) {
         if (!mounted) return;
         ScaffoldMessenger.of(
@@ -522,27 +476,15 @@ class _SwapWorkflowScreenState extends State<SwapWorkflowScreen>
       if (proceed != true) return;
 
       try {
-        if (_sourceRwRef != null) {
-          await StockService.applySwapAsNewRw(
-            sourceRwRef: _sourceRwRef!,
-            customerId: widget.customerId,
-            projectId: widget.projectId,
-            oldItemId: _oldItemId!,
-            oldQty: _oldQty,
-            newItemId: _oldItemId!,
-            newQty: 0,
-          );
-        } else {
-          await StockService.applySwapAsNewRw(
-            sourceRwRef: _sourceRwRef!,
-            customerId: widget.customerId,
-            projectId: widget.projectId,
-            oldItemId: _oldItemId!,
-            oldQty: _oldQty,
-            newItemId: _oldItemId!,
-            newQty: 0,
-          );
-        }
+        await StockService.applySwapOnExistingRw(
+          sourceRwRef: _sourceRwRef!, // ten sam dokument RW
+          customerId: widget.customerId,
+          projectId: widget.projectId,
+          oldItemId: _oldItemId!,
+          oldQty: _oldQty,
+          newItemId: _oldItemId!, // nic nowego nie montujemy
+          newQty: 0,
+        );
       } catch (e) {
         if (!mounted) return;
         ScaffoldMessenger.of(
@@ -604,7 +546,7 @@ class _SwapWorkflowScreenState extends State<SwapWorkflowScreen>
     Navigator.of(context).pop(true);
     ScaffoldMessenger.of(
       context,
-    ).showSnackBar(const SnackBar(content: Text('Akcja wykonana')));
+    ).showSnackBar(const SnackBar(content: Text('Zmiana wykonana')));
   }
 
   Future<bool> _isSourceToday() async {
@@ -820,9 +762,10 @@ class _SwapWorkflowScreenState extends State<SwapWorkflowScreen>
                         _oldLine!,
                         _oldQty,
                         (q) {
-                          final bounded = q.clamp(1, _oldInstalledQty);
+                          final bounded = q.clamp(1, _oldInstalledQty).toInt();
                           setState(() => _oldQty = bounded);
                         },
+
                         extraInfoWidget: Text(
                           'Zainstalowano: $_oldInstalledQty ${_oldLine?['unit'] ?? ''}',
                         ),
