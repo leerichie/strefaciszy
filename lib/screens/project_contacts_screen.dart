@@ -98,8 +98,14 @@ class _ProjectContactsScreenState extends State<ProjectContactsScreen> {
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         ListTile(
+          leading: Image.asset(
+            'assets/images/strefa_ciszy_logo.png',
+            width: 150,
+            height: 100,
+            fit: BoxFit.contain,
+          ),
           title: const Text(
-            'STREFA ZIOMKI',
+            ' - kadra - ',
             style: TextStyle(fontWeight: FontWeight.bold, letterSpacing: 0.8),
           ),
           trailing: Icon(
@@ -133,7 +139,13 @@ class _ProjectContactsScreenState extends State<ProjectContactsScreen> {
                             }
                           : null,
                     )
-                  : const Icon(Icons.person_outline),
+                  // : const Icon(Icons.person_outline),
+                  : Image.asset(
+                      'assets/images/strefa_S.png',
+                      width: 30,
+                      height: 30,
+                      fit: BoxFit.contain,
+                    ),
               title: Text(
                 name.isEmpty ? email : name,
                 style: const TextStyle(fontWeight: FontWeight.w500),

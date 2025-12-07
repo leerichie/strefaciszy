@@ -12,6 +12,8 @@ import 'package:strefa_ciszy/widgets/chip_contact_role.dart';
 import 'package:strefa_ciszy/widgets/chip_project.dart';
 import 'package:url_launcher/url_launcher.dart';
 
+enum _ContactSort { nameAZ, nameZA, newest, oldest }
+
 class ContactsListScreen extends StatefulWidget {
   final bool isAdmin;
   final String? customerId;
@@ -35,6 +37,7 @@ class _ContactsListScreenState extends State<ContactsListScreen> {
   late final TextEditingController _searchController;
   late Stream<QuerySnapshot<Map<String, dynamic>>> _stream;
   List<QueryDocumentSnapshot<Map<String, dynamic>>> _allProjects = [];
+  _ContactSort _sort = _ContactSort.nameAZ;
 
   @override
   void initState() {
@@ -287,14 +290,14 @@ class _ContactsListScreenState extends State<ContactsListScreen> {
                                                 });
                                                 setModalState(
                                                   () {},
-                                                ); // refresh chips in dialog
+                                                ); // refresh chips
                                               },
                                             );
                                           },
                                         ),
                                       ),
 
-                                      // fixed bottom bar
+                                      //  bottom bar
                                       Container(
                                         width: double.infinity,
                                         color: Theme.of(
@@ -465,21 +468,6 @@ class _ContactsListScreenState extends State<ContactsListScreen> {
     }
   }
 
-  // Widget _buildCategoryChip(String label) {
-  //   final selected = _category == label;
-  //   return Padding(
-  //     padding: const EdgeInsets.only(right: 8.0),
-  //     child: ChoiceChip(
-  //       label: Text(label),
-  //       selected: selected,
-  //       onSelected: (_) => setState(() {
-  //         _category = selected ? '' : label;
-  //         _updateStream();
-  //       }),
-  //     ),
-  //   );
-  // }
-
   @override
   Widget build(BuildContext context) {
     final Widget dynamicTitleWidget = widget.customerId == null
@@ -525,19 +513,56 @@ class _ContactsListScreenState extends State<ContactsListScreen> {
         preferredSize: const Size.fromHeight(56),
         child: Padding(
           padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-          child: TextField(
-            controller: _searchController,
-            decoration: InputDecoration(
-              hintText: 'Szukaj…',
-              prefixIcon: const Icon(Icons.search),
-              border: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(8),
+          child: Row(
+            children: [
+              Expanded(
+                child: TextField(
+                  controller: _searchController,
+                  decoration: InputDecoration(
+                    hintText: 'Szukaj…',
+                    prefixIcon: const Icon(Icons.search),
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    isDense: true,
+                  ),
+                  onChanged: (v) => setState(() => _search = v.trim()),
+                  textInputAction: TextInputAction.search,
+                  onSubmitted: (_) => FocusScope.of(context).unfocus(),
+                ),
               ),
-              isDense: true,
-            ),
-            onChanged: (v) => setState(() => _search = v.trim()),
-            textInputAction: TextInputAction.search,
-            onSubmitted: (_) => FocusScope.of(context).unfocus(),
+              const SizedBox(width: 8),
+              IconButton(
+                icon: const Icon(Icons.refresh),
+                tooltip: 'Wyczyść',
+                onPressed: () {
+                  if (_searchController.text.isEmpty) return;
+                  _searchController.clear();
+                  setState(() => _search = '');
+                },
+              ),
+              PopupMenuButton<_ContactSort>(
+                tooltip: 'Sortuj',
+                icon: const Icon(Icons.sort),
+                onSelected: (value) {
+                  setState(() {
+                    _sort = value;
+                  });
+                },
+                itemBuilder: (ctx) => const [
+                  PopupMenuItem(value: _ContactSort.nameAZ, child: Text('A-Z')),
+                  PopupMenuItem(value: _ContactSort.nameZA, child: Text('Z-A')),
+                  PopupMenuItem(
+                    value: _ContactSort.newest,
+                    child: Text('Najnowszy'),
+                  ),
+                  PopupMenuItem(
+                    value: _ContactSort.oldest,
+                    child: Text('Najstarszy'),
+                  ),
+                ],
+              ),
+            ],
           ),
         ),
       ),
@@ -643,11 +668,48 @@ class _ContactsListScreenState extends State<ContactsListScreen> {
                                   '';
                               return name.contains(_search.toLowerCase());
                             }).toList();
+
                             if (docs.isEmpty) {
                               return const Center(
                                 child: Text('Brak kontaktów.'),
                               );
                             }
+
+                            final epoch = DateTime.fromMillisecondsSinceEpoch(
+                              0,
+                            );
+
+                            DateTime dateOf(
+                              QueryDocumentSnapshot<Map<String, dynamic>> d,
+                            ) {
+                              final data = d.data();
+                              final updated = (data['updatedAt'] as Timestamp?)
+                                  ?.toDate();
+                              final created = (data['createdAt'] as Timestamp?)
+                                  ?.toDate();
+                              return updated ?? created ?? epoch;
+                            }
+
+                            docs.sort((a, b) {
+                              final an = (a.data()['name'] ?? '')
+                                  .toString()
+                                  .toLowerCase();
+                              final bn = (b.data()['name'] ?? '')
+                                  .toString()
+                                  .toLowerCase();
+
+                              switch (_sort) {
+                                case _ContactSort.nameAZ:
+                                  return an.compareTo(bn);
+                                case _ContactSort.nameZA:
+                                  return bn.compareTo(an);
+                                case _ContactSort.newest:
+                                  return dateOf(b).compareTo(dateOf(a));
+                                case _ContactSort.oldest:
+                                  return dateOf(a).compareTo(dateOf(b));
+                              }
+                            });
+
                             return NotificationListener<ScrollNotification>(
                               onNotification: (notif) {
                                 if (notif is ScrollStartNotification) {
@@ -875,9 +937,44 @@ class _ContactsListScreenState extends State<ContactsListScreen> {
                               '';
                           return name.contains(_search.toLowerCase());
                         }).toList();
+
                         if (docs.isEmpty) {
                           return const Center(child: Text('Brak kontaktów.'));
                         }
+
+                        final epoch = DateTime.fromMillisecondsSinceEpoch(0);
+
+                        DateTime dateOf(
+                          QueryDocumentSnapshot<Map<String, dynamic>> d,
+                        ) {
+                          final data = d.data();
+                          final updated = (data['updatedAt'] as Timestamp?)
+                              ?.toDate();
+                          final created = (data['createdAt'] as Timestamp?)
+                              ?.toDate();
+                          return updated ?? created ?? epoch;
+                        }
+
+                        docs.sort((a, b) {
+                          final an = (a.data()['name'] ?? '')
+                              .toString()
+                              .toLowerCase();
+                          final bn = (b.data()['name'] ?? '')
+                              .toString()
+                              .toLowerCase();
+
+                          switch (_sort) {
+                            case _ContactSort.nameAZ:
+                              return an.compareTo(bn);
+                            case _ContactSort.nameZA:
+                              return bn.compareTo(an);
+                            case _ContactSort.newest:
+                              return dateOf(b).compareTo(dateOf(a));
+                            case _ContactSort.oldest:
+                              return dateOf(a).compareTo(dateOf(b));
+                          }
+                        });
+
                         return NotificationListener<ScrollNotification>(
                           onNotification: (notif) {
                             if (notif is ScrollStartNotification) {

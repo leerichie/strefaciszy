@@ -435,6 +435,7 @@ class _CustomerListScreenState extends State<CustomerListScreen> {
                       data['name'] ?? '—',
                       maxLines: 2,
                       minFontSize: 9,
+                      style: TextStyle(fontWeight: FontWeight.w600),
                     ),
                     subtitle: ts != null ? Text(dateStr) : null,
                     onTap: () {
@@ -567,46 +568,6 @@ class _CustomerListScreenState extends State<CustomerListScreen> {
             );
           },
         ),
-        // floatingActionButton: FloatingActionButton(
-        //   tooltip: 'Dodaj Klienta',
-        //   onPressed: _addCustomer,
-        //   child: const Icon(Icons.person_add),
-        // ),
-        // floatingActionButtonLocation: FloatingActionButtonLocation.centerFloat,
-        // bottomNavigationBar: SafeArea(
-        //   child: BottomAppBar(
-        //     shape: const CircularNotchedRectangle(),
-        //     notchMargin: 6,
-        //     child: Padding(
-        //       padding: const EdgeInsets.symmetric(horizontal: 32),
-        //       child: Row(
-        //         mainAxisAlignment: MainAxisAlignment.spaceBetween,
-        //         children: [
-        //           IconButton(
-        //             tooltip: 'Kontakty',
-        //             icon: const Icon(Icons.contact_mail_outlined),
-        //             onPressed: () => Navigator.of(context).push(
-        //               MaterialPageRoute(builder: (_) => ContactsListScreen()),
-        //             ),
-        //           ),
-
-        //           // IconButton(
-        //           //   tooltip: 'Edytuj klientów',
-        //           //   icon: const Icon(Icons.edit),
-        //           //   onPressed: _editCustomers,
-        //           // ),
-        //           IconButton(
-        //             tooltip: 'Skanuj',
-        //             icon: const Icon(Icons.qr_code_scanner),
-        //             onPressed: () => Navigator.of(
-        //               context,
-        //             ).push(MaterialPageRoute(builder: (_) => const ScanScreen())),
-        //           ),
-        //         ],
-        //       ),
-        //     ),
-        //   ),
-        // ),
       ),
     );
   }

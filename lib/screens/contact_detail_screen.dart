@@ -9,6 +9,7 @@ import 'package:strefa_ciszy/screens/add_contact_screen.dart';
 import 'package:strefa_ciszy/utils/keyboard_utils.dart';
 import 'package:strefa_ciszy/widgets/app_scaffold.dart';
 import 'package:strefa_ciszy/widgets/chip_contact_role.dart';
+import 'package:strefa_ciszy/widgets/chip_project.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import 'project_editor_screen.dart';
@@ -290,6 +291,22 @@ class _ContactDetailScreenState extends State<ContactDetailScreen>
     var phone = data['phone'] as String? ?? '';
     var email = data['email'] as String? ?? '';
     var type = data['contactType'] as String? ?? '';
+    // NEW: extra roles
+    var extraTypes = List<String>.from(
+      data['extraContactTypes'] ?? const <String>[],
+    );
+
+    // NEW: load all contact types for dropdown / extra roles
+    final ctSnap = await FirebaseFirestore.instance
+        .collection('metadata')
+        .doc('contactTypes')
+        .get();
+    final rawTypes = ctSnap.data()?['types'];
+    final allTypes = rawTypes is List
+        ? List<String>.from(rawTypes).toSet().toList()
+        : <String>[];
+
+    String? extraDropdownValue;
 
     await showDialog<void>(
       context: context,
@@ -320,11 +337,93 @@ class _ContactDetailScreenState extends State<ContactDetailScreen>
                   keyboardType: TextInputType.emailAddress,
                   onChanged: (v) => email = v.trim(),
                 ),
-                TextFormField(
-                  initialValue: type,
-                  decoration: const InputDecoration(labelText: 'Typ kontaktu'),
-                  onChanged: (v) => type = v.trim(),
-                ),
+                // MAIN contact type
+                if (allTypes.isEmpty) ...[
+                  TextFormField(
+                    initialValue: type,
+                    decoration: const InputDecoration(
+                      labelText: 'Typ kontaktu',
+                    ),
+                    onChanged: (v) => type = v.trim(),
+                  ),
+                ] else ...[
+                  DropdownButtonFormField<String>(
+                    initialValue: allTypes.contains(type) ? type : null,
+                    decoration: const InputDecoration(
+                      labelText: 'Typ kontaktu',
+                    ),
+                    items: allTypes
+                        .map(
+                          (t) => DropdownMenuItem<String>(
+                            value: t,
+                            child: Text(t),
+                          ),
+                        )
+                        .toList(),
+                    onChanged: (v) => setModalState(() => type = v ?? ''),
+                  ),
+                ],
+
+                const SizedBox(height: 8),
+
+                // EXTRA roles (chips + dropdown)
+                if (allTypes.isNotEmpty) ...[
+                  if (extraTypes.isNotEmpty)
+                    Padding(
+                      padding: const EdgeInsets.only(top: 8, bottom: 8),
+                      child: Wrap(
+                        spacing: 4,
+                        runSpacing: 4,
+                        children: extraTypes.map((t) {
+                          return ContactRoleChip(
+                            label: t,
+                            onDeleted: () {
+                              setModalState(() {
+                                extraTypes.remove(t);
+                              });
+                            },
+                          );
+                        }).toList(),
+                      ),
+                    ),
+
+                  Builder(
+                    builder: (_) {
+                      final availableExtraTypes = allTypes
+                          .where((t) => t != type && !extraTypes.contains(t))
+                          .toList();
+
+                      if (availableExtraTypes.isEmpty) {
+                        return const SizedBox.shrink();
+                      }
+
+                      return DropdownButtonFormField<String>(
+                        key: ValueKey('extra-roles-${extraTypes.length}'),
+                        initialValue: extraDropdownValue,
+                        decoration: const InputDecoration(
+                          labelText: 'Dodatkowa rola',
+                        ),
+                        items: availableExtraTypes
+                            .map(
+                              (t) => DropdownMenuItem<String>(
+                                value: t,
+                                child: Text(t),
+                              ),
+                            )
+                            .toList(),
+                        onChanged: (v) {
+                          if (v == null) return;
+                          setModalState(() {
+                            extraDropdownValue = null;
+                            extraTypes.add(v);
+                          });
+                        },
+                      );
+                    },
+                  ),
+
+                  const SizedBox(height: 12),
+                ],
 
                 const SizedBox(height: 12),
                 Row(
@@ -343,58 +442,86 @@ class _ContactDetailScreenState extends State<ContactDetailScreen>
                           context: ctx,
                           isScrollControlled: true,
                           builder: (_) => StatefulBuilder(
-                            builder: (_, sheetSetState) =>
-                                DraggableScrollableSheet(
-                                  expand: false,
-                                  initialChildSize: 0.7,
-                                  builder: (_, controller) => Column(
-                                    children: [
-                                      AppBar(
-                                        title: const Text('Wybierz projekty:'),
-                                        automaticallyImplyLeading: true,
-                                        elevation: 1,
-                                      ),
-                                      Expanded(
-                                        child: ListView.builder(
-                                          controller: controller,
-                                          itemCount: allProjects.length,
-                                          itemBuilder: (_, i) {
-                                            final p = allProjects[i];
-                                            final title =
-                                                p.data()['title'] as String;
-                                            final checked = tempSet.contains(
-                                              p.id,
-                                            );
-
-                                            return CheckboxListTile(
-                                              title: Text(title),
-                                              value: checked,
-                                              tileColor: i.isEven
-                                                  ? Colors.grey.shade200
-                                                  : null,
-                                              activeColor: Theme.of(
-                                                context,
-                                              ).colorScheme.primary,
-                                              checkColor: Theme.of(
-                                                context,
-                                              ).colorScheme.onPrimary,
-                                              onChanged: (on) {
-                                                sheetSetState(() {
-                                                  if (on == true) {
-                                                    tempSet.add(p.id);
-                                                  } else {
-                                                    tempSet.remove(p.id);
-                                                  }
-                                                });
-                                                setModalState(() {});
-                                              },
-                                            );
-                                          },
-                                        ),
-                                      ),
-                                    ],
+                            builder: (_, sheetSetState) => DraggableScrollableSheet(
+                              expand: false,
+                              initialChildSize: 0.7,
+                              builder: (_, controller) => Column(
+                                children: [
+                                  AppBar(
+                                    title: const Text('Wybierz projekty:'),
+                                    automaticallyImplyLeading: true,
+                                    elevation: 1,
                                   ),
-                                ),
+                                  Expanded(
+                                    child: ListView.builder(
+                                      controller: controller,
+                                      itemCount: allProjects.length,
+                                      itemBuilder: (_, i) {
+                                        final p = allProjects[i];
+                                        final title =
+                                            p.data()['title'] as String;
+                                        final checked = tempSet.contains(p.id);
+
+                                        return CheckboxListTile(
+                                          title: Text(title),
+                                          value: checked,
+                                          tileColor: i.isEven
+                                              ? Colors.grey.shade200
+                                              : null,
+                                          activeColor: Theme.of(
+                                            context,
+                                          ).colorScheme.primary,
+                                          checkColor: Theme.of(
+                                            context,
+                                          ).colorScheme.onPrimary,
+                                          onChanged: (on) {
+                                            sheetSetState(() {
+                                              if (on == true) {
+                                                tempSet.add(p.id);
+                                              } else {
+                                                tempSet.remove(p.id);
+                                              }
+                                            });
+                                            setModalState(() {});
+                                          },
+                                        );
+                                      },
+                                    ),
+                                  ),
+                                  // NEW: fixed bottom bar (OK / Anuluj) with SafeArea
+                                  Container(
+                                    width: double.infinity,
+                                    color: Theme.of(
+                                      context,
+                                    ).scaffoldBackgroundColor,
+                                    padding: const EdgeInsets.fromLTRB(
+                                      16,
+                                      8,
+                                      16,
+                                      16,
+                                    ),
+                                    child: Row(
+                                      mainAxisAlignment:
+                                          MainAxisAlignment.center,
+                                      children: [
+                                        TextButton(
+                                          onPressed: () => Navigator.pop(ctx),
+                                          child: const Text('Anuluj'),
+                                        ),
+                                        const SizedBox(width: 12),
+                                        ElevatedButton(
+                                          onPressed: () {
+                                            setModalState(() {});
+                                            Navigator.pop(ctx);
+                                          },
+                                          child: const Text('OK'),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
                           ),
                         );
                       },
@@ -403,7 +530,6 @@ class _ContactDetailScreenState extends State<ContactDetailScreen>
                 ),
 
                 ...tempSet.map((projId) {
-                  // handle missing projects
                   final matching = allProjects.where((d) => d.id == projId);
                   if (matching.isEmpty) {
                     return const SizedBox.shrink();
@@ -412,11 +538,14 @@ class _ContactDetailScreenState extends State<ContactDetailScreen>
                   final title =
                       matching.first.data()['title'] as String? ?? '—';
 
-                  return InputChip(
-                    label: Text(title),
-                    onDeleted: () => setModalState(() {
-                      tempSet.remove(projId);
-                    }),
+                  return Padding(
+                    padding: const EdgeInsets.only(bottom: 1),
+                    child: ProjectChip(
+                      label: title,
+                      onDeleted: () => setModalState(() {
+                        tempSet.remove(projId);
+                      }),
+                    ),
                   );
                 }),
               ],
@@ -467,6 +596,7 @@ class _ContactDetailScreenState extends State<ContactDetailScreen>
                   'phone': phone,
                   'email': email,
                   'contactType': type,
+                  'extraContactTypes': extraTypes,
                   'linkedProjectIds': tempSet.toList(),
                   'updatedAt': FieldValue.serverTimestamp(),
                 };
