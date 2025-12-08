@@ -420,6 +420,95 @@ class _AddContactScreenState extends State<AddContactScreen> {
     return temp;
   }
 
+  Future<void> _showManageContactTypesDialog() async {
+    final ref = FirebaseFirestore.instance
+        .collection('metadata')
+        .doc('contactTypes');
+
+    final snap = await ref.get();
+    final List<String> initialTypes = List<String>.from(
+      (snap.data()?['types'] ?? const <String>[]),
+    );
+
+    await showDialog<void>(
+      context: context,
+      builder: (ctx) {
+        List<String> currentTypes = List<String>.from(initialTypes);
+
+        return StatefulBuilder(
+          builder: (ctx, setDialogState) => AlertDialog(
+            title: const Text('Typ kontaktów'),
+            content: SizedBox(
+              width: double.maxFinite,
+              child: currentTypes.isEmpty
+                  ? const Text('Brak typ do wyświetlenia.')
+                  : ListView.builder(
+                      shrinkWrap: true,
+                      itemCount: currentTypes.length,
+                      itemBuilder: (ctx, index) {
+                        final t = currentTypes[index];
+                        return ListTile(
+                          dense: true,
+                          title: Text(t),
+                          trailing: IconButton(
+                            icon: const Icon(
+                              Icons.delete_forever,
+                              color: Colors.red,
+                            ),
+                            onPressed: () async {
+                              final confirm = await showDialog<bool>(
+                                context: ctx,
+                                builder: (ctx2) => AlertDialog(
+                                  title: const Text('Usunąć typ?'),
+                                  content: Text(t),
+                                  actions: [
+                                    TextButton(
+                                      onPressed: () =>
+                                          Navigator.pop(ctx2, false),
+                                      child: const Text('Anuluj'),
+                                    ),
+                                    ElevatedButton(
+                                      style: ElevatedButton.styleFrom(
+                                        backgroundColor: Colors.red,
+                                      ),
+                                      onPressed: () =>
+                                          Navigator.pop(ctx2, true),
+                                      child: const Text('Usuń'),
+                                    ),
+                                  ],
+                                ),
+                              );
+
+                              if (confirm != true) return;
+
+                              await ref.update({
+                                'types': FieldValue.arrayRemove([t]),
+                              });
+
+                              setDialogState(() {
+                                currentTypes.removeAt(index);
+                              });
+                            },
+                          ),
+                        );
+                      },
+                    ),
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(ctx),
+                child: const Text('Zamknij'),
+              ),
+            ],
+          ),
+        );
+      },
+    );
+
+    await _loadCategories();
+    setState(() {});
+  }
+
   Future<void> _addProject() async {
     await _ensureCustomerExists();
 
@@ -853,14 +942,6 @@ class _AddContactScreenState extends State<AddContactScreen> {
 
         centreTitle: true,
 
-        // floatingActionButtonLocation: FloatingActionButtonLocation.centerFloat,
-        // floatingActionButton: _isEditing
-        //     ? FloatingActionButton(
-        //         tooltip: 'Usuń kontakt',
-        //         onPressed: _deleteContact,
-        //         child: const Icon(Icons.delete, color: Colors.red),
-        //       )
-        //     : null,
         floatingActionButtonLocation: FloatingActionButtonLocation.centerFloat,
         floatingActionButton: null,
 
@@ -877,7 +958,7 @@ class _AddContactScreenState extends State<AddContactScreen> {
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.stretch,
                         children: [
-                          // === Avatar Picker (always) ===
+                          //   Avatar
                           GestureDetector(
                             onTap: _pickImage,
                             child: CircleAvatar(
@@ -897,9 +978,8 @@ class _AddContactScreenState extends State<AddContactScreen> {
                           ),
                           const SizedBox(height: 16),
 
-                          // === Typ Kontaktu (hide on add client) ===
+                          //   Typ Kontaktu
                           if (!_isPrimaryContact && !_isNewClient) ...[
-                            // === Assign to project ===
                             if (widget.linkedCustomerId == null) ...[
                               _projectsLoading
                                   ? const Center(
@@ -1007,8 +1087,17 @@ class _AddContactScreenState extends State<AddContactScreen> {
                                   tooltip: 'Dodaj typ',
                                   onPressed: _addCategory,
                                 ),
+                                IconButton(
+                                  icon: const Icon(
+                                    Icons.delete,
+                                    color: Colors.red,
+                                  ),
+                                  tooltip: 'Usuń / edytuj typy',
+                                  onPressed: _showManageContactTypesDialog,
+                                ),
                               ],
                             ),
+
                             const SizedBox(height: 12),
                           ],
 
@@ -1106,7 +1195,7 @@ class _AddContactScreenState extends State<AddContactScreen> {
                           ),
                           const SizedBox(height: 12),
 
-                          // === Name Field (always) ===
+                          //   Name Field
                           if (widget.contactId == null) ...[
                             Autocomplete<String>(
                               optionsBuilder: (TextEditingValue txt) {
@@ -1165,7 +1254,7 @@ class _AddContactScreenState extends State<AddContactScreen> {
                           ],
                           const SizedBox(height: 12),
 
-                          // === Telefon (always) ===
+                          //   Telefon
                           TextFormField(
                             controller: _phoneCtrl,
                             decoration: const InputDecoration(
@@ -1179,7 +1268,7 @@ class _AddContactScreenState extends State<AddContactScreen> {
                           ),
                           const SizedBox(height: 12),
 
-                          // === Email (always) ===
+                          //   Email
                           TextFormField(
                             controller: _emailCtrl,
                             decoration: const InputDecoration(
@@ -1193,7 +1282,6 @@ class _AddContactScreenState extends State<AddContactScreen> {
                           ),
                           const SizedBox(height: 12),
 
-                          // === Dropdown extras ===
                           DropdownButtonFormField<String>(
                             key: ValueKey(_availableExtraFields.length),
                             initialValue: null,
@@ -1217,7 +1305,6 @@ class _AddContactScreenState extends State<AddContactScreen> {
                             },
                           ),
 
-                          // === Render any extra fields the user added ===
                           for (var field in _addedExtraFields) ...[
                             if (field == 'Drugi numer') ...[
                               TextFormField(

@@ -75,6 +75,94 @@ class _ContactsListScreenState extends State<ContactsListScreen> {
     });
   }
 
+  Future<void> _showManageContactTypesDialog() async {
+    final ref = FirebaseFirestore.instance
+        .collection('metadata')
+        .doc('contactTypes');
+
+    final snap = await ref.get();
+    final List<String> initialTypes = List<String>.from(
+      (snap.data()?['types'] ?? const <String>[]),
+    );
+
+    await showDialog<void>(
+      context: context,
+      builder: (ctx) {
+        List<String> currentTypes = List<String>.from(initialTypes);
+
+        return StatefulBuilder(
+          builder: (ctx, setDialogState) => AlertDialog(
+            title: const Text('Typy kontaktów'),
+            content: SizedBox(
+              width: double.maxFinite,
+              child: currentTypes.isEmpty
+                  ? const Text('Brak typ do wyświetlenia.')
+                  : ListView.builder(
+                      shrinkWrap: true,
+                      itemCount: currentTypes.length,
+                      itemBuilder: (ctx, index) {
+                        final t = currentTypes[index];
+                        return ListTile(
+                          dense: true,
+                          title: Text(t),
+                          trailing: IconButton(
+                            icon: const Icon(
+                              Icons.delete_forever,
+                              color: Colors.red,
+                            ),
+                            onPressed: () async {
+                              final confirm = await showDialog<bool>(
+                                context: ctx,
+                                builder: (ctx2) => AlertDialog(
+                                  title: const Text('Usunąć typ?'),
+                                  content: Text(t),
+                                  actions: [
+                                    TextButton(
+                                      onPressed: () =>
+                                          Navigator.pop(ctx2, false),
+                                      child: const Text('Anuluj'),
+                                    ),
+                                    ElevatedButton(
+                                      style: ElevatedButton.styleFrom(
+                                        backgroundColor: Colors.red,
+                                      ),
+                                      onPressed: () =>
+                                          Navigator.pop(ctx2, true),
+                                      child: const Text('Usuń'),
+                                    ),
+                                  ],
+                                ),
+                              );
+                              if (confirm != true) return;
+
+                              await ref.update({
+                                'types': FieldValue.arrayRemove([t]),
+                              });
+
+                              setDialogState(() {
+                                currentTypes.removeAt(index);
+                              });
+                            },
+                          ),
+                        );
+                      },
+                    ),
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(ctx),
+                child: const Text('Zamknij'),
+              ),
+            ],
+          ),
+        );
+      },
+    );
+
+    await _loadCategories();
+    setState(() {});
+  }
+
   void _updateStream() {
     Query<Map<String, dynamic>> ref = FirebaseFirestore.instance.collection(
       'contacts',
@@ -448,14 +536,19 @@ class _ContactsListScreenState extends State<ContactsListScreen> {
   }
 
   void _addContact() {
-    Navigator.of(context).push(
-      MaterialPageRoute(
-        builder: (_) => AddContactScreen(
-          isAdmin: widget.isAdmin,
-          linkedCustomerId: widget.customerId,
-        ),
-      ),
-    );
+    Navigator.of(context)
+        .push(
+          MaterialPageRoute(
+            builder: (_) => AddContactScreen(
+              isAdmin: widget.isAdmin,
+              linkedCustomerId: widget.customerId,
+            ),
+          ),
+        )
+        .then((_) async {
+          await _loadCategories();
+          setState(() {});
+        });
   }
 
   Future<void> _openUri(Uri uri) async {
@@ -573,27 +666,40 @@ class _ContactsListScreenState extends State<ContactsListScreen> {
             const SizedBox(height: 8),
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 16),
-              child: DropdownButtonFormField<String>(
-                decoration: InputDecoration(
-                  labelText: 'Typ kontaktu',
-                  border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(8),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: DropdownButtonFormField<String>(
+                      decoration: InputDecoration(
+                        labelText: 'Typ kontaktu',
+                        border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        isDense: true,
+                      ),
+                      initialValue: _category == 'Wszyscy' ? null : _category,
+                      items: _categories.map((cat) {
+                        return DropdownMenuItem(
+                          value: cat == 'Wszyscy' ? '' : cat,
+                          child: Text(cat),
+                        );
+                      }).toList(),
+                      onChanged: (v) => setState(() {
+                        _category = (v == null || v.isEmpty) ? 'Wszyscy' : v;
+                        _updateStream();
+                      }),
+                    ),
                   ),
-                  isDense: true,
-                ),
-                initialValue: _category == 'Wszyscy' ? null : _category,
-                items: _categories.map((cat) {
-                  return DropdownMenuItem(
-                    value: cat == 'Wszyscy' ? '' : cat,
-                    child: Text(cat),
-                  );
-                }).toList(),
-                onChanged: (v) => setState(() {
-                  _category = (v == null || v.isEmpty) ? 'Wszyscy' : v;
-                  _updateStream();
-                }),
+                  const SizedBox(width: 8),
+                  IconButton(
+                    icon: const Icon(Icons.edit),
+                    tooltip: 'Usuń / edytuj typy',
+                    onPressed: _showManageContactTypesDialog,
+                  ),
+                ],
               ),
             ),
+
             const SizedBox(height: 8),
 
             Expanded(

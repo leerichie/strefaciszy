@@ -3,6 +3,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:strefa_ciszy/services/user_functions.dart';
 import 'package:strefa_ciszy/widgets/app_scaffold.dart';
+import 'package:strefa_ciszy/widgets/chip_contact_role.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import 'add_contact_screen.dart';
@@ -105,7 +106,7 @@ class _ProjectContactsScreenState extends State<ProjectContactsScreen> {
             fit: BoxFit.contain,
           ),
           title: const Text(
-            ' - kadra - ',
+            ' - ZIOMKI - ',
             style: TextStyle(fontWeight: FontWeight.bold, letterSpacing: 0.8),
           ),
           trailing: Icon(
@@ -362,19 +363,9 @@ class _ProjectContactsScreenState extends State<ProjectContactsScreen> {
                     final canSelect = email.isNotEmpty;
                     final selected = _selectedContactEmails.contains(email);
                     final isMainContact = doc.id == _mainContactId;
-
-                    // return ListView.separated(
-                    //   itemCount: docs.length,
-                    //   separatorBuilder: (_, __) => const Divider(height: 1),
-                    //   itemBuilder: (_, i) {
-                    //     final doc = docs[i];
-                    //     final contact = doc.data();
-                    //     final phone = (contact['phone'] ?? '') as String;
-                    //     final email = (contact['email'] ?? '') as String;
-                    //     final canSelect = email.isNotEmpty;
-                    //     final selected = _selectedContactEmails.contains(email);
-                    //     final isMainContact = doc.id == _mainContactId;
-                    //     final theme = Theme.of(context);
+                    final List<String> extraTypes = List<String>.from(
+                      contact['extraContactTypes'] ?? const <String>[],
+                    );
 
                     return Container(
                       decoration: isMainContact
@@ -522,6 +513,27 @@ class _ProjectContactsScreenState extends State<ProjectContactsScreen> {
                                   ),
                                 ),
                               ),
+                            if (extraTypes.isNotEmpty) ...[
+                              const SizedBox(height: 4),
+                              SizedBox(
+                                width: double.infinity,
+                                child: SingleChildScrollView(
+                                  scrollDirection: Axis.horizontal,
+                                  child: Row(
+                                    children: extraTypes
+                                        .map(
+                                          (t) => Padding(
+                                            padding: const EdgeInsets.only(
+                                              right: 4,
+                                            ),
+                                            child: ContactRoleChip(label: t),
+                                          ),
+                                        )
+                                        .toList(),
+                                  ),
+                                ),
+                              ),
+                            ],
                           ],
                         ),
                         trailing: ConstrainedBox(
