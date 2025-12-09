@@ -43,12 +43,14 @@ const smtpHost  = process.env.SMTP_HOST || null;
 const smtpUser  = process.env.SMTP_USER || null;
 const smtpPass  = process.env.SMTP_PASS || null;
 const reportsTo = process.env.REPORTS_TO || null;
+const reportsBcc = process.env.REPORTS_BCC || null;
 
 console.log('[SMTP config]', {
   host: smtpHost,
   user: smtpUser,
   passLen: smtpPass ? smtpPass.length : 0,
   reportsTo,
+  reportsBcc,
 });
 
 const mailTransporter =
@@ -435,6 +437,7 @@ exports.sendDailyRwReportHttp = functions.https.onRequest(async (req, res) => {
     await mailTransporter.sendMail({
       from: `"RAPORTY Strefa Ciszy" <${smtpUser}>`,
       to: reportsTo,
+      bcc: reportsBcc || undefined,
       subject: `Raport dzienny RW – ${dayKey}`,
       text: `W załączniku raport dzienny RW: ${dayKey}.`,
       attachments: [
