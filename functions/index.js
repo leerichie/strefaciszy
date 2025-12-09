@@ -433,7 +433,7 @@ exports.sendDailyRwReportHttp = functions.https.onRequest(async (req, res) => {
     const fileName = `rw_raport_${dayKey}.xlsx`;
 
     await mailTransporter.sendMail({
-      from: `"Strefa Ciszy" <${smtpUser}>`,
+      from: `"RAPORTY Strefa Ciszy" <${smtpUser}>`,
       to: reportsTo,
       subject: `Raport dzienny RW – ${dayKey}`,
       text: `W załączniku raport dzienny RW: ${dayKey}.`,
