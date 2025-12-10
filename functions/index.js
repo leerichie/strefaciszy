@@ -1,6 +1,7 @@
 /* eslint-disable quotes, no-multi-spaces, require-jsdoc, max-len */
 
 const {onDocumentWritten} = require("firebase-functions/v2/firestore");
+const {onSchedule} = require("firebase-functions/v2/scheduler");
 
 const functions = require('firebase-functions');
 const admin     = require('firebase-admin');
@@ -251,13 +252,20 @@ exports.sendDailyRwReportHttp = functions.https.onRequest(async (req, res) => {
   const adminUid = await verifyAdmin(req, res);
   if (!adminUid) return;
 
+  const body = (req.body && typeof req.body === "object") ? req.body : {};
+  let {dayKey, to} = body;
+
+  const overrideTo = (typeof to === "string" ? to.trim() : "");
+
+  // decide final recipient
+  const mainTo = overrideTo || reportsTo;
+
   if (!mailTransporter || !reportsTo) {
     console.error("SMTP or reports.to not configured in .env");
     return res.status(500).json({error: "SMTP not configured"});
   }
 
   // ---- 1) Which day? (yyyy-MM-dd) ----
-  let dayKey = req.body.dayKey;
   if (!dayKey || typeof dayKey !== "string") {
     dayKey = new Date().toISOString().slice(0, 10); // today
   }
@@ -279,6 +287,8 @@ exports.sendDailyRwReportHttp = functions.https.onRequest(async (req, res) => {
       dayStartUtc.toISOString(),
       "and",
       dayEndUtc.toISOString(),
+      "to:", mainTo,
+      "overrideTo?", !!overrideTo,
   );
 
   try {
@@ -436,8 +446,8 @@ exports.sendDailyRwReportHttp = functions.https.onRequest(async (req, res) => {
 
     await mailTransporter.sendMail({
       from: `"RAPORTY Strefa Ciszy" <${smtpUser}>`,
-      to: reportsTo,
-      bcc: reportsBcc || undefined,
+      to: mainTo,
+      bcc: overrideTo ? undefined : (reportsBcc || undefined),
       subject: `Raport dzienny RW – ${dayKey}`,
       text: `W załączniku raport dzienny RW: ${dayKey}.`,
       attachments: [
@@ -450,7 +460,8 @@ exports.sendDailyRwReportHttp = functions.https.onRequest(async (req, res) => {
 
     return res.json({
       ok: true,
-      sentTo: reportsTo,
+      sentTo: mainTo,
+      usedOverride: !!overrideTo,
       count: docsForDay.length,
       dayKey,
     });
@@ -459,3 +470,215 @@ exports.sendDailyRwReportHttp = functions.https.onRequest(async (req, res) => {
     return res.status(500).json({error: "Internal error"});
   }
 });
+
+// 7) Scheduled - runs every day at 23:55 (Europe/Warsaw)
+exports.sendDailyRwReportScheduled = onSchedule(
+    {
+      schedule: "55 23 * * *",
+      timeZone: "Europe/Warsaw",
+    },
+    async (event) => {
+      if (!mailTransporter || !reportsTo) {
+        console.error("sendDailyRwReportScheduled: SMTP or REPORTS_TO not configured in .env");
+        return;
+      }
+
+      const dayKey = new Date().toISOString().slice(0, 10);
+
+      let y; let m; let d;
+      try {
+        [y, m, d] = dayKey.split("-").map((p) => parseInt(p, 10));
+        if (!y || !m || !d) throw new Error("bad dayKey");
+      } catch (e) {
+        console.error("sendDailyRwReportScheduled – Bad dayKey:", dayKey, e);
+        return;
+      }
+
+      const dayStartUtc = new Date(Date.UTC(y, m - 1, d, 0, 0, 0, 0));
+      const dayEndUtc   = new Date(Date.UTC(y, m - 1, d, 23, 59, 59, 999));
+
+      console.log(
+          "[RW scheduled] Daily report – scanning createdAt between",
+          dayStartUtc.toISOString(),
+          "and",
+          dayEndUtc.toISOString(),
+          "to:", reportsTo,
+          "bcc:", reportsBcc,
+      );
+
+      try {
+        const db = admin.firestore();
+
+        // Build users map
+        const usersSnap = await db.collection("users").get();
+        const userNames = {};
+        usersSnap.forEach((doc) => {
+          const u = doc.data() || {};
+          userNames[doc.id] = u.name || u.username || u.email || doc.id;
+        });
+
+        // Fetch ALL rw_documents
+        const allSnap = await db.collectionGroup("rw_documents").get();
+        console.log("[RW scheduled] total rw_documents in DB:", allSnap.size);
+
+        const docsForDay = [];
+
+        allSnap.forEach((doc) => {
+          const dData = doc.data() || {};
+          const rawCreated = dData.createdAt;
+
+          let createdAt = null;
+          if (rawCreated && rawCreated.toDate) {
+            createdAt = rawCreated.toDate();
+          } else if (typeof rawCreated === "string") {
+            createdAt = new Date(rawCreated);
+          }
+
+          if (!createdAt) return;
+
+          if (createdAt >= dayStartUtc && createdAt <= dayEndUtc) {
+            docsForDay.push({
+              ref: doc.ref,
+              data: dData,
+              createdAt,
+            });
+          }
+        });
+
+        console.log("[RW scheduled] rw_documents matching day:", docsForDay.length);
+
+        if (docsForDay.length === 0) {
+          console.log(`[RW scheduled] Brak zapisanych dokumentów RW ${dayKey} – nie wysyłam maila.`);
+          return;
+        }
+
+        docsForDay.sort((a, b) => a.createdAt.getTime() - b.createdAt.getTime());
+
+        // Build Excel
+        const workbook = new ExcelJS.Workbook();
+        const sheet = workbook.addWorksheet(`RW ${dayKey}`);
+
+        sheet.columns = [
+          {header: "Data",       key: "date",     width: 19},
+          {header: "Typ",        key: "type",     width: 8},
+          {header: "Klient",     key: "customer", width: 26},
+          {header: "Projekt",    key: "project",  width: 30},
+          {header: "Użytkownik", key: "user",     width: 20},
+          {header: "Opis",       key: "desc",     width: 30},
+          {header: "Producent",  key: "producer", width: 18},
+          {header: "Model",      key: "name",     width: 24},
+          {header: "Ilość",      key: "qty",      width: 10},
+          {header: "Jm",         key: "unit",     width: 6},
+          {header: "Notatki",    key: "notes",    width: 45},
+        ];
+        sheet.getRow(1).font = {bold: true};
+        sheet.getColumn("qty").alignment  = {horizontal: "right"};
+        sheet.getColumn("unit").alignment = {horizontal: "center"};
+
+        const polish = new Intl.DateTimeFormat("pl-PL", {
+          day: "2-digit",
+          month: "2-digit",
+          year: "numeric",
+          hour: "2-digit",
+          minute: "2-digit",
+        });
+
+        docsForDay.forEach(({data: dData, createdAt}) => {
+          const items    = Array.isArray(dData.items) ? dData.items : [];
+          const notesRaw = Array.isArray(dData.notesList) ? dData.notesList : [];
+
+          if (items.length === 0 && notesRaw.length === 0) {
+            console.log("[RW scheduled] skipping empty doc", dData.id || "(no id)");
+            return;
+          }
+
+          const dateStr  = polish.format(createdAt);
+          const type     = dData.type || "RW";
+          const customer = dData.customerName || "";
+          const project  = dData.projectName || "";
+          const creator  = dData.createdBy || "";
+          const userName = userNames[creator] || creator;
+
+          const notesList = [...notesRaw];
+          notesList.sort((a, b) => {
+            const ta = a.createdAt && a.createdAt.toDate ? a.createdAt.toDate() : null;
+            const tb = b.createdAt && b.createdAt.toDate ? b.createdAt.toDate() : null;
+            if (!ta || !tb) return 0;
+            return ta.getTime() - tb.getTime();
+          });
+
+          const notesText = notesList
+              .map((m) => {
+                let noteDateStr = "";
+                if (m.createdAt && m.createdAt.toDate) {
+                  noteDateStr = polish.format(m.createdAt.toDate());
+                }
+                const user   = (m.userName || "").toString();
+                const action = (m.action || "").toString().trim();
+                const text   = (m.text || "").toString();
+                const actionPart = action ? `: ${action}` : "";
+                return `[${noteDateStr}] ${user}${actionPart}: ${text}`;
+              })
+              .join("\n");
+
+          if (items.length > 0) {
+            let first = true;
+            items.forEach((it) => {
+              sheet.addRow({
+                date: dateStr,
+                type,
+                customer,
+                project,
+                user: userName,
+                desc: (it.description || "").toString(),
+                producer: (it.producent  || "").toString(),
+                name: (it.name       || "").toString(),
+                qty: it.quantity != null ? Number(it.quantity) : "",
+                unit: (it.unit       || "").toString(),
+                notes: first ? notesText : "",
+              });
+              first = false;
+            });
+          } else {
+            sheet.addRow({
+              date: dateStr,
+              type,
+              customer,
+              project,
+              user: userName,
+              desc: "",
+              producer: "",
+              name: "",
+              qty: "",
+              unit: "",
+              notes: notesText,
+            });
+          }
+        });
+
+        const buffer   = await workbook.xlsx.writeBuffer();
+        const fileName = `rw_raport_${dayKey}.xlsx`;
+
+        await mailTransporter.sendMail({
+          from: `"RAPORTY Strefa Ciszy" <${smtpUser}>`,
+          to: reportsTo,
+          bcc: reportsBcc || undefined,
+          subject: `Raport dzienny RW – ${dayKey}`,
+          text: `W załączniku raport dzienny RW: ${dayKey}.`,
+          attachments: [
+            {
+              filename: fileName,
+              content: buffer,
+            },
+          ],
+        });
+
+        console.log(
+            "[RW scheduled] Report sent OK",
+            {dayKey, to: reportsTo, bcc: reportsBcc, count: docsForDay.length},
+        );
+      } catch (err) {
+        console.error("sendDailyRwReportScheduled error", err);
+      }
+    },
+);

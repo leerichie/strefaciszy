@@ -12,6 +12,7 @@ import 'package:strefa_ciszy/screens/contacts_list_screen.dart';
 import 'package:strefa_ciszy/screens/inventory_list_screen.dart';
 import 'package:strefa_ciszy/screens/login_screen.dart';
 import 'package:strefa_ciszy/screens/projects_list_screen.dart';
+import 'package:strefa_ciszy/screens/reports_daily.dart';
 import 'package:strefa_ciszy/widgets/app_scaffold.dart';
 import 'package:url_launcher/url_launcher.dart';
 
@@ -119,6 +120,16 @@ class _MainMenuScreenState extends State<MainMenuScreen> {
             onTap: () => Navigator.of(context).push(
               MaterialPageRoute(builder: (_) => const ManageUsersScreen()),
             ),
+          ),
+          ListTile(
+            leading: const Icon(Icons.summarize_outlined),
+            title: const Text('Raporty RW'),
+            subtitle: const Text('Wygenerować raport za dowolny dzień'),
+            onTap: () {
+              Navigator.of(context).push(
+                MaterialPageRoute(builder: (_) => const ReportsDailyScreen()),
+              );
+            },
           ),
           const Divider(),
         ],

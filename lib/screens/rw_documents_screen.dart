@@ -118,51 +118,6 @@ class _RWDocumentsScreenState extends State<RWDocumentsScreen> {
     super.dispose();
   }
 
-  // Future<void> _sendTodayRwReport() async {
-  //   try {
-  //     final user = FirebaseAuth.instance.currentUser;
-  //     if (user == null) {
-  //       ScaffoldMessenger.of(
-  //         context,
-  //       ).showSnackBar(const SnackBar(content: Text('Musisz być zalogowany')));
-  //       return;
-  //     }
-
-  //     final idToken = await user.getIdToken();
-  //     // Gen1 URL (same pattern as your other HTTP functions)
-  //     final uri = Uri.parse(
-  //       'https://us-central1-strefa-ciszy.cloudfunctions.net/sendDailyRwReportHttp',
-  //     );
-
-  //     final resp = await http.post(
-  //       uri,
-  //       headers: {
-  //         'Authorization': 'Bearer $idToken',
-  //         'Content-Type': 'application/json',
-  //       },
-  //       body: jsonEncode({
-  //         // optional: specify dayKey
-  //         // 'dayKey': '2025-12-05',
-  //       }),
-  //     );
-
-  //     if (resp.statusCode == 200) {
-  //       ScaffoldMessenger.of(
-  //         context,
-  //       ).showSnackBar(const SnackBar(content: Text('Raport będzie na email')));
-  //     } else {
-  //       ScaffoldMessenger.of(context).showSnackBar(
-  //         SnackBar(
-  //           content: Text('Błąd raport: ${resp.statusCode} ${resp.body}'),
-  //         ),
-  //       );
-  //     }
-  //   } catch (e) {
-  //     ScaffoldMessenger.of(
-  //       context,
-  //     ).showSnackBar(SnackBar(content: Text('Błąd wysyłania raportu: $e')));
-  //   }
-  // }
   Future<void> _sendTodayRwReport() async {
     try {
       final user = FirebaseAuth.instance.currentUser;
@@ -175,7 +130,6 @@ class _RWDocumentsScreenState extends State<RWDocumentsScreen> {
 
       final idToken = await user.getIdToken();
 
-      // today key: 2025-12-06
       final now = DateTime.now();
       final dayKey = DateFormat('yyyy-MM-dd').format(now);
 
@@ -189,9 +143,7 @@ class _RWDocumentsScreenState extends State<RWDocumentsScreen> {
           'Authorization': 'Bearer $idToken',
           'Content-Type': 'application/json',
         },
-        body: jsonEncode({
-          'dayKey': dayKey, // <<--- IMPORTANT
-        }),
+        body: jsonEncode({'dayKey': dayKey}),
       );
 
       if (resp.statusCode == 200) {
@@ -231,7 +183,6 @@ class _RWDocumentsScreenState extends State<RWDocumentsScreen> {
                   .get(),
             ]),
             builder: (ctx, snap) {
-              // show nothing while loading (keeps AppBar clean)
               if (!snap.hasData) {
                 return const SizedBox.shrink();
               }
@@ -271,7 +222,7 @@ class _RWDocumentsScreenState extends State<RWDocumentsScreen> {
               );
             },
           )
-        : const SizedBox.shrink(); // no “Raport” when not inside a project
+        : const SizedBox.shrink();
 
     return AppScaffold(
       floatingActionButtonLocation: FloatingActionButtonLocation.centerFloat,
@@ -281,12 +232,12 @@ class _RWDocumentsScreenState extends State<RWDocumentsScreen> {
       centreTitle: true,
 
       actions: [
-        IconButton(
-          icon: const Icon(Icons.email_outlined),
-          tooltip: 'Wyślij TEST raport (day) RW',
-          onPressed: _sendTodayRwReport,
-        ),
-        const SizedBox(width: 8),
+        // IconButton(
+        //   icon: const Icon(Icons.email_outlined),
+        //   tooltip: 'Wyślij TEST raport (day) RW',
+        //   onPressed: _sendTodayRwReport,
+        // ),
+        // const SizedBox(width: 8),
       ],
 
       body: Column(
