@@ -118,6 +118,132 @@ class _AddContactScreenState extends State<AddContactScreen> {
     'Notatka',
   ];
 
+  String _fold(String s) => s.trim().toLowerCase();
+
+  Future<String?> _findExistingContactIdByNameExact(String name) async {
+    final exact = name.trim();
+    final fold = _fold(name);
+    if (fold.isEmpty) return null;
+
+    final contacts = FirebaseFirestore.instance.collection('contacts');
+
+    // 1) Preferred: nameFold exact match (new records)
+    final qFold = await contacts
+        .where('nameFold', isEqualTo: fold)
+        .limit(1)
+        .get();
+    if (qFold.docs.isNotEmpty) return qFold.docs.first.id;
+
+    // 2) Fallback: exact name match (older records without nameFold)
+    final qName = await contacts.where('name', isEqualTo: exact).limit(1).get();
+    if (qName.docs.isNotEmpty) return qName.docs.first.id;
+
+    return null;
+  }
+
+  Map<String, dynamic> _buildContactData(String name) {
+    return {
+      'name': name,
+      'nameFold': _fold(name),
+      'phone': _phoneCtrl.text.trim(),
+      'extraNumbers': _addedExtraFields.contains('Drugi numer')
+          ? <String>[_secondPhoneCtrl.text.trim(), ..._extraNumbers]
+          : _extraNumbers,
+      'email': _emailCtrl.text.trim(),
+      if (_addedExtraFields.contains('Adres'))
+        'address': _addressCtrl.text.trim(),
+      if (_addedExtraFields.contains('WWW')) 'www': _websiteCtrl.text.trim(),
+      if (_addedExtraFields.contains('Notatka')) 'note': _noteCtrl.text.trim(),
+      'contactType': (_isPrimaryContact || _isNewClient) ? 'Klient' : _category,
+      'extraContactTypes': _extraContactTypes,
+      if (_customerId != null) 'linkedCustomerId': _customerId,
+      'linkedProjectIds': _selectedProjectIds,
+      'updatedAt': FieldValue.serverTimestamp(),
+    };
+  }
+
+  /// Saves the current form into Firestore.
+  /// - If [createIfMissing] is false and _contactId == null -> does nothing.
+  /// - If [createIfMissing] is true and _contactId == null -> creates the doc.
+  Future<void> _saveContact({required bool createIfMissing}) async {
+    final name = _nameCtrl.text.trim();
+    if (name.isEmpty) return;
+
+    if (!createIfMissing && _contactId == null) return;
+
+    final contactsCol = FirebaseFirestore.instance.collection('contacts');
+
+    final data = _buildContactData(name);
+
+    // If linked project implies a customer, keep your existing logic
+    if (_customerId == null && _selectedProjectIds.isNotEmpty) {
+      final projId = _selectedProjectIds.first;
+      final projDoc = _allProjects.firstWhere((d) => d.id == projId);
+      _customerId = projDoc.reference.parent.parent!.id;
+      data['linkedCustomerId'] = _customerId;
+    } else if (_customerId != null) {
+      data['linkedCustomerId'] = _customerId;
+    }
+
+    if (_contactId == null) {
+      data['createdAt'] = FieldValue.serverTimestamp();
+      final docRef = await contactsCol.add(data);
+      _contactId = docRef.id;
+    } else {
+      await contactsCol.doc(_contactId!).set(data, SetOptions(merge: true));
+    }
+
+    // Keep your client/customer creation logic exactly as you had it if you want,
+    // but it will only run after a real Save now (not while typing).
+    final isKlient =
+        (_isPrimaryContact || _isNewClient) ||
+        (_category?.toLowerCase() == 'klient');
+
+    if (isKlient && _customerId == null && _contactId != null) {
+      final custRef = await FirebaseFirestore.instance
+          .collection('customers')
+          .add({
+            'name': name,
+            'nameFold': _fold(name),
+            'contactId': _contactId,
+            'createdAt': FieldValue.serverTimestamp(),
+          });
+      _customerId = custRef.id;
+
+      await contactsCol.doc(_contactId!).update({
+        'linkedCustomerId': _customerId,
+      });
+    }
+
+    if (_customerId != null && _contactId != null) {
+      final custDoc = FirebaseFirestore.instance
+          .collection('customers')
+          .doc(_customerId!);
+      final snap = await custDoc.get();
+      final custData = snap.data();
+      if (custData != null && custData['contactId'] == _contactId) {
+        await custDoc.set({
+          'name': name,
+          'nameFold': _fold(name),
+        }, SetOptions(merge: true));
+      }
+    }
+  }
+
+  Future<String?> _findExistingCustomerIdByNameExact(String name) async {
+    final fold = _fold(name);
+    if (fold.isEmpty) return null;
+
+    final q = await FirebaseFirestore.instance
+        .collection('customers')
+        .where('nameFold', isEqualTo: fold)
+        .limit(1)
+        .get();
+
+    if (q.docs.isEmpty) return null;
+    return q.docs.first.id;
+  }
+
   Future<void> _loadAllProjects() async {
     setState(() => _projectsLoading = true);
 
@@ -162,79 +288,99 @@ class _AddContactScreenState extends State<AddContactScreen> {
     _debounce = Timer(const Duration(milliseconds: 700), _autoSave);
   }
 
+  // Future<void> _autoSave() async {
+  //   final name = _nameCtrl.text.trim();
+  //   if (name.isEmpty) return;
+
+  //   if (!_isEditing && _contactId == null && !_submitting) {
+  //     return;
+  //   }
+
+  //   final data = {
+  //     'name': name,
+  //     'nameFold': _fold(name),
+  //     'phone': _phoneCtrl.text.trim(),
+  //     'extraNumbers': _addedExtraFields.contains('Drugi numer')
+  //         ? <String>[_secondPhoneCtrl.text.trim(), ..._extraNumbers]
+  //         : _extraNumbers,
+  //     'email': _emailCtrl.text.trim(),
+  //     if (_addedExtraFields.contains('Adres'))
+  //       'address': _addressCtrl.text.trim(),
+  //     if (_addedExtraFields.contains('WWW')) 'www': _websiteCtrl.text.trim(),
+  //     if (_addedExtraFields.contains('Notatka')) 'note': _noteCtrl.text.trim(),
+  //     'contactType': (_isPrimaryContact || _isNewClient) ? 'Klient' : _category,
+  //     'extraContactTypes': _extraContactTypes,
+  //     if (_customerId != null) 'linkedCustomerId': _customerId,
+  //     'updatedAt': FieldValue.serverTimestamp(),
+  //     'linkedProjectIds': _selectedProjectIds,
+  //   };
+
+  //   if (_customerId == null && _selectedProjectIds.isNotEmpty) {
+  //     final projId = _selectedProjectIds.first;
+  //     final projDoc = _allProjects.firstWhere((d) => d.id == projId);
+  //     _customerId = projDoc.reference.parent.parent!.id;
+  //     data['linkedCustomerId'] = _customerId;
+  //   } else if (_customerId != null) {
+  //     data['linkedCustomerId'] = _customerId;
+  //   }
+
+  //   data['updatedAt'] = FieldValue.serverTimestamp();
+  //   final contactsCol = FirebaseFirestore.instance.collection('contacts');
+  //   if (_contactId == null) {
+  //     data['createdAt'] = FieldValue.serverTimestamp();
+  //     final docRef = await contactsCol.add(data);
+  //     _contactId = docRef.id;
+  //   } else {
+  //     await contactsCol.doc(_contactId!).set(data, SetOptions(merge: true));
+  //   }
+
+  //   final isKlient =
+  //       (_isPrimaryContact || _isNewClient) ||
+  //       (_category?.toLowerCase() == 'klient');
+
+  //   if (isKlient && _customerId == null && _contactId != null) {
+  //     final existingId = await _findExistingCustomerIdByNameExact(name);
+
+  //     if (existingId != null) {
+  //       _customerId = existingId;
+  //       await contactsCol.doc(_contactId!).update({
+  //         'linkedCustomerId': _customerId,
+  //       });
+  //     } else {
+  //       final custRef = await FirebaseFirestore.instance
+  //           .collection('customers')
+  //           .add({
+  //             'name': name,
+  //             'nameFold': _fold(name),
+  //             'contactId': _contactId,
+  //             'createdAt': FieldValue.serverTimestamp(),
+  //           });
+
+  //       _customerId = custRef.id;
+
+  //       await contactsCol.doc(_contactId!).update({
+  //         'linkedCustomerId': _customerId,
+  //       });
+  //     }
+  //   }
+
+  //   if (_customerId != null && _contactId != null) {
+  //     final custDoc = FirebaseFirestore.instance
+  //         .collection('customers')
+  //         .doc(_customerId!);
+  //     final snap = await custDoc.get();
+  //     final custData = snap.data();
+  //     if (custData != null && custData['contactId'] == _contactId) {
+  //       await custDoc.set({
+  //         'name': name,
+  //         'nameFold': name.toLowerCase(),
+  //       }, SetOptions(merge: true));
+  //     }
+  //   }
+  // }
+
   Future<void> _autoSave() async {
-    final name = _nameCtrl.text.trim();
-    if (name.isEmpty) return;
-
-    final data = {
-      'name': name,
-      'phone': _phoneCtrl.text.trim(),
-      'extraNumbers': _addedExtraFields.contains('Drugi numer')
-          ? <String>[_secondPhoneCtrl.text.trim(), ..._extraNumbers]
-          : _extraNumbers,
-      'email': _emailCtrl.text.trim(),
-      if (_addedExtraFields.contains('Adres'))
-        'address': _addressCtrl.text.trim(),
-      if (_addedExtraFields.contains('WWW')) 'www': _websiteCtrl.text.trim(),
-      if (_addedExtraFields.contains('Notatka')) 'note': _noteCtrl.text.trim(),
-      'contactType': (_isPrimaryContact || _isNewClient) ? 'Klient' : _category,
-      'extraContactTypes': _extraContactTypes,
-      if (_customerId != null) 'linkedCustomerId': _customerId,
-      'updatedAt': FieldValue.serverTimestamp(),
-      'linkedProjectIds': _selectedProjectIds,
-    };
-
-    if (_customerId == null && _selectedProjectIds.isNotEmpty) {
-      final projId = _selectedProjectIds.first;
-      final projDoc = _allProjects.firstWhere((d) => d.id == projId);
-      _customerId = projDoc.reference.parent.parent!.id;
-      data['linkedCustomerId'] = _customerId;
-    } else if (_customerId != null) {
-      data['linkedCustomerId'] = _customerId;
-    }
-
-    data['updatedAt'] = FieldValue.serverTimestamp();
-    final contactsCol = FirebaseFirestore.instance.collection('contacts');
-    if (_contactId == null) {
-      data['createdAt'] = FieldValue.serverTimestamp();
-      final docRef = await contactsCol.add(data);
-      _contactId = docRef.id;
-    } else {
-      await contactsCol.doc(_contactId!).set(data, SetOptions(merge: true));
-    }
-
-    final isKlient =
-        (_isPrimaryContact || _isNewClient) ||
-        (_category?.toLowerCase() == 'klient');
-    if (isKlient && _customerId == null && _contactId != null) {
-      final custRef = await FirebaseFirestore.instance
-          .collection('customers')
-          .add({
-            'name': name,
-            'nameFold': name.toLowerCase(),
-            'contactId': _contactId,
-            'createdAt': FieldValue.serverTimestamp(),
-          });
-      _customerId = custRef.id;
-
-      await contactsCol.doc(_contactId!).update({
-        'linkedCustomerId': _customerId,
-      });
-    }
-
-    if (_customerId != null && _contactId != null) {
-      final custDoc = FirebaseFirestore.instance
-          .collection('customers')
-          .doc(_customerId!);
-      final snap = await custDoc.get();
-      final custData = snap.data();
-      if (custData != null && custData['contactId'] == _contactId) {
-        await custDoc.set({
-          'name': name,
-          'nameFold': name.toLowerCase(),
-        }, SetOptions(merge: true));
-      }
-    }
+    await _saveContact(createIfMissing: false);
   }
 
   Future<void> _loadCategories() async {
@@ -682,7 +828,7 @@ class _AddContactScreenState extends State<AddContactScreen> {
 
   Future<void> _legacySaveAndPop() async {
     _submitting = true;
-    await _autoSave();
+    await _saveContact(createIfMissing: true);
     await _finalizeImage();
     if (!mounted) return;
 
@@ -1395,6 +1541,41 @@ class _AddContactScreenState extends State<AddContactScreen> {
                                     if (!_formKey.currentState!.validate()) {
                                       return;
                                     }
+
+                                    _debounce?.cancel();
+
+                                    if (!_isEditing) {
+                                      final name = _nameCtrl.text.trim();
+                                      final existingId =
+                                          await _findExistingContactIdByNameExact(
+                                            name,
+                                          );
+
+                                      if (existingId != null) {
+                                        if (!mounted) return;
+                                        await showDialog<void>(
+                                          context: context,
+                                          builder: (ctx) => AlertDialog(
+                                            title: const Text(
+                                              'Kontakt już istnieje',
+                                            ),
+                                            content: Text(
+                                              '$name'
+                                              '\n\nNO dupes dude! \n\nZmień nazwa lub edytuj w ekranie Klienta -> Edytuj',
+                                            ),
+                                            actions: [
+                                              ElevatedButton(
+                                                onPressed: () =>
+                                                    Navigator.pop(ctx),
+                                                child: const Text('OK'),
+                                              ),
+                                            ],
+                                          ),
+                                        );
+                                        return;
+                                      }
+                                    }
+
                                     await _legacySaveAndPop();
                                   },
                                 ),

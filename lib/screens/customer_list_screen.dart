@@ -231,6 +231,8 @@ class _CustomerListScreenState extends State<CustomerListScreen> {
   }
 
   Future<void> _addCustomer() async {
+    debugPrint('CUSTOMER_ADD: _addCustomer() tapped');
+
     final result = await Navigator.of(context).push<Map<String, dynamic>>(
       MaterialPageRoute(
         builder: (_) =>
@@ -240,18 +242,36 @@ class _CustomerListScreenState extends State<CustomerListScreen> {
 
     if (!mounted || result == null) return;
 
-    var name = (result['name'] ?? '').toString().trim();
     final contactId = result['contactId'] as String?;
-    if (contactId == null) return;
+    if (contactId == null || contactId.isEmpty) return;
 
-    if (name.isEmpty) {
-      final snap = await FirebaseFirestore.instance
-          .collection('contacts')
-          .doc(contactId)
-          .get();
-      name = (snap.data()?['name'] ?? '').toString().trim();
+    final contactRef = FirebaseFirestore.instance
+        .collection('contacts')
+        .doc(contactId);
+    final contactSnap = await contactRef.get();
+
+    if (!contactSnap.exists) return;
+
+    final data = contactSnap.data()!;
+    final linkedCustomerId = data['linkedCustomerId'] as String?;
+
+    // IF already exists → OPEN  - NO DUPE !!
+    if (linkedCustomerId != null && linkedCustomerId.isNotEmpty) {
+      Navigator.of(context).push(
+        MaterialPageRoute(
+          builder: (_) => CustomerDetailScreen(
+            customerId: linkedCustomerId,
+            isAdmin: widget.isAdmin,
+          ),
+        ),
+      );
+      return;
     }
+
+    var name = (result['name'] ?? data['name'] ?? '').toString().trim();
     if (name.isEmpty) return;
+
+    debugPrint('CUSTOMER_ADD: about to create customer doc');
 
     final custRef = await _col.add({
       'name': name,
@@ -260,7 +280,7 @@ class _CustomerListScreenState extends State<CustomerListScreen> {
       'createdAt': FieldValue.serverTimestamp(),
     });
 
-    await FirebaseFirestore.instance.collection('contacts').doc(contactId).set({
+    await contactRef.set({
       'linkedCustomerId': custRef.id,
     }, SetOptions(merge: true));
 
