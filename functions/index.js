@@ -467,7 +467,11 @@ exports.sendDailyRwReportHttp = functions.https.onRequest(async (req, res) => {
     });
   } catch (err) {
     console.error("sendDailyRwReportHttp error", err);
-    return res.status(500).json({error: "Internal error"});
+
+    return res.status(500).json({
+      error: "Internal error",
+      details: (err && err.message) ? err.message : String(err),
+    });
   }
 });
 
