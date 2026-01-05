@@ -71,8 +71,60 @@ class _ProjectImagesSectionState extends State<ProjectImagesSection> {
     }
   }
 
+  String _replaceExtension(String name, String newExt) {
+    final dir = p.dirname(name);
+    final base = p.basenameWithoutExtension(name);
+    final file = '$base$newExt';
+    return (dir == '.' || dir.isEmpty) ? file : p.join(dir, file);
+  }
+
+  Future<MapEntry<String, Uint8List>> _compressAndConvert(
+    MapEntry<String, Uint8List> e,
+  ) async {
+    if (kIsWeb) return e;
+
+    final name = e.key;
+    final bytes = e.value;
+
+    if (bytes.lengthInBytes < 120 * 1024) {
+      final ext = p.extension(name).toLowerCase();
+      if (ext == '.heic' || ext == '.heif') {
+      } else {
+        return e;
+      }
+    }
+
+    final decoded = img.decodeImage(bytes);
+    if (decoded == null) return e;
+
+    const maxSide = 1280;
+
+    img.Image resized;
+    if (decoded.width >= decoded.height) {
+      resized = img.copyResize(
+        decoded,
+        width: maxSide,
+        height: (decoded.height * maxSide / decoded.width).round(),
+      );
+    } else {
+      resized = img.copyResize(
+        decoded,
+        height: maxSide,
+        width: (decoded.width * maxSide / decoded.height).round(),
+      );
+    }
+
+    // jpg
+    final jpgBytes = img.encodeJpg(resized, quality: 65);
+    return MapEntry(
+      _replaceExtension(name, '.jpg'),
+      Uint8List.fromList(jpgBytes),
+    );
+  }
+
   bool _isImageName(String name) {
     final ext = p.extension(name).toLowerCase();
+    if (kIsWeb && (ext == '.heic' || ext == '.heif')) return false;
     return _imageExtensions.contains(ext);
   }
 
@@ -371,12 +423,11 @@ class _ProjectImagesSectionState extends State<ProjectImagesSection> {
   }
 
   Future<void> _takePhotoAndUpload() async {
-    if (kIsWeb) return; // camera only on mobile/desktop apps
+    if (kIsWeb) return;
 
     final picker = ImagePicker();
     final picked = await picker.pickImage(
       source: ImageSource.camera,
-      // optional: let your compression handle size, so keep maxQuality-ish
       imageQuality: 95,
     );
 
@@ -406,19 +457,16 @@ class _ProjectImagesSectionState extends State<ProjectImagesSection> {
   }
 
   Future<void> _handleAddPressed() async {
-    // WEB or DESKTOP → keep existing file picker behaviour
     if (kIsWeb || _isDesktop) {
       await _pickAndUploadFiles();
       return;
     }
 
-    // MOBILE (Android / iOS) → show options: camera / gallery
     final platform = defaultTargetPlatform;
     final isMobile =
         platform == TargetPlatform.android || platform == TargetPlatform.iOS;
 
     if (!isMobile) {
-      // fallback – e.g. on other platforms
       await _pickAndUploadFiles();
       return;
     }
@@ -553,17 +601,17 @@ class _ProjectImagesSectionState extends State<ProjectImagesSection> {
 
     if (uniqueEntries.isEmpty) return;
 
-    final compressedEntries = <MapEntry<String, Uint8List>>[];
+    final processedEntries = <MapEntry<String, Uint8List>>[];
 
     for (final e in uniqueEntries) {
-      final compressed = await _compressImageSmart(e.value, e.key);
-      compressedEntries.add(MapEntry(e.key, compressed));
+      final processed = await _compressAndConvert(e);
+      processedEntries.add(processed);
     }
 
     final newFiles = await ProjectFilesService.uploadProjectFilesFromBytes(
       customerId: widget.customerId,
       projectId: widget.projectId,
-      files: compressedEntries,
+      files: processedEntries,
     );
 
     if (mounted && newFiles.isNotEmpty) {
@@ -659,8 +707,11 @@ class _ProjectImagesSectionState extends State<ProjectImagesSection> {
                 child: Image.network(
                   url,
                   fit: BoxFit.cover,
-                  errorBuilder: (_, __, ___) =>
-                      const Center(child: Icon(Icons.broken_image)),
+                  errorBuilder: (ctx, error, stack) {
+                    debugPrint('WEB IMAGE FAIL url=$url');
+                    debugPrint('error=$error');
+                    return const Center(child: Icon(Icons.broken_image));
+                  },
                   loadingBuilder: (ctx, child, progress) {
                     if (progress == null) return child;
                     return const Center(
@@ -722,7 +773,6 @@ class _ProjectImagesSectionState extends State<ProjectImagesSection> {
 
     final hasImages = _imageItems.isNotEmpty;
 
-    // EMPTY STATE
     if (!hasImages) {
       final isHighlighted = _dropHighlight || _dragging;
 
@@ -771,7 +821,6 @@ class _ProjectImagesSectionState extends State<ProjectImagesSection> {
       );
     }
 
-    // Filters + grid
     final isHighlighted = _dropHighlight || _dragging;
 
     final content = Column(
