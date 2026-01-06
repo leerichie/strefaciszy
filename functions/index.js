@@ -339,6 +339,7 @@ exports.sendDailyRwReportHttp = functions.https.onRequest(async (req, res) => {
 
     docsForDay.sort((a, b) => a.createdAt.getTime() - b.createdAt.getTime());
 
+
     //  3) Build Excel workbook
     const workbook = new ExcelJS.Workbook();
     const sheet = workbook.addWorksheet(`RW ${dayKey}`);
@@ -522,8 +523,15 @@ exports.sendDailyRwReportScheduled = onSchedule(
         });
 
         // Fetch ALL rw_documents
-        const allSnap = await db.collectionGroup("rw_documents").get();
-        console.log("[RW scheduled] total rw_documents in DB:", allSnap.size);
+        const startTs = admin.firestore.Timestamp.fromDate(dayStartUtc);
+        const endTs   = admin.firestore.Timestamp.fromDate(dayEndUtc);
+
+        const allSnap = await db
+            .collectionGroup("rw_documents")
+            .where("createdAt", ">=", startTs)
+            .where("createdAt", "<=", endTs)
+            .get();
+        console.log("[RW scheduled] rw_documents matching day:", allSnap.size);
 
         const docsForDay = [];
 
@@ -540,13 +548,11 @@ exports.sendDailyRwReportScheduled = onSchedule(
 
           if (!createdAt) return;
 
-          if (createdAt >= dayStartUtc && createdAt <= dayEndUtc) {
-            docsForDay.push({
-              ref: doc.ref,
-              data: dData,
-              createdAt,
-            });
-          }
+          docsForDay.push({
+            ref: doc.ref,
+            data: dData,
+            createdAt,
+          });
         });
 
         console.log("[RW scheduled] rw_documents matching day:", docsForDay.length);
