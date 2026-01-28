@@ -13,6 +13,7 @@ class ProjectFilterRow extends StatelessWidget {
   final VoidCallback onSortOriginal;
   final VoidCallback onSortDateNewest;
   final VoidCallback onSortType;
+  final VoidCallback? onMove;
 
   final VoidCallback? onClear;
 
@@ -32,6 +33,7 @@ class ProjectFilterRow extends StatelessWidget {
     required this.onSortType,
     required this.onClear,
     required this.onAdd,
+    this.onMove,
   });
 
   @override
@@ -91,6 +93,23 @@ class ProjectFilterRow extends StatelessWidget {
           backgroundColor: Colors.transparent,
           side: const BorderSide(color: Colors.blueAccent),
         ),
+        // MOVE
+        if (isAdmin && onMove != null)
+          ChoiceChip(
+            label: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: const [
+                Icon(Icons.drive_file_move, size: 18),
+                SizedBox(width: 6),
+                Text('Przenieś'),
+              ],
+            ),
+            labelPadding: EdgeInsets.zero,
+            selected: false,
+            onSelected: (!hasItems) ? null : (_) => onMove!(),
+            backgroundColor: Colors.transparent,
+            side: BorderSide(color: Colors.grey.shade400),
+          ),
       ],
     );
   }

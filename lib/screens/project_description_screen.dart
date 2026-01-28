@@ -177,7 +177,12 @@ class _ProjectDescriptionScreenState extends State<ProjectDescriptionScreen> {
             final url = e['url'];
             final name = e['name'];
             if (url is String && url.isNotEmpty && name is String) {
-              initialFiles.add({'url': url, 'name': name});
+              final bucket = e['bucket'];
+              final map = <String, String>{'url': url, 'name': name};
+              if (bucket is String && bucket.isNotEmpty) {
+                map['bucket'] = bucket;
+              }
+              initialFiles.add(map);
             }
           }
         }

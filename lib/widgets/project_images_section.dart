@@ -9,6 +9,8 @@ import 'package:flutter_dropzone/flutter_dropzone.dart';
 import 'package:image/image.dart' as img;
 import 'package:image_picker/image_picker.dart';
 import 'package:path/path.dart' as p;
+import 'package:photo_view/photo_view.dart';
+import 'package:photo_view/photo_view_gallery.dart';
 import 'package:strefa_ciszy/services/project_files_service.dart';
 import 'package:strefa_ciszy/widgets/project_filter_row.dart';
 
@@ -129,6 +131,14 @@ class _ProjectImagesSectionState extends State<ProjectImagesSection> {
   }
 
   void _addIfImage(Map<String, String> item) {
+    final bucket = (item['bucket'] ?? '').toLowerCase();
+
+    if (bucket == 'files') return;
+    if (bucket == 'images') {
+      _imageItems.add(item);
+      return;
+    }
+
     final name = item['name'] ?? '';
     if (_isImageName(name)) {
       _imageItems.add(item);
@@ -293,7 +303,7 @@ class _ProjectImagesSectionState extends State<ProjectImagesSection> {
       return;
     }
 
-    // First click on "Skasuj" = choose scope
+    // First
     final choice = await showDialog<_ImageClearScope>(
       context: context,
       builder: (ctx) => AlertDialog(
@@ -358,6 +368,88 @@ class _ProjectImagesSectionState extends State<ProjectImagesSection> {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text('Nie udało się skasować fotek')),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _uploading = false);
+    }
+  }
+
+  Future<void> _moveImagesToFiles() async {
+    if (!widget.isAdmin) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Tylko admin może przenieść')),
+      );
+      return;
+    }
+    if (_imageItems.isEmpty) return;
+
+    // first click => enter selection mode
+    if (!_selectionMode) {
+      setState(() {
+        _selectionMode = true;
+        _selectedUrls.clear();
+      });
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Zaznacz fotki, potem kliknij Przenieś')),
+      );
+      return;
+    }
+
+    // second click without selection => exit selection mode
+    if (_selectedUrls.isEmpty) {
+      setState(() => _selectionMode = false);
+      return;
+    }
+
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Przenieś do Pliki'),
+        content: Text('Przenieść ${_selectedUrls.length} elementów do Pliki?'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Anuluj'),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('Przenieś'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed != true) return;
+
+    setState(() => _uploading = true);
+
+    try {
+      for (final url in _selectedUrls) {
+        await ProjectFilesService.setFileBucket(
+          customerId: widget.customerId,
+          projectId: widget.projectId,
+          url: url,
+          bucket: 'files',
+        );
+      }
+
+      setState(() {
+        _imageItems.removeWhere((f) => _selectedUrls.contains(f['url']));
+        _selectionMode = false;
+        _selectedUrls.clear();
+      });
+
+      if (mounted) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(const SnackBar(content: Text('Przeniesiono do Pliki')));
+      }
+    } catch (e) {
+      debugPrint('Move images -> files error: $e');
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Nie udało się przenieść')),
         );
       }
     } finally {
@@ -535,43 +627,43 @@ class _ProjectImagesSectionState extends State<ProjectImagesSection> {
     if (mounted) setState(() => _uploading = false);
   }
 
-  Future<Uint8List> _compressImageSmart(Uint8List bytes, String name) async {
-    if (kIsWeb) return bytes;
+  // Future<Uint8List> _compressImageSmart(Uint8List bytes, String name) async {
+  //   if (kIsWeb) return bytes;
 
-    if (bytes.lengthInBytes < 120 * 1024) return bytes;
+  //   if (bytes.lengthInBytes < 120 * 1024) return bytes;
 
-    final ext = p.extension(name).toLowerCase();
-    if (!_imageExtensions.contains(ext)) return bytes;
+  //   final ext = p.extension(name).toLowerCase();
+  //   if (!_imageExtensions.contains(ext)) return bytes;
 
-    try {
-      final decoded = img.decodeImage(bytes);
-      if (decoded == null) return bytes;
+  //   try {
+  //     final decoded = img.decodeImage(bytes);
+  //     if (decoded == null) return bytes;
 
-      const maxSide = 1024;
-      const quality = 60;
+  //     const maxSide = 1024;
+  //     const quality = 60;
 
-      img.Image resized;
-      if (decoded.width >= decoded.height) {
-        resized = img.copyResize(
-          decoded,
-          width: maxSide,
-          height: (decoded.height * maxSide / decoded.width).round(),
-        );
-      } else {
-        resized = img.copyResize(
-          decoded,
-          height: maxSide,
-          width: (decoded.width * maxSide / decoded.height).round(),
-        );
-      }
+  //     img.Image resized;
+  //     if (decoded.width >= decoded.height) {
+  //       resized = img.copyResize(
+  //         decoded,
+  //         width: maxSide,
+  //         height: (decoded.height * maxSide / decoded.width).round(),
+  //       );
+  //     } else {
+  //       resized = img.copyResize(
+  //         decoded,
+  //         height: maxSide,
+  //         width: (decoded.width * maxSide / decoded.height).round(),
+  //       );
+  //     }
 
-      final jpgBytes = img.encodeJpg(resized, quality: quality);
-      return Uint8List.fromList(jpgBytes);
-    } catch (e) {
-      debugPrint('Compression error for $name: $e');
-      return bytes;
-    }
-  }
+  //     final jpgBytes = img.encodeJpg(resized, quality: quality);
+  //     return Uint8List.fromList(jpgBytes);
+  //   } catch (e) {
+  //     debugPrint('Compression error for $name: $e');
+  //     return bytes;
+  //   }
+  // }
 
   Future<void> _uploadEntries(List<MapEntry<String, Uint8List>> entries) async {
     if (entries.isEmpty) return;
@@ -646,37 +738,47 @@ class _ProjectImagesSectionState extends State<ProjectImagesSection> {
     if (_imageItems.isEmpty) return;
 
     final baseOrder = _getOrder(_imageItems);
+
     final order = baseOrder.where((idx) {
       if (_searchQuery.isEmpty) return true;
       final name = (_imageItems[idx]['name'] ?? '').toLowerCase();
-      return name.contains(_searchQuery);
+      final url = (_imageItems[idx]['url'] ?? '').toLowerCase();
+      return name.contains(_searchQuery) || url.contains(_searchQuery);
     }).toList();
+
     final orderedItems = order.map((i) => _imageItems[i]).toList();
+
+    final bool isMobile =
+        !kIsWeb &&
+        !_isDesktop &&
+        (defaultTargetPlatform == TargetPlatform.android ||
+            defaultTargetPlatform == TargetPlatform.iOS);
 
     showDialog(
       context: context,
       barrierColor: Colors.black.withOpacity(0.85),
-      builder: (ctx) =>
-          _ImageGalleryDialog(items: orderedItems, initialIndex: sortedIndex),
+      builder: (ctx) => isMobile
+          ? _MobilePhotoGalleryDialog(
+              items: orderedItems,
+              initialIndex: sortedIndex.clamp(0, orderedItems.length - 1),
+            )
+          : _ImageGalleryDialog(
+              items: orderedItems,
+              initialIndex: sortedIndex.clamp(0, orderedItems.length - 1),
+            ),
     );
   }
 
-  Widget _buildImageTile(Map<String, String> file, int sortedIndex) {
-    final url = file['url']!;
-    final bool isWeb = kIsWeb;
+  Widget _buildImageTile(
+    Map<String, String> file,
+    int sortedIndex, {
+    required double tileWidth,
+    required double aspect,
+  }) {
+    final url = file['url'];
+    if (url == null || url.isEmpty) return const SizedBox.shrink();
+
     final bool isSelected = _selectionMode && _selectedUrls.contains(url);
-
-    double tileWidth;
-    if (isWeb) {
-      tileWidth = 80.0;
-    } else {
-      final screenWidth = MediaQuery.of(context).size.width;
-      final tilesPerRow = screenWidth < 360 ? 3 : 4;
-      final availableWidth = screenWidth - 32.0;
-      tileWidth = (availableWidth - 8.0 * (tilesPerRow - 1)) / tilesPerRow;
-    }
-
-    final double aspect = isWeb ? (4 / 3) : (3 / 2);
 
     return SizedBox(
       width: tileWidth,
@@ -698,7 +800,7 @@ class _ProjectImagesSectionState extends State<ProjectImagesSection> {
               borderRadius: BorderRadius.circular(6),
               border: isSelected
                   ? Border.all(color: Colors.redAccent, width: 2)
-                  : null,
+                  : Border.all(color: Colors.grey.shade300, width: 1),
             ),
             child: ClipRRect(
               borderRadius: BorderRadius.circular(6),
@@ -745,22 +847,48 @@ class _ProjectImagesSectionState extends State<ProjectImagesSection> {
 
     return SizedBox(
       height: boxHeight,
-      child: Scrollbar(
-        thumbVisibility: kIsWeb,
-        child: ListView(
-          padding: const EdgeInsets.all(6),
-          children: [
-            Wrap(
-              spacing: 8,
-              runSpacing: 8,
-              children: List.generate(filteredIndices.length, (i) {
-                final idx = filteredIndices[i];
-                final file = _imageItems[idx];
-                return _buildImageTile(file, i);
-              }),
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          const spacing = 8.0;
+
+          final w = constraints.maxWidth;
+          final int cols = w >= 1100
+              ? 8
+              : w >= 900
+              ? 7
+              : w >= 720
+              ? 6
+              : w >= 560
+              ? 5
+              : w >= 360
+              ? 4
+              : 3;
+
+          final tileWidth = (w - (spacing * (cols - 1))) / cols;
+
+          final aspect = kIsWeb ? (4 / 3) : (3 / 2);
+
+          return Scrollbar(
+            thumbVisibility: kIsWeb,
+            child: SingleChildScrollView(
+              padding: const EdgeInsets.all(6),
+              child: Wrap(
+                spacing: spacing,
+                runSpacing: spacing,
+                children: List.generate(filteredIndices.length, (i) {
+                  final idx = filteredIndices[i];
+                  final file = _imageItems[idx];
+                  return _buildImageTile(
+                    file,
+                    i,
+                    tileWidth: tileWidth,
+                    aspect: aspect,
+                  );
+                }),
+              ),
             ),
-          ],
-        ),
+          );
+        },
       ),
     );
   }
@@ -858,6 +986,7 @@ class _ProjectImagesSectionState extends State<ProjectImagesSection> {
             },
             onClear: _imageItems.isEmpty ? null : _clearImages,
             onAdd: _handleAddPressed,
+            onMove: _imageItems.isEmpty ? null : _moveImagesToFiles,
           ),
         ),
 
@@ -977,7 +1106,7 @@ class _ImageGalleryDialogState extends State<_ImageGalleryDialog> {
   Widget build(BuildContext context) {
     return Dialog(
       insetPadding: EdgeInsets.zero,
-      backgroundColor: Colors.black.withOpacity(0.95),
+      backgroundColor: Colors.black.withValues(alpha: 0.95),
       child: Stack(
         children: [
           PageView.builder(
@@ -986,26 +1115,47 @@ class _ImageGalleryDialogState extends State<_ImageGalleryDialog> {
             onPageChanged: (idx) => setState(() => _currentIndex = idx),
             itemBuilder: (ctx, index) {
               final url = widget.items[index]['url']!;
-              return Center(
-                child: InteractiveViewer(
-                  maxScale: 4,
-                  minScale: 0.8,
-                  child: Image.network(
-                    url,
-                    fit: BoxFit.contain,
-                    errorBuilder: (_, __, ___) => const Icon(
-                      Icons.broken_image,
-                      color: Colors.white70,
-                      size: 64,
+
+              return LayoutBuilder(
+                builder: (context, constraints) {
+                  return SizedBox(
+                    width: constraints.maxWidth,
+                    height: constraints.maxHeight,
+                    child: InteractiveViewer(
+                      panEnabled: true,
+                      scaleEnabled: true,
+                      minScale: 0.8,
+                      maxScale: 4.0,
+
+                      boundaryMargin: const EdgeInsets.all(200),
+
+                      constrained: false,
+
+                      child: SizedBox(
+                        width: constraints.maxWidth,
+                        height: constraints.maxHeight,
+                        child: Image.network(
+                          url,
+                          fit: BoxFit.contain,
+                          alignment: Alignment.center,
+                          errorBuilder: (_, __, ___) => const Icon(
+                            Icons.broken_image,
+                            color: Colors.white70,
+                            size: 64,
+                          ),
+                          loadingBuilder: (ctx, child, progress) {
+                            if (progress == null) return child;
+                            return const Center(
+                              child: CircularProgressIndicator(
+                                color: Colors.white,
+                              ),
+                            );
+                          },
+                        ),
+                      ),
                     ),
-                    loadingBuilder: (ctx, child, progress) {
-                      if (progress == null) return child;
-                      return const Center(
-                        child: CircularProgressIndicator(color: Colors.white),
-                      );
-                    },
-                  ),
-                ),
+                  );
+                },
               );
             },
           ),
@@ -1029,6 +1179,100 @@ class _ImageGalleryDialogState extends State<_ImageGalleryDialog> {
             ),
           ),
         ],
+      ),
+    );
+  }
+}
+
+class _MobilePhotoGalleryDialog extends StatefulWidget {
+  final List<Map<String, String>> items;
+  final int initialIndex;
+
+  const _MobilePhotoGalleryDialog({
+    required this.items,
+    required this.initialIndex,
+  });
+
+  @override
+  State<_MobilePhotoGalleryDialog> createState() =>
+      _MobilePhotoGalleryDialogState();
+}
+
+class _MobilePhotoGalleryDialogState extends State<_MobilePhotoGalleryDialog> {
+  late final PageController _controller;
+  late int _currentIndex;
+
+  @override
+  void initState() {
+    super.initState();
+    _currentIndex = widget.initialIndex.clamp(0, widget.items.length - 1);
+    _controller = PageController(initialPage: _currentIndex);
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Dialog(
+      insetPadding: EdgeInsets.zero,
+      backgroundColor: Colors.black,
+      child: SafeArea(
+        child: Stack(
+          children: [
+            PhotoViewGallery.builder(
+              pageController: _controller,
+              itemCount: widget.items.length,
+              backgroundDecoration: const BoxDecoration(color: Colors.black),
+              onPageChanged: (idx) => setState(() => _currentIndex = idx),
+              loadingBuilder: (_, __) => const Center(
+                child: CircularProgressIndicator(color: Colors.white),
+              ),
+              builder: (ctx, index) {
+                final url = widget.items[index]['url'] ?? '';
+
+                return PhotoViewGalleryPageOptions(
+                  imageProvider: NetworkImage(url),
+                  minScale: PhotoViewComputedScale.contained,
+                  initialScale: PhotoViewComputedScale.contained,
+                  maxScale: PhotoViewComputedScale.covered * 3.0,
+                  heroAttributes: PhotoViewHeroAttributes(tag: url),
+                  errorBuilder: (_, __, ___) => const Center(
+                    child: Icon(
+                      Icons.broken_image,
+                      color: Colors.white70,
+                      size: 64,
+                    ),
+                  ),
+                );
+              },
+            ),
+
+            Positioned(
+              top: 8,
+              right: 8,
+              child: IconButton(
+                icon: const Icon(Icons.close, color: Colors.white),
+                onPressed: () => Navigator.of(context).pop(),
+              ),
+            ),
+
+            Positioned(
+              bottom: 10,
+              left: 0,
+              right: 0,
+              child: Center(
+                child: Text(
+                  '${_currentIndex + 1} / ${widget.items.length}',
+                  style: const TextStyle(color: Colors.white70, fontSize: 12),
+                ),
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
