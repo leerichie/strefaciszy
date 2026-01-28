@@ -135,6 +135,14 @@
       ]
     },
     {
+      "collectionGroup": "projects",
+      "fieldPath": "updatedAt",
+      "ttl": false,
+      "indexes": [
+        { "order": "DESCENDING", "queryScope": "COLLECTION_GROUP" }
+      ]
+    },
+    {
       "collectionGroup": "rw_documents",
       "fieldPath": "createdDay",
       "ttl": false,

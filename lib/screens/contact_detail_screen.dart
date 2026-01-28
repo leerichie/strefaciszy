@@ -203,14 +203,24 @@ class _ContactDetailScreenState extends State<ContactDetailScreen>
               onPressed: () async {
                 final title = titleCtrl.text.trim();
                 if (title.isEmpty) return;
+                final uid = FirebaseAuth.instance.currentUser!.uid;
+
                 final data = <String, dynamic>{
                   'title': title,
                   'status': existingData?['status'] ?? 'draft',
                   'customerId': customerId,
+
                   'createdAt':
                       existingData?['createdAt'] ??
                       FieldValue.serverTimestamp(),
-                  'createdBy': FirebaseAuth.instance.currentUser!.uid,
+                  'createdBy': existingData?['createdBy'] ?? uid,
+
+                  'updatedAt': FieldValue.serverTimestamp(), // filter update
+                  'updatedBy': uid,
+
+                  'items': existingData?['items'] ?? <Map<String, dynamic>>[],
+                  'lastRwDate': existingData?['lastRwDate'],
+
                   if (startDate != null)
                     'startDate': Timestamp.fromDate(startDate!),
                   if (endDate != null)
