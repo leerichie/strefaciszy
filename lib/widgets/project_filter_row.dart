@@ -1,12 +1,14 @@
 import 'package:flutter/material.dart';
 
+enum ProjectActionMode { none, delete, move }
+
 class ProjectFilterRow extends StatelessWidget {
   final bool sortIsOriginal;
   final bool sortIsDateNewest;
   final bool sortIsType;
 
   final bool isAdmin;
-  final bool selectionMode;
+  final ProjectActionMode actionMode;
   final bool hasItems;
 
   final VoidCallback onReset;
@@ -25,7 +27,7 @@ class ProjectFilterRow extends StatelessWidget {
     required this.sortIsDateNewest,
     required this.sortIsType,
     required this.isAdmin,
-    required this.selectionMode,
+    required this.actionMode,
     required this.hasItems,
     required this.onReset,
     required this.onSortOriginal,
@@ -38,77 +40,106 @@ class ProjectFilterRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    Color iconColor(bool selected, Color active) =>
+        selected ? active : Colors.grey.shade700;
+
     return Wrap(
       spacing: 8,
       crossAxisAlignment: WrapCrossAlignment.center,
       children: [
-        // REFRESH / ORIGINAL
+        // RESET / ORIGINAL
         ChoiceChip(
-          label: const Icon(Icons.refresh),
+          label: Icon(
+            Icons.refresh,
+            color: iconColor(sortIsOriginal, Colors.blue),
+          ),
           selected: sortIsOriginal,
+          selectedColor: Colors.blue.withValues(alpha: 0.12),
           onSelected: (_) => onReset(),
         ),
 
         // DATE
         ChoiceChip(
-          label: const Text('Date'),
+          label: Text(
+            'Date',
+            style: TextStyle(
+              color: sortIsDateNewest ? Colors.blue : Colors.grey.shade800,
+            ),
+          ),
           selected: sortIsDateNewest,
+          selectedColor: Colors.blue.withValues(alpha: 0.12),
           onSelected: (_) => onSortDateNewest(),
         ),
 
         // TYPE
         ChoiceChip(
-          label: const Text('Typ'),
+          label: Text(
+            'Typ',
+            style: TextStyle(
+              color: sortIsType ? Colors.blue : Colors.grey.shade800,
+            ),
+          ),
           selected: sortIsType,
+          selectedColor: Colors.blue.withValues(alpha: 0.12),
           onSelected: (_) => onSortType(),
         ),
 
-        // DELETE (admin only)
+        // DELETE (admin)
         if (isAdmin)
           ChoiceChip(
-            label: Text(
-              'Usuń',
-              style: TextStyle(
-                color: selectionMode ? Colors.red : Colors.red.shade700,
+            label: Icon(
+              Icons.delete,
+              size: 18,
+              color: iconColor(
+                actionMode == ProjectActionMode.delete,
+                Colors.red,
               ),
             ),
             labelPadding: EdgeInsets.zero,
-            selected: selectionMode,
+            selected: actionMode == ProjectActionMode.delete,
             onSelected: (!hasItems || onClear == null)
                 ? null
                 : (_) => onClear!(),
             backgroundColor: Colors.transparent,
-            selectedColor: Colors.red.withValues(alpha: 0.08),
+            selectedColor: Colors.red.withValues(alpha: 0.10),
             side: BorderSide(
-              color: selectionMode ? Colors.red : Colors.grey.shade400,
+              color: (actionMode == ProjectActionMode.delete)
+                  ? Colors.red
+                  : Colors.grey.shade400,
             ),
           ),
 
-        // ADD
+        // ADD (always actionable)
         ChoiceChip(
-          label: Text('Dodaj', style: TextStyle(color: Colors.green.shade800)),
+          label: Icon(Icons.add, size: 18, color: Colors.blue),
           labelPadding: EdgeInsets.zero,
           selected: false,
           onSelected: (_) => onAdd(),
           backgroundColor: Colors.transparent,
           side: const BorderSide(color: Colors.blueAccent),
         ),
-        // MOVE
+
+        // MOVE (admin)
         if (isAdmin && onMove != null)
           ChoiceChip(
-            label: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: const [
-                Icon(Icons.drive_file_move, size: 18),
-                SizedBox(width: 6),
-                Text('Przenieś'),
-              ],
+            label: Icon(
+              Icons.drive_file_move,
+              size: 18,
+              color: iconColor(
+                actionMode == ProjectActionMode.move,
+                Colors.purple,
+              ),
             ),
             labelPadding: EdgeInsets.zero,
-            selected: false,
+            selected: actionMode == ProjectActionMode.move,
             onSelected: (!hasItems) ? null : (_) => onMove!(),
             backgroundColor: Colors.transparent,
-            side: BorderSide(color: Colors.grey.shade400),
+            selectedColor: Colors.purple.withValues(alpha: 0.10),
+            side: BorderSide(
+              color: (actionMode == ProjectActionMode.move)
+                  ? Colors.purple
+                  : Colors.grey.shade400,
+            ),
           ),
       ],
     );

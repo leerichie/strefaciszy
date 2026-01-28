@@ -1,6 +1,8 @@
 // lib/widgets/project_files_only_section.dart
+import 'dart:async';
 import 'dart:io' as io;
 
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:desktop_drop/desktop_drop.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/foundation.dart';
@@ -39,6 +41,8 @@ class ProjectFilesOnlySection extends StatefulWidget {
 }
 
 class _ProjectFilesOnlySectionState extends State<ProjectFilesOnlySection> {
+  StreamSubscription<DocumentSnapshot<Map<String, dynamic>>>? _projectSub;
+
   final List<Map<String, String>> _fileItems = [];
 
   bool _uploading = false;
@@ -46,9 +50,18 @@ class _ProjectFilesOnlySectionState extends State<ProjectFilesOnlySection> {
   bool _dropHighlight = false;
   bool _dragging = false;
   _FileSort _fileSort = _FileSort.original;
-  bool _selectionMode = false;
+  ProjectActionMode _actionMode = ProjectActionMode.none;
   final Set<String> _selectedUrls = {};
+
   String _searchQuery = '';
+  bool get _isSelecting => _actionMode != ProjectActionMode.none;
+
+  void _exitActionMode() {
+    setState(() {
+      _actionMode = ProjectActionMode.none;
+      _selectedUrls.clear();
+    });
+  }
 
   static const Set<String> _imageExtensions = {
     '.jpg',
@@ -75,6 +88,48 @@ class _ProjectFilesOnlySectionState extends State<ProjectFilesOnlySection> {
     for (final f in widget.initialFiles) {
       _addIfFile(f);
     }
+    final ref = FirebaseFirestore.instance
+        .collection('customers')
+        .doc(widget.customerId)
+        .collection('projects')
+        .doc(widget.projectId);
+
+    _projectSub = ref.snapshots().listen((snap) {
+      final data = snap.data();
+      if (!mounted || data == null) return;
+
+      final files = data['files'];
+      if (files is! List) return;
+
+      final List<Map<String, String>> next = [];
+
+      for (final f in files) {
+        if (f is! Map) continue;
+
+        final url = f['url'];
+        final name = f['name'];
+        final bucket = (f['bucket'] ?? '').toString();
+
+        if (url is! String || name is! String) continue;
+        if (bucket == 'images') continue;
+
+        next.add({'url': url, 'name': name, 'bucket': bucket});
+      }
+
+      setState(() {
+        _fileItems
+          ..clear()
+          ..addAll(next);
+
+        _selectedUrls.removeWhere((u) => !_fileItems.any((e) => e['url'] == u));
+      });
+    });
+  }
+
+  @override
+  void dispose() {
+    _projectSub?.cancel();
+    super.dispose();
   }
 
   bool _isImageName(String name) {
@@ -183,12 +238,10 @@ class _ProjectFilesOnlySectionState extends State<ProjectFilesOnlySection> {
     }
     if (_fileItems.isEmpty) return;
 
-    // Selection mode -> delete selected
-    if (_selectionMode) {
+    // If already in DELETE mode -> delete selected
+    if (_actionMode == ProjectActionMode.delete) {
       if (_selectedUrls.isEmpty) {
-        setState(() {
-          _selectionMode = false;
-        });
+        _exitActionMode();
         return;
       }
 
@@ -228,6 +281,7 @@ class _ProjectFilesOnlySectionState extends State<ProjectFilesOnlySection> {
             url: url,
             name: f['name']!,
           );
+
           _fileItems.remove(f);
         }
 
@@ -244,13 +298,8 @@ class _ProjectFilesOnlySectionState extends State<ProjectFilesOnlySection> {
           );
         }
       } finally {
-        if (mounted) {
-          setState(() {
-            _uploading = false;
-            _selectionMode = false;
-            _selectedUrls.clear();
-          });
-        }
+        if (mounted) setState(() => _uploading = false);
+        _exitActionMode();
       }
 
       return;
@@ -283,15 +332,13 @@ class _ProjectFilesOnlySectionState extends State<ProjectFilesOnlySection> {
 
     if (choice == _ClearScope.select) {
       setState(() {
-        _selectionMode = true;
+        _actionMode = ProjectActionMode.delete;
         _selectedUrls.clear();
       });
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
-            content: Text(
-              'Wybierz pliki do usunięcia, potem ponownie kliknij Skasuj',
-            ),
+            content: Text('Wybierz pliki do usunięcia, potem kliknij Usuń'),
           ),
         );
       }
@@ -327,6 +374,7 @@ class _ProjectFilesOnlySectionState extends State<ProjectFilesOnlySection> {
       }
     } finally {
       if (mounted) setState(() => _uploading = false);
+      _exitActionMode();
     }
   }
 
@@ -339,10 +387,10 @@ class _ProjectFilesOnlySectionState extends State<ProjectFilesOnlySection> {
     }
     if (_fileItems.isEmpty) return;
 
-    // first click => enter selection mode
-    if (!_selectionMode) {
+    // First click -> enter MOVE mode
+    if (_actionMode != ProjectActionMode.move) {
       setState(() {
-        _selectionMode = true;
+        _actionMode = ProjectActionMode.move;
         _selectedUrls.clear();
       });
       ScaffoldMessenger.of(context).showSnackBar(
@@ -351,8 +399,22 @@ class _ProjectFilesOnlySectionState extends State<ProjectFilesOnlySection> {
       return;
     }
 
+    // Second click with no selection -> exit mode
     if (_selectedUrls.isEmpty) {
-      setState(() => _selectionMode = false);
+      _exitActionMode();
+      return;
+    }
+
+    // validate: only images can move to images bucket
+    final nonImages = _fileItems.where((f) {
+      final name = f['name'] ?? '';
+      return _selectedUrls.contains(f['url']) && !_isImageName(name);
+    }).toList();
+
+    if (nonImages.isNotEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Niektóre pliki nie są zdjęciami.')),
+      );
       return;
     }
 
@@ -390,8 +452,6 @@ class _ProjectFilesOnlySectionState extends State<ProjectFilesOnlySection> {
 
       setState(() {
         _fileItems.removeWhere((f) => _selectedUrls.contains(f['url']));
-        _selectionMode = false;
-        _selectedUrls.clear();
       });
 
       if (mounted) {
@@ -408,6 +468,7 @@ class _ProjectFilesOnlySectionState extends State<ProjectFilesOnlySection> {
       }
     } finally {
       if (mounted) setState(() => _uploading = false);
+      _exitActionMode();
     }
   }
 
@@ -611,7 +672,7 @@ class _ProjectFilesOnlySectionState extends State<ProjectFilesOnlySection> {
     final name = file['name'] ?? '';
     final url = file['url']!;
     final bool isWeb = kIsWeb;
-    final bool isSelected = _selectionMode && _selectedUrls.contains(url);
+    final bool isSelected = _isSelecting && _selectedUrls.contains(url);
 
     double tileWidth;
     if (isWeb) {
@@ -634,7 +695,7 @@ class _ProjectFilesOnlySectionState extends State<ProjectFilesOnlySection> {
         borderRadius: BorderRadius.circular(6),
         child: InkWell(
           onTap: () {
-            if (_selectionMode) {
+            if (_isSelecting) {
               _toggleSelection(url);
             } else {
               _previewFile(url, name);
@@ -772,12 +833,13 @@ class _ProjectFilesOnlySectionState extends State<ProjectFilesOnlySection> {
             sortIsDateNewest: _fileSort == _FileSort.dateNewest,
             sortIsType: _fileSort == _FileSort.type,
             isAdmin: widget.isAdmin,
-            selectionMode: _selectionMode,
+            actionMode: _actionMode,
             hasItems: _fileItems.isNotEmpty,
             onReset: () {
               setState(() {
                 _fileSort = _FileSort.original;
                 _searchQuery = '';
+                _exitActionMode();
               });
             },
             onSortOriginal: () {
