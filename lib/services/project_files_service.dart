@@ -119,4 +119,37 @@ class ProjectFilesService {
       ]),
     });
   }
+
+  static Future<void> setFileBucket({
+    required String customerId,
+    required String projectId,
+    required String url,
+    required String bucket, // 'files' or 'images'
+  }) async {
+    final docRef = FirebaseFirestore.instance
+        .collection('customers')
+        .doc(customerId)
+        .collection('projects')
+        .doc(projectId);
+
+    await FirebaseFirestore.instance.runTransaction((tx) async {
+      final snap = await tx.get(docRef);
+      final data = snap.data();
+
+      final raw = (data?['files'] as List?) ?? [];
+      final updated = raw.map((e) {
+        if (e is Map) {
+          final u = e['url'];
+          if (u is String && u == url) {
+            final copy = Map<String, dynamic>.from(e);
+            copy['bucket'] = bucket;
+            return copy;
+          }
+        }
+        return e;
+      }).toList();
+
+      tx.update(docRef, {'files': updated});
+    });
+  }
 }

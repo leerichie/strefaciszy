@@ -72,7 +72,6 @@ class _ProjectFilesOnlySectionState extends State<ProjectFilesOnlySection> {
   @override
   void initState() {
     super.initState();
-    // Only keep non-image files
     for (final f in widget.initialFiles) {
       _addIfFile(f);
     }
@@ -84,6 +83,14 @@ class _ProjectFilesOnlySectionState extends State<ProjectFilesOnlySection> {
   }
 
   void _addIfFile(Map<String, String> item) {
+    final bucket = (item['bucket'] ?? '').toLowerCase();
+
+    if (bucket == 'images') return;
+    if (bucket == 'files') {
+      _fileItems.add(item);
+      return;
+    }
+
     final name = item['name'] ?? '';
     if (!_isImageName(name)) {
       _fileItems.add(item);
@@ -323,6 +330,87 @@ class _ProjectFilesOnlySectionState extends State<ProjectFilesOnlySection> {
     }
   }
 
+  Future<void> _moveFilesToImages() async {
+    if (!widget.isAdmin) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Tylko admin może przenieść')),
+      );
+      return;
+    }
+    if (_fileItems.isEmpty) return;
+
+    // first click => enter selection mode
+    if (!_selectionMode) {
+      setState(() {
+        _selectionMode = true;
+        _selectedUrls.clear();
+      });
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Zaznacz pliki, potem kliknij Przenieś')),
+      );
+      return;
+    }
+
+    if (_selectedUrls.isEmpty) {
+      setState(() => _selectionMode = false);
+      return;
+    }
+
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Przenieś do Fotki'),
+        content: Text('Przenieść ${_selectedUrls.length} elementów do Fotki?'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Anuluj'),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('Przenieś'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed != true) return;
+
+    setState(() => _uploading = true);
+
+    try {
+      for (final url in _selectedUrls) {
+        await ProjectFilesService.setFileBucket(
+          customerId: widget.customerId,
+          projectId: widget.projectId,
+          url: url,
+          bucket: 'images',
+        );
+      }
+
+      setState(() {
+        _fileItems.removeWhere((f) => _selectedUrls.contains(f['url']));
+        _selectionMode = false;
+        _selectedUrls.clear();
+      });
+
+      if (mounted) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(const SnackBar(content: Text('Przeniesiono do Fotki')));
+      }
+    } catch (e) {
+      debugPrint('Move files -> images error: $e');
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Nie udało się przenieść')),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _uploading = false);
+    }
+  }
+
   Future<void> _handleDesktopDropFiles(List<XFile> dropped) async {
     if (dropped.isEmpty) return;
 
@@ -448,6 +536,7 @@ class _ProjectFilesOnlySectionState extends State<ProjectFilesOnlySection> {
   }
 
   Future<void> _previewFile(String url, String fileName) async {
+    // WEB
     if (kIsWeb) {
       try {
         final uri = Uri.parse(url);
@@ -469,6 +558,15 @@ class _ProjectFilesOnlySectionState extends State<ProjectFilesOnlySection> {
         );
       }
       return;
+    }
+
+    // MOBILE
+    try {
+      final uri = Uri.parse(url);
+      final ok = await launchUrl(uri, mode: LaunchMode.externalApplication);
+      if (ok) return;
+    } catch (e) {
+      debugPrint('External open failed, fallback to download: $e');
     }
 
     try {
@@ -699,6 +797,7 @@ class _ProjectFilesOnlySectionState extends State<ProjectFilesOnlySection> {
             },
             onClear: _fileItems.isEmpty ? null : _clearFiles,
             onAdd: _pickAndUploadFiles,
+            onMove: _fileItems.isEmpty ? null : _moveFilesToImages,
           ),
         ),
 

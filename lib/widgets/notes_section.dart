@@ -52,7 +52,7 @@ class NotesSection extends StatelessWidget {
                     Icon(Icons.add, size: addButtonSize, color: Colors.black),
                     const SizedBox(width: 6),
                     Text(
-                      'Dotknij aby dodać notatka',
+                      'Dodaj RAPORT',
                       style: TextStyle(color: Colors.grey[600]),
                     ),
                   ],
