@@ -507,9 +507,16 @@ class _RWDocumentsScreenState extends State<RWDocumentsScreen> {
 
                               final rwNotes = (data['notesList'] as List)
                                   .cast<Map<String, dynamic>>();
+
+                              final uid =
+                                  FirebaseAuth.instance.currentUser?.uid;
+
                               await projectRef.update({
+                                // update filter
                                 'items': <Map<String, dynamic>>[],
                                 'notesList': FieldValue.arrayRemove(rwNotes),
+                                'updatedAt': FieldValue.serverTimestamp(),
+                                if (uid != null) 'updatedBy': uid,
                               });
 
                               ScaffoldMessenger.of(context).showSnackBar(

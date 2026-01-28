@@ -5,7 +5,7 @@ import 'package:strefa_ciszy/widgets/app_scaffold.dart';
 
 import 'project_editor_screen.dart';
 
-enum _ProjectSort { newest, oldest, nameAZ, nameZA }
+enum _ProjectSort { newest, oldest, updated, nameAZ, nameZA }
 
 class ProjectsListScreen extends StatefulWidget {
   final bool isAdmin;
@@ -101,6 +101,10 @@ class _ProjectsListScreenState extends State<ProjectsListScreen> {
                     value: _ProjectSort.oldest,
                     child: Text('Najstarszy'),
                   ),
+                  PopupMenuItem(
+                    value: _ProjectSort.updated,
+                    child: Text('Zmiany'),
+                  ),
                   PopupMenuItem(value: _ProjectSort.nameAZ, child: Text('A-Z')),
                   PopupMenuItem(value: _ProjectSort.nameZA, child: Text('Z-A')),
                 ],
@@ -117,11 +121,26 @@ class _ProjectsListScreenState extends State<ProjectsListScreen> {
           }
           final customerNames = custSnap.data ?? {};
 
+          // return StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
+          //   stream: (() {
+          //     Query<Map<String, dynamic>> q = FirebaseFirestore.instance
+          //         .collectionGroup('projects');
+          //     if (_sort == _ProjectSort.updated) {
+          //       q = q.orderBy('updatedAt', descending: true);
+          //     } else {
+          //       q = q.orderBy('createdAt', descending: true);
+          //     }
+
+          //     return q.snapshots();
+          //   })(),
+
           return StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
+            // sort - ABOVE CD FOR FILTER
             stream: FirebaseFirestore.instance
                 .collectionGroup('projects')
                 .orderBy('createdAt', descending: true)
                 .snapshots(),
+
             builder: (ctx, projSnap) {
               if (projSnap.connectionState == ConnectionState.waiting) {
                 return const Center(child: CircularProgressIndicator());
@@ -139,6 +158,8 @@ class _ProjectsListScreenState extends State<ProjectsListScreen> {
                     final title = (data['title'] as String?) ?? '';
                     final createdAt = (data['createdAt'] as Timestamp?)
                         ?.toDate();
+                    final updatedAt = (data['updatedAt'] as Timestamp?)
+                        ?.toDate();
                     final customerId = d.reference.parent.parent?.id ?? '';
 
                     return _ProjectItem(
@@ -146,6 +167,7 @@ class _ProjectsListScreenState extends State<ProjectsListScreen> {
                       title: title,
                       customerId: customerId,
                       createdAt: createdAt,
+                      updatedAt: updatedAt,
                     );
                   })
                   .where((p) {
@@ -166,7 +188,6 @@ class _ProjectsListScreenState extends State<ProjectsListScreen> {
 
               final epoch = DateTime.fromMillisecondsSinceEpoch(0);
 
-              // helpers: newest / oldest date in a group
               DateTime newestOf(List<_ProjectItem> items) =>
                   items.map((p) => p.createdAt ?? epoch).fold(epoch, (prev, d) {
                     if (d.isAfter(prev)) return d;
@@ -180,7 +201,20 @@ class _ProjectsListScreenState extends State<ProjectsListScreen> {
                     return prev;
                   });
 
-              // sort customer groups according to current sort mode
+              DateTime effectiveDate(_ProjectItem p) =>
+                  (p.updatedAt ?? p.createdAt ?? epoch);
+
+              DateTime newestUpdateOf(List<_ProjectItem> items) => items
+                  .map(effectiveDate)
+                  .fold(epoch, (prev, d) => d.isAfter(prev) ? d : prev);
+
+              DateTime oldestUpdateOf(List<_ProjectItem> items) => items
+                  .map(effectiveDate)
+                  .fold(
+                    DateTime.now(),
+                    (prev, d) => d.isBefore(prev) ? d : prev,
+                  );
+
               final entries = grouped.entries.toList()
                 ..sort((a, b) {
                   final an = customerNames[a.key] ?? '';
@@ -195,6 +229,10 @@ class _ProjectsListScreenState extends State<ProjectsListScreen> {
                       return newestOf(b.value).compareTo(newestOf(a.value));
                     case _ProjectSort.oldest:
                       return oldestOf(a.value).compareTo(oldestOf(b.value));
+                    case _ProjectSort.updated:
+                      return newestUpdateOf(
+                        b.value,
+                      ).compareTo(newestUpdateOf(a.value));
                   }
                 });
 
@@ -206,7 +244,7 @@ class _ProjectsListScreenState extends State<ProjectsListScreen> {
                   final customerName =
                       customerNames[customerId] ?? 'Nieznany klient';
 
-                  // copy + sort projects INSIDE this customer group
+                  // copy + sort
                   final customerProjects = [...entry.value]
                     ..sort((a, b) {
                       switch (_sort) {
@@ -226,6 +264,8 @@ class _ProjectsListScreenState extends State<ProjectsListScreen> {
                           return b.title.toLowerCase().compareTo(
                             a.title.toLowerCase(),
                           );
+                        case _ProjectSort.updated:
+                          return effectiveDate(b).compareTo(effectiveDate(a));
                       }
                     });
 
@@ -285,11 +325,13 @@ class _ProjectItem {
   final String title;
   final String customerId;
   final DateTime? createdAt;
+  final DateTime? updatedAt;
 
   _ProjectItem({
     required this.id,
     required this.title,
     required this.customerId,
     required this.createdAt,
+    required this.updatedAt,
   });
 }

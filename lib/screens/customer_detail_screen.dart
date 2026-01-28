@@ -109,7 +109,14 @@ class _CustomerDetailScreenState extends State<CustomerDetailScreen> {
                 final oldTitle = data['title'] as String;
                 final newTitle = edits[doc.id]!;
                 if (newTitle.isNotEmpty && newTitle != oldTitle) {
-                  await _projectsCol.doc(doc.id).update({'title': newTitle});
+                  final uid = FirebaseAuth.instance.currentUser!.uid;
+
+                  await _projectsCol.doc(doc.id).update({
+                    // update filter
+                    'title': newTitle,
+                    'updatedAt': FieldValue.serverTimestamp(),
+                    'updatedBy': uid,
+                  });
                 }
               }
               Navigator.pop(ctx);
@@ -193,7 +200,14 @@ class _CustomerDetailScreenState extends State<CustomerDetailScreen> {
           ElevatedButton(
             onPressed: () {
               if (newTitle.isNotEmpty && newTitle != currentTitle) {
-                _projectsCol.doc(id).update({'title': newTitle});
+                final uid = FirebaseAuth.instance.currentUser!.uid;
+
+                _projectsCol.doc(id).update({
+                  // update filter
+                  'title': newTitle,
+                  'updatedAt': FieldValue.serverTimestamp(),
+                  'updatedBy': uid,
+                });
               }
               Navigator.pop(ctx);
             },
@@ -301,25 +315,37 @@ class _CustomerDetailScreenState extends State<CustomerDetailScreen> {
               child: const Text('Anuluj'),
             ),
             ElevatedButton(
-              onPressed: () {
+              onPressed: () async {
                 if (title.isEmpty) return;
+
+                final uid = FirebaseAuth.instance.currentUser!.uid;
+
                 final data = <String, dynamic>{
                   'title': title,
                   'status': 'draft',
                   'contactId': realContactId,
                   'customerId': widget.customerId,
+
                   'createdAt': FieldValue.serverTimestamp(),
-                  'createdBy': DateTime.now().millisecondsSinceEpoch.toString(),
+                  'createdBy': uid,
+
+                  'updatedAt': FieldValue.serverTimestamp(), // update filter
+                  'updatedBy': uid,
+
                   'items': <Map<String, dynamic>>[],
+
                   if (startDate != null)
                     'startDate': Timestamp.fromDate(startDate!),
                   if (estimatedEndDate != null)
                     'estimatedEndDate': Timestamp.fromDate(estimatedEndDate!),
                 };
+
                 final cost = double.tryParse(costStr.replaceAll(',', '.'));
                 if (cost != null) data['estimatedCost'] = cost;
-                _projectsCol.add(data);
-                Navigator.pop(ctx);
+
+                await _projectsCol.add(data);
+
+                if (ctx.mounted) Navigator.pop(ctx);
               },
               child: const Text('Create'),
             ),

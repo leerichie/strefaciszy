@@ -259,6 +259,21 @@ class _ProjectEditorScreenState extends State<ProjectEditorScreen> {
     }
   }
 
+  // project latest changes filter
+  Future<void> _touchProject() async {
+    final uid = FirebaseAuth.instance.currentUser?.uid;
+    final projRef = FirebaseFirestore.instance
+        .collection('customers')
+        .doc(widget.customerId)
+        .collection('projects')
+        .doc(widget.projectId);
+
+    await projRef.set({
+      'updatedAt': FieldValue.serverTimestamp(),
+      if (uid != null) 'updatedBy': uid,
+    }, SetOptions(merge: true));
+  }
+
   void _scheduleMidnightRollover() {
     final now = DateTime.now();
     final tomorrow = DateTime(
@@ -323,7 +338,13 @@ class _ProjectEditorScreenState extends State<ProjectEditorScreen> {
           ElevatedButton(
             onPressed: () async {
               if (newTitle.isNotEmpty && newTitle != _title) {
-                projRef.update({'title': newTitle});
+                final uid = FirebaseAuth.instance.currentUser!.uid;
+
+                await projRef.update({
+                  'title': newTitle,
+                  'updatedAt': FieldValue.serverTimestamp(),
+                  'updatedBy': uid,
+                });
                 setState(() => _title = newTitle);
                 await _updateTodaysRwProjectName(newTitle);
               }
@@ -784,6 +805,8 @@ class _ProjectEditorScreenState extends State<ProjectEditorScreen> {
         'items': <Map<String, dynamic>>[],
         'status': 'draft',
         'lastRwDate': FieldValue.serverTimestamp(),
+        'updatedAt': FieldValue.serverTimestamp(),
+        'updatedBy': user.uid,
       });
 
       setState(() {
@@ -854,6 +877,8 @@ class _ProjectEditorScreenState extends State<ProjectEditorScreen> {
 
         'lastRwDate': FieldValue.serverTimestamp(),
       });
+
+      await _touchProject(); // udpate filter
 
       final movedLines = filteredLines.where((ln) {
         final prev = ln.previousQty ?? 0;
@@ -1030,11 +1055,19 @@ class _ProjectEditorScreenState extends State<ProjectEditorScreen> {
       final projItems = List<Map<String, dynamic>>.from(
         projSnap.data()?['items'] ?? [],
       );
+
       final newProjItems = projItems.where((m) {
         if (line.isStock) return m['itemId'] != line.itemRef;
         return m['name'] != line.customName;
       }).toList();
-      await projectRef.update({'items': newProjItems});
+
+      final uid = FirebaseAuth.instance.currentUser?.uid;
+
+      await projectRef.update({
+        'items': newProjItems,
+        'updatedAt': FieldValue.serverTimestamp(),
+        if (uid != null) 'updatedBy': uid,
+      });
     }
   }
 
@@ -1153,6 +1186,7 @@ class _ProjectEditorScreenState extends State<ProjectEditorScreen> {
                         await projRef.update({
                           'notesList': FieldValue.arrayUnion([noteMap]),
                         });
+                        await _touchProject(); // filter update
 
                         final rwRef = await _todayRwRef();
                         if (rwRef != null) {
@@ -1222,7 +1256,7 @@ class _ProjectEditorScreenState extends State<ProjectEditorScreen> {
 
                         final now = DateTime.now();
 
-                        // optimistic local update so the user sees the change immediately
+                        // optimistic update
                         setState(() {
                           _notes[i] = Note(
                             text: trimmed,
@@ -1255,6 +1289,7 @@ class _ProjectEditorScreenState extends State<ProjectEditorScreen> {
                             'notesList': FieldValue.arrayUnion([newMap]),
                           });
                         }
+                        await _touchProject(); // filter update
                       },
 
                       // ADMIN only delete
@@ -1288,6 +1323,7 @@ class _ProjectEditorScreenState extends State<ProjectEditorScreen> {
                             'notesList': FieldValue.arrayRemove([map]),
                           });
                         }
+                        await _touchProject(); // filter update
 
                         await AuditService.logAction(
                           action: 'Usunięto notatka',
@@ -1326,7 +1362,12 @@ class _ProjectEditorScreenState extends State<ProjectEditorScreen> {
                         _currentDebounce = Timer(
                           const Duration(milliseconds: 600),
                           () {
-                            projRef.update({'currentText': _currentText});
+                            projRef.update({
+                              'currentText': _currentText,
+                              'updatedAt': FieldValue.serverTimestamp(),
+                              'updatedBy':
+                                  FirebaseAuth.instance.currentUser?.uid,
+                            });
                           },
                         );
                       },
