@@ -1,9 +1,9 @@
+// widgets/app_scaffold.dart
+
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:strefa_ciszy/widgets/app_drawer.dart';
 
-/// - Mobile: BackButton
-/// - Web: Drawer always visible on left
 class AppScaffold extends StatefulWidget {
   final String title;
   final Widget body;
@@ -59,6 +59,8 @@ class _AppScaffoldState extends State<AppScaffold> {
             Expanded(
               child: Scaffold(
                 backgroundColor: widget.backgroundColor,
+                resizeToAvoidBottomInset: true,
+
                 appBar: AppBar(
                   leading: widget.showBackOnWeb ? const BackButton() : null,
                   title: widget.titleWidget ?? Text(widget.title),
@@ -91,7 +93,9 @@ class _AppScaffoldState extends State<AppScaffold> {
     return Scaffold(
       key: _scaffoldKey,
       backgroundColor: widget.backgroundColor,
-      drawer: isMobile ? const AppDrawer() : null, // no drawer on web HOME
+      resizeToAvoidBottomInset: true,
+      drawer: isMobile ? const AppDrawer() : null,
+
       drawerEdgeDragWidth: isMobile
           ? MediaQuery.of(context).size.width + 0.2
           : 0,

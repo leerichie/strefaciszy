@@ -1,7 +1,10 @@
+// widgets/app_drawer.dart
+
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:strefa_ciszy/screens/chat_list_screen.dart';
 import 'package:strefa_ciszy/screens/contact_detail_screen.dart';
 import 'package:strefa_ciszy/screens/contacts_list_screen.dart';
 import 'package:strefa_ciszy/screens/customer_detail_screen.dart';
@@ -533,7 +536,10 @@ class _AppDrawerState extends State<AppDrawer> {
                         ),
                       ),
                       child: ListTile(
-                        leading: const Icon(Icons.person, color: Colors.white),
+                        leading: const Icon(
+                          Icons.edit_document,
+                          color: Colors.white,
+                        ),
                         title: Text('Projekty', style: menuTitles),
                         onTap: () => _openPage(
                           context,
@@ -562,6 +568,23 @@ class _AppDrawerState extends State<AppDrawer> {
                         context,
                         const ContactsListScreen(isAdmin: true),
                       ),
+                    ),
+                  ),
+                  Divider(),
+                  // Chat
+                  Theme(
+                    data: Theme.of(context).copyWith(
+                      dividerColor: Colors.transparent,
+                      unselectedWidgetColor: Colors.white70,
+                      colorScheme: const ColorScheme.dark(
+                        primary: Colors.tealAccent,
+                        onSurface: Colors.white,
+                      ),
+                    ),
+                    child: ListTile(
+                      leading: const Icon(Icons.chat, color: Colors.white),
+                      title: Text('Bla bla', style: menuTitles),
+                      onTap: () => _openPage(context, const ChatListScreen()),
                     ),
                   ),
                 ],
