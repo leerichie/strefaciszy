@@ -26,6 +26,7 @@ class ProjectFilesOnlySection extends StatefulWidget {
   final String projectId;
   final bool isAdmin;
   final List<Map<String, String>> initialFiles;
+  final bool readOnly;
 
   const ProjectFilesOnlySection({
     super.key,
@@ -33,6 +34,7 @@ class ProjectFilesOnlySection extends StatefulWidget {
     required this.projectId,
     required this.isAdmin,
     this.initialFiles = const [],
+    this.readOnly = false,
   });
 
   @override
@@ -52,9 +54,9 @@ class _ProjectFilesOnlySectionState extends State<ProjectFilesOnlySection> {
   _FileSort _fileSort = _FileSort.original;
   ProjectActionMode _actionMode = ProjectActionMode.none;
   final Set<String> _selectedUrls = {};
-
   String _searchQuery = '';
   bool get _isSelecting => _actionMode != ProjectActionMode.none;
+  bool get _canEdit => widget.isAdmin && !widget.readOnly;
 
   void _exitActionMode() {
     setState(() {
@@ -230,15 +232,14 @@ class _ProjectFilesOnlySectionState extends State<ProjectFilesOnlySection> {
   }
 
   Future<void> _clearFiles() async {
-    if (!widget.isAdmin) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Tylko admin może skasować')),
-      );
+    if (!_canEdit) {
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('Tylko podgląd')));
       return;
     }
     if (_fileItems.isEmpty) return;
 
-    // If already in DELETE mode -> delete selected
     if (_actionMode == ProjectActionMode.delete) {
       if (_selectedUrls.isEmpty) {
         _exitActionMode();
@@ -305,7 +306,6 @@ class _ProjectFilesOnlySectionState extends State<ProjectFilesOnlySection> {
       return;
     }
 
-    // First click -> choose ALL or SELECT
     final choice = await showDialog<_ClearScope>(
       context: context,
       builder: (ctx) => AlertDialog(
@@ -379,15 +379,15 @@ class _ProjectFilesOnlySectionState extends State<ProjectFilesOnlySection> {
   }
 
   Future<void> _moveFilesToImages() async {
-    if (!widget.isAdmin) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Tylko admin może przenieść')),
-      );
+    if (!_canEdit) {
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('Tylko podgląd')));
       return;
     }
+
     if (_fileItems.isEmpty) return;
 
-    // First click -> enter MOVE mode
     if (_actionMode != ProjectActionMode.move) {
       setState(() {
         _actionMode = ProjectActionMode.move;
@@ -650,7 +650,7 @@ class _ProjectFilesOnlySectionState extends State<ProjectFilesOnlySection> {
   }
 
   Widget _wrapWithDesktopDropTarget(Widget child) {
-    if (!_isDesktop) return child;
+    if (!_isDesktop || !_canEdit) return child;
 
     return DropTarget(
       onDragEntered: (detail) {
@@ -777,7 +777,7 @@ class _ProjectFilesOnlySectionState extends State<ProjectFilesOnlySection> {
       final isHighlighted = _dropHighlight || _dragging;
 
       final box = GestureDetector(
-        onTap: _pickAndUploadFiles,
+        onTap: _canEdit ? _pickAndUploadFiles : null,
         child: Container(
           height: kIsWeb ? 120 : 80,
           alignment: Alignment.center,
@@ -791,9 +791,11 @@ class _ProjectFilesOnlySectionState extends State<ProjectFilesOnlySection> {
                 : Colors.transparent,
           ),
           child: Text(
-            kIsWeb
-                ? 'Kliknij lub upuść pliki tutaj'
-                : 'Dotknij aby dodać pliki',
+            _canEdit
+                ? (kIsWeb
+                      ? 'Kliknij lub upusc pliki tutaj'
+                      : 'Dotknij aby dodać pliki')
+                : 'Brak plików',
           ),
         ),
       );
@@ -804,18 +806,19 @@ class _ProjectFilesOnlySectionState extends State<ProjectFilesOnlySection> {
 
       return Stack(
         children: [
-          Positioned.fill(
-            child: DropzoneView(
-              onCreated: (c) => _dropzoneController = c,
-              operation: DragOperation.copy,
-              onDropFiles: (files) {
-                if (files == null || files.isEmpty) return;
-                _handleWebDropFiles(files);
-              },
-              onHover: () => setState(() => _dropHighlight = true),
-              onLeave: () => setState(() => _dropHighlight = false),
+          if (_canEdit)
+            Positioned.fill(
+              child: DropzoneView(
+                onCreated: (c) => _dropzoneController = c,
+                operation: DragOperation.copy,
+                onDropFiles: (files) {
+                  if (files == null || files.isEmpty) return;
+                  _handleWebDropFiles(files);
+                },
+                onHover: () => setState(() => _dropHighlight = true),
+                onLeave: () => setState(() => _dropHighlight = false),
+              ),
             ),
-          ),
           box,
         ],
       );
@@ -835,6 +838,7 @@ class _ProjectFilesOnlySectionState extends State<ProjectFilesOnlySection> {
             isAdmin: widget.isAdmin,
             actionMode: _actionMode,
             hasItems: _fileItems.isNotEmpty,
+
             onReset: () {
               setState(() {
                 _fileSort = _FileSort.original;
@@ -842,24 +846,22 @@ class _ProjectFilesOnlySectionState extends State<ProjectFilesOnlySection> {
                 _exitActionMode();
               });
             },
-            onSortOriginal: () {
-              setState(() {
-                _fileSort = _FileSort.original;
-              });
+
+            onSortOriginal: () =>
+                setState(() => _fileSort = _FileSort.original),
+            onSortDateNewest: () =>
+                setState(() => _fileSort = _FileSort.dateNewest),
+            onSortType: () => setState(() => _fileSort = _FileSort.type),
+
+            onClear: (!_canEdit || _fileItems.isEmpty) ? null : _clearFiles,
+            onAdd: () {
+              if (_canEdit) {
+                _pickAndUploadFiles();
+              }
             },
-            onSortDateNewest: () {
-              setState(() {
-                _fileSort = _FileSort.dateNewest;
-              });
-            },
-            onSortType: () {
-              setState(() {
-                _fileSort = _FileSort.type;
-              });
-            },
-            onClear: _fileItems.isEmpty ? null : _clearFiles,
-            onAdd: _pickAndUploadFiles,
-            onMove: _fileItems.isEmpty ? null : _moveFilesToImages,
+            onMove: (!_canEdit || _fileItems.isEmpty)
+                ? null
+                : _moveFilesToImages,
           ),
         ),
 
@@ -918,18 +920,19 @@ class _ProjectFilesOnlySectionState extends State<ProjectFilesOnlySection> {
 
     return Stack(
       children: [
-        Positioned.fill(
-          child: DropzoneView(
-            onCreated: (c) => _dropzoneController = c,
-            operation: DragOperation.copy,
-            onDropFiles: (files) {
-              if (files == null || files.isEmpty) return;
-              _handleWebDropFiles(files);
-            },
-            onHover: () => setState(() => _dropHighlight = true),
-            onLeave: () => setState(() => _dropHighlight = false),
+        if (_canEdit)
+          Positioned.fill(
+            child: DropzoneView(
+              onCreated: (c) => _dropzoneController = c,
+              operation: DragOperation.copy,
+              onDropFiles: (files) {
+                if (files == null || files.isEmpty) return;
+                _handleWebDropFiles(files);
+              },
+              onHover: () => setState(() => _dropHighlight = true),
+              onLeave: () => setState(() => _dropHighlight = false),
+            ),
           ),
-        ),
         AnimatedContainer(
           duration: const Duration(milliseconds: 120),
           decoration: BoxDecoration(

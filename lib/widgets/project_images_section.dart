@@ -50,6 +50,7 @@ class _ProjectImagesSectionState extends State<ProjectImagesSection> {
   final Set<String> _selectedUrls = {};
   String _searchQuery = '';
   bool get _isSelecting => _actionMode != ProjectActionMode.none;
+  bool get _canEdit => widget.isAdmin;
 
   void _exitActionMode() {
     setState(() {
@@ -278,6 +279,8 @@ class _ProjectImagesSectionState extends State<ProjectImagesSection> {
   }
 
   Future<void> _clearImages() async {
+    if (!_canEdit) return;
+
     if (!widget.isAdmin) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Tylko admin może skasować')),
@@ -286,7 +289,6 @@ class _ProjectImagesSectionState extends State<ProjectImagesSection> {
     }
     if (_imageItems.isEmpty) return;
 
-    // If already in DELETE mode -> delete selected
     if (_actionMode == ProjectActionMode.delete) {
       if (_selectedUrls.isEmpty) {
         _exitActionMode();
@@ -427,6 +429,8 @@ class _ProjectImagesSectionState extends State<ProjectImagesSection> {
   }
 
   Future<void> _moveImagesToFiles() async {
+    if (!_canEdit) return;
+
     if (!widget.isAdmin) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Tylko admin może przenieść')),
@@ -435,7 +439,6 @@ class _ProjectImagesSectionState extends State<ProjectImagesSection> {
     }
     if (_imageItems.isEmpty) return;
 
-    // First click -> enter MOVE mode
     if (_actionMode != ProjectActionMode.move) {
       setState(() {
         _actionMode = ProjectActionMode.move;
@@ -447,7 +450,6 @@ class _ProjectImagesSectionState extends State<ProjectImagesSection> {
       return;
     }
 
-    // Second click with no selection -> exit mode
     if (_selectedUrls.isEmpty) {
       _exitActionMode();
       return;
@@ -508,6 +510,8 @@ class _ProjectImagesSectionState extends State<ProjectImagesSection> {
   }
 
   Future<void> _handleDesktopDropFiles(List<XFile> dropped) async {
+    if (!_canEdit) return;
+
     if (dropped.isEmpty) return;
 
     setState(() => _uploading = true);
@@ -565,6 +569,8 @@ class _ProjectImagesSectionState extends State<ProjectImagesSection> {
   }
 
   Future<void> _takePhotoAndUpload() async {
+    if (!_canEdit) return;
+
     if (kIsWeb) return;
 
     final picker = ImagePicker();
@@ -599,6 +605,8 @@ class _ProjectImagesSectionState extends State<ProjectImagesSection> {
   }
 
   Future<void> _handleAddPressed() async {
+    if (!_canEdit) return;
+
     if (kIsWeb || _isDesktop) {
       await _pickAndUploadFiles();
       return;
@@ -652,6 +660,8 @@ class _ProjectImagesSectionState extends State<ProjectImagesSection> {
   }
 
   Future<void> _pickAndUploadFiles() async {
+    if (!_canEdit) return;
+
     final result = await FilePicker.platform.pickFiles(
       allowMultiple: true,
       type: FileType.image,
@@ -728,15 +738,11 @@ class _ProjectImagesSectionState extends State<ProjectImagesSection> {
   }
 
   Widget _wrapWithDesktopDropTarget(Widget child) {
-    if (!_isDesktop) return child;
+    if (!_isDesktop || !_canEdit) return child;
 
     return DropTarget(
-      onDragEntered: (detail) {
-        setState(() => _dragging = true);
-      },
-      onDragExited: (detail) {
-        setState(() => _dragging = false);
-      },
+      onDragEntered: (detail) => setState(() => _dragging = true),
+      onDragExited: (detail) => setState(() => _dragging = false),
       onDragDone: (detail) async {
         if (detail.files.isEmpty) return;
         await _handleDesktopDropFiles(detail.files);
@@ -917,7 +923,7 @@ class _ProjectImagesSectionState extends State<ProjectImagesSection> {
       final isHighlighted = _dropHighlight || _dragging;
 
       final box = GestureDetector(
-        onTap: _handleAddPressed,
+        onTap: _canEdit ? _handleAddPressed : null,
         child: Container(
           height: kIsWeb ? 120 : 80,
           alignment: Alignment.center,
@@ -931,31 +937,36 @@ class _ProjectImagesSectionState extends State<ProjectImagesSection> {
                 : Colors.transparent,
           ),
           child: Text(
-            kIsWeb
-                ? 'Kliknij lub upuść fotek tutaj'
-                : 'Dotknij aby dodać fotek',
+            _canEdit
+                ? (kIsWeb
+                      ? 'Kliknij lub upuść fotek tutaj'
+                      : 'Dotknij aby dodać fotek')
+                : 'Brak zdjęć',
           ),
         ),
       );
 
       if (!kIsWeb) {
-        return _wrapWithDesktopDropTarget(box);
+        return _wrapWithDesktopDropTarget(
+          box,
+        ); // wrapper will be disabled if !_canEdit
       }
 
       return Stack(
         children: [
-          Positioned.fill(
-            child: DropzoneView(
-              onCreated: (c) => _dropzoneController = c,
-              operation: DragOperation.copy,
-              onDropFiles: (files) {
-                if (files == null || files.isEmpty) return;
-                _handleWebDropFiles(files);
-              },
-              onHover: () => setState(() => _dropHighlight = true),
-              onLeave: () => setState(() => _dropHighlight = false),
+          if (_canEdit)
+            Positioned.fill(
+              child: DropzoneView(
+                onCreated: (c) => _dropzoneController = c,
+                operation: DragOperation.copy,
+                onDropFiles: (files) {
+                  if (files == null || files.isEmpty) return;
+                  _handleWebDropFiles(files);
+                },
+                onHover: () => setState(() => _dropHighlight = true),
+                onLeave: () => setState(() => _dropHighlight = false),
+              ),
             ),
-          ),
           box,
         ],
       );
@@ -996,9 +1007,11 @@ class _ProjectImagesSectionState extends State<ProjectImagesSection> {
                 _sort = _ImageSort.type;
               });
             },
-            onClear: _imageItems.isEmpty ? null : _clearImages,
-            onAdd: _handleAddPressed,
-            onMove: _imageItems.isEmpty ? null : _moveImagesToFiles,
+            onClear: (!_canEdit || _imageItems.isEmpty) ? null : _clearImages,
+            onAdd: _canEdit ? _handleAddPressed : null,
+            onMove: (!_canEdit || _imageItems.isEmpty)
+                ? null
+                : _moveImagesToFiles,
           ),
         ),
 
@@ -1057,27 +1070,30 @@ class _ProjectImagesSectionState extends State<ProjectImagesSection> {
 
     return Stack(
       children: [
-        Positioned.fill(
-          child: DropzoneView(
-            onCreated: (c) => _dropzoneController = c,
-            operation: DragOperation.copy,
-            onDropFiles: (files) {
-              if (files == null || files.isEmpty) return;
-              _handleWebDropFiles(files);
-            },
-            onHover: () => setState(() => _dropHighlight = true),
-            onLeave: () => setState(() => _dropHighlight = false),
+        if (_canEdit)
+          Positioned.fill(
+            child: DropzoneView(
+              onCreated: (c) => _dropzoneController = c,
+              operation: DragOperation.copy,
+              onDropFiles: (files) {
+                if (files == null || files.isEmpty) return;
+                _handleWebDropFiles(files);
+              },
+              onHover: () => setState(() => _dropHighlight = true),
+              onLeave: () => setState(() => _dropHighlight = false),
+            ),
           ),
-        ),
         AnimatedContainer(
           duration: const Duration(milliseconds: 120),
           decoration: BoxDecoration(
             borderRadius: BorderRadius.circular(6),
-            border: _dropHighlight
+            border: (_canEdit && _dropHighlight)
                 ? Border.all(color: Colors.blueAccent, width: 1.5)
                 : null,
           ),
-          padding: _dropHighlight ? const EdgeInsets.all(2) : EdgeInsets.zero,
+          padding: (_canEdit && _dropHighlight)
+              ? const EdgeInsets.all(2)
+              : EdgeInsets.zero,
           child: content,
         ),
       ],

@@ -21,6 +21,7 @@ class NotesSection extends StatelessWidget {
   final OnNoteAdded onAddNote;
   final OnNoteEdited onEdit;
   final OnNoteDeleted onDelete;
+  final bool readOnly;
 
   const NotesSection({
     super.key,
@@ -28,6 +29,7 @@ class NotesSection extends StatelessWidget {
     required this.onAddNote,
     required this.onEdit,
     required this.onDelete,
+    this.readOnly = false,
   });
 
   @override
@@ -45,7 +47,7 @@ class NotesSection extends StatelessWidget {
           children: [
             Center(
               child: GestureDetector(
-                onTap: () async => await onAddNote(context),
+                onTap: readOnly ? null : () async => await onAddNote(context),
                 child: Row(
                   mainAxisSize: MainAxisSize.min,
                   children: [
@@ -59,14 +61,16 @@ class NotesSection extends StatelessWidget {
                 ),
               ),
             ),
-            Positioned(
-              top: 4,
-              right: 4,
-              child: _AddNoteButton(
-                size: addButtonSize,
-                onTap: () async => await onAddNote(context),
+
+            if (!readOnly)
+              Positioned(
+                top: 4,
+                right: 4,
+                child: _AddNoteButton(
+                  size: addButtonSize,
+                  onTap: () async => await onAddNote(context),
+                ),
               ),
-            ),
           ],
         ),
       );
@@ -97,6 +101,7 @@ class NotesSection extends StatelessWidget {
                         index: notes.indexOf(note),
                         onEdit: onEdit,
                         onDelete: onDelete,
+                        readOnly: readOnly,
                       ),
                   ],
                 ),
@@ -105,18 +110,40 @@ class NotesSection extends StatelessWidget {
           ),
 
           // "+"
-          Positioned(
-            top: 4,
-            right: 4,
-            child: _AddNoteButton(
-              size: addButtonSize,
-              onTap: () async => await onAddNote(context),
+          if (!readOnly)
+            Positioned(
+              top: 4,
+              right: 4,
+              child: _AddNoteButton(
+                size: addButtonSize,
+                onTap: () async => await onAddNote(context),
+              ),
             ),
-          ),
         ],
       ),
     );
   }
+}
+
+Future<void> showNoteReadOnlyDialog(
+  BuildContext context, {
+  required String userName,
+  required DateTime createdAt,
+  required String text,
+}) {
+  return showDialog<void>(
+    context: context,
+    builder: (ctx) => AlertDialog(
+      title: Text(userName),
+      content: SingleChildScrollView(child: Text(text)),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.pop(ctx),
+          child: const Text('Zamknij'),
+        ),
+      ],
+    ),
+  );
 }
 
 class _NoteTile extends StatelessWidget {
@@ -125,11 +152,14 @@ class _NoteTile extends StatelessWidget {
   final OnNoteEdited onEdit;
   final OnNoteDeleted onDelete;
 
+  final bool readOnly;
+
   const _NoteTile({
     required this.note,
     required this.index,
     required this.onEdit,
     required this.onDelete,
+    required this.readOnly,
   });
 
   @override
@@ -143,6 +173,16 @@ class _NoteTile extends StatelessWidget {
         children: [
           InkWell(
             onTap: () async {
+              if (readOnly) {
+                await showNoteReadOnlyDialog(
+                  context,
+                  userName: note.userName,
+                  createdAt: note.createdAt,
+                  text: note.text,
+                );
+                return;
+              }
+
               final updated = await showNoteDialog(
                 context,
                 userName: note.userName,
@@ -167,21 +207,23 @@ class _NoteTile extends StatelessWidget {
               ),
             ),
           ),
-          Positioned(
-            top: 0,
-            right: 0,
-            child: InkWell(
-              onTap: () => onDelete(index),
-              child: Container(
-                padding: const EdgeInsets.all(2),
-                decoration: const BoxDecoration(
-                  color: Colors.black45,
-                  shape: BoxShape.circle,
+
+          if (!readOnly)
+            Positioned(
+              top: 0,
+              right: 0,
+              child: InkWell(
+                onTap: () => onDelete(index),
+                child: Container(
+                  padding: const EdgeInsets.all(2),
+                  decoration: const BoxDecoration(
+                    color: Colors.black45,
+                    shape: BoxShape.circle,
+                  ),
+                  child: const Icon(Icons.close, size: 14, color: Colors.white),
                 ),
-                child: const Icon(Icons.close, size: 14, color: Colors.white),
               ),
             ),
-          ),
         ],
       ),
     );

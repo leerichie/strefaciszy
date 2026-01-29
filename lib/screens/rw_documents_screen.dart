@@ -1,5 +1,6 @@
 // lib/screens/rw_documents_screen.dart
 
+import 'dart:async';
 import 'dart:convert';
 
 import 'package:auto_size_text/auto_size_text.dart';
@@ -25,11 +26,14 @@ class RWDocumentsScreen extends StatefulWidget {
   final String? customerId;
   final String? projectId;
   final bool isAdmin;
+  final bool canEdit;
+
   const RWDocumentsScreen({
     super.key,
     this.customerId,
     this.projectId,
     required this.isAdmin,
+    this.canEdit = true,
   });
 
   @override
@@ -42,40 +46,15 @@ class _RWDocumentsScreenState extends State<RWDocumentsScreen> {
   DateTime? _fromDate;
   DateTime? _toDate;
   Map<String, String> userNames = {};
+  bool get canMutate => widget.isAdmin && widget.canEdit;
+  bool _projectIsArchived = false;
+  StreamSubscription<DocumentSnapshot<Map<String, dynamic>>>? _projectSub;
 
   late final TextEditingController _searchController;
 
-  // Stream<QuerySnapshot> get _stream {
-  //   final db = FirebaseFirestore.instance;
-
-  //   if (widget.customerId != null && widget.projectId != null) {
-  //     return db
-  //         .collection('customers')
-  //         .doc(widget.customerId)
-  //         .collection('projects')
-  //         .doc(widget.projectId)
-  //         .collection('rw_documents')
-  //         .orderBy('createdDay', descending: true)
-  //         .snapshots();
-  //   }
-
-  //   if (widget.customerId != null) {
-  //     return db
-  //         .collectionGroup('rw_documents')
-  //         .where('customerId', isEqualTo: widget.customerId)
-  //         .orderBy('createdDay', descending: true)
-  //         .snapshots();
-  //   }
-
-  //   return db
-  //       .collectionGroup('rw_documents')
-  //       .orderBy('createdDay', descending: true)
-  //       .snapshots();
-  // }
   Stream<QuerySnapshot> get _stream {
     final db = FirebaseFirestore.instance;
 
-    // INSIDE project view
     if (widget.customerId != null && widget.projectId != null) {
       return db
           .collection('customers')
@@ -83,25 +62,20 @@ class _RWDocumentsScreenState extends State<RWDocumentsScreen> {
           .collection('projects')
           .doc(widget.projectId)
           .collection('rw_documents')
-          // use createdAt again – NOT createdDay
           .orderBy('createdAt', descending: true)
           .snapshots();
     }
 
-    // CLIENT view – all RW for this customer
     if (widget.customerId != null) {
       return db
           .collectionGroup('rw_documents')
           .where('customerId', isEqualTo: widget.customerId)
-          // use createdAt again – NOT createdDay
           .orderBy('createdAt', descending: true)
           .snapshots();
     }
 
-    // ADMIN view – all RW everywhere
     return db
         .collectionGroup('rw_documents')
-        // use createdAt again – NOT createdDay
         .orderBy('createdAt', descending: true)
         .snapshots();
   }
@@ -110,10 +84,32 @@ class _RWDocumentsScreenState extends State<RWDocumentsScreen> {
   void initState() {
     super.initState();
     _searchController = TextEditingController();
+
+    if (widget.customerId != null && widget.projectId != null) {
+      _projectSub = FirebaseFirestore.instance
+          .collection('customers')
+          .doc(widget.customerId!)
+          .collection('projects')
+          .doc(widget.projectId!)
+          .snapshots()
+          .listen((snap) {
+            final p = snap.data() ?? const <String, dynamic>{};
+
+            final status = (p['status'] ?? '').toString().toLowerCase();
+            final archived =
+                (p['archived'] == true) ||
+                (p['isArchived'] == true) ||
+                (p['archivedAt'] != null) ||
+                (status == 'archived');
+
+            if (mounted) setState(() => _projectIsArchived = archived);
+          });
+    }
   }
 
   @override
   void dispose() {
+    _projectSub?.cancel();
     _searchController.dispose();
     super.dispose();
   }
@@ -166,8 +162,11 @@ class _RWDocumentsScreenState extends State<RWDocumentsScreen> {
 
   @override
   Widget build(BuildContext context) {
+    // debugPrint(
+    //   'RWDocumentsScreen: isAdmin=${widget.isAdmin} canEdit=${widget.canEdit} => canMutate=$canMutate',
+    // );
     final isClientView = widget.customerId != null;
-
+    final bool canMutateNow = canMutate && !_projectIsArchived;
     final titleWidg = (widget.customerId != null && widget.projectId != null)
         ? FutureBuilder<List<DocumentSnapshot<Map<String, dynamic>>>>(
             future: Future.wait<DocumentSnapshot<Map<String, dynamic>>>([
@@ -388,145 +387,172 @@ class _RWDocumentsScreenState extends State<RWDocumentsScreen> {
                           now.isBefore(startOfTomorrow);
 
                       final actions = <Widget>[];
-                      if (isToday) {
+                      // final bool isProjectView =
+                      //     widget.customerId != null && widget.projectId != null;
+
+                      if (isToday &&
+                          widget.customerId != null &&
+                          widget.projectId != null) {
                         actions.add(
                           IconButton(
-                            icon: const Icon(Icons.edit, color: Colors.blue),
-                            tooltip: 'Edytuj dokument',
-                            onPressed: () {
-                              Navigator.of(context).push(
-                                MaterialPageRoute(
-                                  builder: (_) => ProjectEditorScreen(
-                                    customerId: widget.customerId!,
-                                    projectId: widget.projectId!,
-                                    isAdmin: widget.isAdmin,
-                                    rwId: doc.id,
-                                    rwCreatedAt: ts,
-                                  ),
-                                ),
-                              );
-                            },
+                            icon: Icon(
+                              Icons.edit,
+                              color: canMutateNow
+                                  ? Colors.blue
+                                  : Colors.grey.shade400,
+                            ),
+                            tooltip: canMutateNow
+                                ? 'Edytuj dokument'
+                                : 'Zarchiwizowano – brak edycji',
+                            onPressed: canMutateNow
+                                ? () {
+                                    Navigator.of(context).push(
+                                      MaterialPageRoute(
+                                        builder: (_) => ProjectEditorScreen(
+                                          customerId: widget.customerId!,
+                                          projectId: widget.projectId!,
+                                          isAdmin: widget.isAdmin,
+                                          rwId: doc.id,
+                                          rwCreatedAt: ts,
+                                        ),
+                                      ),
+                                    );
+                                  }
+                                : null,
                           ),
                         );
                       }
+
+                      // DELETE
                       if (widget.isAdmin) {
                         actions.add(
                           IconButton(
-                            icon: Icon(Icons.delete, color: Colors.red),
-                            tooltip: 'Usuń dokument',
-                            onPressed: () async {
-                              final ok = await showDialog<bool>(
-                                context: context,
-                                builder: (ctx2) => AlertDialog(
-                                  title: Text('Usuń dokument?'),
-                                  actions: [
-                                    TextButton(
-                                      onPressed: () =>
-                                          Navigator.pop(ctx2, false),
-                                      child: Text('Anuluj'),
-                                    ),
-                                    ElevatedButton(
-                                      onPressed: () =>
-                                          Navigator.pop(ctx2, true),
-                                      child: Text('Usuń'),
-                                    ),
-                                  ],
-                                ),
-                              );
-                              if (ok != true) return;
+                            icon: Icon(
+                              Icons.delete,
+                              color: canMutateNow
+                                  ? Colors.red
+                                  : Colors.grey.shade400,
+                            ),
+                            tooltip: canMutateNow
+                                ? 'Usuń dokument'
+                                : 'Zarchiwizowano – brak usuwania',
+                            onPressed: canMutateNow
+                                ? () async {
+                                    final ok = await showDialog<bool>(
+                                      context: context,
+                                      builder: (ctx2) => AlertDialog(
+                                        title: Text('Usuń dokument?'),
+                                        actions: [
+                                          TextButton(
+                                            onPressed: () =>
+                                                Navigator.pop(ctx2, false),
+                                            child: Text('Anuluj'),
+                                          ),
+                                          ElevatedButton(
+                                            onPressed: () =>
+                                                Navigator.pop(ctx2, true),
+                                            child: Text('Usuń'),
+                                          ),
+                                        ],
+                                      ),
+                                    );
+                                    if (ok != true) return;
 
-                              final data = d;
-                              final items =
-                                  (data['items'] as List<dynamic>? ?? [])
-                                      .cast<Map<String, dynamic>>();
+                                    final data = d;
+                                    final items =
+                                        (data['items'] as List<dynamic>? ?? [])
+                                            .cast<Map<String, dynamic>>();
 
-                              try {
-                                await AdminApi.init();
-                                final actorEmail =
-                                    FirebaseAuth.instance.currentUser?.email ??
-                                    'app';
-                                for (final it in items) {
-                                  final id = (it['itemId'] ?? '').toString();
-                                  if (id.isEmpty) continue;
-                                  await AdminApi.reserveUpsert(
-                                    projectId: widget.projectId!,
-                                    customerId: widget.customerId!,
-                                    itemId: id,
-                                    qty: 0,
-                                    actorEmail: actorEmail,
-                                  );
-                                }
-                              } catch (e) {
-                                ScaffoldMessenger.of(context).showSnackBar(
-                                  SnackBar(
-                                    content: Text(
-                                      'Cofanie rezerwacja nie powiodło się: $e',
-                                    ),
-                                  ),
-                                );
-                                return;
-                              }
+                                    try {
+                                      await AdminApi.init();
+                                      final actorEmail =
+                                          FirebaseAuth
+                                              .instance
+                                              .currentUser
+                                              ?.email ??
+                                          'app';
+                                      for (final it in items) {
+                                        final id = (it['itemId'] ?? '')
+                                            .toString();
+                                        if (id.isEmpty) continue;
+                                        await AdminApi.reserveUpsert(
+                                          projectId: widget.projectId!,
+                                          customerId: widget.customerId!,
+                                          itemId: id,
+                                          qty: 0,
+                                          actorEmail: actorEmail,
+                                        );
+                                      }
+                                    } catch (e) {
+                                      ScaffoldMessenger.of(
+                                        context,
+                                      ).showSnackBar(
+                                        SnackBar(
+                                          content: Text(
+                                            'Cofanie rezerwacja nie powiodło się: $e',
+                                          ),
+                                        ),
+                                      );
+                                      return;
+                                    }
 
-                              // firestore
-                              // for (var it in items) {
-                              //   final id = (it['itemId'] ?? '').toString();
-                              //   final qty = (it['quantity'] as num?)?.toInt() ?? 0;
-                              //   if (id.isEmpty || qty <= 0) continue;
-                              //   await StockService.increaseQty(id, qty);
-                              // }
+                                    final projectRef = FirebaseFirestore
+                                        .instance
+                                        .collection('customers')
+                                        .doc(widget.customerId!)
+                                        .collection('projects')
+                                        .doc(widget.projectId!);
 
-                              final projectRef = FirebaseFirestore.instance
-                                  .collection('customers')
-                                  .doc(widget.customerId!)
-                                  .collection('projects')
-                                  .doc(widget.projectId!);
+                                    final summary = items
+                                        .map((it) {
+                                          final name =
+                                              it['name'] as String? ??
+                                              it['itemId'];
+                                          final qty = it['quantity'] as num;
+                                          final unit =
+                                              it['unit'] as String? ?? '';
+                                          return '$name (${qty.toInt()}$unit)';
+                                        })
+                                        .join(', ');
 
-                              final summary = items
-                                  .map((it) {
-                                    final name =
-                                        it['name'] as String? ?? it['itemId'];
-                                    final qty = it['quantity'] as num;
-                                    final unit = it['unit'] as String? ?? '';
-                                    return '$name (${qty.toInt()}$unit)';
-                                  })
-                                  .join(', ');
+                                    await AuditService.logAction(
+                                      action: 'Usunięto ${data['type']}',
+                                      customerId: widget.customerId!,
+                                      projectId: widget.projectId!,
+                                      details: {
+                                        'Klient': data['customerName'] ?? '',
+                                        'Projekt': data['projectName'] ?? '',
+                                        'Produkt': summary,
+                                        'Zmiana': summary,
+                                      },
+                                    );
 
-                              await AuditService.logAction(
-                                action: 'Usunięto ${data['type']}',
-                                customerId: widget.customerId!,
-                                projectId: widget.projectId!,
-                                details: {
-                                  'Klient': data['customerName'] ?? '',
-                                  'Projekt': data['projectName'] ?? '',
-                                  'Produkt': summary,
-                                  'Zmiana': summary,
-                                },
-                              );
+                                    await doc.reference.delete();
 
-                              await doc.reference.delete();
+                                    final rwNotes = (data['notesList'] as List)
+                                        .cast<Map<String, dynamic>>();
 
-                              final rwNotes = (data['notesList'] as List)
-                                  .cast<Map<String, dynamic>>();
+                                    final uid =
+                                        FirebaseAuth.instance.currentUser?.uid;
 
-                              final uid =
-                                  FirebaseAuth.instance.currentUser?.uid;
+                                    await projectRef.update({
+                                      'items': <Map<String, dynamic>>[],
+                                      'notesList': FieldValue.arrayRemove(
+                                        rwNotes,
+                                      ),
+                                      'updatedAt': FieldValue.serverTimestamp(),
+                                      if (uid != null) 'updatedBy': uid,
+                                    });
 
-                              await projectRef.update({
-                                // update filter
-                                'items': <Map<String, dynamic>>[],
-                                'notesList': FieldValue.arrayRemove(rwNotes),
-                                'updatedAt': FieldValue.serverTimestamp(),
-                                if (uid != null) 'updatedBy': uid,
-                              });
-
-                              ScaffoldMessenger.of(context).showSnackBar(
-                                SnackBar(
-                                  content: Text(
-                                    'Usunięty, rezerwacje zwolnione',
-                                  ),
-                                ),
-                              );
-                            },
+                                    ScaffoldMessenger.of(context).showSnackBar(
+                                      SnackBar(
+                                        content: Text(
+                                          'Usunięty, rezerwacje zwolnione',
+                                        ),
+                                      ),
+                                    );
+                                  }
+                                : null,
                           ),
                         );
                       }
