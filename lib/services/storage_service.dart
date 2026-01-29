@@ -1,11 +1,12 @@
-// lib/services/storage_service.dart
+// services/storage_service.dart
+
+import 'dart:io' as io;
 
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_storage/firebase_storage.dart';
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:image_picker/image_picker.dart';
-import 'package:firebase_storage/firebase_storage.dart';
 import 'package:path/path.dart' as p;
-import 'dart:io' as io;
 
 class StorageService {
   final ImagePicker _picker = ImagePicker();
@@ -97,6 +98,14 @@ class StorageService {
   Future<String> uploadProjectImage(String projectId, XFile file) {
     return _uploadFile(
       folder: 'project_images/$projectId',
+      idSegment: null,
+      file: file,
+    );
+  }
+
+  Future<String> uploadChatImage(String chatId, XFile file) {
+    return _uploadFile(
+      folder: 'chat_attachments/$chatId',
       idSegment: null,
       file: file,
     );

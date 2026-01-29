@@ -1,6 +1,9 @@
+// services/user_functions.dart
+
 import 'dart:convert';
-import 'package:http/http.dart' as http;
+
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:http/http.dart' as http;
 
 class UserFunctions {
   static const _baseUrl = 'https://us-central1-strefa-ciszy.cloudfunctions.net';
