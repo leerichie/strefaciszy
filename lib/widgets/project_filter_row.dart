@@ -19,7 +19,7 @@ class ProjectFilterRow extends StatelessWidget {
 
   final VoidCallback? onClear;
 
-  final VoidCallback onAdd;
+  final VoidCallback? onAdd;
 
   const ProjectFilterRow({
     super.key,
@@ -34,7 +34,7 @@ class ProjectFilterRow extends StatelessWidget {
     required this.onSortDateNewest,
     required this.onSortType,
     required this.onClear,
-    required this.onAdd,
+    this.onAdd,
     this.onMove,
   });
 
@@ -42,6 +42,8 @@ class ProjectFilterRow extends StatelessWidget {
   Widget build(BuildContext context) {
     Color iconColor(bool selected, Color active) =>
         selected ? active : Colors.grey.shade700;
+
+    final canAdd = isAdmin && onAdd != null; // <-- MUST be here (before return)
 
     return Wrap(
       spacing: 8,
@@ -109,14 +111,20 @@ class ProjectFilterRow extends StatelessWidget {
             ),
           ),
 
-        // ADD (always actionable)
+        // ADD (grey + disabled when onAdd == null)
         ChoiceChip(
-          label: Icon(Icons.add, size: 18, color: Colors.blue),
+          label: Icon(
+            Icons.add,
+            size: 18,
+            color: canAdd ? Colors.blue : Colors.grey.shade500,
+          ),
           labelPadding: EdgeInsets.zero,
           selected: false,
-          onSelected: (_) => onAdd(),
+          onSelected: onAdd == null ? null : (_) => onAdd!(),
           backgroundColor: Colors.transparent,
-          side: const BorderSide(color: Colors.blueAccent),
+          side: BorderSide(
+            color: canAdd ? Colors.blueAccent : Colors.grey.shade400,
+          ),
         ),
 
         // MOVE (admin)

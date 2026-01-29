@@ -61,6 +61,7 @@ class _ProjectDescriptionScreenState extends State<ProjectDescriptionScreen> {
   Timer? _descDebounce;
   late final VoidCallback _descListener;
   String? _oneDriveUrl;
+  bool _projectArchived = false;
 
   StreamSubscription<DocumentSnapshot<Map<String, dynamic>>>? _locSub;
 
@@ -82,6 +83,8 @@ class _ProjectDescriptionScreenState extends State<ProjectDescriptionScreen> {
           final data = snap.data();
           if (data == null) return;
 
+          final archived = data['archived'] == true;
+
           final gp = data['location'] as GeoPoint?;
           if (gp != null) {
             final newLoc = LatLng(gp.latitude, gp.longitude);
@@ -93,12 +96,20 @@ class _ProjectDescriptionScreenState extends State<ProjectDescriptionScreen> {
               _location = newLoc;
               _addressCtrl.text =
                   data['address'] as String? ?? _addressCtrl.text;
+              _projectArchived = archived;
+            });
+          } else {
+            setState(() {
+              _projectArchived = archived;
             });
           }
         });
   }
 
   void _onDescChanged(String value) {
+    final canEdit = widget.isAdmin && !_projectArchived;
+    if (!canEdit) return;
+
     if (_descDebounce?.isActive ?? false) _descDebounce!.cancel();
     _descDebounce = Timer(const Duration(milliseconds: 500), () async {
       final trimmed = value.trim();
@@ -461,6 +472,8 @@ class _ProjectDescriptionScreenState extends State<ProjectDescriptionScreen> {
   }
 
   Widget _buildOpisTab() {
+    final canEdit = widget.isAdmin && !_projectArchived;
+
     return SingleChildScrollView(
       keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
       padding: const EdgeInsets.all(16),
@@ -479,9 +492,9 @@ class _ProjectDescriptionScreenState extends State<ProjectDescriptionScreen> {
               keyboardType: TextInputType.multiline,
               minLines: 4,
               maxLines: null,
-              readOnly: !widget.isAdmin,
+              readOnly: !canEdit,
               validator: (v) {
-                if (widget.isAdmin && (v == null || v.trim().isEmpty)) {
+                if (canEdit && (v == null || v.trim().isEmpty)) {
                   return 'Wpisz opis';
                 }
                 return null;
@@ -506,42 +519,52 @@ class _ProjectDescriptionScreenState extends State<ProjectDescriptionScreen> {
                               position: _location!,
                             ),
                           },
-                    onTap: (pos) async {
-                      _mapController?.animateCamera(
-                        CameraUpdate.newLatLng(pos),
-                      );
-                      final docRef = FirebaseFirestore.instance
-                          .collection('customers')
-                          .doc(widget.customerId)
-                          .collection('projects')
-                          .doc(widget.projectId);
-                      await docRef.set({
-                        'location': GeoPoint(pos.latitude, pos.longitude),
-                      }, SetOptions(merge: true));
-                      final url = Uri.https(
-                        'maps.googleapis.com',
-                        '/maps/api/geocode/json',
-                        {
-                          'latlng': '${pos.latitude},${pos.longitude}',
-                          'key': 'AIzaSyDkXiS4JP9iySRXxzOiI1oN0_EmI6Tx208',
-                        },
-                      );
-                      final resp = await http.get(url);
-                      final body =
-                          jsonDecode(resp.body) as Map<String, dynamic>;
-                      if (body['status'] == 'OK' &&
-                          (body['results'] as List).isNotEmpty) {
-                        final formatted =
-                            body['results'][0]['formatted_address'] as String;
-                        await docRef.set({
-                          'address': formatted,
-                        }, SetOptions(merge: true));
-                        setState(() => _addressCtrl.text = formatted);
-                      }
-                    },
+                    onTap: !canEdit
+                        ? null
+                        : (pos) async {
+                            _mapController?.animateCamera(
+                              CameraUpdate.newLatLng(pos),
+                            );
+                            final docRef = FirebaseFirestore.instance
+                                .collection('customers')
+                                .doc(widget.customerId)
+                                .collection('projects')
+                                .doc(widget.projectId);
+                            await docRef.set({
+                              'location': GeoPoint(pos.latitude, pos.longitude),
+                            }, SetOptions(merge: true));
+                            final url = Uri.https(
+                              'maps.googleapis.com',
+                              '/maps/api/geocode/json',
+                              {
+                                'latlng': '${pos.latitude},${pos.longitude}',
+                                'key':
+                                    'AIzaSyDkXiS4JP9iySRXxzOiI1oN0_EmI6Tx208',
+                              },
+                            );
+                            final resp = await http.get(url);
+                            final body =
+                                jsonDecode(resp.body) as Map<String, dynamic>;
+                            if (body['status'] == 'OK' &&
+                                (body['results'] as List).isNotEmpty) {
+                              final formatted =
+                                  body['results'][0]['formatted_address']
+                                      as String;
+                              await docRef.set({
+                                'address': formatted,
+                              }, SetOptions(merge: true));
+                              setState(() => _addressCtrl.text = formatted);
+                            }
+                          },
                     myLocationEnabled: true,
                     myLocationButtonEnabled: true,
+
+                    zoomGesturesEnabled: canEdit,
+                    scrollGesturesEnabled: canEdit,
+                    rotateGesturesEnabled: canEdit,
+                    tiltGesturesEnabled: canEdit,
                   ),
+
                   Positioned(
                     top: 50,
                     left: 1,
@@ -561,7 +584,7 @@ class _ProjectDescriptionScreenState extends State<ProjectDescriptionScreen> {
                         backgroundColor: Colors.white.withValues(alpha: 0.9),
                         elevation: 2,
                       ),
-                      onPressed: _pickLocation,
+                      onPressed: canEdit ? _pickLocation : null,
                       icon: const SizedBox.shrink(),
                     ),
                   ),
@@ -584,7 +607,7 @@ class _ProjectDescriptionScreenState extends State<ProjectDescriptionScreen> {
                         backgroundColor: Colors.white.withValues(alpha: 0.9),
                         elevation: 2,
                       ),
-                      onPressed: _launchNavigation,
+                      onPressed: canEdit ? _launchNavigation : null,
                       icon: const SizedBox.shrink(),
                     ),
                   ),
@@ -594,15 +617,16 @@ class _ProjectDescriptionScreenState extends State<ProjectDescriptionScreen> {
             const SizedBox(height: 8),
             TextFormField(
               controller: _addressCtrl,
+              readOnly: !canEdit,
               decoration: InputDecoration(
                 hintText: 'Nazwa budynku, adres, kod lub URL',
                 suffixIcon: IconButton(
                   icon: const Icon(Icons.search),
-                  onPressed: _searchAddress,
+                  onPressed: canEdit ? _searchAddress : null,
                 ),
               ),
               textInputAction: TextInputAction.search,
-              onFieldSubmitted: (_) => _searchAddress(),
+              onFieldSubmitted: canEdit ? (_) => _searchAddress() : null,
             ),
           ],
         ),
@@ -611,19 +635,21 @@ class _ProjectDescriptionScreenState extends State<ProjectDescriptionScreen> {
   }
 
   Widget _buildFotkiTab() {
+    final canEdit = widget.isAdmin && !_projectArchived;
     return ProjectImagesSection(
       customerId: widget.customerId,
       projectId: widget.projectId,
-      isAdmin: widget.isAdmin,
+      isAdmin: canEdit,
       initialFiles: _initialFiles,
     );
   }
 
   Widget _buildPlikiTab() {
+    final canEdit = widget.isAdmin && !_projectArchived;
     return ProjectFilesOnlySection(
       customerId: widget.customerId,
       projectId: widget.projectId,
-      isAdmin: widget.isAdmin,
+      isAdmin: canEdit,
       initialFiles: _initialFiles,
     );
   }
@@ -648,6 +674,7 @@ class _ProjectDescriptionScreenState extends State<ProjectDescriptionScreen> {
         ),
       ],
     );
+    final canEdit = widget.isAdmin && !_projectArchived;
 
     return DefaultTabController(
       length: 3,
@@ -659,9 +686,18 @@ class _ProjectDescriptionScreenState extends State<ProjectDescriptionScreen> {
         actions: [
           OneDriveLinkButton(
             url: _oneDriveUrl,
-            onTap: _openOneDriveLink,
-            onLongPress: _editOneDriveLink,
+            onTap: _projectArchived
+                ? () {}
+                : () {
+                    _openOneDriveLink();
+                  },
+            onLongPress: (_projectArchived || !widget.isAdmin)
+                ? () {}
+                : () {
+                    _editOneDriveLink();
+                  },
           ),
+
           const SizedBox(width: 4),
         ],
         body: _loading

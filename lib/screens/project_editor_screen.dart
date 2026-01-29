@@ -86,6 +86,7 @@ class _ProjectEditorScreenState extends State<ProjectEditorScreen> {
   bool _stockHasMore = true;
   List<ProjectLine> _lines = [];
   late final bool _rwLocked;
+  bool _projectArchived = false;
 
   late final StreamSubscription<DocumentSnapshot<Map<String, dynamic>>>
   _notesSub;
@@ -143,6 +144,13 @@ class _ProjectEditorScreenState extends State<ProjectEditorScreen> {
         .collection('projects')
         .doc(widget.projectId);
 
+    projRef.get().then((snap) {
+      if (!mounted || !snap.exists) return;
+      setState(() {
+        _projectArchived = snap.data()?['archived'] == true;
+      });
+    });
+
     _notesSub = projRef.snapshots().listen((snap) {
       if (!mounted) return;
       if (!snap.exists) return;
@@ -183,11 +191,6 @@ class _ProjectEditorScreenState extends State<ProjectEditorScreen> {
             final unit = m['unit'] as String? ?? '';
             final name = (m['name'] as String?) ?? '';
 
-            // final isStock = _stockItems.any((s) => s.id == itemId);
-            // final originalStock = isStock
-            //     ? _stockItems.firstWhere((s) => s.id == itemId).quantity
-            //     : qty;
-
             final idx = _stockItems.indexWhere((s) => s.id == itemId);
             final isStock = itemId.isNotEmpty;
             final originalStock = idx == -1 ? qty : _stockItems[idx].quantity;
@@ -211,6 +214,8 @@ class _ProjectEditorScreenState extends State<ProjectEditorScreen> {
         _notes = todayNotes;
         _lines = freshLines;
         _title = (data['title'] as String?) ?? _title;
+
+        _projectArchived = (data['archived'] as bool?) ?? false;
 
         if (_currentCtrl.text.isEmpty) {
           _currentText = serverCurrentText;
@@ -259,7 +264,44 @@ class _ProjectEditorScreenState extends State<ProjectEditorScreen> {
     }
   }
 
-  // project latest changes filter
+  Future<void> _toggleArchive() async {
+    if (!widget.isAdmin) return;
+
+    final projRef = FirebaseFirestore.instance
+        .collection('customers')
+        .doc(widget.customerId)
+        .collection('projects')
+        .doc(widget.projectId);
+
+    final newValue = !_projectArchived;
+
+    await projRef.set({
+      'archived': newValue,
+      'archivedAt': newValue ? FieldValue.serverTimestamp() : null,
+      'archivedBy': newValue ? FirebaseAuth.instance.currentUser?.uid : null,
+      'updatedAt': FieldValue.serverTimestamp(),
+      'updatedBy': FirebaseAuth.instance.currentUser?.uid,
+    }, SetOptions(merge: true));
+
+    if (!mounted) return;
+    setState(() => _projectArchived = newValue);
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(
+          newValue ? 'Projekt zarchiwizowane' : 'Projekt przywrócono',
+        ),
+      ),
+    );
+
+    await AuditService.logAction(
+      action: newValue ? 'Zarchiwizowane projekt' : 'Przywrócono projekt',
+      customerId: widget.customerId,
+      projectId: widget.projectId,
+      details: {'Projekt': _title},
+    );
+  }
+
   Future<void> _touchProject() async {
     final uid = FirebaseAuth.instance.currentUser?.uid;
     final projRef = FirebaseFirestore.instance
@@ -535,6 +577,13 @@ class _ProjectEditorScreenState extends State<ProjectEditorScreen> {
   }
 
   Future<void> _saveRWDocument(String type) async {
+    if (_projectArchived) {
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('Projekt w archiwum')));
+      return;
+    }
+
     if (!_formKey.currentState!.validate()) return;
     final user = FirebaseAuth.instance.currentUser;
     if (user == null) return;
@@ -936,6 +985,7 @@ class _ProjectEditorScreenState extends State<ProjectEditorScreen> {
   }
 
   Future<void> _deleteLineFromRW(ProjectLine line) async {
+    if (_projectArchived) return;
     final projectRef = FirebaseFirestore.instance
         .collection('customers')
         .doc(widget.customerId)
@@ -1087,13 +1137,16 @@ class _ProjectEditorScreenState extends State<ProjectEditorScreen> {
         .doc(widget.projectId);
 
     final titleGest = GestureDetector(
-      onTap: widget.isAdmin ? _editProjectName : null,
+      onTap: (widget.isAdmin && !_projectArchived) ? _editProjectName : null,
+      onLongPress: (widget.isAdmin && !_projectArchived)
+          ? _editProjectName
+          : null,
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
           AutoSizeText(
             _customerName,
-            style: TextStyle(color: Colors.black),
+            style: const TextStyle(color: Colors.black),
             maxLines: 1,
             minFontSize: 8,
           ),
@@ -1113,6 +1166,43 @@ class _ProjectEditorScreenState extends State<ProjectEditorScreen> {
       showBackOnWeb: true,
       titleWidget: titleGest,
       actions: [
+        // ARCHIVE / UNARCHIVE (ADMIN ONLY)
+        if (widget.isAdmin)
+          IconButton(
+            icon: Icon(
+              _projectArchived ? Icons.unarchive : Icons.archive_outlined,
+            ),
+            tooltip: _projectArchived ? 'Przywróć projekt' : 'Archive projekt',
+            onPressed: () async {
+              final confirm = await showDialog<bool>(
+                context: context,
+                builder: (ctx) => AlertDialog(
+                  title: Text(
+                    _projectArchived ? 'Przywróc projekt?' : 'Archive projekt?',
+                  ),
+                  content: Text(
+                    _projectArchived
+                        ? 'Projekt wraca do edycji.'
+                        : 'Projekt tylko do podglądu.',
+                  ),
+                  actions: [
+                    TextButton(
+                      onPressed: () => Navigator.pop(ctx, false),
+                      child: const Text('Anuluj'),
+                    ),
+                    ElevatedButton(
+                      onPressed: () => Navigator.pop(ctx, true),
+                      child: Text(_projectArchived ? 'Przywróć' : 'Archiwizuj'),
+                    ),
+                  ],
+                ),
+              );
+
+              if (confirm != true) return;
+              await _toggleArchive();
+            },
+          ),
+
         IconButton(
           icon: const Icon(Icons.contacts_outlined),
           tooltip: 'Kontakty projektu',
@@ -1128,6 +1218,7 @@ class _ProjectEditorScreenState extends State<ProjectEditorScreen> {
             );
           },
         ),
+
         const SizedBox(width: 8),
       ],
 
@@ -1153,13 +1244,27 @@ class _ProjectEditorScreenState extends State<ProjectEditorScreen> {
                         ),
                       ),
 
+                    if (_projectArchived)
+                      Padding(
+                        padding: const EdgeInsets.only(bottom: 8),
+                        child: Text(
+                          'PROJEKT ARCHIWIZOWANY (tylko podgląd)',
+                          style: TextStyle(
+                            color: Colors.blueGrey,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                      ),
+
                     Divider(),
 
                     // --- NOTES
                     NotesSection(
                       notes: _notes,
-
+                      readOnly: _projectArchived,
                       onAddNote: (ctx) async {
+                        if (_projectArchived) return Future.value(null);
+
                         final authUser = FirebaseAuth.instance.currentUser!;
                         String userName = authUser.displayName ?? '';
                         if (userName.isEmpty) {
@@ -1228,10 +1333,11 @@ class _ProjectEditorScreenState extends State<ProjectEditorScreen> {
                       },
 
                       onEdit: (i, newText) async {
+                        if (_projectArchived) return Future.value();
+
                         final trimmed = newText.trim();
                         final old = _notes[i];
 
-                        // nothing changed / empty → do nothing
                         if (trimmed.isEmpty || trimmed == old.text) {
                           return;
                         }
@@ -1294,6 +1400,8 @@ class _ProjectEditorScreenState extends State<ProjectEditorScreen> {
 
                       // ADMIN only delete
                       onDelete: (i) async {
+                        if (_projectArchived) return Future.value();
+
                         if (!widget.isAdmin) {
                           ScaffoldMessenger.of(context).showSnackBar(
                             const SnackBar(
@@ -1350,6 +1458,7 @@ class _ProjectEditorScreenState extends State<ProjectEditorScreen> {
                     const SizedBox(height: 4),
                     TextFormField(
                       controller: _currentCtrl,
+                      enabled: !_projectArchived,
                       maxLines: null,
                       minLines: 2,
                       decoration: const InputDecoration(
@@ -1786,7 +1895,7 @@ class _ProjectEditorScreenState extends State<ProjectEditorScreen> {
         ],
       ),
 
-      floatingActionButton: _rwLocked
+      floatingActionButton: (_rwLocked || _projectArchived)
           ? null
           : FloatingActionButton(
               tooltip: 'Dodaj produkt',
