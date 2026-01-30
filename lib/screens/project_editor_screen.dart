@@ -1748,8 +1748,9 @@ class _ProjectEditorScreenState extends State<ProjectEditorScreen> {
                                                           ),
                                                         );
                                                         if (shouldDelete !=
-                                                            true)
+                                                            true) {
                                                           return;
+                                                        }
 
                                                         final removedLine =
                                                             _lines.removeAt(i);
@@ -1912,8 +1913,9 @@ class _ProjectEditorScreenState extends State<ProjectEditorScreen> {
                                                           ],
                                                         ),
                                                       );
-                                                      if (shouldDelete != true)
+                                                      if (shouldDelete != true) {
                                                         return;
+                                                      }
 
                                                       final removedLine = _lines
                                                           .removeAt(i);
