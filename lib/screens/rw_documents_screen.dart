@@ -80,6 +80,24 @@ class _RWDocumentsScreenState extends State<RWDocumentsScreen> {
         .snapshots();
   }
 
+  Widget _archivedBanner() {
+    if (!_projectIsArchived) return const SizedBox.shrink();
+
+    return const Padding(
+      padding: EdgeInsets.only(bottom: 15),
+      child: Text(
+        '--- ARCHIWIZOWANY  ---',
+        textAlign: TextAlign.center,
+        style: TextStyle(
+          color: Colors.white,
+          fontSize: 20,
+          fontWeight: FontWeight.bold,
+          backgroundColor: Colors.redAccent,
+        ),
+      ),
+    );
+  }
+
   @override
   void initState() {
     super.initState();
@@ -241,6 +259,7 @@ class _RWDocumentsScreenState extends State<RWDocumentsScreen> {
 
       body: Column(
         children: [
+          _archivedBanner(),
           // Search + Reset
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),

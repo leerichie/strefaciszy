@@ -8,6 +8,7 @@ import 'package:flutter/services.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 import 'package:qr_flutter/qr_flutter.dart';
 import 'package:strefa_ciszy/screens/approval_screen.dart';
+import 'package:strefa_ciszy/screens/archives_screen.dart';
 import 'package:strefa_ciszy/screens/contacts_list_screen.dart';
 import 'package:strefa_ciszy/screens/inventory_list_screen.dart';
 import 'package:strefa_ciszy/screens/login_screen.dart';
@@ -115,6 +116,10 @@ class _MainMenuScreenState extends State<MainMenuScreen> {
 
         if (isAdmin) ...[
           ListTile(
+            visualDensity: const VisualDensity(
+              vertical: -4,
+            ), // tighten gap between rows
+
             leading: const Icon(Icons.admin_panel_settings),
             title: const Text('Użytkownicy'),
             onTap: () => Navigator.of(context).push(
@@ -122,6 +127,8 @@ class _MainMenuScreenState extends State<MainMenuScreen> {
             ),
           ),
           ListTile(
+            visualDensity: const VisualDensity(vertical: -4),
+
             leading: const Icon(Icons.summarize_outlined),
             title: const Text('Raporty RW'),
             subtitle: const Text('Wygenerować raport za dowolny dzień'),
@@ -129,6 +136,17 @@ class _MainMenuScreenState extends State<MainMenuScreen> {
               Navigator.of(context).push(
                 MaterialPageRoute(builder: (_) => const ReportsDailyScreen()),
               );
+            },
+          ),
+          ListTile(
+            visualDensity: const VisualDensity(vertical: -4),
+
+            leading: const Icon(Icons.archive),
+            title: const Text('Archive'),
+            onTap: () {
+              Navigator.of(
+                context,
+              ).push(MaterialPageRoute(builder: (_) => const ArchivesScreen()));
             },
           ),
           const Divider(),
@@ -182,18 +200,17 @@ class _MainMenuScreenState extends State<MainMenuScreen> {
           },
         ),
 
-        ListTile(
-          leading: const Icon(Icons.qr_code_scanner),
-          title: const Text('Skanuj'),
-          onTap: () {
-            Navigator.of(context).push(
-              MaterialPageRoute(
-                builder: (_) => const ScanScreen(purpose: ScanPurpose.search),
-              ),
-            );
-          },
-        ),
-
+        // ListTile(
+        //   leading: const Icon(Icons.qr_code_scanner),
+        //   title: const Text('Skanuj'),
+        //   onTap: () {
+        //     Navigator.of(context).push(
+        //       MaterialPageRoute(
+        //         builder: (_) => const ScanScreen(purpose: ScanPurpose.search),
+        //       ),
+        //     );
+        //   },
+        // ),
         const Divider(),
 
         // if (isAdmin) ...[
@@ -217,6 +234,8 @@ class _MainMenuScreenState extends State<MainMenuScreen> {
             return Column(
               children: [
                 ListTile(
+                  visualDensity: const VisualDensity(vertical: -4),
+
                   leading: const Icon(Icons.verified_user),
                   title: const Text('Fakturowanie (Wf-Mag)'),
                   subtitle: const Text('zatwierdzenie towar do fakturowanie'),
@@ -269,12 +288,13 @@ class _MainMenuScreenState extends State<MainMenuScreen> {
       titleWidget: Text(_version, style: const TextStyle(fontSize: 15)),
       showBackOnMobile: false,
       showPersistentDrawerOnWeb: false,
+      backgroundColor: Colors.white,
 
       body: Stack(
         children: [
           body,
           Positioned(
-            bottom: 60,
+            bottom: 20,
             right: 20,
             child: Image.asset(
               'assets/images/dev_logo_PILL.png',

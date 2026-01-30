@@ -4,6 +4,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:strefa_ciszy/screens/archives_screen.dart';
 import 'package:strefa_ciszy/screens/chat_list_screen.dart';
 import 'package:strefa_ciszy/screens/contact_detail_screen.dart';
 import 'package:strefa_ciszy/screens/contacts_list_screen.dart';
@@ -385,8 +386,6 @@ class _AppDrawerState extends State<AppDrawer> {
                             children: favDocs.map((d) {
                               final data = d.data();
                               final name = data['name'] as String? ?? '—';
-                              // final contactId =
-                              //     (data['contactId'] as String?)?.trim();
 
                               return ListTile(
                                 contentPadding: EdgeInsets.zero,
@@ -407,29 +406,6 @@ class _AppDrawerState extends State<AppDrawer> {
                         },
                       ),
                     ),
-
-                  // — Mag
-                  // Theme(
-                  //   data: Theme.of(context).copyWith(
-                  //     dividerColor: Colors.transparent,
-                  //     unselectedWidgetColor: Colors.white70,
-                  //     colorScheme: const ColorScheme.dark(
-                  //       primary: Colors.tealAccent,
-                  //       onSurface: Colors.white,
-                  //     ),
-                  //   ),
-                  //   child: ListTile(
-                  //     leading: const Icon(
-                  //       Icons.inventory_2_outlined,
-                  //       color: Colors.white,
-                  //     ),
-                  //     title: Text('Produkty', style: menuTitles),
-                  //     onTap: () => _openPage(
-                  //       context,
-                  //       const InventoryListScreen(isAdmin: true),
-                  //     ),
-                  //   ),
-                  // ),
 
                   // Magazyn expansion
                   Theme(
@@ -585,6 +561,23 @@ class _AppDrawerState extends State<AppDrawer> {
                       leading: const Icon(Icons.chat, color: Colors.white),
                       title: Text('Bla bla', style: menuTitles),
                       onTap: () => _openPage(context, const ChatListScreen()),
+                    ),
+                  ),
+                  Divider(),
+                  // Chat
+                  Theme(
+                    data: Theme.of(context).copyWith(
+                      dividerColor: Colors.transparent,
+                      unselectedWidgetColor: Colors.white70,
+                      colorScheme: const ColorScheme.dark(
+                        primary: Colors.tealAccent,
+                        onSurface: Colors.white,
+                      ),
+                    ),
+                    child: ListTile(
+                      leading: const Icon(Icons.archive, color: Colors.white),
+                      title: Text('ARCHIVE', style: menuTitles),
+                      onTap: () => _openPage(context, const ArchivesScreen()),
                     ),
                   ),
                 ],

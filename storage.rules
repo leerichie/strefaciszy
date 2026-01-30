@@ -1,25 +1,43 @@
+rules_version = '2';
 service firebase.storage {
   match /b/{bucket}/o {
+
     // Contacts’ photos
     match /contacts/{contactId}/photo.jpg {
       allow read, write: if request.auth != null;
     }
 
-    // Images
+    // Project images
     match /project_images/{projectId}/{fileName} {
-       allow read: if true;
-       allow write: if request.auth != null;
+      allow read: if true;
+      allow write: if request.auth != null;
     }
 
-    // Arbitrary files (PDFs, docs, etc.)
+    // Project files (PDFs, docs, etc.)
     match /project_files/{projectId}/{fileName} {
-       allow read: if true;
-       allow write: if request.auth != null;
+      allow read: if true;
+      allow write: if request.auth != null;
     }
 
-    //  existing buckets
+    // Stock images
     match /stock_images/{fileName} {
       allow read, write: if request.auth != null;
+    }
+
+    // CHAT ATTACHMENTS
+    match /chat_attachments/{chatId}/{fileName} {
+      allow read, write: if request.auth != null;
+    }
+
+    // ARCHIVES 
+    // archives/{customerId}/{projectId}/{archiveId}.xlsx
+    match /archives/{allPaths=**} {
+      allow read: if request.auth != null;    
+      allow write: if request.auth != null;    
+    }
+
+    match /{allPaths=**} {
+      allow read, write: if false;
     }
   }
 }
