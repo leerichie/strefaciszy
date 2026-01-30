@@ -654,8 +654,9 @@ class _ChatThreadScreenState extends State<ChatThreadScreen> {
                                               final url = (a['url'] ?? '')
                                                   .toString();
                                               if (type != 'image' ||
-                                                  url.isEmpty)
+                                                  url.isEmpty) {
                                                 return const SizedBox.shrink();
+                                              }
 
                                               return Padding(
                                                 padding: const EdgeInsets.only(

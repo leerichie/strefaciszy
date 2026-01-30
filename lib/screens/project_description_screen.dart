@@ -400,6 +400,24 @@ class _ProjectDescriptionScreenState extends State<ProjectDescriptionScreen> {
     }
   }
 
+  Widget _archivedBanner() {
+    if (!_projectArchived) return const SizedBox.shrink();
+
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 15),
+      child: Text(
+        '--- ARCHIWIZOWANY  ---',
+        textAlign: TextAlign.center,
+        style: const TextStyle(
+          color: Colors.white,
+          fontSize: 20,
+          fontWeight: FontWeight.bold,
+          backgroundColor: Colors.redAccent,
+        ),
+      ),
+    );
+  }
+
   Future<void> _editOneDriveLink() async {
     final controller = TextEditingController(text: _oneDriveUrl ?? '');
 
@@ -704,22 +722,20 @@ class _ProjectDescriptionScreenState extends State<ProjectDescriptionScreen> {
             ? const Center(child: CircularProgressIndicator())
             : DismissKeyboard(
                 child: Column(
-                  children: const [
-                    TabBar(
+                  children: [
+                    _archivedBanner(),
+                    const TabBar(
                       tabs: [
                         Tab(text: 'Opis'),
                         Tab(text: 'Fotki'),
                         Tab(text: 'Pliki'),
                       ],
                     ),
-                    Expanded(
+                    const Expanded(
                       child: TabBarView(
                         children: [
-                          // opis
                           _OpisTabProxy(),
-                          // fotki
                           _FotkiTabProxy(),
-                          // pliki
                           _PlikiTabProxy(),
                         ],
                       ),

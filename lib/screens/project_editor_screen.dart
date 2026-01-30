@@ -20,6 +20,7 @@ import 'package:strefa_ciszy/screens/rw_documents_screen.dart';
 import 'package:strefa_ciszy/services/admin_api.dart';
 import 'package:strefa_ciszy/services/api_service.dart';
 import 'package:strefa_ciszy/services/audit_service.dart';
+import 'package:strefa_ciszy/services/project_archive_service.dart';
 import 'package:strefa_ciszy/services/stock_service.dart';
 import 'package:strefa_ciszy/services/storage_service.dart';
 import 'package:strefa_ciszy/widgets/app_scaffold.dart';
@@ -265,37 +266,44 @@ class _ProjectEditorScreenState extends State<ProjectEditorScreen> {
   }
 
   Future<void> _toggleArchive() async {
-    if (!widget.isAdmin) return;
-
-    final projRef = FirebaseFirestore.instance
-        .collection('customers')
-        .doc(widget.customerId)
-        .collection('projects')
-        .doc(widget.projectId);
+    if (!widget.isAdmin) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Tylko ADMIN może archiwizować')),
+      );
+      return;
+    }
 
     final newValue = !_projectArchived;
 
-    await projRef.set({
-      'archived': newValue,
-      'archivedAt': newValue ? FieldValue.serverTimestamp() : null,
-      'archivedBy': newValue ? FirebaseAuth.instance.currentUser?.uid : null,
-      'updatedAt': FieldValue.serverTimestamp(),
-      'updatedBy': FirebaseAuth.instance.currentUser?.uid,
-    }, SetOptions(merge: true));
+    if (newValue) {
+      // ARCHIVE
+      await ProjectArchiveService.archiveProjectAndCreateFile(
+        customerId: widget.customerId,
+        projectId: widget.projectId,
+      );
+    } else {
+      // UNARCHIVE
+      await ProjectArchiveService.unarchiveProject(
+        customerId: widget.customerId,
+        projectId: widget.projectId,
+        deleteArchiveFile: false,
+      );
+    }
 
     if (!mounted) return;
+
     setState(() => _projectArchived = newValue);
 
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
         content: Text(
-          newValue ? 'Projekt zarchiwizowane' : 'Projekt przywrócono',
+          newValue ? 'Projekt zarchiwizowany' : 'Projekt przywrócono',
         ),
       ),
     );
 
     await AuditService.logAction(
-      action: newValue ? 'Zarchiwizowane projekt' : 'Przywrócono projekt',
+      action: newValue ? 'Zarchiwizowano projekt' : 'Przywrócono projekt',
       customerId: widget.customerId,
       projectId: widget.projectId,
       details: {'Projekt': _title},
@@ -1167,41 +1175,58 @@ class _ProjectEditorScreenState extends State<ProjectEditorScreen> {
       titleWidget: titleGest,
       actions: [
         // ARCHIVE / UNARCHIVE (ADMIN ONLY)
-        if (widget.isAdmin)
-          IconButton(
-            icon: Icon(
-              _projectArchived ? Icons.unarchive : Icons.archive_outlined,
-            ),
-            tooltip: _projectArchived ? 'Przywróć projekt' : 'Archive projekt',
-            onPressed: () async {
-              final confirm = await showDialog<bool>(
+        IconButton(
+          icon: Icon(
+            _projectArchived ? Icons.unarchive : Icons.archive_outlined,
+          ),
+          onPressed: () async {
+            final idToken = await FirebaseAuth.instance.currentUser!
+                .getIdTokenResult();
+
+            final isAdmin = idToken.claims?['admin'] == true;
+
+            if (!isAdmin) {
+              await showDialog(
                 context: context,
-                builder: (ctx) => AlertDialog(
-                  title: Text(
-                    _projectArchived ? 'Przywróc projekt?' : 'Archive projekt?',
-                  ),
-                  content: Text(
-                    _projectArchived
-                        ? 'Projekt wraca do edycji.'
-                        : 'Projekt tylko do podglądu.',
-                  ),
-                  actions: [
-                    TextButton(
-                      onPressed: () => Navigator.pop(ctx, false),
-                      child: const Text('Anuluj'),
-                    ),
-                    ElevatedButton(
-                      onPressed: () => Navigator.pop(ctx, true),
-                      child: Text(_projectArchived ? 'Przywróć' : 'Archiwizuj'),
-                    ),
-                  ],
+                builder: (_) => const AlertDialog(
+                  title: Text('Brak uprawnień'),
+                  content: Text('Tylko ADMIN może archiwizować.'),
                 ),
               );
+              return;
+            }
 
-              if (confirm != true) return;
+            final confirm = await showDialog<bool>(
+              context: context,
+              builder: (_) => AlertDialog(
+                title: Text(
+                  _projectArchived
+                      ? 'Przywróc projekt?'
+                      : 'Archiwizować projekt?',
+                ),
+                content: Text(
+                  _projectArchived
+                      ? 'Projekt wraca do edycji.'
+                      : 'Projekt będzie tylko do podglądu.',
+                ),
+                actions: [
+                  TextButton(
+                    onPressed: () => Navigator.pop(context, false),
+                    child: const Text('Anuluj'),
+                  ),
+                  ElevatedButton(
+                    onPressed: () => Navigator.pop(context, true),
+                    child: Text(_projectArchived ? 'Przywróć' : 'Archiwizuj'),
+                  ),
+                ],
+              ),
+            );
+
+            if (confirm == true) {
               await _toggleArchive();
-            },
-          ),
+            }
+          },
+        ),
 
         IconButton(
           icon: const Icon(Icons.contacts_outlined),
@@ -1246,12 +1271,15 @@ class _ProjectEditorScreenState extends State<ProjectEditorScreen> {
 
                     if (_projectArchived)
                       Padding(
-                        padding: const EdgeInsets.only(bottom: 8),
+                        padding: const EdgeInsets.only(bottom: 15),
+
                         child: Text(
-                          'PROJEKT ARCHIWIZOWANY (tylko podgląd)',
+                          '--- ARCHIWIZOWANY  ---',
                           style: TextStyle(
-                            color: Colors.blueGrey,
+                            color: Colors.white,
+                            fontSize: 20,
                             fontWeight: FontWeight.bold,
+                            backgroundColor: Colors.redAccent,
                           ),
                         ),
                       ),
@@ -1563,8 +1591,13 @@ class _ProjectEditorScreenState extends State<ProjectEditorScreen> {
                               ln.requestedQty == ln.previousQty &&
                               ln.requestedQty > 0;
 
-                          final isLineLocked =
+                          final bool isArchivedLocked = _projectArchived;
+                          final bool isPermissionLocked =
                               _rwLocked || (!isToday && !widget.isAdmin);
+
+                          // archive overrides product line
+                          final bool isLineLocked =
+                              isArchivedLocked || isPermissionLocked;
 
                           if (i.isEven) {
                             return Container(
@@ -1581,10 +1614,179 @@ class _ProjectEditorScreenState extends State<ProjectEditorScreen> {
                               ),
                               child: ClipRRect(
                                 borderRadius: BorderRadius.circular(4),
+                                child: Opacity(
+                                  opacity: isArchivedLocked ? 0.45 : 1.0,
+                                  child: ListTile(
+                                    dense: true,
+                                    tileColor: Colors.transparent,
+                                    selectedTileColor: Colors.transparent,
+                                    contentPadding: const EdgeInsets.symmetric(
+                                      horizontal: 0,
+                                      vertical: 0,
+                                    ),
+                                    title: Column(
+                                      crossAxisAlignment:
+                                          CrossAxisAlignment.start,
+                                      children: [
+                                        if (producent.isNotEmpty)
+                                          Text(
+                                            producent,
+                                            style: TextStyle(
+                                              fontWeight: FontWeight.bold,
+                                              fontSize: 14,
+                                            ),
+                                          ),
+                                        Text(
+                                          name,
+                                          style: TextStyle(fontSize: 14),
+                                        ),
+                                        if (description.isNotEmpty)
+                                          Text(
+                                            description,
+                                            style: TextStyle(
+                                              fontSize: 13,
+                                              color: Colors.grey[700],
+                                              fontStyle: FontStyle.italic,
+                                            ),
+                                          ),
+                                      ],
+                                    ),
+                                    subtitle: Text.rich(
+                                      TextSpan(
+                                        style: Theme.of(
+                                          context,
+                                        ).textTheme.bodySmall,
+                                        children: [
+                                          TextSpan(
+                                            text:
+                                                '${ln.requestedQty} ${ln.unit} ',
+                                          ),
+                                          TextSpan(
+                                            text: '(stan: $previewQty)',
+                                            style: TextStyle(color: qtyColor),
+                                          ),
+                                        ],
+                                      ),
+                                    ),
+                                    trailing: Row(
+                                      mainAxisSize: MainAxisSize.min,
+                                      children: [
+                                        if (isSynced)
+                                          Container(
+                                            padding: const EdgeInsets.symmetric(
+                                              horizontal: 0,
+                                              vertical: 0,
+                                            ),
+                                            margin: const EdgeInsets.only(
+                                              right: 8,
+                                            ),
+                                            child: Icon(
+                                              Icons.check_box,
+                                              color: isArchivedLocked
+                                                  ? Colors.grey
+                                                  : Colors.green,
+                                            ),
+                                          ),
+                                        IconButton(
+                                          icon: Icon(
+                                            Icons.delete,
+                                            color: isLineLocked
+                                                ? Colors.grey
+                                                : Colors.red,
+                                          ),
+
+                                          // archived => fully disabled (no tap)
+                                          // other locks => keep your snackbar
+                                          onPressed: isArchivedLocked
+                                              ? null
+                                              : (isPermissionLocked
+                                                    ? () {
+                                                        ScaffoldMessenger.of(
+                                                          context,
+                                                        ).showSnackBar(
+                                                          const SnackBar(
+                                                            content: Text(
+                                                              'Tylko administrator może usuwać',
+                                                            ),
+                                                          ),
+                                                        );
+                                                      }
+                                                    : () async {
+                                                        final shouldDelete = await showDialog<bool>(
+                                                          context: context,
+                                                          builder: (ctx) => AlertDialog(
+                                                            title: const Text(
+                                                              'Usuń produkt?',
+                                                            ),
+                                                            content: Text(
+                                                              '${ln.requestedQty}x $producent $name',
+                                                            ),
+                                                            actions: [
+                                                              TextButton(
+                                                                onPressed: () =>
+                                                                    Navigator.pop(
+                                                                      ctx,
+                                                                      false,
+                                                                    ),
+                                                                child:
+                                                                    const Text(
+                                                                      'Anuluj',
+                                                                    ),
+                                                              ),
+                                                              ElevatedButton(
+                                                                onPressed: () =>
+                                                                    Navigator.pop(
+                                                                      ctx,
+                                                                      true,
+                                                                    ),
+                                                                child:
+                                                                    const Text(
+                                                                      'Usuń',
+                                                                    ),
+                                                              ),
+                                                            ],
+                                                          ),
+                                                        );
+                                                        if (shouldDelete !=
+                                                            true)
+                                                          return;
+
+                                                        final removedLine =
+                                                            _lines.removeAt(i);
+                                                        setState(() {});
+                                                        try {
+                                                          await _deleteLineFromRW(
+                                                            removedLine,
+                                                          );
+                                                        } catch (e) {
+                                                          ScaffoldMessenger.of(
+                                                            context,
+                                                          ).showSnackBar(
+                                                            SnackBar(
+                                                              content: Text(
+                                                                'Błąd usuwania: $e',
+                                                              ),
+                                                            ),
+                                                          );
+                                                        }
+                                                      }),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                ),
+                              ),
+                            );
+                          }
+
+                          return Container(
+                            margin: const EdgeInsets.symmetric(vertical: 0),
+                            child: ClipRRect(
+                              borderRadius: BorderRadius.circular(4),
+                              child: Opacity(
+                                opacity: isArchivedLocked ? 0.45 : 1.0,
                                 child: ListTile(
                                   dense: true,
-                                  tileColor: Colors.transparent,
-                                  selectedTileColor: Colors.transparent,
                                   contentPadding: const EdgeInsets.symmetric(
                                     horizontal: 0,
                                     vertical: 0,
@@ -1596,14 +1798,14 @@ class _ProjectEditorScreenState extends State<ProjectEditorScreen> {
                                       if (producent.isNotEmpty)
                                         Text(
                                           producent,
-                                          style: TextStyle(
+                                          style: const TextStyle(
                                             fontWeight: FontWeight.bold,
                                             fontSize: 14,
                                           ),
                                         ),
                                       Text(
                                         name,
-                                        style: TextStyle(fontSize: 14),
+                                        style: const TextStyle(fontSize: 14),
                                       ),
                                       if (description.isNotEmpty)
                                         Text(
@@ -1647,7 +1849,9 @@ class _ProjectEditorScreenState extends State<ProjectEditorScreen> {
                                           ),
                                           child: Icon(
                                             Icons.check_box,
-                                            color: Colors.green,
+                                            color: isArchivedLocked
+                                                ? Colors.grey
+                                                : Colors.green,
                                           ),
                                         ),
                                       IconButton(
@@ -1657,228 +1861,82 @@ class _ProjectEditorScreenState extends State<ProjectEditorScreen> {
                                               ? Colors.grey
                                               : Colors.red,
                                         ),
-                                        onPressed: isLineLocked
-                                            ? () {
-                                                ScaffoldMessenger.of(
-                                                  context,
-                                                ).showSnackBar(
-                                                  const SnackBar(
-                                                    content: Text(
-                                                      'Tylko administrator może usuwać',
-                                                    ),
-                                                  ),
-                                                );
-                                              }
-                                            : () async {
-                                                final shouldDelete =
-                                                    await showDialog<bool>(
-                                                      context: context,
-                                                      builder: (ctx) => AlertDialog(
-                                                        title: Text(
-                                                          'Usuń produkt?',
+
+                                        // archived => fully disabled (no tap)
+                                        // other locks => keep your snackbar
+                                        onPressed: isArchivedLocked
+                                            ? null
+                                            : (isPermissionLocked
+                                                  ? () {
+                                                      ScaffoldMessenger.of(
+                                                        context,
+                                                      ).showSnackBar(
+                                                        const SnackBar(
+                                                          content: Text(
+                                                            'Tylko administrator może usuwać',
+                                                          ),
                                                         ),
-                                                        content: Text(
-                                                          '${ln.requestedQty}x $producent $name',
+                                                      );
+                                                    }
+                                                  : () async {
+                                                      final shouldDelete = await showDialog<bool>(
+                                                        context: context,
+                                                        builder: (ctx) => AlertDialog(
+                                                          title: const Text(
+                                                            'Usuń produkt?',
+                                                          ),
+                                                          content: Text(
+                                                            '${ln.requestedQty}x $producent $name',
+                                                          ),
+                                                          actions: [
+                                                            TextButton(
+                                                              onPressed: () =>
+                                                                  Navigator.pop(
+                                                                    ctx,
+                                                                    false,
+                                                                  ),
+                                                              child: const Text(
+                                                                'Anuluj',
+                                                              ),
+                                                            ),
+                                                            ElevatedButton(
+                                                              onPressed: () =>
+                                                                  Navigator.pop(
+                                                                    ctx,
+                                                                    true,
+                                                                  ),
+                                                              child: const Text(
+                                                                'Usuń',
+                                                              ),
+                                                            ),
+                                                          ],
                                                         ),
-                                                        actions: [
-                                                          TextButton(
-                                                            onPressed: () =>
-                                                                Navigator.pop(
-                                                                  ctx,
-                                                                  false,
-                                                                ),
-                                                            child: Text(
-                                                              'Anuluj',
+                                                      );
+                                                      if (shouldDelete != true)
+                                                        return;
+
+                                                      final removedLine = _lines
+                                                          .removeAt(i);
+                                                      setState(() {});
+                                                      try {
+                                                        await _deleteLineFromRW(
+                                                          removedLine,
+                                                        );
+                                                      } catch (e) {
+                                                        ScaffoldMessenger.of(
+                                                          context,
+                                                        ).showSnackBar(
+                                                          SnackBar(
+                                                            content: Text(
+                                                              'Błąd usuwania: $e',
                                                             ),
                                                           ),
-                                                          ElevatedButton(
-                                                            onPressed: () =>
-                                                                Navigator.pop(
-                                                                  ctx,
-                                                                  true,
-                                                                ),
-                                                            child: Text('Usuń'),
-                                                          ),
-                                                        ],
-                                                      ),
-                                                    );
-                                                if (shouldDelete != true) {
-                                                  return;
-                                                }
-
-                                                final removedLine = _lines
-                                                    .removeAt(i);
-                                                setState(() {});
-                                                try {
-                                                  await _deleteLineFromRW(
-                                                    removedLine,
-                                                  );
-                                                } catch (e) {
-                                                  ScaffoldMessenger.of(
-                                                    context,
-                                                  ).showSnackBar(
-                                                    SnackBar(
-                                                      content: Text(
-                                                        'Błąd usuwania: $e',
-                                                      ),
-                                                    ),
-                                                  );
-                                                }
-                                              },
+                                                        );
+                                                      }
+                                                    }),
                                       ),
                                     ],
                                   ),
-                                ),
-                              ),
-                            );
-                          }
-
-                          return Container(
-                            margin: const EdgeInsets.symmetric(vertical: 0),
-                            child: ClipRRect(
-                              borderRadius: BorderRadius.circular(4),
-                              child: ListTile(
-                                dense: true,
-                                contentPadding: const EdgeInsets.symmetric(
-                                  horizontal: 0,
-                                  vertical: 0,
-                                ),
-                                title: Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    if (producent.isNotEmpty)
-                                      Text(
-                                        producent,
-                                        style: const TextStyle(
-                                          fontWeight: FontWeight.bold,
-                                          fontSize: 14,
-                                        ),
-                                      ),
-                                    Text(
-                                      name,
-                                      style: const TextStyle(fontSize: 14),
-                                    ),
-                                    if (description.isNotEmpty)
-                                      Text(
-                                        description,
-                                        style: TextStyle(
-                                          fontSize: 13,
-                                          color: Colors.grey[700],
-                                          fontStyle: FontStyle.italic,
-                                        ),
-                                      ),
-                                  ],
-                                ),
-                                subtitle: Text.rich(
-                                  TextSpan(
-                                    style: Theme.of(
-                                      context,
-                                    ).textTheme.bodySmall,
-                                    children: [
-                                      TextSpan(
-                                        text: '${ln.requestedQty} ${ln.unit} ',
-                                      ),
-                                      TextSpan(
-                                        text: '(stan: $previewQty)',
-                                        style: TextStyle(color: qtyColor),
-                                      ),
-                                    ],
-                                  ),
-                                ),
-                                trailing: Row(
-                                  mainAxisSize: MainAxisSize.min,
-                                  children: [
-                                    if (isSynced)
-                                      Container(
-                                        padding: const EdgeInsets.symmetric(
-                                          horizontal: 0,
-                                          vertical: 0,
-                                        ),
-                                        margin: const EdgeInsets.only(right: 8),
-                                        child: const Icon(
-                                          Icons.check_box,
-                                          color: Colors.green,
-                                        ),
-                                      ),
-                                    IconButton(
-                                      icon: Icon(
-                                        Icons.delete,
-                                        color: isLineLocked
-                                            ? Colors.grey
-                                            : Colors.red,
-                                      ),
-                                      onPressed: isLineLocked
-                                          ? () {
-                                              ScaffoldMessenger.of(
-                                                context,
-                                              ).showSnackBar(
-                                                const SnackBar(
-                                                  content: Text(
-                                                    'Tylko administrator może usuwać',
-                                                  ),
-                                                ),
-                                              );
-                                            }
-                                          : () async {
-                                              final shouldDelete =
-                                                  await showDialog<bool>(
-                                                    context: context,
-                                                    builder: (ctx) => AlertDialog(
-                                                      title: const Text(
-                                                        'Usuń produkt?',
-                                                      ),
-                                                      content: Text(
-                                                        '${ln.requestedQty}x $producent $name',
-                                                      ),
-                                                      actions: [
-                                                        TextButton(
-                                                          onPressed: () =>
-                                                              Navigator.pop(
-                                                                ctx,
-                                                                false,
-                                                              ),
-                                                          child: const Text(
-                                                            'Anuluj',
-                                                          ),
-                                                        ),
-                                                        ElevatedButton(
-                                                          onPressed: () =>
-                                                              Navigator.pop(
-                                                                ctx,
-                                                                true,
-                                                              ),
-                                                          child: const Text(
-                                                            'Usuń',
-                                                          ),
-                                                        ),
-                                                      ],
-                                                    ),
-                                                  );
-                                              if (shouldDelete != true) {
-                                                return;
-                                              }
-
-                                              final removedLine = _lines
-                                                  .removeAt(i);
-                                              setState(() {});
-                                              try {
-                                                await _deleteLineFromRW(
-                                                  removedLine,
-                                                );
-                                              } catch (e) {
-                                                ScaffoldMessenger.of(
-                                                  context,
-                                                ).showSnackBar(
-                                                  SnackBar(
-                                                    content: Text(
-                                                      'Błąd usuwania: $e',
-                                                    ),
-                                                  ),
-                                                );
-                                              }
-                                            },
-                                    ),
-                                  ],
                                 ),
                               ),
                             ),
