@@ -45,7 +45,7 @@ class _UserPickerSheetState extends State<UserPickerSheet> {
     final myUid = FirebaseAuth.instance.currentUser?.uid;
 
     final content = SizedBox(
-      height: widget.compact ? 260 : 320,
+      height: widget.compact ? 260 : 460,
       child: Padding(
         padding: const EdgeInsets.only(left: 12, right: 12, top: 8, bottom: 8),
         child: Column(
@@ -158,6 +158,12 @@ class _UserPickerSheetState extends State<UserPickerSheet> {
     );
 
     if (widget.compact) return content;
-    return SafeArea(child: content);
+
+    return SafeArea(
+      child: Padding(
+        padding: MediaQuery.of(context).viewInsets,
+        child: content,
+      ),
+    );
   }
 }

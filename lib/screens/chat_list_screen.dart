@@ -4,6 +4,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:strefa_ciszy/models/chat.dart';
+import 'package:strefa_ciszy/screens/_user_picker_sheet.dart';
 import 'package:strefa_ciszy/screens/chat_thread_screen.dart';
 import 'package:strefa_ciszy/services/chat_service.dart';
 import 'package:strefa_ciszy/widgets/app_scaffold.dart';
@@ -20,6 +21,206 @@ class _ChatListScreenState extends State<ChatListScreen> {
   void initState() {
     super.initState();
     ChatService.instance.ensureGlobalChat();
+    _loadAdminFlag();
+  }
+
+  bool _isAdmin = false;
+  bool _adminChecked = false;
+
+  bool _isAdminFromUserDoc(Map<String, dynamic> data) {
+    final v1 = data['isAdmin'];
+    final v2 = data['is_admin'];
+    final role = (data['role'] ?? '').toString().toLowerCase();
+    return v1 == true || v2 == true || role == 'admin';
+  }
+
+  Future<bool> _isCurrentUserAdmin(String uid) async {
+    final snap = await FirebaseFirestore.instance
+        .collection('users')
+        .doc(uid)
+        .get();
+    if (!snap.exists) return false;
+    return _isAdminFromUserDoc(snap.data() ?? {});
+  }
+
+  Future<void> _loadAdminFlag() async {
+    final uid = FirebaseAuth.instance.currentUser?.uid;
+    if (uid == null) return;
+
+    final isAdmin = await _isCurrentUserAdmin(uid);
+    if (!mounted) return;
+
+    setState(() {
+      _isAdmin = isAdmin;
+      _adminChecked = true;
+    });
+  }
+
+  Future<void> _showCreateMenu({
+    required String myUid,
+    required bool isAdmin,
+  }) async {
+    if (!isAdmin) return;
+
+    final action = await showModalBottomSheet<String>(
+      context: context,
+      showDragHandle: true,
+      builder: (_) {
+        return SafeArea(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const ListTile(title: Text('Zacznij nowy czat')),
+              ListTile(
+                leading: const Icon(Icons.person_add_alt_1),
+                title: const Text('Prywatna'),
+                onTap: () => Navigator.pop(context, 'dm'),
+              ),
+              ListTile(
+                leading: const Icon(Icons.group_add),
+                title: const Text('Grupa'),
+                onTap: () => Navigator.pop(context, 'group'),
+              ),
+              const SizedBox(height: 8),
+            ],
+          ),
+        );
+      },
+    );
+
+    if (!mounted || action == null) return;
+
+    if (action == 'dm') {
+      await _createDmFlow(myUid);
+    } else if (action == 'group') {
+      await _createGroupFlow(myUid);
+    }
+  }
+
+  Future<bool> _confirmDeleteChat(String title) async {
+    final res = await showDialog<bool>(
+      context: context,
+      builder: (_) => AlertDialog(
+        title: const Text('Skasować czat?'),
+        content: Text('Na pewno usunąć: "$title"?'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Anuluj'),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text('Usuń'),
+          ),
+        ],
+      ),
+    );
+    return res == true;
+  }
+
+  Future<void> _createDmFlow(String myUid) async {
+    final picked = await showModalBottomSheet<Map<String, dynamic>>(
+      context: context,
+      isScrollControlled: true,
+      showDragHandle: true,
+      builder: (_) => const UserPickerSheet(),
+    );
+
+    if (!mounted || picked == null) return;
+
+    final otherUid = (picked['uid'] ?? '').toString();
+    if (otherUid.isEmpty) return;
+
+    final dmId = await ChatService.instance.getOrCreateDm(
+      uidA: myUid,
+      uidB: otherUid,
+    );
+
+    if (!mounted) return;
+    Navigator.of(
+      context,
+    ).push(MaterialPageRoute(builder: (_) => ChatThreadScreen(chatId: dmId)));
+  }
+
+  Future<void> _createGroupFlow(String myUid) async {
+    final title = await _askGroupTitle();
+    if (!mounted || title == null) return;
+
+    final pickedUids = await showModalBottomSheet<List<String>>(
+      context: context,
+      isScrollControlled: true,
+      showDragHandle: true,
+      builder: (_) => _GroupMembersPickerSheet(myUid: myUid),
+    );
+
+    if (!mounted || pickedUids == null || pickedUids.isEmpty) return;
+
+    final groupId = await ChatService.instance.createGroupChat(
+      title: title,
+      createdBy: myUid,
+      memberUids: pickedUids,
+    );
+
+    if (!mounted) return;
+    Navigator.of(context).push(
+      MaterialPageRoute(builder: (_) => ChatThreadScreen(chatId: groupId)),
+    );
+  }
+
+  Future<String?> _askGroupTitle() async {
+    final c = TextEditingController();
+
+    final res = await showDialog<String>(
+      context: context,
+      builder: (_) => AlertDialog(
+        title: const Text('Nazwa grupy'),
+        content: TextField(
+          controller: c,
+          autofocus: true,
+          decoration: const InputDecoration(
+            hintText: 'Np. Zebranie / Klient / Projekty',
+            border: OutlineInputBorder(),
+            isDense: true,
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Anuluj'),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.pop(context, c.text.trim()),
+            child: const Text('Utwórz'),
+          ),
+        ],
+      ),
+    );
+
+    final t = res?.trim() ?? '';
+    return t.isEmpty ? null : t;
+  }
+
+  Widget _dmTitle(String myUid, Chat c) {
+    final otherUid = c.members.firstWhere((m) => m != myUid, orElse: () => '');
+
+    if (otherUid.isEmpty) return const Text('Prywatny chat');
+
+    return StreamBuilder<DocumentSnapshot<Map<String, dynamic>>>(
+      stream: FirebaseFirestore.instance
+          .collection('users')
+          .doc(otherUid)
+          .snapshots(),
+      builder: (_, snap) {
+        final data = snap.data?.data();
+        final name = (data?['name'] as String?)?.trim();
+
+        return Text(
+          (name != null && name.isNotEmpty) ? name : 'Prywatny chat',
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+        );
+      },
+    );
   }
 
   @override
@@ -27,9 +228,17 @@ class _ChatListScreenState extends State<ChatListScreen> {
     final uid = FirebaseAuth.instance.currentUser?.uid;
 
     return AppScaffold(
+      floatingActionButton: (uid == null || !_adminChecked || !_isAdmin)
+          ? null
+          : FloatingActionButton(
+              onPressed: () => _showCreateMenu(myUid: uid, isAdmin: true),
+              child: const Icon(Icons.add),
+            ),
+
       title: 'Chat',
       showBackOnMobile: true,
       showPersistentDrawerOnWeb: true,
+
       body: SafeArea(
         child: Padding(
           padding: const EdgeInsets.all(12),
@@ -94,7 +303,9 @@ class _ChatListScreenState extends State<ChatListScreen> {
                                   leading: Icon(
                                     c.type == 'dm' ? Icons.person : Icons.group,
                                   ),
-                                  title: Text(title),
+                                  title: c.type == 'dm'
+                                      ? _dmTitle(uid, c)
+                                      : Text(title),
                                   subtitle: Text(
                                     c.lastMessageText?.trim().isNotEmpty == true
                                         ? c.lastMessageText!.trim()
@@ -102,6 +313,38 @@ class _ChatListScreenState extends State<ChatListScreen> {
                                     maxLines: 1,
                                     overflow: TextOverflow.ellipsis,
                                   ),
+                                  trailing:
+                                      (!_isAdmin ||
+                                          c.id == ChatService.globalChatId)
+                                      ? null
+                                      : IconButton(
+                                          tooltip: 'Usuń czat',
+                                          icon: const Icon(
+                                            Icons.delete_outline,
+                                          ),
+                                          onPressed: () async {
+                                            final ok = await _confirmDeleteChat(
+                                              title,
+                                            );
+                                            if (!ok) return;
+
+                                            try {
+                                              await ChatService.instance
+                                                  .deleteChat(c.id);
+                                            } catch (e) {
+                                              if (!mounted) return;
+                                              ScaffoldMessenger.of(
+                                                context,
+                                              ).showSnackBar(
+                                                SnackBar(
+                                                  content: Text(
+                                                    'Błąd usuwania: $e',
+                                                  ),
+                                                ),
+                                              );
+                                            }
+                                          },
+                                        ),
                                   onTap: () => Navigator.of(context).push(
                                     MaterialPageRoute(
                                       builder: (_) =>
@@ -116,6 +359,148 @@ class _ChatListScreenState extends State<ChatListScreen> {
                       ),
               ),
             ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _GroupMembersPickerSheet extends StatefulWidget {
+  final String myUid;
+
+  const _GroupMembersPickerSheet({required this.myUid});
+
+  @override
+  State<_GroupMembersPickerSheet> createState() =>
+      _GroupMembersPickerSheetState();
+}
+
+class _GroupMembersPickerSheetState extends State<_GroupMembersPickerSheet> {
+  final Set<String> _selected = {};
+  String _q = '';
+
+  @override
+  Widget build(BuildContext context) {
+    return SafeArea(
+      child: Padding(
+        padding: MediaQuery.of(context).viewInsets,
+        child: SizedBox(
+          height: 460,
+          child: Padding(
+            padding: const EdgeInsets.only(
+              left: 12,
+              right: 12,
+              top: 8,
+              bottom: 8,
+            ),
+            child: Column(
+              children: [
+                Row(
+                  children: [
+                    const Text(
+                      'Wybierz osoby do grupy',
+                      style: TextStyle(fontWeight: FontWeight.w600),
+                    ),
+                    const Spacer(),
+                    IconButton(
+                      icon: const Icon(Icons.close),
+                      onPressed: () => Navigator.pop(context),
+                    ),
+                  ],
+                ),
+                TextField(
+                  decoration: const InputDecoration(
+                    hintText: 'Szukaj...',
+                    border: OutlineInputBorder(),
+                    isDense: true,
+                  ),
+                  onChanged: (v) => setState(() => _q = v.trim().toLowerCase()),
+                ),
+                const SizedBox(height: 8),
+                Expanded(
+                  child: StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
+                    stream: FirebaseFirestore.instance
+                        .collection('users')
+                        .snapshots(),
+                    builder: (_, snap) {
+                      if (snap.connectionState == ConnectionState.waiting) {
+                        return const Center(child: CircularProgressIndicator());
+                      }
+
+                      final docs = snap.data?.docs ?? [];
+                      final items =
+                          docs
+                              .where((d) => d.id != widget.myUid)
+                              .map((d) {
+                                final data = d.data();
+                                final name =
+                                    (data['name'] as String?)?.trim() ?? '';
+                                final first = name.isNotEmpty
+                                    ? name.split(' ').first
+                                    : 'User';
+                                return {
+                                  'uid': d.id,
+                                  'full': name.isEmpty ? first : name,
+                                };
+                              })
+                              .where((u) {
+                                if (_q.isEmpty) return true;
+                                final full = (u['full'] as String)
+                                    .toLowerCase();
+                                return full.contains(_q);
+                              })
+                              .toList()
+                            ..sort(
+                              (a, b) => (a['full'] as String).compareTo(
+                                (b['full'] as String),
+                              ),
+                            );
+
+                      if (items.isEmpty) {
+                        return const Center(child: Text('Brak wyników.'));
+                      }
+
+                      return ListView.builder(
+                        itemCount: items.length,
+                        itemBuilder: (_, i) {
+                          final u = items[i];
+                          final uid = u['uid'] as String;
+                          final full = u['full'] as String;
+                          final checked = _selected.contains(uid);
+
+                          return CheckboxListTile(
+                            value: checked,
+                            onChanged: (v) {
+                              setState(() {
+                                if (v == true) {
+                                  _selected.add(uid);
+                                } else {
+                                  _selected.remove(uid);
+                                }
+                              });
+                            },
+                            title: Text(full),
+                            controlAffinity: ListTileControlAffinity.leading,
+                          );
+                        },
+                      );
+                    },
+                  ),
+                ),
+                const SizedBox(height: 8),
+                SizedBox(
+                  width: double.infinity,
+                  child: ElevatedButton.icon(
+                    icon: const Icon(Icons.check),
+                    label: Text('Dodaj (${_selected.length})'),
+                    onPressed: _selected.isEmpty
+                        ? null
+                        : () => Navigator.pop(context, _selected.toList()),
+                  ),
+                ),
+              ],
+            ),
           ),
         ),
       ),
