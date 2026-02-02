@@ -38,7 +38,6 @@ class ChatService {
       'senderId': senderId,
       'text': hasText ? clean : '',
       'createdAt': FieldValue.serverTimestamp(),
-      'mentions': <dynamic>[],
       'refs': <dynamic>[],
       'attachments': attachments,
       'mentions': mentions,
@@ -108,17 +107,66 @@ class ChatService {
     if (q.docs.isNotEmpty) return q.docs.first.id;
 
     final ref = _db.collection('chats').doc();
+
+    final members = <String>{uidA, uidB}.toList()..sort();
+
     await ref.set({
       'type': 'dm',
-      'title': null,
-      'members': sorted,
       'dmKey': dmKey,
-      'createdBy': a,
+      'title': null,
+      'members': members,
+      'createdBy': uidA,
       'createdAt': FieldValue.serverTimestamp(),
       'lastMessageText': null,
       'lastMessageAt': FieldValue.serverTimestamp(),
     });
 
     return ref.id;
+  }
+
+  Future<String> createGroupChat({
+    required String title,
+    required String createdBy,
+    required List<String> memberUids,
+  }) async {
+    final cleanTitle = title.trim();
+    if (cleanTitle.isEmpty) throw Exception('Group title required');
+
+    final members = <String>{
+      createdBy.trim(),
+      ...memberUids.map((e) => e.trim()).where((e) => e.isNotEmpty),
+    }.toList()..sort();
+
+    final ref = _db.collection('chats').doc();
+
+    await ref.set({
+      'type': 'group',
+      'title': cleanTitle,
+      'members': members,
+      'createdBy': createdBy,
+      'createdAt': FieldValue.serverTimestamp(),
+      'lastMessageText': null,
+      'lastMessageAt': FieldValue.serverTimestamp(),
+    });
+
+    return ref.id;
+  }
+
+  Future<void> deleteChat(String chatId) async {
+    if (chatId == globalChatId) {
+      throw Exception('Cannot delete global chat');
+    }
+
+    final chatRef = _db.collection('chats').doc(chatId);
+    final msgs = await chatRef.collection('messages').get();
+    final batch = _db.batch();
+
+    for (final d in msgs.docs) {
+      batch.delete(d.reference);
+    }
+
+    batch.delete(chatRef);
+
+    await batch.commit();
   }
 }

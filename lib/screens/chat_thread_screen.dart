@@ -734,51 +734,60 @@ class _ChatComposerBar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    // This makes the bar "stick" to the keyboard with no gap.
-    final bottomInset = MediaQuery.of(context).viewInsets.bottom;
+    final mq = MediaQuery.of(context);
 
-    return AnimatedPadding(
-      duration: const Duration(milliseconds: 150),
-      curve: Curves.easeOut,
-      padding: EdgeInsets.only(
-        left: 12,
-        right: 12,
-        top: 8,
-        bottom: bottomInset, // <- key: Scaffold bottom slot + inset
-      ),
-      child: Material(
-        color: Colors.transparent,
-        child: Row(
-          children: [
-            Expanded(
-              child: TextField(
-                controller: controller,
-                focusNode: focusNode,
-                onTap: onTap,
-                textInputAction: TextInputAction.send,
-                onSubmitted: (_) => onSend(),
-                decoration: const InputDecoration(
-                  hintText: 'Pisz coś...',
-                  border: OutlineInputBorder(),
-                  isDense: true,
+    final bottomInset = mq.viewInsets.bottom;
+
+    final applySafeArea = bottomInset == 0;
+
+    return SafeArea(
+      top: false,
+      left: false,
+      right: false,
+      bottom: applySafeArea,
+      child: AnimatedPadding(
+        duration: const Duration(milliseconds: 150),
+        curve: Curves.easeOut,
+        padding: EdgeInsets.only(
+          left: 12,
+          right: 12,
+          top: 8,
+          bottom: bottomInset,
+        ),
+        child: Material(
+          color: Colors.transparent,
+          child: Row(
+            children: [
+              Expanded(
+                child: TextField(
+                  controller: controller,
+                  focusNode: focusNode,
+                  onTap: onTap,
+                  textInputAction: TextInputAction.send,
+                  onSubmitted: (_) => onSend(),
+                  decoration: const InputDecoration(
+                    hintText: 'Pisz coś...',
+                    border: OutlineInputBorder(),
+                    isDense: true,
+                  ),
+                  onChanged: onChanged,
                 ),
-                onChanged: onChanged,
               ),
-            ),
-            const SizedBox(width: 8),
-            SizedBox(
-              height: 44,
-              child: IconButton(
-                icon: const Icon(Icons.send, color: Colors.blueGrey),
-                onPressed: onSend,
+              const SizedBox(width: 8),
+              SizedBox(
+                height: 44,
+                child: IconButton(
+                  icon: const Icon(Icons.send, color: Colors.blueGrey),
+                  onPressed: onSend,
+                ),
               ),
-            ),
-            IconButton(
-              tooltip: 'Dodaj',
-              onPressed: onAttach,
-              icon: const Icon(Icons.add_circle_outline),
-            ),
-          ],
+              IconButton(
+                tooltip: 'Dodaj',
+                onPressed: onAttach,
+                icon: const Icon(Icons.add_circle_outline),
+              ),
+            ],
+          ),
         ),
       ),
     );
