@@ -1,21 +1,13 @@
 // services/push_messaging
 
 import 'dart:async';
+import 'dart:io';
 
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter/foundation.dart';
 
-/// Step 1 scope:
-/// - request permission
-/// - obtain FCM token (web requires VAPID)
-/// - save token under user_profiles/{uid}/push_tokens/{token}
-///
-/// Later we'll extend this service with:
-/// - per-event routing (chat, project updates, swaps)
-/// - topic subscriptions
-/// - notification preferences per user
 class PushService {
   PushService._();
   static final PushService instance = PushService._();
@@ -23,10 +15,6 @@ class PushService {
   final _messaging = FirebaseMessaging.instance;
   StreamSubscription<String>? _tokenRefreshSub;
 
-  /// IMPORTANT (web):
-  /// - Put your Web Push "VAPID public key" as --dart-define=FCM_VAPID_KEY=...
-  ///   Example:
-  ///   flutter run -d chrome --dart-define=FCM_VAPID_KEY=YOUR_KEY
   static const String _webVapidKey = String.fromEnvironment(
     'FCM_VAPID_KEY',
     defaultValue: '',
@@ -54,6 +42,22 @@ class PushService {
 
     // 2) Token
     final token = await _getTokenSafe();
+    if ((token == null || token.isEmpty) &&
+        !kIsWeb &&
+        defaultTargetPlatform == TargetPlatform.iOS) {
+      // try again IF NULL on first attmmpt iOS
+      Future.delayed(const Duration(seconds: 2), () async {
+        final u = FirebaseAuth.instance.currentUser;
+        if (u == null) return;
+
+        final t2 = await _getTokenSafe();
+        if (t2 != null && t2.isNotEmpty) {
+          await _saveToken(u.uid, t2);
+          debugPrint('PUSH: token saved on retry');
+        }
+      });
+    }
+
     print(
       'PUSH: token = ${token == null ? "NULL" : "${token.substring(0, 16)}..."}',
     );
@@ -64,7 +68,7 @@ class PushService {
       await _saveToken(user.uid, token);
     }
 
-    // 3)   refresh
+    // 3) refresh
     _tokenRefreshSub?.cancel();
     _tokenRefreshSub = _messaging.onTokenRefresh.listen((newToken) async {
       final u = FirebaseAuth.instance.currentUser;
@@ -90,6 +94,16 @@ class PushService {
         }
         return _messaging.getToken(vapidKey: _webVapidKey);
       }
+
+      // iOS: APNs token
+      if (Platform.isIOS) {
+        final apns = await _messaging.getAPNSToken();
+        if (apns == null) {
+          debugPrint('PUSH: APNS token not ready yet (will retry later).');
+          return null;
+        }
+      }
+
       return _messaging.getToken();
     } catch (e, st) {
       debugPrint('getToken error: $e');
