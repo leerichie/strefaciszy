@@ -591,47 +591,6 @@ class _CustomerDetailScreenState extends State<CustomerDetailScreen> {
           ),
         ],
       ),
-
-      // bottomNavigationBar: BottomAppBar(
-      //   elevation: 4,
-      //   shape: const CircularNotchedRectangle(),
-      //   notchMargin: 6,
-      //   child: Padding(
-      //     padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-      //     child: Row(
-      //       mainAxisAlignment: MainAxisAlignment.spaceBetween,
-      //       children: [
-      //         IconButton(
-      //           tooltip: 'Contacts',
-      //           icon: const Icon(Icons.people),
-      //           onPressed: () => Navigator.of(context).push(
-      //             MaterialPageRoute(
-      //               builder: (_) => ContactsListScreen(
-      //                 isAdmin: widget.isAdmin,
-      //                 customerId: widget.customerId,
-      //               ),
-      //             ),
-      //           ),
-      //         ),
-
-      //         SizedBox(width: 48),
-
-      //         // IconButton(
-      //         //   tooltip: 'Edytuj projekty',
-      //         //   icon: const Icon(Icons.edit),
-      //         //   onPressed: _editProjects,
-      //         // ),
-      //         IconButton(
-      //           tooltip: 'Skanuj',
-      //           icon: const Icon(Icons.qr_code_scanner),
-      //           onPressed: () => Navigator.of(
-      //             context,
-      //           ).push(MaterialPageRoute(builder: (_) => const ScanScreen())),
-      //         ),
-      //       ],
-      //     ),
-      //   ),
-      // ),
     );
   }
 }
