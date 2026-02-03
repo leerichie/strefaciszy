@@ -4,13 +4,14 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 
 class Chat {
   final String id;
-  final String type;  
+  final String type;
   final String? title;
   final List<String> members;
   final String createdBy;
   final DateTime createdAt;
   final String? lastMessageText;
   final DateTime? lastMessageAt;
+  final Map<String, dynamic> rawData;
 
   const Chat({
     required this.id,
@@ -21,6 +22,7 @@ class Chat {
     required this.createdAt,
     required this.lastMessageText,
     required this.lastMessageAt,
+    required this.rawData,
   });
 
   factory Chat.fromDoc(DocumentSnapshot<Map<String, dynamic>> doc) {
@@ -38,6 +40,7 @@ class Chat {
           (createdAtTs?.toDate()) ?? DateTime.fromMillisecondsSinceEpoch(0),
       lastMessageText: data['lastMessageText'] as String?,
       lastMessageAt: lastAtTs?.toDate(),
+      rawData: data,
     );
   }
 }

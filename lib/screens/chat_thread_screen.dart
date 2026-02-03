@@ -6,8 +6,12 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:strefa_ciszy/models/chat_message.dart';
+import 'package:strefa_ciszy/screens/_tag_picker_sheet.dart';
 import 'package:strefa_ciszy/screens/_user_picker_sheet.dart';
+import 'package:strefa_ciszy/screens/customer_detail_screen.dart';
+import 'package:strefa_ciszy/screens/project_editor_screen.dart';
 import 'package:strefa_ciszy/services/chat_service.dart';
+import 'package:strefa_ciszy/services/presence_service.dart';
 import 'package:strefa_ciszy/services/storage_service.dart';
 import 'package:strefa_ciszy/widgets/app_scaffold.dart';
 
@@ -24,13 +28,12 @@ class _ChatThreadScreenState extends State<ChatThreadScreen> {
   final _controller = TextEditingController();
   final _focusNode = FocusNode();
   final StorageService _storage = StorageService();
-  final bool _mentionPickerOpen = false;
   final List<Map<String, dynamic>> _pendingMentions = [];
   final ScrollController _scroll = ScrollController();
   final GlobalKey _composerKey = GlobalKey();
 
   OverlayEntry? _mentionOverlay;
-  String _mentionQuery = '';
+  OverlayEntry? _tagOverlay;
 
   TextSpan _buildMessageTextSpan(ChatMessage m, {required bool mine}) {
     final baseStyle = TextStyle(color: mine ? Colors.white : Colors.black87);
@@ -39,19 +42,39 @@ class _ChatThreadScreenState extends State<ChatThreadScreen> {
       return TextSpan(text: m.text, style: baseStyle);
     }
 
-    final Map<String, String> tokenToUid = {};
+    final Map<String, Map<String, dynamic>> tokenToMention = {};
+
     for (final mm in m.mentions) {
-      final uid = (mm['uid'] ?? '').toString();
-      final display = (mm['display'] ?? '').toString().trim();
-      if (uid.isEmpty || display.isEmpty) continue;
-      tokenToUid['@$display'] = uid;
+      final map = Map<String, dynamic>.from(mm);
+
+      final uid = (map['uid'] ?? '').toString().trim();
+      final display = (map['display'] ?? '').toString().trim();
+      if (uid.isNotEmpty && display.isNotEmpty) {
+        tokenToMention['@$display'] = {
+          'type': 'user',
+          'uid': uid,
+          'label': display,
+        };
+        continue;
+      }
+
+      final type = (map['type'] ?? '').toString().trim();
+      final label = (map['label'] ?? map['display'] ?? '').toString().trim();
+      final token = (map['token'] ?? '').toString().trim();
+
+      if ((type == 'client' || type == 'project')) {
+        final key = token.isNotEmpty
+            ? '#$token'
+            : (label.isNotEmpty ? '#$label' : '');
+        if (key.isNotEmpty) tokenToMention[key] = map;
+      }
     }
 
-    if (tokenToUid.isEmpty) {
+    if (tokenToMention.isEmpty) {
       return TextSpan(text: m.text, style: baseStyle);
     }
 
-    final tokens = tokenToUid.keys.toList()
+    final tokens = tokenToMention.keys.toList()
       ..sort((a, b) => b.length.compareTo(a.length));
 
     final spans = <InlineSpan>[];
@@ -80,13 +103,37 @@ class _ChatThreadScreenState extends State<ChatThreadScreen> {
         );
       }
 
-      final uid = tokenToUid[hitToken]!;
+      final data = tokenToMention[hitToken] ?? const <String, dynamic>{};
+      final type = (data['type'] ?? 'user').toString();
+
       spans.add(
         WidgetSpan(
           alignment: PlaceholderAlignment.baseline,
           baseline: TextBaseline.alphabetic,
           child: GestureDetector(
-            onTap: () => _openDmFor(uid),
+            onTap: () {
+              if (type == 'user') {
+                final uid = (data['uid'] ?? '').toString();
+                if (uid.isNotEmpty) _openDmFor(uid);
+                return;
+              }
+
+              if (type == 'client') {
+                final customerId = (data['id'] ?? '').toString();
+                if (customerId.isNotEmpty) _openClient(customerId);
+                return;
+              }
+
+              if (type == 'project') {
+                final customerId = (data['customerId'] ?? '').toString();
+                final projectId = (data['projectId'] ?? '').toString();
+
+                if (customerId.isNotEmpty && projectId.isNotEmpty) {
+                  _openProject(customerId, projectId);
+                }
+                return;
+              }
+            },
             child: Text(
               hitToken,
               style: baseStyle.copyWith(
@@ -102,6 +149,155 @@ class _ChatThreadScreenState extends State<ChatThreadScreen> {
     }
 
     return TextSpan(children: spans, style: baseStyle);
+  }
+
+  String _currentTagQuery() {
+    final value = _controller.value;
+    final text = value.text;
+    final cursor = value.selection.baseOffset;
+    if (cursor < 0) return '';
+
+    final uptoCursor = text.substring(0, cursor);
+    final hash = uptoCursor.lastIndexOf('#');
+    if (hash == -1) return '';
+
+    if (hash > 0 && uptoCursor[hash - 1].trim().isNotEmpty) return '';
+
+    final afterHash = uptoCursor.substring(hash + 1);
+    if (afterHash.contains(' ')) return '';
+
+    return afterHash.trim().toLowerCase();
+  }
+
+  void _closeTagOverlay() {
+    _tagOverlay?.remove();
+    _tagOverlay = null;
+  }
+
+  void _refreshTagOverlay() {
+    _tagOverlay?.markNeedsBuild();
+  }
+
+  Future<void> _openTagPicker() async {
+    _focusNode.requestFocus();
+
+    if (_tagOverlay != null) {
+      _refreshTagOverlay();
+      return;
+    }
+
+    final box = _composerKey.currentContext?.findRenderObject() as RenderBox?;
+    final overlayBox =
+        Overlay.of(context).context.findRenderObject() as RenderBox?;
+    if (box == null || overlayBox == null) return;
+
+    final pos = box.localToGlobal(Offset.zero, ancestor: overlayBox);
+    final size = box.size;
+
+    _tagOverlay = OverlayEntry(
+      builder: (ctx) {
+        final q = _currentTagQuery();
+
+        if (q.isEmpty && !_controller.text.endsWith('#')) {
+          WidgetsBinding.instance.addPostFrameCallback(
+            (_) => _closeTagOverlay(),
+          );
+          return const SizedBox.shrink();
+        }
+
+        final double left = pos.dx + 12;
+        final double width = (size.width - 24).clamp(240.0, 360.0);
+        final double bottomFromOverlayTop = overlayBox.size.height - pos.dy + 8;
+
+        return Positioned(
+          left: left,
+          bottom: bottomFromOverlayTop,
+          width: width,
+          child: Material(
+            elevation: 10,
+            borderRadius: BorderRadius.circular(12),
+            clipBehavior: Clip.antiAlias,
+            child: GestureDetector(
+              behavior: HitTestBehavior.opaque,
+              onTap: () {},
+              child: ConstrainedBox(
+                constraints: const BoxConstraints(maxHeight: 260),
+                child: TagPickerSheet(
+                  compact: true,
+                  query: q,
+                  onPick: (picked) {
+                    final type = (picked['type'] ?? '').toString().trim();
+                    final label = (picked['label'] ?? '').toString().trim();
+                    final token = (picked['token'] ?? '').toString().trim();
+
+                    if (type.isEmpty || label.isEmpty || token.isEmpty) return;
+
+                    final value = _controller.value;
+                    final text = value.text;
+                    final sel = value.selection;
+                    final cursor = sel.baseOffset >= 0
+                        ? sel.baseOffset
+                        : text.length;
+
+                    // find the last "#" before cursor and replace "#query" with "#token "
+                    final uptoCursor = text.substring(0, cursor);
+                    final hash = uptoCursor.lastIndexOf('#');
+                    if (hash == -1) return;
+
+                    // boundary: start or whitespace before '#'
+                    if (hash > 0 && uptoCursor[hash - 1].trim().isNotEmpty)
+                      return;
+
+                    final insert = '#$token ';
+                    final newText = text.replaceRange(hash, cursor, insert);
+                    final newCursorPos = hash + insert.length;
+
+                    _controller.value = value.copyWith(
+                      text: newText,
+                      selection: TextSelection.collapsed(offset: newCursorPos),
+                      composing: TextRange.empty,
+                    );
+
+                    // store a clean mention payload (keep ids + label + token)
+                    final mm = <String, dynamic>{
+                      'type': type,
+                      'label': label,
+                      'token': token,
+                    };
+
+                    if (type == 'client') {
+                      final id = (picked['id'] ?? '').toString().trim();
+                      if (id.isEmpty) return;
+                      mm['id'] = id;
+                    }
+
+                    if (type == 'project') {
+                      final customerId = (picked['customerId'] ?? '')
+                          .toString()
+                          .trim();
+                      final projectId = (picked['projectId'] ?? '')
+                          .toString()
+                          .trim();
+                      if (customerId.isEmpty || projectId.isEmpty) return;
+                      mm['customerId'] = customerId;
+                      mm['projectId'] = projectId;
+                    }
+
+                    _pendingMentions.add(mm);
+
+                    _closeTagOverlay();
+                    _focusNode.requestFocus();
+                    _scrollToBottom();
+                  },
+                ),
+              ),
+            ),
+          ),
+        );
+      },
+    );
+
+    Overlay.of(context).insert(_tagOverlay!);
   }
 
   String _currentMentionQuery() {
@@ -158,15 +354,33 @@ class _ChatThreadScreenState extends State<ChatThreadScreen> {
     }
   }
 
+  void _openClient(String customerId) {
+    if (customerId.trim().isEmpty) return;
+
+    Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (_) =>
+            CustomerDetailScreen(customerId: customerId.trim(), isAdmin: false),
+      ),
+    );
+  }
+
+  void _openProject(String customerId, String projectId) {
+    if (customerId.trim().isEmpty || projectId.trim().isEmpty) return;
+
+    Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (_) => ProjectEditorScreen(
+          customerId: customerId.trim(),
+          projectId: projectId.trim(),
+          isAdmin: false,
+        ),
+      ),
+    );
+  }
+
   Future<void> _openMentionPicker() async {
     _focusNode.requestFocus();
-
-    _mentionQuery = _currentMentionQuery();
-
-    if (_mentionQuery.isEmpty && !_controller.text.contains('@')) {
-      _closeMentionOverlay();
-      return;
-    }
 
     if (_mentionOverlay != null) {
       _refreshMentionOverlay();
@@ -286,6 +500,8 @@ class _ChatThreadScreenState extends State<ChatThreadScreen> {
 
     _controller.clear();
     _closeMentionOverlay();
+    _closeTagOverlay();
+
     _focusNode.requestFocus();
 
     if (widget.chatId == ChatService.globalChatId) {
@@ -388,12 +604,45 @@ class _ChatThreadScreenState extends State<ChatThreadScreen> {
   }
 
   @override
+  void initState() {
+    super.initState();
+    PresenceService.instance.setActiveChat(widget.chatId);
+    _markAsRead();
+  }
+
+  @override
   void dispose() {
+    PresenceService.instance.clearActiveChat(widget.chatId);
+
     _closeMentionOverlay();
+    _closeTagOverlay();
+
     _scroll.dispose();
     _controller.dispose();
     _focusNode.dispose();
     super.dispose();
+  }
+
+  @override
+  void didUpdateWidget(covariant ChatThreadScreen oldWidget) {
+    super.didUpdateWidget(oldWidget);
+
+    if (oldWidget.chatId != widget.chatId) {
+      PresenceService.instance.clearActiveChat(oldWidget.chatId);
+      PresenceService.instance.setActiveChat(widget.chatId);
+
+      _markAsRead();
+    }
+  }
+
+  Future<void> _markAsRead() async {
+    final uid = FirebaseAuth.instance.currentUser?.uid;
+    if (uid == null) return;
+
+    await FirebaseFirestore.instance
+        .collection('chats')
+        .doc(widget.chatId)
+        .update({'unread_$uid': 0});
   }
 
   bool _isSameDay(DateTime a, DateTime b) =>
@@ -470,21 +719,30 @@ class _ChatThreadScreenState extends State<ChatThreadScreen> {
           onAttach: _openAttachMenu,
           onTap: _scrollToBottom,
           onChanged: (v) {
-            if (_mentionOverlay != null) {
-              _refreshMentionOverlay();
-            }
+            if (_mentionOverlay != null) _refreshMentionOverlay();
+            if (_tagOverlay != null) _refreshTagOverlay();
 
             final sel = _controller.selection;
             final cursor = sel.baseOffset;
-
             if (cursor < 1 || cursor > v.length) return;
-            if (v[cursor - 1] != '@') return;
 
-            final beforeAt = cursor - 2;
-            final okBoundary = beforeAt < 0 || v[beforeAt].trim().isEmpty;
-            if (!okBoundary) return;
+            final last = v[cursor - 1];
 
-            _openMentionPicker();
+            if (last == '@') {
+              final beforeAt = cursor - 2;
+              final okBoundary = beforeAt < 0 || v[beforeAt].trim().isEmpty;
+              if (!okBoundary) return;
+              _openMentionPicker();
+              return;
+            }
+
+            if (last == '#') {
+              final beforeHash = cursor - 2;
+              final okBoundary = beforeHash < 0 || v[beforeHash].trim().isEmpty;
+              if (!okBoundary) return;
+              _openTagPicker();
+              return;
+            }
           },
         ),
       ),

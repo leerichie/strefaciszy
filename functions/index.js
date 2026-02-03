@@ -1,6 +1,7 @@
 /* eslint-disable quotes, no-multi-spaces, require-jsdoc, max-len */
 
 const {onDocumentWritten} = require("firebase-functions/v2/firestore");
+const {onDocumentCreated} = require("firebase-functions/v2/firestore");
 const {onSchedule} = require("firebase-functions/v2/scheduler");
 
 const functions = require('firebase-functions');
@@ -686,3 +687,160 @@ exports.sendDailyRwReportScheduled = onSchedule(
       }
     },
 );
+
+// PUSH - chat -> FCM
+
+async function getUserTokens(uid) {
+  const snap = await admin.firestore()
+      .collection("users")
+      .doc(uid)
+      .collection("push_tokens")
+      .get();
+
+  return snap.docs.map((d) => d.id).filter(Boolean);
+}
+
+function uniq(arr) {
+  return [...new Set(arr)];
+}
+
+// mentioned users
+function extractMentionUids(msg) {
+  const m = msg.mentions;
+  if (Array.isArray(m)) {
+    const uids = m
+        .map((x) => (x && (x.uid || x.userId)) ? String(x.uid || x.userId) : null)
+        .filter(Boolean);
+    return uniq(uids);
+  }
+  return [];
+}
+
+exports.pushOnChatMessageCreate = onDocumentCreated(
+    "chats/{chatId}/messages/{messageId}",
+    async (event) => {
+      const snap = event.data;
+      if (!snap) return;
+
+      const {chatId, messageId} = event.params;
+      const msg = snap.data() || {};
+
+      const senderId = msg.senderId ? String(msg.senderId) : "";
+      const text = (msg.text || "").toString().trim();
+
+      const chatRef = admin.firestore().collection("chats").doc(chatId);
+      const chatSnap = await chatRef.get();
+      if (!chatSnap.exists) return;
+
+      const chat = chatSnap.data() || {};
+      const members = Array.isArray(chat.members) ? chat.members.map(String) : [];
+      const type = (chat.type || (chatId === "global" ? "group" : "dm")).toString();
+
+      // Decide recipients
+      let recipients = [];
+
+      if (type === "dm") {
+        recipients = members.filter((uid) => uid && uid !== senderId);
+      } else {
+        const mentioned = extractMentionUids(msg);
+        recipients = mentioned.filter((uid) => uid && uid !== senderId);
+      }
+
+      recipients = uniq(recipients);
+      if (!recipients.length) return;
+
+      // Collect tokens
+      const tokenLists = await Promise.all(recipients.map(getUserTokens));
+      const tokens = uniq(tokenLists.flat());
+      if (!tokens.length) return;
+
+      const title = "Strefa Ciszy";
+      const body = text.length ? text : "📩 Nowa wiadomość";
+
+      const multicast = {
+        tokens,
+        notification: {title, body},
+        data: {
+          eventType: "chat.message",
+          chatId: String(chatId),
+          messageId: String(messageId),
+          senderId: senderId,
+          chatType: type,
+        },
+        android: {
+          priority: "high",
+          notification: {
+            channelId: "chat",
+            tag: String(chatId), // group notify
+          },
+        },
+        apns: {
+          headers: {
+            "apns-thread-id": String(chatId), // groups iOS
+          },
+          payload: {
+            aps: {
+              sound: "default",
+            },
+          },
+        },
+        webpush: {
+          headers: {Urgency: "high"},
+          notification: {
+            title,
+            body,
+            tag: String(chatId), // organised PUSH
+            renotify: true,
+          },
+        },
+      };
+
+      // debug
+      let resp;
+      try {
+        resp = await admin.messaging().sendEachForMulticast(multicast);
+      } catch (e) {
+        console.error("[PUSH] FCM send failed:", e);
+        console.error("[PUSH] payload keys:", Object.keys(multicast));
+        console.error("[PUSH] tokenCount:", (multicast.tokens || []).length);
+        return;
+      }
+
+      // Cleanup invalid tokens
+      const badTokens = [];
+      resp.responses.forEach((r, i) => {
+        if (!r.success) {
+          const code = r.error && r.error.code ? String(r.error.code) : "";
+          if (code.includes("registration-token-not-registered") ||
+              code.includes("invalid-argument")) {
+            badTokens.push(tokens[i]);
+          }
+        }
+      });
+
+      if (badTokens.length) {
+        // Remove invalid tokens
+        await Promise.all(recipients.map(async (uid) => {
+          const batch = admin.firestore().batch();
+          badTokens.forEach((t) => {
+            const ref = admin.firestore()
+                .collection("users").doc(uid)
+                .collection("push_tokens").doc(t);
+            batch.delete(ref);
+          });
+          await batch.commit();
+        }));
+      }
+
+      console.log("[PUSH] chat message sent", {
+        chatId,
+        messageId,
+        type,
+        recipients: recipients.length,
+        tokens: tokens.length,
+        success: resp.successCount,
+        fail: resp.failureCount,
+      });
+    },
+);
+

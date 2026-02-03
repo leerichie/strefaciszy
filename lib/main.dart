@@ -8,6 +8,8 @@ import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:strefa_ciszy/offline/offline_api.dart';
 import 'package:strefa_ciszy/services/admin_api.dart';
 import 'package:strefa_ciszy/services/api_service.dart';
+import 'package:strefa_ciszy/services/push_router.dart';
+import 'package:strefa_ciszy/services/push_service.dart';
 
 import 'firebase_options.dart';
 import 'offline/sync_orchestrator_stub.dart'
@@ -17,6 +19,7 @@ import 'screens/main_menu_screen.dart';
 import 'widgets/web_scroll_behaviour.dart';
 
 SyncOrchestrator? _syncOrchestrator;
+final GlobalKey<NavigatorState> appNavKey = GlobalKey<NavigatorState>();
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -85,7 +88,11 @@ class StrefaCiszyApp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      PushRouter.instance.start(navKey: appNavKey);
+    });
     return MaterialApp(
+      navigatorKey: appNavKey,
       title: 'Strefa Ciszy',
       theme: ThemeData(primarySwatch: Colors.blue),
       scrollBehavior: WebScrollBehavior(),
@@ -127,6 +134,12 @@ class AuthGate extends StatelessWidget {
           return const LoginScreen();
         }
         final user = authSnap.data!;
+
+        // PUSH
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          PushService.instance.startForCurrentUser();
+        });
+
         return FutureBuilder<IdTokenResult>(
           future: user.getIdTokenResult(true),
           builder: (ctx, tokenSnap) {

@@ -48,7 +48,31 @@ class ChatService {
       'lastMessageAt': FieldValue.serverTimestamp(),
     });
 
+    final chatSnap = await chatRef.get();
+    final chatData = chatSnap.data() ?? {};
+    final members =
+        (chatData['members'] as List?)?.map((e) => e.toString()).toList() ?? [];
+
+    for (final uid in members) {
+      if (uid == senderId) continue;
+
+      batch.update(chatRef, {'unread_$uid': FieldValue.increment(1)});
+    }
+
     await batch.commit();
+  }
+
+  Future<void> joinGlobalChat(String uid) async {
+    final ref = _db.collection('chats').doc(globalChatId);
+    await ref.set({
+      'type': 'global',
+      'title': 'Ogólny',
+      'members': FieldValue.arrayUnion([uid]),
+      'createdBy': 'system',
+      'createdAt': FieldValue.serverTimestamp(),
+      'lastMessageText': null,
+      'lastMessageAt': FieldValue.serverTimestamp(),
+    }, SetOptions(merge: true));
   }
 
   Future<void> ensureGlobalChat() async {

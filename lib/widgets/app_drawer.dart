@@ -65,6 +65,41 @@ class _AppDrawerState extends State<AppDrawer> {
     });
   }
 
+  int _sumUnreadFromChats(
+    List<QueryDocumentSnapshot<Map<String, dynamic>>> docs,
+    String uid,
+  ) {
+    int sum = 0;
+    for (final d in docs) {
+      final data = d.data();
+      final v = data['unread_$uid'];
+      if (v is int)
+        sum += v;
+      else if (v is num)
+        sum += v.toInt();
+    }
+    return sum;
+  }
+
+  Widget _badgePill(int n) {
+    if (n <= 0) return const SizedBox.shrink();
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+      decoration: BoxDecoration(
+        color: Colors.red,
+        borderRadius: BorderRadius.circular(999),
+      ),
+      child: Text(
+        n > 99 ? '99+' : '$n',
+        style: const TextStyle(
+          color: Colors.white,
+          fontSize: 12,
+          fontWeight: FontWeight.bold,
+        ),
+      ),
+    );
+  }
+
   // remove flicker for screen change
   void _openPage(BuildContext context, Widget page) {
     if (kIsWeb) {
@@ -557,11 +592,37 @@ class _AppDrawerState extends State<AppDrawer> {
                         onSurface: Colors.white,
                       ),
                     ),
-                    child: ListTile(
-                      leading: const Icon(Icons.chat, color: Colors.white),
-                      title: Text('Bla bla', style: menuTitles),
-                      onTap: () => _openPage(context, const ChatListScreen()),
-                    ),
+                    child: uid == null
+                        ? ListTile(
+                            leading: const Icon(
+                              Icons.chat,
+                              color: Colors.white,
+                            ),
+                            title: Text('Chat', style: menuTitles),
+                            onTap: () =>
+                                _openPage(context, const ChatListScreen()),
+                          )
+                        : StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
+                            stream: FirebaseFirestore.instance
+                                .collection('chats')
+                                .where('members', arrayContains: uid)
+                                .snapshots(),
+                            builder: (ctx, snap) {
+                              final docs = snap.data?.docs ?? const [];
+                              final total = _sumUnreadFromChats(docs, uid);
+
+                              return ListTile(
+                                leading: const Icon(
+                                  Icons.chat,
+                                  color: Colors.white,
+                                ),
+                                title: Text('Chat', style: menuTitles),
+                                trailing: _badgePill(total),
+                                onTap: () =>
+                                    _openPage(context, const ChatListScreen()),
+                              );
+                            },
+                          ),
                   ),
                   Divider(),
                   // Chat

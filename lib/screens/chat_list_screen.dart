@@ -20,7 +20,6 @@ class _ChatListScreenState extends State<ChatListScreen> {
   @override
   void initState() {
     super.initState();
-    ChatService.instance.ensureGlobalChat();
     _loadAdminFlag();
   }
 
@@ -47,6 +46,9 @@ class _ChatListScreenState extends State<ChatListScreen> {
     final uid = FirebaseAuth.instance.currentUser?.uid;
     if (uid == null) return;
 
+    await ChatService.instance.ensureGlobalChat();
+    await ChatService.instance.joinGlobalChat(uid);
+
     final isAdmin = await _isCurrentUserAdmin(uid);
     if (!mounted) return;
 
@@ -54,6 +56,38 @@ class _ChatListScreenState extends State<ChatListScreen> {
       _isAdmin = isAdmin;
       _adminChecked = true;
     });
+  }
+
+  int _readUnreadCount(Chat c, String uid) {
+    final v = c.rawData['unread_$uid'];
+    if (v is int) return v;
+    if (v is double) return v.toInt();
+    if (v is num) return v.toInt();
+    return 0;
+  }
+
+  Widget? _buildUnreadBadge(Chat c) {
+    final uid = FirebaseAuth.instance.currentUser?.uid;
+    if (uid == null) return null;
+
+    final unread = _readUnreadCount(c, uid);
+    if (unread <= 0) return null;
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+      decoration: BoxDecoration(
+        color: Colors.red,
+        borderRadius: BorderRadius.circular(999),
+      ),
+      child: Text(
+        unread > 99 ? '99+' : unread.toString(),
+        style: const TextStyle(
+          color: Colors.white,
+          fontSize: 12,
+          fontWeight: FontWeight.bold,
+        ),
+      ),
+    );
   }
 
   Future<void> _showCreateMenu({
@@ -223,6 +257,38 @@ class _ChatListScreenState extends State<ChatListScreen> {
     );
   }
 
+  Widget _globalUnreadBadge(String uid) {
+    return StreamBuilder<DocumentSnapshot<Map<String, dynamic>>>(
+      stream: FirebaseFirestore.instance
+          .collection('chats')
+          .doc(ChatService.globalChatId)
+          .snapshots(),
+      builder: (_, snap) {
+        final data = snap.data?.data();
+        final v = data?['unread_$uid'];
+        final unread = (v is num) ? v.toInt() : 0;
+
+        if (unread <= 0) return const SizedBox.shrink();
+
+        return Container(
+          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+          decoration: BoxDecoration(
+            color: Colors.red,
+            borderRadius: BorderRadius.circular(999),
+          ),
+          child: Text(
+            unread > 99 ? '99+' : unread.toString(),
+            style: const TextStyle(
+              color: Colors.white,
+              fontSize: 12,
+              fontWeight: FontWeight.bold,
+            ),
+          ),
+        );
+      },
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final uid = FirebaseAuth.instance.currentUser?.uid;
@@ -260,6 +326,7 @@ class _ChatListScreenState extends State<ChatListScreen> {
                   ),
                   title: const Text('Strefa Ciszy'),
                   subtitle: const Text('ogolne chat'),
+                  trailing: uid == null ? null : _globalUnreadBadge(uid),
                   onTap: () => Navigator.of(context).push(
                     MaterialPageRoute(
                       builder: (_) => const ChatThreadScreen(
@@ -284,7 +351,9 @@ class _ChatListScreenState extends State<ChatListScreen> {
                             );
                           }
                           final docs = snap.data?.docs ?? [];
+
                           final chats = docs
+                              .where((d) => d.id != ChatService.globalChatId)
                               .map((d) => Chat.fromDoc(d))
                               .toList();
 
@@ -313,11 +382,15 @@ class _ChatListScreenState extends State<ChatListScreen> {
                                     maxLines: 1,
                                     overflow: TextOverflow.ellipsis,
                                   ),
-                                  trailing:
-                                      (!_isAdmin ||
-                                          c.id == ChatService.globalChatId)
-                                      ? null
-                                      : IconButton(
+                                  trailing: Row(
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: [
+                                      if (_buildUnreadBadge(c) != null)
+                                        _buildUnreadBadge(c)!,
+
+                                      if (_isAdmin &&
+                                          c.id != ChatService.globalChatId)
+                                        IconButton(
                                           tooltip: 'Usuń czat',
                                           icon: const Icon(
                                             Icons.delete_outline,
@@ -345,6 +418,9 @@ class _ChatListScreenState extends State<ChatListScreen> {
                                             }
                                           },
                                         ),
+                                    ],
+                                  ),
+
                                   onTap: () => Navigator.of(context).push(
                                     MaterialPageRoute(
                                       builder: (_) =>
