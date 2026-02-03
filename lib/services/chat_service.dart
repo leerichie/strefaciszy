@@ -43,10 +43,10 @@ class ChatService {
       'mentions': mentions,
     });
 
-    batch.update(chatRef, {
+    batch.set(chatRef, {
       'lastMessageText': preview,
       'lastMessageAt': FieldValue.serverTimestamp(),
-    });
+    }, SetOptions(merge: true));
 
     final chatSnap = await chatRef.get();
     final chatData = chatSnap.data() ?? {};

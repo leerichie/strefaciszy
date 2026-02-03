@@ -9,6 +9,14 @@
       ]
     },
     {
+      "collectionGroup": "chats",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "members", "arrayConfig": "CONTAINS" },
+        { "fieldPath": "lastMessageAt", "order": "DESCENDING" }
+      ]
+    },
+    {
       "collectionGroup": "contacts",
       "queryScope": "COLLECTION",
       "fields": [

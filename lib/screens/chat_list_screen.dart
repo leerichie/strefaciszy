@@ -46,12 +46,17 @@ class _ChatListScreenState extends State<ChatListScreen> {
     final uid = FirebaseAuth.instance.currentUser?.uid;
     if (uid == null) return;
 
-    await ChatService.instance.ensureGlobalChat();
-    await ChatService.instance.joinGlobalChat(uid);
+    bool isAdmin = false;
 
-    final isAdmin = await _isCurrentUserAdmin(uid);
+    try {
+      await ChatService.instance.joinGlobalChat(uid);
+      isAdmin = await _isCurrentUserAdmin(uid);
+    } catch (e, st) {
+      debugPrint('ChatListScreen: admin load failed: $e');
+      debugPrint('$st');
+    }
+
     if (!mounted) return;
-
     setState(() {
       _isAdmin = isAdmin;
       _adminChecked = true;
@@ -292,6 +297,8 @@ class _ChatListScreenState extends State<ChatListScreen> {
   @override
   Widget build(BuildContext context) {
     final uid = FirebaseAuth.instance.currentUser?.uid;
+
+    print('FAB gate: uid=$uid adminChecked=$_adminChecked isAdmin=$_isAdmin');
 
     return AppScaffold(
       floatingActionButton: (uid == null || !_adminChecked || !_isAdmin)
