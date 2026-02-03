@@ -9,6 +9,13 @@ open -a Simulator
 firebase deploy
 .... --only hosting (web)
 
+-- fetch indexes
+firebase firestore:indexes > firestore.indexes.json
+
+-push
+firebase deploy --only firestore:indexes / rules
+
+
 3. RUN
 clean
 doctor
