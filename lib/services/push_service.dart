@@ -41,22 +41,7 @@ class PushService {
     debugPrint('Push permission: ${settings.authorizationStatus}');
 
     // 2) Token
-    final token = await _getTokenSafe();
-    if ((token == null || token.isEmpty) &&
-        !kIsWeb &&
-        defaultTargetPlatform == TargetPlatform.iOS) {
-      // try again IF NULL on first attmmpt iOS
-      Future.delayed(const Duration(seconds: 2), () async {
-        final u = FirebaseAuth.instance.currentUser;
-        if (u == null) return;
-
-        final t2 = await _getTokenSafe();
-        if (t2 != null && t2.isNotEmpty) {
-          await _saveToken(u.uid, t2);
-          debugPrint('PUSH: token saved on retry');
-        }
-      });
-    }
+    final token = await _getTokenWithRetry();
 
     print(
       'PUSH: token = ${token == null ? "NULL" : "${token.substring(0, 16)}..."}',
@@ -87,29 +72,34 @@ class PushService {
     try {
       if (kIsWeb) {
         if (_webVapidKey.isEmpty) {
-          debugPrint(
-            'Missing FCM_VAPID_KEY. Run web with --dart-define=FCM_VAPID_KEY=...',
-          );
+          debugPrint('Missing FCM_VAPID_KEY.');
           return null;
         }
         return _messaging.getToken(vapidKey: _webVapidKey);
       }
 
-      // iOS: APNs token
-      if (Platform.isIOS) {
-        final apns = await _messaging.getAPNSToken();
-        if (apns == null) {
-          debugPrint('PUSH: APNS token not ready yet (will retry later).');
-          return null;
-        }
-      }
+      // iOS token retry
+      final t = await _messaging.getToken();
+      final apns = Platform.isIOS ? await _messaging.getAPNSToken() : null;
+      debugPrint(
+        'PUSH: apns=${apns == null ? "NULL" : "OK"} fcm=${t == null ? "NULL" : "OK"}',
+      );
 
-      return _messaging.getToken();
+      return t;
     } catch (e, st) {
       debugPrint('getToken error: $e');
       debugPrint('$st');
       return null;
     }
+  }
+
+  Future<String?> _getTokenWithRetry({int attempts = 6}) async {
+    for (var i = 0; i < attempts; i++) {
+      final t = await _getTokenSafe();
+      if (t != null && t.isNotEmpty) return t;
+      await Future.delayed(Duration(seconds: 2 + i));
+    }
+    return null;
   }
 
   Future<void> _saveToken(String uid, String token) async {

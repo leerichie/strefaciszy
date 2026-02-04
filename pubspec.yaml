@@ -6,7 +6,7 @@ publish_to: "none" # Remove this line if you wish to publish to pub.dev
 
 # change build '+'
 # and in xcode
-version: 1.0.0+31
+version: 1.0.0+32
 
 environment:
   sdk: ^3.8.1
@@ -90,6 +90,8 @@ flutter:
   uses-material-design: true
 
   assets:
+    - assets/images/apple_ios_logo.png
+    - assets/images/android_logo.png
     - assets/images/strefa_ciszy_logo.png
     - assets/images/strefa_S.png
     - assets/favicon/Icon-512.png
