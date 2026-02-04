@@ -3,6 +3,7 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/foundation.dart';
+import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:strefa_ciszy/models/chat_message.dart';
@@ -14,6 +15,7 @@ import 'package:strefa_ciszy/services/chat_service.dart';
 import 'package:strefa_ciszy/services/presence_service.dart';
 import 'package:strefa_ciszy/services/storage_service.dart';
 import 'package:strefa_ciszy/widgets/app_scaffold.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 class ChatThreadScreen extends StatefulWidget {
   final String chatId;
@@ -38,9 +40,15 @@ class _ChatThreadScreenState extends State<ChatThreadScreen> {
   TextSpan _buildMessageTextSpan(ChatMessage m, {required bool mine}) {
     final baseStyle = TextStyle(color: mine ? Colors.white : Colors.black87);
 
-    if (m.mentions.isEmpty) {
-      return TextSpan(text: m.text, style: baseStyle);
-    }
+    final mentionStyle = baseStyle.copyWith(
+      decoration: TextDecoration.underline,
+      fontWeight: FontWeight.w600,
+    );
+
+    final linkStyle = baseStyle.copyWith(
+      decoration: TextDecoration.underline,
+      fontWeight: FontWeight.w600,
+    );
 
     final Map<String, Map<String, dynamic>> tokenToMention = {};
 
@@ -62,7 +70,7 @@ class _ChatThreadScreenState extends State<ChatThreadScreen> {
       final label = (map['label'] ?? map['display'] ?? '').toString().trim();
       final token = (map['token'] ?? '').toString().trim();
 
-      if ((type == 'client' || type == 'project')) {
+      if (type == 'client' || type == 'project') {
         final key = token.isNotEmpty
             ? '#$token'
             : (label.isNotEmpty ? '#$label' : '');
@@ -70,8 +78,49 @@ class _ChatThreadScreenState extends State<ChatThreadScreen> {
       }
     }
 
+    List<InlineSpan> linkify(String text) {
+      if (text.isEmpty) return const [];
+
+      final urlRe = RegExp(
+        r'((https?:\/\/)|(www\.))[^\s]+',
+        caseSensitive: false,
+      );
+
+      final spans = <InlineSpan>[];
+      int i = 0;
+
+      for (final match in urlRe.allMatches(text)) {
+        if (match.start > i) {
+          spans.add(
+            TextSpan(text: text.substring(i, match.start), style: baseStyle),
+          );
+        }
+
+        final rawUrl = text.substring(match.start, match.end);
+
+        spans.add(
+          TextSpan(
+            text: rawUrl,
+            style: linkStyle,
+            recognizer: TapGestureRecognizer()
+              ..onTap = () {
+                _openUrl(rawUrl);
+              },
+          ),
+        );
+
+        i = match.end;
+      }
+
+      if (i < text.length) {
+        spans.add(TextSpan(text: text.substring(i), style: baseStyle));
+      }
+
+      return spans;
+    }
+
     if (tokenToMention.isEmpty) {
-      return TextSpan(text: m.text, style: baseStyle);
+      return TextSpan(children: linkify(m.text), style: baseStyle);
     }
 
     final tokens = tokenToMention.keys.toList()
@@ -93,25 +142,23 @@ class _ChatThreadScreenState extends State<ChatThreadScreen> {
       }
 
       if (hitIndex == -1 || hitToken == null) {
-        spans.add(TextSpan(text: remaining, style: baseStyle));
+        spans.addAll(linkify(remaining));
         break;
       }
 
       if (hitIndex > 0) {
-        spans.add(
-          TextSpan(text: remaining.substring(0, hitIndex), style: baseStyle),
-        );
+        spans.addAll(linkify(remaining.substring(0, hitIndex)));
       }
 
       final data = tokenToMention[hitToken] ?? const <String, dynamic>{};
       final type = (data['type'] ?? 'user').toString();
 
       spans.add(
-        WidgetSpan(
-          alignment: PlaceholderAlignment.baseline,
-          baseline: TextBaseline.alphabetic,
-          child: GestureDetector(
-            onTap: () {
+        TextSpan(
+          text: hitToken,
+          style: mentionStyle,
+          recognizer: TapGestureRecognizer()
+            ..onTap = () {
               if (type == 'user') {
                 final uid = (data['uid'] ?? '').toString();
                 if (uid.isNotEmpty) _openDmFor(uid);
@@ -127,21 +174,12 @@ class _ChatThreadScreenState extends State<ChatThreadScreen> {
               if (type == 'project') {
                 final customerId = (data['customerId'] ?? '').toString();
                 final projectId = (data['projectId'] ?? '').toString();
-
                 if (customerId.isNotEmpty && projectId.isNotEmpty) {
                   _openProject(customerId, projectId);
                 }
                 return;
               }
             },
-            child: Text(
-              hitToken,
-              style: baseStyle.copyWith(
-                decoration: TextDecoration.underline,
-                fontWeight: FontWeight.w600,
-              ),
-            ),
-          ),
         ),
       );
 
@@ -635,6 +673,20 @@ class _ChatThreadScreenState extends State<ChatThreadScreen> {
     }
   }
 
+  Future<void> _openUrl(String raw) async {
+    final s = raw.trim();
+    if (s.isEmpty) return;
+
+    final url = s.startsWith('http://') || s.startsWith('https://')
+        ? s
+        : 'https://$s';
+
+    final uri = Uri.tryParse(url);
+    if (uri == null) return;
+
+    await launchUrl(uri, mode: LaunchMode.externalApplication);
+  }
+
   Future<void> _markAsRead() async {
     final uid = FirebaseAuth.instance.currentUser?.uid;
     if (uid == null) return;
@@ -891,54 +943,57 @@ class _ChatThreadScreenState extends State<ChatThreadScreen> {
                                             : Colors.grey.shade200,
                                         borderRadius: BorderRadius.circular(12),
                                       ),
-                                      child: Column(
-                                        crossAxisAlignment:
-                                            CrossAxisAlignment.start,
-                                        children: [
-                                          if (m.text.trim().isNotEmpty)
-                                            RichText(
-                                              text: _buildMessageTextSpan(
-                                                m,
-                                                mine: mine,
-                                              ),
-                                            ),
-
-                                          if (m.attachments.isNotEmpty) ...[
+                                      child: SelectionArea(
+                                        child: Column(
+                                          crossAxisAlignment:
+                                              CrossAxisAlignment.start,
+                                          children: [
                                             if (m.text.trim().isNotEmpty)
-                                              const SizedBox(height: 8),
-                                            ...m.attachments.map((a) {
-                                              final type = (a['type'] ?? '')
-                                                  .toString();
-                                              final url = (a['url'] ?? '')
-                                                  .toString();
-                                              if (type != 'image' ||
-                                                  url.isEmpty) {
-                                                return const SizedBox.shrink();
-                                              }
-
-                                              return Padding(
-                                                padding: const EdgeInsets.only(
-                                                  bottom: 8,
+                                              SelectableText.rich(
+                                                _buildMessageTextSpan(
+                                                  m,
+                                                  mine: mine,
                                                 ),
-                                                child: GestureDetector(
-                                                  onTap: () =>
-                                                      _openImageViewer(url),
-                                                  child: ClipRRect(
-                                                    borderRadius:
-                                                        BorderRadius.circular(
-                                                          10,
-                                                        ),
-                                                    child: Image.network(
-                                                      url,
-                                                      height: 160,
-                                                      fit: BoxFit.cover,
+                                              ),
+
+                                            if (m.attachments.isNotEmpty) ...[
+                                              if (m.text.trim().isNotEmpty)
+                                                const SizedBox(height: 8),
+                                              ...m.attachments.map((a) {
+                                                final type = (a['type'] ?? '')
+                                                    .toString();
+                                                final url = (a['url'] ?? '')
+                                                    .toString();
+                                                if (type != 'image' ||
+                                                    url.isEmpty) {
+                                                  return const SizedBox.shrink();
+                                                }
+
+                                                return Padding(
+                                                  padding:
+                                                      const EdgeInsets.only(
+                                                        bottom: 8,
+                                                      ),
+                                                  child: GestureDetector(
+                                                    onTap: () =>
+                                                        _openImageViewer(url),
+                                                    child: ClipRRect(
+                                                      borderRadius:
+                                                          BorderRadius.circular(
+                                                            10,
+                                                          ),
+                                                      child: Image.network(
+                                                        url,
+                                                        height: 160,
+                                                        fit: BoxFit.cover,
+                                                      ),
                                                     ),
                                                   ),
-                                                ),
-                                              );
-                                            }),
+                                                );
+                                              }),
+                                            ],
                                           ],
-                                        ],
+                                        ),
                                       ),
                                     ),
 

@@ -6,7 +6,6 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:package_info_plus/package_info_plus.dart';
-import 'package:qr_flutter/qr_flutter.dart';
 import 'package:strefa_ciszy/screens/approval_screen.dart';
 import 'package:strefa_ciszy/screens/archives_screen.dart';
 import 'package:strefa_ciszy/screens/contacts_list_screen.dart';
@@ -43,6 +42,40 @@ class _MainMenuScreenState extends State<MainMenuScreen> {
   bool get _isLee {
     final email = FirebaseAuth.instance.currentUser?.email?.toLowerCase() ?? '';
     return email == 'leerichie@wp.pl';
+  }
+
+  Widget _storeIconButton({
+    required String assetPath,
+    required String tooltip,
+    required VoidCallback onTap,
+    double size = 44,
+  }) {
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        borderRadius: BorderRadius.circular(12),
+        onTap: onTap,
+        child: Padding(
+          padding: const EdgeInsets.all(6),
+          child: Image.asset(
+            assetPath,
+            width: size,
+            height: size,
+            fit: BoxFit.contain,
+          ),
+        ),
+      ),
+    );
+  }
+
+  Future<void> _openTestFlight(BuildContext context) async {
+    final url = Uri.parse('https://testflight.apple.com/join/zwNuDeCk');
+    if (!await launchUrl(url, mode: LaunchMode.externalApplication)) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Nie można otworzyć TestFlight')),
+      );
+    }
   }
 
   Stream<bool> _isApproverStream() {
@@ -253,20 +286,25 @@ class _MainMenuScreenState extends State<MainMenuScreen> {
 
         ListTile(
           leading: const Icon(Icons.download_rounded),
-          title: const Text('Download APP:'),
-          subtitle: const Text('Android'),
-          onTap: () => _downloadApp(context),
-          trailing: SizedBox(
-            width: 80,
-            height: 80,
-            child: FittedBox(
-              fit: BoxFit.contain,
-              child: QrImageView(
-                data: 'https://strefa-ciszy.web.app/app-release.apk',
-                version: QrVersions.auto,
-                size: 150,
+          title: const Text('Tapnij aby pobrac:'),
+          // subtitle: const Text('Android APK / iOS TestFlight'),
+          trailing: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              _storeIconButton(
+                assetPath: 'assets/images/android_logo.png',
+                tooltip: 'Pobierz APK (Android)',
+                onTap: () => _downloadApp(context),
+                size: 44,
               ),
-            ),
+              const SizedBox(width: 10),
+              _storeIconButton(
+                assetPath: 'assets/images/apple_ios_logo.png',
+                tooltip: 'Otwórz TestFlight (iOS)',
+                onTap: () => _openTestFlight(context),
+                size: 80,
+              ),
+            ],
           ),
         ),
       ],
