@@ -26,6 +26,7 @@ import 'package:strefa_ciszy/services/storage_service.dart';
 import 'package:strefa_ciszy/widgets/app_scaffold.dart';
 import 'package:strefa_ciszy/widgets/note_dialogue.dart';
 import 'package:strefa_ciszy/widgets/notes_section.dart';
+import 'package:strefa_ciszy/widgets/project_current_tab.dart';
 import 'package:strefa_ciszy/widgets/project_line_dialog.dart';
 
 class NoSwipeCupertinoRoute<T> extends CupertinoPageRoute<T> {
@@ -1472,42 +1473,14 @@ class _ProjectEditorScreenState extends State<ProjectEditorScreen> {
 
                     const SizedBox(height: 8),
 
-                    // --- current notes
-                    Align(
-                      alignment: Alignment.centerLeft,
-                      child: Text(
-                        'BIEŻĄCE',
-                        style: TextStyle(
-                          fontWeight: FontWeight.bold,
-                          fontSize: 14,
-                        ),
-                      ),
-                    ),
-                    const SizedBox(height: 4),
-                    TextFormField(
-                      controller: _currentCtrl,
-                      enabled: !_projectArchived,
-                      maxLines: null,
-                      minLines: 2,
-                      decoration: const InputDecoration(
-                        border: OutlineInputBorder(),
-                        hintText: 'Bieżące informacje o projekcie...',
-                      ),
-                      onChanged: (value) {
-                        _currentText = value;
-                        _currentDebounce?.cancel();
-                        _currentDebounce = Timer(
-                          const Duration(milliseconds: 600),
-                          () {
-                            projRef.update({
-                              'currentText': _currentText,
-                              'updatedAt': FieldValue.serverTimestamp(),
-                              'updatedBy':
-                                  FirebaseAuth.instance.currentUser?.uid,
-                            });
-                          },
-                        );
-                      },
+                    //  TABS
+                    ProjectCurrentTabs(
+                      projRef: projRef,
+                      readOnly: _projectArchived,
+                      customerId: widget.customerId,
+                      projectId: widget.projectId,
+                      customerName: _customerName,
+                      projectName: _title,
                     ),
 
                     const SizedBox(height: 12),
@@ -1696,7 +1669,7 @@ class _ProjectEditorScreenState extends State<ProjectEditorScreen> {
                                           ),
 
                                           // archived => fully disabled (no tap)
-                                          // other locks => keep your snackbar
+                                          // other locks => keep snackbar
                                           onPressed: isArchivedLocked
                                               ? null
                                               : (isPermissionLocked
@@ -1913,7 +1886,8 @@ class _ProjectEditorScreenState extends State<ProjectEditorScreen> {
                                                           ],
                                                         ),
                                                       );
-                                                      if (shouldDelete != true) {
+                                                      if (shouldDelete !=
+                                                          true) {
                                                         return;
                                                       }
 
