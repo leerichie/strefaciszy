@@ -8,6 +8,7 @@ import 'package:flutter/services.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 import 'package:strefa_ciszy/screens/approval_screen.dart';
 import 'package:strefa_ciszy/screens/archives_screen.dart';
+import 'package:strefa_ciszy/screens/chat_list_screen.dart';
 import 'package:strefa_ciszy/screens/contacts_list_screen.dart';
 import 'package:strefa_ciszy/screens/inventory_list_screen.dart';
 import 'package:strefa_ciszy/screens/login_screen.dart';
@@ -135,6 +136,8 @@ class _MainMenuScreenState extends State<MainMenuScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final uid = FirebaseAuth.instance.currentUser?.uid;
+
     final body = ListView(
       padding: const EdgeInsets.all(16),
       children: [
@@ -232,6 +235,72 @@ class _MainMenuScreenState extends State<MainMenuScreen> {
             );
           },
         ),
+
+        uid == null
+            ? ListTile(
+                leading: const Icon(Icons.chat),
+                title: const Text("Chat"),
+                onTap: () {
+                  Navigator.of(context).push(
+                    MaterialPageRoute(builder: (_) => const ChatListScreen()),
+                  );
+                },
+              )
+            : StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
+                stream: FirebaseFirestore.instance
+                    .collection('chats')
+                    .where('members', arrayContains: uid)
+                    .snapshots(),
+                builder: (ctx, snap) {
+                  final docs = snap.data?.docs ?? const [];
+
+                  int total = 0;
+                  for (final d in docs) {
+                    final data = d.data();
+                    final v = data['unread_$uid'];
+                    if (v is int) {
+                      total += v;
+                    } else if (v is num) {
+                      total += v.toInt();
+                    }
+                  }
+
+                  Widget badge() {
+                    if (total <= 0) return const SizedBox.shrink();
+                    return Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 8,
+                        vertical: 3,
+                      ),
+                      decoration: BoxDecoration(
+                        color: Colors.red,
+                        borderRadius: BorderRadius.circular(999),
+                      ),
+                      child: Text(
+                        total > 99 ? '99+' : '$total',
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 12,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                    );
+                  }
+
+                  return ListTile(
+                    leading: const Icon(Icons.chat),
+                    title: const Text("Chat"),
+                    trailing: badge(),
+                    onTap: () {
+                      Navigator.of(context).push(
+                        MaterialPageRoute(
+                          builder: (_) => const ChatListScreen(),
+                        ),
+                      );
+                    },
+                  );
+                },
+              ),
 
         // ListTile(
         //   leading: const Icon(Icons.qr_code_scanner),
@@ -332,7 +401,7 @@ class _MainMenuScreenState extends State<MainMenuScreen> {
         children: [
           body,
           Positioned(
-            bottom: 20,
+            bottom: 60,
             right: 20,
             child: Image.asset(
               'assets/images/dev_logo_PILL.png',

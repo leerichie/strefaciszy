@@ -110,4 +110,16 @@ class StorageService {
       file: file,
     );
   }
+
+  Future<XFile?> pickFile() async {
+    return await _picker.pickMedia();
+  }
+
+  Future<String> uploadChatFile(String chatId, XFile file) {
+    return _uploadFile(
+      folder: 'chat_attachments/$chatId',
+      idSegment: null,
+      file: file,
+    );
+  }
 }

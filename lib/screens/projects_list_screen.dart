@@ -361,7 +361,7 @@ class _ProjectsListScreenState extends State<ProjectsListScreen> {
 
   late final Future<Map<String, String>> _customersFuture;
 
-  _ProjectSort _sort = _ProjectSort.newest;
+  _ProjectSort _sort = _ProjectSort.updated;
 
   @override
   void initState() {
@@ -498,7 +498,7 @@ class _ProjectsListScreenState extends State<ProjectsListScreen> {
                     );
                   })
                   .where((p) {
-                    if (!widget.isAdmin && p.archived) return false;
+                    if (p.archived) return false;
 
                     if (_search.isEmpty) return true;
                     return p.title.toLowerCase().contains(_search);
@@ -604,8 +604,9 @@ class _ProjectsListScreenState extends State<ProjectsListScreen> {
                         ),
                       ),
                       ...customerProjects.map((p) {
-                        final dateText = p.createdAt != null
-                            ? dateFmt.format(p.createdAt!)
+                        final dateSource = p.updatedAt ?? p.createdAt;
+                        final dateText = dateSource != null
+                            ? dateFmt.format(dateSource)
                             : null;
 
                         final isArchived = p.archived;

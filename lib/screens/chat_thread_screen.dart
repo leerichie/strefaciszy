@@ -283,8 +283,9 @@ class _ChatThreadScreenState extends State<ChatThreadScreen> {
                     if (hash == -1) return;
 
                     // boundary: start or whitespace before '#'
-                    if (hash > 0 && uptoCursor[hash - 1].trim().isNotEmpty)
+                    if (hash > 0 && uptoCursor[hash - 1].trim().isNotEmpty) {
                       return;
+                    }
 
                     final insert = '#$token ';
                     final newText = text.replaceRange(hash, cursor, insert);
@@ -579,8 +580,7 @@ class _ChatThreadScreenState extends State<ChatThreadScreen> {
             ListTile(
               leading: const Icon(Icons.attach_file),
               title: const Text('Dodaj plik'),
-              enabled: false,
-              onTap: null,
+              onTap: () => Navigator.pop(ctx, 'file'),
             ),
           ],
         ),
@@ -593,6 +593,8 @@ class _ChatThreadScreenState extends State<ChatThreadScreen> {
       await _sendImage(ImageSource.camera);
     } else if (choice == 'gallery') {
       await _sendImage(ImageSource.gallery);
+    } else if (choice == 'file') {
+      await _sendFile();
     }
   }
 
@@ -638,6 +640,84 @@ class _ChatThreadScreenState extends State<ChatThreadScreen> {
       ScaffoldMessenger.of(
         context,
       ).showSnackBar(SnackBar(content: Text('Błąd załącznika: $e')));
+    }
+  }
+
+  Future<void> _sendFile() async {
+    final uid = FirebaseAuth.instance.currentUser?.uid;
+    if (uid == null) return;
+
+    try {
+      final xfile = await _storage.pickFile();
+      if (xfile == null) return;
+
+      if (widget.chatId == ChatService.globalChatId) {
+        await ChatService.instance.ensureGlobalChat();
+      }
+
+      final url = await _storage.uploadChatFile(widget.chatId, xfile);
+
+      await ChatService.instance.sendMessage(
+        chatId: widget.chatId,
+        senderId: uid,
+        text: null,
+        attachments: [
+          {'type': 'file', 'url': url, 'name': xfile.name},
+        ],
+      );
+
+      _scrollToBottom();
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('Błąd pliku: $e')));
+    }
+  }
+
+  Future<void> _deleteMessage(ChatMessage m) async {
+    final uid = FirebaseAuth.instance.currentUser?.uid;
+    if (uid == null) return;
+
+    if (m.senderId != uid) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Możesz usunąć tylko swoje wiadomości')),
+      );
+      return;
+    }
+
+    final confirm = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Usuń wiadomość?'),
+        content: const Text('Ta operacja jest nieodwracalna.'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Anuluj'),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('Usuń'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirm != true) return;
+
+    try {
+      await FirebaseFirestore.instance
+          .collection('chats')
+          .doc(widget.chatId)
+          .collection('messages')
+          .doc(m.id)
+          .delete();
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('Błąd usuwania: $e')));
     }
   }
 
@@ -926,75 +1006,174 @@ class _ChatThreadScreenState extends State<ChatThreadScreen> {
                                         },
                                       ),
 
-                                    Container(
-                                      constraints: const BoxConstraints(
-                                        maxWidth: 520,
-                                      ),
-                                      margin: const EdgeInsets.symmetric(
-                                        vertical: 2,
-                                      ),
-                                      padding: const EdgeInsets.symmetric(
-                                        vertical: 10,
-                                        horizontal: 12,
-                                      ),
-                                      decoration: BoxDecoration(
-                                        color: mine
-                                            ? Colors.blueGrey.shade700
-                                            : Colors.grey.shade200,
-                                        borderRadius: BorderRadius.circular(12),
-                                      ),
-                                      child: SelectionArea(
-                                        child: Column(
-                                          crossAxisAlignment:
-                                              CrossAxisAlignment.start,
-                                          children: [
-                                            if (m.text.trim().isNotEmpty)
-                                              SelectableText.rich(
-                                                _buildMessageTextSpan(
-                                                  m,
-                                                  mine: mine,
-                                                ),
-                                              ),
+                                    Row(
+                                      mainAxisSize: MainAxisSize.max,
+                                      mainAxisAlignment: mine
+                                          ? MainAxisAlignment.end
+                                          : MainAxisAlignment.start,
 
-                                            if (m.attachments.isNotEmpty) ...[
-                                              if (m.text.trim().isNotEmpty)
-                                                const SizedBox(height: 8),
-                                              ...m.attachments.map((a) {
-                                                final type = (a['type'] ?? '')
-                                                    .toString();
-                                                final url = (a['url'] ?? '')
-                                                    .toString();
-                                                if (type != 'image' ||
-                                                    url.isEmpty) {
-                                                  return const SizedBox.shrink();
-                                                }
+                                      crossAxisAlignment:
+                                          CrossAxisAlignment.start,
+                                      children: [
+                                        if (mine) ...[
+                                          IconButton(
+                                            tooltip: 'Usuń',
+                                            icon: const Icon(
+                                              Icons.delete_outline,
+                                              size: 25,
+                                            ),
+                                            color: Colors.red,
+                                            padding: EdgeInsets.zero,
+                                            constraints: const BoxConstraints(
+                                              minWidth: 28,
+                                              minHeight: 28,
+                                            ),
+                                            onPressed: () => _deleteMessage(m),
+                                          ),
+                                          const SizedBox(width: 6),
+                                        ],
 
-                                                return Padding(
-                                                  padding:
-                                                      const EdgeInsets.only(
-                                                        bottom: 8,
-                                                      ),
-                                                  child: GestureDetector(
-                                                    onTap: () =>
-                                                        _openImageViewer(url),
-                                                    child: ClipRRect(
-                                                      borderRadius:
-                                                          BorderRadius.circular(
-                                                            10,
-                                                          ),
-                                                      child: Image.network(
-                                                        url,
-                                                        height: 160,
-                                                        fit: BoxFit.cover,
+                                        Flexible(
+                                          child: Container(
+                                            constraints: const BoxConstraints(
+                                              maxWidth: 520,
+                                            ),
+                                            margin: const EdgeInsets.symmetric(
+                                              vertical: 2,
+                                            ),
+                                            padding: const EdgeInsets.symmetric(
+                                              vertical: 10,
+                                              horizontal: 12,
+                                            ),
+                                            decoration: BoxDecoration(
+                                              color: mine
+                                                  ? Colors.blueGrey.shade700
+                                                  : Colors.grey.shade200,
+                                              borderRadius:
+                                                  BorderRadius.circular(12),
+                                            ),
+                                            child: SelectionArea(
+                                              child: Column(
+                                                crossAxisAlignment:
+                                                    CrossAxisAlignment.start,
+                                                children: [
+                                                  if (m.text.trim().isNotEmpty)
+                                                    SelectableText.rich(
+                                                      _buildMessageTextSpan(
+                                                        m,
+                                                        mine: mine,
                                                       ),
                                                     ),
-                                                  ),
-                                                );
-                                              }),
-                                            ],
-                                          ],
+
+                                                  if (m
+                                                      .attachments
+                                                      .isNotEmpty) ...[
+                                                    if (m.text
+                                                        .trim()
+                                                        .isNotEmpty)
+                                                      const SizedBox(height: 8),
+                                                    ...m.attachments.map((a) {
+                                                      final type =
+                                                          (a['type'] ?? '')
+                                                              .toString();
+                                                      final url =
+                                                          (a['url'] ?? '')
+                                                              .toString();
+                                                      final name =
+                                                          (a['name'] ?? 'plik')
+                                                              .toString();
+
+                                                      if (url.isEmpty)
+                                                        return const SizedBox.shrink();
+
+                                                      if (type == 'image') {
+                                                        return Padding(
+                                                          padding:
+                                                              const EdgeInsets.only(
+                                                                bottom: 8,
+                                                              ),
+                                                          child: GestureDetector(
+                                                            onTap: () =>
+                                                                _openImageViewer(
+                                                                  url,
+                                                                ),
+                                                            child: ClipRRect(
+                                                              borderRadius:
+                                                                  BorderRadius.circular(
+                                                                    10,
+                                                                  ),
+                                                              child:
+                                                                  Image.network(
+                                                                    url,
+                                                                    height: 160,
+                                                                    fit: BoxFit
+                                                                        .cover,
+                                                                  ),
+                                                            ),
+                                                          ),
+                                                        );
+                                                      }
+
+                                                      if (type == 'file') {
+                                                        return Padding(
+                                                          padding:
+                                                              const EdgeInsets.only(
+                                                                bottom: 8,
+                                                              ),
+                                                          child: InkWell(
+                                                            onTap: () =>
+                                                                _openUrl(url),
+                                                            child: Container(
+                                                              padding:
+                                                                  const EdgeInsets.all(
+                                                                    10,
+                                                                  ),
+                                                              decoration:
+                                                                  BoxDecoration(
+                                                                    color: Colors
+                                                                        .black12,
+                                                                    borderRadius:
+                                                                        BorderRadius.circular(
+                                                                          8,
+                                                                        ),
+                                                                  ),
+                                                              child: Row(
+                                                                mainAxisSize:
+                                                                    MainAxisSize
+                                                                        .min,
+                                                                children: [
+                                                                  const Icon(
+                                                                    Icons
+                                                                        .insert_drive_file,
+                                                                    size: 20,
+                                                                  ),
+                                                                  const SizedBox(
+                                                                    width: 8,
+                                                                  ),
+                                                                  Flexible(
+                                                                    child: Text(
+                                                                      name,
+                                                                      overflow:
+                                                                          TextOverflow
+                                                                              .ellipsis,
+                                                                    ),
+                                                                  ),
+                                                                ],
+                                                              ),
+                                                            ),
+                                                          ),
+                                                        );
+                                                      }
+
+                                                      return const SizedBox.shrink();
+                                                    }),
+                                                  ],
+                                                ],
+                                              ),
+                                            ),
+                                          ),
                                         ),
-                                      ),
+                                      ],
                                     ),
 
                                     if (showTime && timeLabel.isNotEmpty)
