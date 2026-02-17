@@ -41,24 +41,29 @@ class ProjectFilesService {
     required String customerId,
     required String projectId,
     required List<MapEntry<String, Uint8List>> files,
+    required String tabBucket,
   }) async {
     if (files.isEmpty) return const [];
 
-    final bucket = Firebase.app().options.storageBucket;
-    final storage = FirebaseStorage.instanceFor(bucket: 'gs://$bucket');
+    final rawStorageBucket = Firebase.app().options.storageBucket ?? '';
+    final storageBucketUri = rawStorageBucket.startsWith('gs://')
+        ? rawStorageBucket
+        : 'gs://$rawStorageBucket';
+
+    final storage = FirebaseStorage.instanceFor(bucket: storageBucketUri);
 
     final uploadFutures = files.map((entry) async {
       final name = entry.key;
       final data = entry.value;
 
+      final ref = storage.ref().child('project_files/$projectId/$name');
+
+      final contentType = _guessContentType(name);
+      final metadata = contentType != null
+          ? SettableMetadata(contentType: contentType)
+          : null;
+
       try {
-        final ref = storage.ref().child('project_files/$projectId/$name');
-
-        final contentType = _guessContentType(name);
-        final metadata = contentType != null
-            ? SettableMetadata(contentType: contentType)
-            : null;
-
         if (metadata != null) {
           await ref.putData(data, metadata);
         } else {
@@ -66,10 +71,15 @@ class ProjectFilesService {
         }
 
         final url = await ref.getDownloadURL();
-        return {'url': url, 'name': name};
-      } catch (e) {
-        debugPrint('Failed to upload file "$name": $e');
-        return null;
+        return {'url': url, 'name': name, 'bucket': tabBucket};
+      } catch (e, st) {
+        debugPrint(
+          'UPLOAD FAILED name="$name" storageBucket="$storageBucketUri" tabBucket="$tabBucket" path="${ref.fullPath}"',
+        );
+
+        debugPrint('error=$e');
+        debugPrint('$st');
+        rethrow;
       }
     }).toList();
 
@@ -96,6 +106,7 @@ class ProjectFilesService {
     required String projectId,
     required String url,
     required String name,
+    required String bucket,
   }) async {
     final storage = FirebaseStorage.instanceFor(
       bucket: 'gs://${Firebase.app().options.storageBucket}',
@@ -115,41 +126,8 @@ class ProjectFilesService {
 
     await docRef.update({
       'files': FieldValue.arrayRemove([
-        {'url': url, 'name': name},
+        {'url': url, 'name': name, 'bucket': bucket},
       ]),
-    });
-  }
-
-  static Future<void> setFileBucket({
-    required String customerId,
-    required String projectId,
-    required String url,
-    required String bucket, // 'files' or 'images'
-  }) async {
-    final docRef = FirebaseFirestore.instance
-        .collection('customers')
-        .doc(customerId)
-        .collection('projects')
-        .doc(projectId);
-
-    await FirebaseFirestore.instance.runTransaction((tx) async {
-      final snap = await tx.get(docRef);
-      final data = snap.data();
-
-      final raw = (data?['files'] as List?) ?? [];
-      final updated = raw.map((e) {
-        if (e is Map) {
-          final u = e['url'];
-          if (u is String && u == url) {
-            final copy = Map<String, dynamic>.from(e);
-            copy['bucket'] = bucket;
-            return copy;
-          }
-        }
-        return e;
-      }).toList();
-
-      tx.update(docRef, {'files': updated});
     });
   }
 }
