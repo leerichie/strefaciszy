@@ -35,479 +35,113 @@ class _ProjectCurrentTabsState extends State<ProjectCurrentTabs> {
 
   static const String kLegacyCurrentTextField = 'currentText';
 
-  static const String kChangesTasksField = 'currentChangesTasks';
+  static const String kUpdatedAt = 'updatedAt';
+  static const String kUpdatedBy = 'updatedBy';
+  static const String kUpdatedByName = 'updatedByName';
 
-  final _installerCtrl = TextEditingController();
-  final _coordCtrl = TextEditingController();
-  final _changesCtrl = TextEditingController();
+  final Map<String, TextEditingController> _newEntryCtrls = {};
+  final Map<String, Timer?> _newEntryDebounce = {};
+  final Map<String, ScrollController> _logScrollCtrls = {};
 
-  Timer? _installerDebounce;
-  Timer? _coordDebounce;
-  Timer? _changesDebounce;
+  final Map<String, TextEditingController> _entryCtrls = {};
+  final Map<String, Timer?> _entryDebounce = {};
+  final Map<String, FocusNode> _entryFocus = {};
 
-  bool _hydratedInstaller = false;
-  bool _hydratedCoord = false;
-  bool _hydratedChanges = false;
+  final Map<String, String?> _pendingTaskColorByField = {};
+  bool _isAdmin = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadIsAdmin();
+  }
 
   @override
   void dispose() {
-    _installerDebounce?.cancel();
-    _coordDebounce?.cancel();
-    _changesDebounce?.cancel();
+    for (final t in _newEntryDebounce.values) {
+      t?.cancel();
+    }
+    for (final c in _newEntryCtrls.values) {
+      c.dispose();
+    }
+    for (final s in _logScrollCtrls.values) {
+      s.dispose();
+    }
 
-    _installerCtrl.dispose();
-    _coordCtrl.dispose();
-    _changesCtrl.dispose();
+    for (final t in _entryDebounce.values) {
+      t?.cancel();
+    }
+    for (final c in _entryCtrls.values) {
+      c.dispose();
+    }
+    for (final f in _entryFocus.values) {
+      f.dispose();
+    }
+
     super.dispose();
   }
 
-  Future<void> _upsertLiveEntry({
+  Future<bool> _confirmDeleteDialog() async {
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Delete entry?'),
+        content: const Text('This will permanently delete this entry.'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Cancel'),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('Delete'),
+          ),
+        ],
+      ),
+    );
+
+    return ok == true;
+  }
+
+  Future<void> _deleteLogEntry({
     required String field,
-    required String text,
+    required Map<String, dynamic> entry,
   }) async {
     if (widget.readOnly) return;
 
     final user = FirebaseAuth.instance.currentUser;
     if (user == null) return;
 
-    final userName = await _resolveUserName(user);
-    final trimmed = text.trim();
+    if (!_canEditEntryWithAdmin(entry, user)) return;
 
-    if (trimmed.isEmpty) return;
-
-    final liveId = '${user.uid}::$field';
-
-    final snap = await widget.projRef.get();
-    final data = snap.data() ?? <String, dynamic>{};
-    final raw = (data[field] as List<dynamic>?) ?? const [];
-    final list = raw.map((e) => Map<String, dynamic>.from(e as Map)).toList();
-
-    final old = list.firstWhere(
-      (e) => (e['id'] as String?) == liveId,
-      orElse: () => <String, dynamic>{},
-    );
-
-    final entry = <String, dynamic>{
-      'id': liveId,
-      'text': trimmed,
-      'createdAt': Timestamp.now(),
-      'createdBy': user.uid,
-      'createdByName': userName,
-    };
-
-    if (old.isNotEmpty) {
-      await widget.projRef.update({
-        field: FieldValue.arrayRemove([old]),
-      });
-    }
+    final ok = await _confirmDeleteDialog();
+    if (!ok) return;
 
     await widget.projRef.update({
-      field: FieldValue.arrayUnion([entry]),
+      field: FieldValue.arrayRemove([entry]),
       'updatedAt': FieldValue.serverTimestamp(),
       'updatedBy': user.uid,
     });
   }
 
-  Widget _historyView(List<Map<String, dynamic>> entries) {
-    if (entries.isEmpty) {
-      return const Padding(
-        padding: EdgeInsets.only(top: 10),
-        child: Text('Brak wpisów', style: TextStyle(color: Colors.black54)),
-      );
-    }
+  Future<void> _loadIsAdmin() async {
+    final user = FirebaseAuth.instance.currentUser;
+    if (user == null) return;
 
-    entries.sort((a, b) {
-      final ta = (a['createdAt'] as Timestamp?)?.toDate() ?? DateTime(0);
-      final tb = (b['createdAt'] as Timestamp?)?.toDate() ?? DateTime(0);
-      return tb.compareTo(ta);
-    });
+    try {
+      final u = await FirebaseFirestore.instance
+          .collection('users')
+          .doc(user.uid)
+          .get();
+      final v = u.data()?['isAdmin'];
+      final isAdmin = v == true;
 
-    const gap = Duration(minutes: 10);
-
-    String? lastUser;
-    DateTime? lastTime;
-
-    final spans = <InlineSpan>[];
-
-    for (final e in entries) {
-      final dt = (e['createdAt'] as Timestamp?)?.toDate();
-      final user = (e['createdByName'] as String?) ?? '';
-      final text = (e['text'] as String?) ?? '';
-      if (text.trim().isEmpty) continue;
-
-      final showHeader =
-          dt != null &&
-          (lastUser != user ||
-              lastTime == null ||
-              lastTime.difference(dt).abs() >= gap);
-
-      if (showHeader) {
-        spans.add(
-          TextSpan(
-            text: '${_fmt(dt)}${user.isNotEmpty ? ' • $user' : ''}\n',
-            style: const TextStyle(fontSize: 12, color: Colors.black54),
-          ),
-        );
+      if (mounted) {
+        setState(() => _isAdmin = isAdmin);
       }
-
-      spans.add(
-        TextSpan(
-          text: '$text\n\n',
-          style: const TextStyle(fontSize: 14, height: 1.25),
-        ),
-      );
-
-      lastUser = user;
-      lastTime = dt;
+    } catch (_) {
+      // keep false
     }
-
-    return Padding(
-      padding: const EdgeInsets.only(top: 10),
-      child: SelectableText.rich(TextSpan(children: spans)),
-    );
-  }
-
-  Widget _editorTab({
-    required String title,
-    required TextEditingController controller,
-    required String hint,
-    required List<Map<String, dynamic>> entries,
-    required void Function(String) onChanged,
-    Widget? extraBottom,
-  }) {
-    return ListView(
-      padding: EdgeInsets.zero,
-      children: [
-        _tabHeaderTitle(title),
-        const SizedBox(height: 10),
-        _bigEditor(controller: controller, hint: hint, onChanged: onChanged),
-        _historyView(entries),
-        if (extraBottom != null) ...[const SizedBox(height: 16), extraBottom],
-      ],
-    );
-  }
-
-  Widget _bigEditor({
-    required TextEditingController controller,
-    required String hint,
-    required void Function(String) onChanged,
-  }) {
-    return TextField(
-      controller: controller,
-      enabled: !widget.readOnly,
-      maxLines: null,
-      minLines: 6,
-      decoration: InputDecoration(
-        border: const OutlineInputBorder(),
-        hintText: hint,
-      ),
-      onChanged: onChanged,
-    );
-  }
-
-  Future<DocumentReference<Map<String, dynamic>>?> _todayRwRef() async {
-    final start = DateTime.now().toLocal();
-    final startOfDay = DateTime(start.year, start.month, start.day);
-    final endOfDay = startOfDay.add(const Duration(days: 1));
-
-    final snap = await widget.projRef
-        .collection('rw_documents')
-        .where('type', isEqualTo: 'RW')
-        .where('createdAt', isGreaterThanOrEqualTo: startOfDay)
-        .where('createdAt', isLessThan: endOfDay)
-        .limit(1)
-        .get();
-
-    if (snap.docs.isEmpty) return null;
-    return snap.docs.first.reference;
-  }
-
-  Future<void> _appendNoteToTodayRw(Map<String, dynamic> noteMap) async {
-    final user = FirebaseAuth.instance.currentUser;
-    if (user == null) return;
-
-    final rwRef = await _todayRwRef();
-
-    if (rwRef != null) {
-      await rwRef.update({
-        'notesList': FieldValue.arrayUnion([noteMap]),
-      });
-      return;
-    }
-
-    final now = DateTime.now();
-
-    final newRwRef = widget.projRef.collection('rw_documents').doc();
-
-    await newRwRef.set({
-      'type': 'RW',
-      'customerId': widget.customerId,
-      'projectId': widget.projectId,
-      'customerName': widget.customerName,
-      'projectName': widget.projectName,
-      'createdDay': DateTime(now.year, now.month, now.day),
-      'createdAt': FieldValue.serverTimestamp(),
-      'createdBy': user.uid,
-      'createdByName': noteMap['userName'] ?? '',
-      'items': <Map<String, dynamic>>[],
-      'notesList': [noteMap],
-    });
-  }
-
-  Future<void> _addTask() async {
-    if (widget.readOnly) return;
-
-    final user = FirebaseAuth.instance.currentUser;
-    if (user == null) return;
-
-    final userName = await _resolveUserName(user);
-
-    String selectedColor = 'black';
-    String text = '';
-
-    final ok = await showDialog<bool>(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Text('Nowe zadanie'),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            DropdownButtonFormField<String>(
-              initialValue: selectedColor,
-              items: const [
-                DropdownMenuItem(
-                  value: 'black',
-                  child: Text('Czarny – Normalne'),
-                ),
-                DropdownMenuItem(
-                  value: 'blue',
-                  child: Text('Niebieski – Dodatkowe'),
-                ),
-              ],
-              onChanged: (v) {
-                if (v != null) selectedColor = v;
-              },
-            ),
-            const SizedBox(height: 12),
-            TextField(
-              minLines: 2,
-              maxLines: 6,
-              decoration: const InputDecoration(
-                hintText: 'Treść zadania...',
-                border: OutlineInputBorder(),
-              ),
-              onChanged: (v) => text = v,
-            ),
-          ],
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx, false),
-            child: const Text('Anuluj'),
-          ),
-          ElevatedButton(
-            onPressed: () => Navigator.pop(ctx, true),
-            child: const Text('Dodaj'),
-          ),
-        ],
-      ),
-    );
-
-    if (ok != true) return;
-    final trimmed = text.trim();
-    if (trimmed.isEmpty) return;
-
-    final id = widget.projRef.collection('_tmp').doc().id;
-
-    final task = {
-      'id': id,
-      'text': trimmed,
-      'color': selectedColor,
-      'createdAt': Timestamp.now(),
-      'createdBy': user.uid,
-      'createdByName': userName,
-      'done': false,
-      'doneAt': null,
-      'doneBy': null,
-      'doneByName': null,
-    };
-
-    await widget.projRef.update({
-      kChangesTasksField: FieldValue.arrayUnion([task]),
-      'updatedAt': FieldValue.serverTimestamp(),
-      'updatedBy': user.uid,
-    });
-  }
-
-  Widget _tasksList(List<Map<String, dynamic>> tasks) {
-    if (tasks.isEmpty) return const SizedBox();
-
-    tasks.sort((a, b) {
-      final ta = (a['createdAt'] as Timestamp?)?.toDate() ?? DateTime(0);
-      final tb = (b['createdAt'] as Timestamp?)?.toDate() ?? DateTime(0);
-      return tb.compareTo(ta);
-    });
-
-    return Column(
-      children: tasks.map((task) {
-        final isDone = task['done'] == true;
-        final color = task['color'] == 'blue' ? Colors.blue : Colors.black;
-
-        final dt = (task['createdAt'] as Timestamp?)?.toDate();
-        final createdByName = (task['createdByName'] as String?) ?? '';
-
-        return Container(
-          margin: const EdgeInsets.only(bottom: 8),
-          padding: const EdgeInsets.all(10),
-          decoration: BoxDecoration(
-            border: Border.all(color: Colors.grey.shade400),
-            borderRadius: BorderRadius.circular(6),
-          ),
-          child: Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Checkbox(
-                value: isDone,
-                onChanged: isDone ? null : (_) => _toggleTaskDone(task),
-              ),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    if (dt != null)
-                      Text(
-                        '${_fmt(dt)}${createdByName.isNotEmpty ? ' • $createdByName' : ''}',
-                        style: TextStyle(
-                          fontSize: 12,
-                          color: Colors.grey.shade700,
-                        ),
-                      ),
-                    if (dt != null) const SizedBox(height: 6),
-                    Text(
-                      task['text'] ?? '',
-                      style: TextStyle(
-                        color: color,
-                        decoration: isDone ? TextDecoration.lineThrough : null,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ],
-          ),
-        );
-      }).toList(),
-    );
-  }
-
-  Future<void> _toggleTaskDone(Map<String, dynamic> task) async {
-    if (widget.readOnly) return;
-
-    final user = FirebaseAuth.instance.currentUser;
-    if (user == null) return;
-
-    final userName = await _resolveUserName(user);
-
-    final updatedTask = Map<String, dynamic>.from(task);
-
-    final now = Timestamp.now();
-
-    updatedTask['done'] = true;
-    updatedTask['doneAt'] = now;
-    updatedTask['doneBy'] = user.uid;
-    updatedTask['doneByName'] = userName;
-
-    await widget.projRef.update({
-      kChangesTasksField: FieldValue.arrayRemove([task]),
-    });
-
-    await widget.projRef.update({
-      kChangesTasksField: FieldValue.arrayUnion([updatedTask]),
-    });
-
-    final noteMap = {
-      'text': updatedTask['text'],
-      'userName': userName,
-      'createdAt': now,
-      'color': updatedTask['color'],
-    };
-
-    await widget.projRef.update({
-      'notesList': FieldValue.arrayUnion([noteMap]),
-    });
-    await _appendNoteToTodayRw(noteMap);
-  }
-
-  Widget _legacyBox({
-    required String legacyText,
-    required VoidCallback? onImport,
-  }) {
-    return Container(
-      padding: const EdgeInsets.all(12),
-      margin: const EdgeInsets.only(bottom: 10),
-      decoration: BoxDecoration(
-        color: Colors.orange.withValues(alpha: 0.12),
-        border: Border.all(color: Colors.orange.shade400),
-        borderRadius: BorderRadius.circular(6),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            'Stare BIEŻĄCE (legacy)',
-            style: TextStyle(
-              fontWeight: FontWeight.bold,
-              color: Colors.orange.shade900,
-            ),
-          ),
-          const SizedBox(height: 6),
-          Text(legacyText, style: const TextStyle(fontSize: 14)),
-          const SizedBox(height: 10),
-          Row(
-            children: [
-              Expanded(
-                child: Text(
-                  'stary wpisy.',
-                  style: TextStyle(fontSize: 12, color: Colors.orange.shade900),
-                ),
-              ),
-              const SizedBox(width: 8),
-              ElevatedButton.icon(
-                onPressed: onImport,
-                icon: const Icon(Icons.move_down),
-                label: const Text('Przenieś'),
-              ),
-            ],
-          ),
-        ],
-      ),
-    );
-  }
-
-  Future<void> _importLegacyCurrentText(String legacyText) async {
-    if (widget.readOnly) return;
-
-    final user = FirebaseAuth.instance.currentUser;
-    if (user == null) return;
-
-    final userName = await _resolveUserName(user);
-
-    final id = widget.projRef.collection('_tmp').doc().id;
-
-    final entry = <String, dynamic>{
-      'id': id,
-      'text': legacyText.trim(),
-      'createdAt': Timestamp.now(),
-      'createdBy': user.uid,
-      'createdByName': userName,
-    };
-
-    await widget.projRef.update({
-      kChangesNotesField: FieldValue.arrayUnion([entry]),
-      kLegacyCurrentTextField: FieldValue.delete(),
-      'updatedAt': FieldValue.serverTimestamp(),
-      'updatedBy': user.uid,
-    });
   }
 
   String _fmt(DateTime dt) {
@@ -529,61 +163,164 @@ class _ProjectCurrentTabsState extends State<ProjectCurrentTabs> {
     return (user.email ?? '—');
   }
 
-  Future<void> _addEntry(String field) async {
+  bool _canEditEntryWithAdmin(Map<String, dynamic> e, User user) {
+    if (_isAdmin) return true;
+
+    final createdBy = (e['createdBy'] as String?) ?? '';
+    if (createdBy != user.uid) return false;
+
+    final createdAt = (e['createdAt'] as Timestamp?)?.toDate();
+    if (createdAt == null) return false;
+
+    final c = createdAt.toLocal();
+    final now = DateTime.now().toLocal();
+
+    return c.year == now.year && c.month == now.month && c.day == now.day;
+  }
+
+  Future<String?> _pickTaskColourDialog() async {
+    return showDialog<String>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Nowy wpis checkbox'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            ListTile(
+              dense: true,
+              leading: const Icon(Icons.flag, color: Colors.red),
+              title: const Text('PILNY – czerwony'),
+              onTap: () => Navigator.pop(ctx, 'red'),
+            ),
+            ListTile(
+              dense: true,
+              leading: const Icon(Icons.flag, color: Colors.black),
+              title: const Text('Normalne – czarny'),
+              onTap: () => Navigator.pop(ctx, 'black'),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, null),
+            child: const Text('Anuluj'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _createLogEntry({
+    required String field,
+    required String text,
+  }) async {
     if (widget.readOnly) return;
 
     final user = FirebaseAuth.instance.currentUser;
     if (user == null) return;
 
-    final userName = await _resolveUserName(user);
-
-    String text = '';
-    final ok = await showDialog<bool>(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Text('Dodaj wpis'),
-        content: TextField(
-          autofocus: true,
-          minLines: 2,
-          maxLines: 6,
-          decoration: const InputDecoration(
-            hintText: 'Wpisz tekst...',
-            border: OutlineInputBorder(),
-          ),
-          onChanged: (v) => text = v,
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx, false),
-            child: const Text('Anuluj'),
-          ),
-          ElevatedButton(
-            onPressed: () => Navigator.pop(ctx, true),
-            child: const Text('Dodaj'),
-          ),
-        ],
-      ),
-    );
-
-    if (ok != true) return;
-
     final trimmed = text.trim();
     if (trimmed.isEmpty) return;
 
+    final userName = await _resolveUserName(user);
     final id = widget.projRef.collection('_tmp').doc().id;
+    final now = Timestamp.now();
+
+    final taskColor = _pendingTaskColorByField[field];
+    final isTask = (field == kChangesNotesField) && (taskColor != null);
 
     final entry = <String, dynamic>{
       'id': id,
       'text': trimmed,
-      'createdAt': Timestamp.now(),
+      'createdAt': now,
       'createdBy': user.uid,
       'createdByName': userName,
+      if (isTask) ...{
+        'isTask': true,
+        'done': false,
+        'color': taskColor, // 'red' | 'black'
+      },
     };
 
     await widget.projRef.update({
       field: FieldValue.arrayUnion([entry]),
       'updatedAt': FieldValue.serverTimestamp(),
       'updatedBy': user.uid,
+    });
+
+    _newEntryCtrls[field]?.clear();
+    if (isTask) _pendingTaskColorByField[field] = null;
+
+    final sc = _logScrollCtrls[field];
+    if (sc != null && sc.hasClients) {
+      sc.animateTo(
+        0,
+        duration: const Duration(milliseconds: 180),
+        curve: Curves.easeOut,
+      );
+    }
+  }
+
+  Future<void> _updateLogEntry({
+    required String field,
+    required Map<String, dynamic> oldEntry,
+    required String newText,
+  }) async {
+    if (widget.readOnly) return;
+
+    final user = FirebaseAuth.instance.currentUser;
+    if (user == null) return;
+
+    if (!_canEditEntryWithAdmin(oldEntry, user)) return;
+
+    final trimmed = newText.trim();
+    if (trimmed.isEmpty) return;
+
+    final userName = await _resolveUserName(user);
+    final now = Timestamp.now();
+
+    final updated = Map<String, dynamic>.from(oldEntry);
+    updated['text'] = trimmed;
+    updated[kUpdatedAt] = now;
+    updated[kUpdatedBy] = user.uid;
+    updated[kUpdatedByName] = userName;
+
+    await widget.projRef.update({
+      field: FieldValue.arrayRemove([oldEntry]),
+    });
+    await widget.projRef.update({
+      field: FieldValue.arrayUnion([updated]),
+      'updatedAt': FieldValue.serverTimestamp(),
+      'updatedBy': user.uid,
+    });
+  }
+
+  Future<void> _toggleLogTaskDone({
+    required String field,
+    required Map<String, dynamic> oldEntry,
+    required bool done,
+  }) async {
+    if (widget.readOnly) return;
+
+    final user = FirebaseAuth.instance.currentUser;
+    if (user == null) return;
+
+    if (!_canEditEntryWithAdmin(oldEntry, user)) return;
+
+    final userName = await _resolveUserName(user);
+    final now = Timestamp.now();
+
+    final updated = Map<String, dynamic>.from(oldEntry);
+    updated['done'] = done;
+    updated[kUpdatedAt] = now;
+    updated[kUpdatedBy] = user.uid;
+    updated[kUpdatedByName] = userName;
+
+    await widget.projRef.update({
+      field: FieldValue.arrayRemove([oldEntry]),
+    });
+    await widget.projRef.update({
+      field: FieldValue.arrayUnion([updated]),
     });
   }
 
@@ -594,81 +331,294 @@ class _ProjectCurrentTabsState extends State<ProjectCurrentTabs> {
     final raw = (data[field] as List<dynamic>?) ?? const [];
     final list = raw.map((e) => Map<String, dynamic>.from(e as Map)).toList();
 
-    //   newest -> oldest
-    list.sort((a, b) {
-      final ta =
-          (a['createdAt'] as Timestamp?)?.toDate() ??
-          DateTime.fromMillisecondsSinceEpoch(0);
-      final tb =
-          (b['createdAt'] as Timestamp?)?.toDate() ??
-          DateTime.fromMillisecondsSinceEpoch(0);
-      return tb.compareTo(ta);
-    });
+    DateTime activityAt(Map<String, dynamic> e) {
+      final u = (e[kUpdatedAt] as Timestamp?)?.toDate();
+      final c = (e['createdAt'] as Timestamp?)?.toDate();
+      return (u ?? c ?? DateTime.fromMillisecondsSinceEpoch(0)).toLocal();
+    }
 
+    list.sort((a, b) => activityAt(b).compareTo(activityAt(a)));
     return list;
   }
 
-  Widget _tabHeaderTitle(String title) {
-    return Text(
-      title,
-      style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 18),
+  Widget _legacyCompactBlock(String legacyText) {
+    final t = legacyText.trim();
+    if (t.isEmpty) return const SizedBox();
+
+    return Padding(
+      padding: const EdgeInsets.only(top: 12),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Expanded(child: Divider(color: Colors.grey.shade300, height: 1)),
+              const SizedBox(width: 8),
+              const Text(
+                'Archive (BIEŻĄCE)',
+                style: TextStyle(fontSize: 11, color: Colors.black54),
+              ),
+              const SizedBox(width: 8),
+              Expanded(child: Divider(color: Colors.grey.shade300, height: 1)),
+            ],
+          ),
+          const SizedBox(height: 8),
+          SelectableText(t, style: const TextStyle(fontSize: 12, height: 1.25)),
+        ],
+      ),
     );
   }
 
-  Widget _zmianyTabBody({
-    required List<Map<String, dynamic>> notes,
-    required List<Map<String, dynamic>> tasks,
-    required String legacyText,
+  Widget _compactLogEditor({
+    required String field,
+    required String hint,
+    required List<Map<String, dynamic>> entries,
+    Widget? bottom,
   }) {
-    final hasLegacy = legacyText.trim().isNotEmpty;
+    final user = FirebaseAuth.instance.currentUser;
 
-    return ListView(
-      padding: EdgeInsets.zero,
-      children: [
-        _tabHeaderTitle('Raporty/Zmiany'),
-        const SizedBox(height: 10),
+    final inputCtrl = _newEntryCtrls.putIfAbsent(
+      field,
+      () => TextEditingController(),
+    );
+    final scrollCtrl = _logScrollCtrls.putIfAbsent(
+      field,
+      () => ScrollController(),
+    );
 
-        _bigEditor(
-          controller: _changesCtrl,
-          hint: 'Raporty / zmiany...',
-          onChanged: (v) {
-            _changesDebounce?.cancel();
-            _changesDebounce = Timer(const Duration(milliseconds: 600), () {
-              _upsertLiveEntry(field: kChangesNotesField, text: v);
-            });
-          },
-        ),
+    return Container(
+      decoration: BoxDecoration(
+        border: Border.all(color: Colors.grey.shade400),
+        borderRadius: BorderRadius.circular(6),
+      ),
+      padding: const EdgeInsets.all(8),
+      child: ListView.builder(
+        controller: scrollCtrl,
+        padding: EdgeInsets.zero,
+        itemCount: 1 + entries.length + (bottom != null ? 1 : 0),
+        itemBuilder: (context, index) {
+          // INPUT ROW
+          if (index == 0) {
+            final armed = _pendingTaskColorByField[field];
+            final iconColor = armed == 'red'
+                ? Colors.red
+                : armed == 'black'
+                ? Colors.black
+                : Colors.black54;
 
-        if (hasLegacy) ...[
-          const SizedBox(height: 12),
-          _legacyBox(
-            legacyText: legacyText,
-            onImport: widget.readOnly
-                ? null
-                : () => _importLegacyCurrentText(legacyText),
-          ),
-        ],
+            return Column(
+              children: [
+                TextField(
+                  controller: inputCtrl,
+                  enabled: !widget.readOnly,
+                  minLines: 1,
+                  maxLines: 3,
+                  textInputAction: TextInputAction.done,
+                  decoration: InputDecoration(
+                    isDense: true,
+                    border: const OutlineInputBorder(),
+                    hintText: hint,
+                    contentPadding: const EdgeInsets.symmetric(
+                      horizontal: 10,
+                      vertical: 8,
+                    ),
+                    suffixIcon: field == kChangesNotesField
+                        ? IconButton(
+                            tooltip: 'Wpis checkbox',
+                            icon: Icon(
+                              Icons.check_box_outlined,
+                              color: iconColor,
+                            ),
+                            onPressed: widget.readOnly
+                                ? null
+                                : () async {
+                                    final picked =
+                                        await _pickTaskColourDialog();
+                                    if (picked == null) return;
+                                    setState(
+                                      () => _pendingTaskColorByField[field] =
+                                          picked,
+                                    );
+                                  },
+                          )
+                        : null,
+                  ),
+                  onSubmitted: (v) => _createLogEntry(field: field, text: v),
+                ),
 
-        _historyView(notes),
+                const SizedBox(height: 8),
+              ],
+            );
+          }
 
-        const SizedBox(height: 16),
+          final entryIndex = index - 1;
 
-        Row(
-          children: [
-            const Text(
-              'Zadania',
-              style: TextStyle(fontWeight: FontWeight.bold),
+          // LEGACY
+          if (bottom != null && entryIndex == entries.length) {
+            return bottom;
+          }
+
+          final e = entries[entryIndex];
+          final id = (e['id'] as String?) ?? '';
+          final text = (e['text'] as String?) ?? '';
+
+          final createdAt = (e['createdAt'] as Timestamp?)?.toDate().toLocal();
+          final createdByName = (e['createdByName'] as String?) ?? '';
+
+          final updatedAt = (e[kUpdatedAt] as Timestamp?)?.toDate().toLocal();
+          final updatedByName = (e[kUpdatedByName] as String?) ?? '';
+
+          final canEdit = user != null && _canEditEntryWithAdmin(e, user);
+
+          final headerTime = updatedAt ?? createdAt;
+          final headerName = (updatedAt != null ? updatedByName : createdByName)
+              .trim();
+
+          final header = headerTime == null
+              ? '—'
+              : '${_fmt(headerTime)}'
+                    '${headerName.isNotEmpty ? ' • $headerName' : ''}'
+                    '${updatedAt != null ? ' (edyt.)' : ''}';
+
+          final ctrl = _entryCtrls.putIfAbsent(
+            id,
+            () => TextEditingController(),
+          );
+          final focus = _entryFocus.putIfAbsent(id, () => FocusNode());
+
+          if (!focus.hasFocus && ctrl.text != text) {
+            ctrl.text = text;
+          }
+
+          final isTask = e['isTask'] == true;
+          final done = e['done'] == true;
+          final colorStr = (e['color'] ?? 'black').toString();
+          final taskColor = colorStr == 'red' ? Colors.red : Colors.black;
+
+          return Padding(
+            padding: EdgeInsets.only(
+              bottom: entryIndex == entries.length - 1 ? 0 : 10,
             ),
-            const Spacer(),
-            IconButton(
-              icon: const Icon(Icons.add),
-              onPressed: widget.readOnly ? null : _addTask,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                // HEADER
+                InkWell(
+                  onLongPress: (canEdit && !widget.readOnly)
+                      ? () => _deleteLogEntry(field: field, entry: e)
+                      : null,
+                  child: Text(
+                    header,
+                    style: const TextStyle(
+                      fontSize: 11,
+                      color: Colors.black54,
+                      height: 1.1,
+                    ),
+                  ),
+                ),
+
+                const SizedBox(height: 3),
+
+                // BODY
+                if (isTask)
+                  Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      SizedBox(
+                        height: 20,
+                        width: 20,
+                        child: Checkbox(
+                          value: done,
+                          onChanged: (canEdit && !widget.readOnly)
+                              ? (v) => _toggleLogTaskDone(
+                                  field: field,
+                                  oldEntry: e,
+                                  done: v == true,
+                                )
+                              : null,
+                          materialTapTargetSize:
+                              MaterialTapTargetSize.shrinkWrap,
+                          visualDensity: const VisualDensity(
+                            horizontal: -4,
+                            vertical: -4,
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 6),
+                      Expanded(
+                        child: (canEdit && !widget.readOnly)
+                            ? TextField(
+                                controller: ctrl,
+                                focusNode: focus,
+                                minLines: 1,
+                                maxLines: null,
+                                decoration: const InputDecoration(
+                                  isDense: true,
+                                  border: InputBorder.none,
+                                  contentPadding: EdgeInsets.zero,
+                                ),
+                                style: TextStyle(
+                                  fontSize: 13,
+                                  height: 1.2,
+                                  color: taskColor,
+                                ),
+                                onChanged: (v) {
+                                  _entryDebounce[id]?.cancel();
+                                  _entryDebounce[id] = Timer(
+                                    const Duration(milliseconds: 700),
+                                    () => _updateLogEntry(
+                                      field: field,
+                                      oldEntry: e,
+                                      newText: v,
+                                    ),
+                                  );
+                                },
+                              )
+                            : SelectableText(
+                                text,
+                                style: TextStyle(
+                                  fontSize: 13,
+                                  height: 1.2,
+                                  color: taskColor,
+                                ),
+                              ),
+                      ),
+                    ],
+                  )
+                else
+                  (canEdit && !widget.readOnly)
+                      ? TextField(
+                          controller: ctrl,
+                          focusNode: focus,
+                          minLines: 1,
+                          maxLines: null,
+                          decoration: const InputDecoration(
+                            isDense: true,
+                            border: InputBorder.none,
+                            contentPadding: EdgeInsets.zero,
+                          ),
+                          style: const TextStyle(fontSize: 13, height: 1.2),
+                          onChanged: (v) {
+                            _entryDebounce[id]?.cancel();
+                            _entryDebounce[id] = Timer(
+                              const Duration(milliseconds: 700),
+                              () => _updateLogEntry(
+                                field: field,
+                                oldEntry: e,
+                                newText: v,
+                              ),
+                            );
+                          },
+                        )
+                      : SelectableText(
+                          text,
+                          style: const TextStyle(fontSize: 13, height: 1.2),
+                        ),
+              ],
             ),
-          ],
-        ),
-        const SizedBox(height: 8),
-        _tasksList(tasks),
-      ],
+          );
+        },
+      ),
     );
   }
 
@@ -679,14 +629,6 @@ class _ProjectCurrentTabsState extends State<ProjectCurrentTabs> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          // Align(
-          //   alignment: Alignment.centerLeft,
-          //   child: Text(
-          //     'BIEŻĄCE',
-          //     style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
-          //   ),
-          // ),
-          // const SizedBox(height: 8),
           Container(
             decoration: BoxDecoration(
               border: Border(bottom: BorderSide(color: Colors.grey.shade300)),
@@ -697,13 +639,11 @@ class _ProjectCurrentTabsState extends State<ProjectCurrentTabs> {
               tabs: [
                 Tab(text: 'Instalator'),
                 Tab(text: 'Koordynacja'),
-                Tab(text: 'Raporty/Zmiany'),
+                Tab(text: 'Raporty'),
               ],
             ),
           ),
-
           const SizedBox(height: 12),
-
           SizedBox(
             height: 320,
             child: StreamBuilder<DocumentSnapshot<Map<String, dynamic>>>(
@@ -714,6 +654,7 @@ class _ProjectCurrentTabsState extends State<ProjectCurrentTabs> {
                 }
 
                 final data = snap.data!.data() ?? <String, dynamic>{};
+
                 final legacyCurrentText =
                     (data[kLegacyCurrentTextField] as String?)?.trim() ?? '';
 
@@ -721,63 +662,23 @@ class _ProjectCurrentTabsState extends State<ProjectCurrentTabs> {
                 final coordination = _readEntries(data, kCoordinationField);
                 final changesNotes = _readEntries(data, kChangesNotesField);
 
-                final tasks = _readEntries(data, kChangesTasksField);
-
-                if (!_hydratedInstaller && installer.isNotEmpty) {
-                  _installerCtrl.text =
-                      (installer.first['text'] as String?) ?? '';
-                  _hydratedInstaller = true;
-                }
-                if (!_hydratedCoord && coordination.isNotEmpty) {
-                  _coordCtrl.text =
-                      (coordination.first['text'] as String?) ?? '';
-                  _hydratedCoord = true;
-                }
-                if (!_hydratedChanges && changesNotes.isNotEmpty) {
-                  _changesCtrl.text =
-                      (changesNotes.first['text'] as String?) ?? '';
-                  _hydratedChanges = true;
-                }
-
                 return TabBarView(
                   children: [
-                    _editorTab(
-                      title: 'Instalator',
-                      controller: _installerCtrl,
+                    _compactLogEditor(
+                      field: kInstallerField,
                       hint: 'Notatki instalatora...',
                       entries: installer,
-                      onChanged: (v) {
-                        _installerDebounce?.cancel();
-                        _installerDebounce = Timer(
-                          const Duration(milliseconds: 600),
-                          () {
-                            _upsertLiveEntry(field: kInstallerField, text: v);
-                          },
-                        );
-                      },
                     ),
-                    _editorTab(
-                      title: 'Koordynacja',
-                      controller: _coordCtrl,
+                    _compactLogEditor(
+                      field: kCoordinationField,
                       hint: 'Koordynacja...',
                       entries: coordination,
-                      onChanged: (v) {
-                        _coordDebounce?.cancel();
-                        _coordDebounce = Timer(
-                          const Duration(milliseconds: 600),
-                          () {
-                            _upsertLiveEntry(
-                              field: kCoordinationField,
-                              text: v,
-                            );
-                          },
-                        );
-                      },
                     ),
-                    _zmianyTabBody(
-                      notes: changesNotes,
-                      tasks: tasks,
-                      legacyText: legacyCurrentText,
+                    _compactLogEditor(
+                      field: kChangesNotesField,
+                      hint: 'Raporty / zmiany...',
+                      entries: changesNotes,
+                      bottom: _legacyCompactBlock(legacyCurrentText),
                     ),
                   ],
                 );

@@ -840,6 +840,7 @@ class _ChatThreadScreenState extends State<ChatThreadScreen> {
     return AppScaffold(
       title: isGlobal ? 'Ogólny' : 'Chat',
       showBackOnMobile: true,
+      showBackOnWeb: true,
       showPersistentDrawerOnWeb: true,
 
       bottomNavigationBar: KeyedSubtree(

@@ -65,17 +65,6 @@ class _ProjectFilesOnlySectionState extends State<ProjectFilesOnlySection> {
     });
   }
 
-  static const Set<String> _imageExtensions = {
-    '.jpg',
-    '.jpeg',
-    '.png',
-    '.gif',
-    '.webp',
-    '.bmp',
-    '.heic',
-    '.heif',
-  };
-
   bool get _isDesktop {
     if (kIsWeb) return false;
     final platform = defaultTargetPlatform;
@@ -87,9 +76,7 @@ class _ProjectFilesOnlySectionState extends State<ProjectFilesOnlySection> {
   @override
   void initState() {
     super.initState();
-    for (final f in widget.initialFiles) {
-      _addIfFile(f);
-    }
+    for (final f in widget.initialFiles) {}
     final ref = FirebaseFirestore.instance
         .collection('customers')
         .doc(widget.customerId)
@@ -113,7 +100,7 @@ class _ProjectFilesOnlySectionState extends State<ProjectFilesOnlySection> {
         final bucket = (f['bucket'] ?? '').toString();
 
         if (url is! String || name is! String) continue;
-        if (bucket == 'images') continue;
+        if (bucket != 'files') continue;
 
         next.add({'url': url, 'name': name, 'bucket': bucket});
       }
@@ -132,26 +119,6 @@ class _ProjectFilesOnlySectionState extends State<ProjectFilesOnlySection> {
   void dispose() {
     _projectSub?.cancel();
     super.dispose();
-  }
-
-  bool _isImageName(String name) {
-    final ext = p.extension(name).toLowerCase();
-    return _imageExtensions.contains(ext);
-  }
-
-  void _addIfFile(Map<String, String> item) {
-    final bucket = (item['bucket'] ?? '').toLowerCase();
-
-    if (bucket == 'images') return;
-    if (bucket == 'files') {
-      _fileItems.add(item);
-      return;
-    }
-
-    final name = item['name'] ?? '';
-    if (!_isImageName(name)) {
-      _fileItems.add(item);
-    }
   }
 
   void _toggleSelection(String url) {
@@ -281,6 +248,7 @@ class _ProjectFilesOnlySectionState extends State<ProjectFilesOnlySection> {
             projectId: widget.projectId,
             url: url,
             name: f['name']!,
+            bucket: (f['bucket'] ?? 'files'),
           );
 
           _fileItems.remove(f);
@@ -356,6 +324,7 @@ class _ProjectFilesOnlySectionState extends State<ProjectFilesOnlySection> {
           projectId: widget.projectId,
           url: f['url']!,
           name: f['name']!,
+          bucket: (f['bucket'] ?? 'files'),
         );
       }
       _fileItems.clear();
@@ -370,100 +339,6 @@ class _ProjectFilesOnlySectionState extends State<ProjectFilesOnlySection> {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text('Nie udało się skasować plików')),
-        );
-      }
-    } finally {
-      if (mounted) setState(() => _uploading = false);
-      _exitActionMode();
-    }
-  }
-
-  Future<void> _moveFilesToImages() async {
-    if (!_canEdit) {
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(const SnackBar(content: Text('Tylko podgląd')));
-      return;
-    }
-
-    if (_fileItems.isEmpty) return;
-
-    if (_actionMode != ProjectActionMode.move) {
-      setState(() {
-        _actionMode = ProjectActionMode.move;
-        _selectedUrls.clear();
-      });
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Zaznacz pliki, potem kliknij Przenieś')),
-      );
-      return;
-    }
-
-    // Second click with no selection -> exit mode
-    if (_selectedUrls.isEmpty) {
-      _exitActionMode();
-      return;
-    }
-
-    // validate: only images can move to images bucket
-    final nonImages = _fileItems.where((f) {
-      final name = f['name'] ?? '';
-      return _selectedUrls.contains(f['url']) && !_isImageName(name);
-    }).toList();
-
-    if (nonImages.isNotEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Niektóre pliki nie są zdjęciami.')),
-      );
-      return;
-    }
-
-    final confirmed = await showDialog<bool>(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Text('Przenieś do Fotki'),
-        content: Text('Przenieść ${_selectedUrls.length} elementów do Fotki?'),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx, false),
-            child: const Text('Anuluj'),
-          ),
-          ElevatedButton(
-            onPressed: () => Navigator.pop(ctx, true),
-            child: const Text('Przenieś'),
-          ),
-        ],
-      ),
-    );
-
-    if (confirmed != true) return;
-
-    setState(() => _uploading = true);
-
-    try {
-      for (final url in _selectedUrls) {
-        await ProjectFilesService.setFileBucket(
-          customerId: widget.customerId,
-          projectId: widget.projectId,
-          url: url,
-          bucket: 'images',
-        );
-      }
-
-      setState(() {
-        _fileItems.removeWhere((f) => _selectedUrls.contains(f['url']));
-      });
-
-      if (mounted) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(const SnackBar(content: Text('Przeniesiono do Fotki')));
-      }
-    } catch (e) {
-      debugPrint('Move files -> images error: $e');
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Nie udało się przenieść')),
         );
       }
     } finally {
@@ -585,13 +460,12 @@ class _ProjectFilesOnlySectionState extends State<ProjectFilesOnlySection> {
       customerId: widget.customerId,
       projectId: widget.projectId,
       files: uniqueEntries,
+      tabBucket: 'files',
     );
 
     if (mounted && newFiles.isNotEmpty) {
       setState(() {
-        for (final f in newFiles) {
-          _addIfFile(f);
-        }
+        for (final f in newFiles) {}
       });
     }
   }
@@ -859,9 +733,7 @@ class _ProjectFilesOnlySectionState extends State<ProjectFilesOnlySection> {
                 _pickAndUploadFiles();
               }
             },
-            onMove: (!_canEdit || _fileItems.isEmpty)
-                ? null
-                : _moveFilesToImages,
+            onMove: null,
           ),
         ),
 

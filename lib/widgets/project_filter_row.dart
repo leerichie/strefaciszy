@@ -43,7 +43,7 @@ class ProjectFilterRow extends StatelessWidget {
     Color iconColor(bool selected, Color active) =>
         selected ? active : Colors.grey.shade700;
 
-    final canAdd = isAdmin && onAdd != null; // <-- MUST be here (before return)
+    final canAdd = isAdmin && onAdd != null;
 
     return Wrap(
       spacing: 8,

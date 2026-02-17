@@ -310,6 +310,7 @@ class _ChatListScreenState extends State<ChatListScreen> {
 
       title: 'Chat',
       showBackOnMobile: true,
+      showBackOnWeb: true,
       showPersistentDrawerOnWeb: true,
 
       body: SafeArea(
