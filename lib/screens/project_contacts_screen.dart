@@ -303,6 +303,26 @@ class _ProjectContactsScreenState extends State<ProjectContactsScreen> {
 
                 final List<QueryDocumentSnapshot<Map<String, dynamic>>>
                 related = [];
+                // for (final doc in all) {
+                //   final data = doc.data();
+                //   final linkedCustomerId = data['linkedCustomerId'] as String?;
+                //   final linkedProjects = (data['linkedProjectIds'] is List)
+                //       ? List<String>.from(data['linkedProjectIds'])
+                //       : <String>[];
+
+                //   final directCustomer = linkedCustomerId == widget.customerId;
+                //   final projectLink = linkedProjects.contains(widget.projectId);
+
+                //   if (directCustomer || projectLink) {
+                //     related.add(doc);
+                //   }
+                // }
+
+                // if (related.isEmpty) {
+                //   return const Center(
+                //     child: Text('Brak kontaktów powiązanych'),
+                //   );
+                // }
                 for (final doc in all) {
                   final data = doc.data();
                   final linkedCustomerId = data['linkedCustomerId'] as String?;
@@ -310,18 +330,15 @@ class _ProjectContactsScreenState extends State<ProjectContactsScreen> {
                       ? List<String>.from(data['linkedProjectIds'])
                       : <String>[];
 
-                  final directCustomer = linkedCustomerId == widget.customerId;
                   final projectLink = linkedProjects.contains(widget.projectId);
 
-                  if (directCustomer || projectLink) {
+                  final isMainCustomerContact =
+                      linkedCustomerId == widget.customerId &&
+                      doc.id == _mainContactId;
+
+                  if (projectLink || isMainCustomerContact) {
                     related.add(doc);
                   }
-                }
-
-                if (related.isEmpty) {
-                  return const Center(
-                    child: Text('Brak kontaktów powiązanych'),
-                  );
                 }
 
                 QueryDocumentSnapshot<Map<String, dynamic>> mainDoc;

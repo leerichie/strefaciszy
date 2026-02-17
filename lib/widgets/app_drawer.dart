@@ -73,9 +73,9 @@ class _AppDrawerState extends State<AppDrawer> {
     for (final d in docs) {
       final data = d.data();
       final v = data['unread_$uid'];
-      if (v is int)
+      if (v is int) {
         sum += v;
-      else if (v is num)
+      } else if (v is num)
         sum += v.toInt();
     }
     return sum;
