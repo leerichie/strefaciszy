@@ -101,6 +101,61 @@ class ProjectFilesService {
     return newFiles;
   }
 
+  // SHARE - uploads
+  static Future<List<Map<String, String>>> uploadProjectImagesFromBytes({
+    required String customerId,
+    required String projectId,
+    required List<MapEntry<String, Uint8List>> files,
+    required String tabBucket, // pass 'images'
+  }) async {
+    if (files.isEmpty) return const [];
+
+    final rawStorageBucket = Firebase.app().options.storageBucket ?? '';
+    final storageBucketUri = rawStorageBucket.startsWith('gs://')
+        ? rawStorageBucket
+        : 'gs://$rawStorageBucket';
+
+    final storage = FirebaseStorage.instanceFor(bucket: storageBucketUri);
+
+    final uploadFutures = files.map((entry) async {
+      final name = entry.key;
+      final data = entry.value;
+
+      final ref = storage.ref().child('project_images/$projectId/$name');
+
+      final contentType = _guessContentType(name);
+      final metadata = contentType != null
+          ? SettableMetadata(contentType: contentType)
+          : null;
+
+      if (metadata != null) {
+        await ref.putData(data, metadata);
+      } else {
+        await ref.putData(data);
+      }
+
+      final url = await ref.getDownloadURL();
+      return {'url': url, 'name': name, 'bucket': tabBucket};
+    }).toList();
+
+    final results = await Future.wait(uploadFutures);
+    final newFiles = results.whereType<Map<String, String>>().toList(
+      growable: false,
+    );
+
+    if (newFiles.isEmpty) return const [];
+
+    final docRef = FirebaseFirestore.instance
+        .collection('customers')
+        .doc(customerId)
+        .collection('projects')
+        .doc(projectId);
+
+    await docRef.update({'files': FieldValue.arrayUnion(newFiles)});
+
+    return newFiles;
+  }
+
   static Future<void> deleteProjectFile({
     required String customerId,
     required String projectId,

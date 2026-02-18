@@ -47,6 +47,8 @@
 	<string>Location access is needed to tag scanned items or for inventory location info.</string>
 	<key>NSPhotoLibraryUsageDescription</key>
 	<string>Photo library access is needed if you choose images from the gallery.</string>
+	<key>NSPhotoLibraryAddUsageDescription</key>
+	<string>Allow sharing files into the app.</string>
 	<key>UIApplicationSupportsIndirectInputEvents</key>
 	<true/>
 	<key>UIBackgroundModes</key>

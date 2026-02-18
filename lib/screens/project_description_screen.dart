@@ -11,6 +11,7 @@ import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:http/http.dart' as http;
 import 'package:strefa_ciszy/screens/location_picker_screen.dart';
 import 'package:strefa_ciszy/services/one_drive_link.dart';
+import 'package:strefa_ciszy/services/project_share_paste_service.dart';
 import 'package:strefa_ciszy/utils/keyboard_utils.dart';
 import 'package:strefa_ciszy/widgets/app_scaffold.dart';
 import 'package:strefa_ciszy/widgets/one_drive_link_button.dart';
@@ -161,7 +162,7 @@ class _ProjectDescriptionScreenState extends State<ProjectDescriptionScreen> {
         _descCtrl.text = desc;
       }
 
-      // ADDRESS & LOCATION
+      // ADDRESS
       if (data['address'] is String) {
         _addressCtrl.text = data['address'] as String;
       }
@@ -170,7 +171,7 @@ class _ProjectDescriptionScreenState extends State<ProjectDescriptionScreen> {
         _location = LatLng(gp.latitude, gp.longitude);
       }
 
-      // RAW PHOTOS
+      // RAW
       final rawPhotos = data['photos'];
       List<String> photoUrls = [];
       if (rawPhotos is List) {
@@ -199,7 +200,6 @@ class _ProjectDescriptionScreenState extends State<ProjectDescriptionScreen> {
         }
       }
 
-      // OLD FILES + PHOTOS backward compatibility
       final existingUrls = initialFiles
           .map((m) => m['url'])
           .whereType<String>()
@@ -212,7 +212,6 @@ class _ProjectDescriptionScreenState extends State<ProjectDescriptionScreen> {
         initialFiles.add({'url': url, 'name': name});
       }
 
-      // If older docs only had photos
       if (initialFiles.isEmpty && photoUrls.isNotEmpty) {
         for (final url in photoUrls) {
           if (url.isEmpty) continue;
@@ -654,21 +653,87 @@ class _ProjectDescriptionScreenState extends State<ProjectDescriptionScreen> {
 
   Widget _buildFotkiTab() {
     final canEdit = widget.isAdmin && !_projectArchived;
-    return ProjectImagesSection(
-      customerId: widget.customerId,
-      projectId: widget.projectId,
-      isAdmin: canEdit,
-      initialFiles: _initialFiles,
+    final hasShare = ProjectSharePasteService.instance.hasSharedItems;
+
+    return Column(
+      children: [
+        if (canEdit && hasShare)
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 12, 16, 6),
+            child: SizedBox(
+              width: double.infinity,
+              child: ElevatedButton.icon(
+                icon: const Icon(Icons.content_paste),
+                label: const Text('Upuść plik tu do Fotki'),
+                onPressed: () async {
+                  final ok = await ProjectSharePasteService.instance
+                      .pasteToPhotos(
+                        context: context,
+                        customerId: widget.customerId,
+                        projectId: widget.projectId,
+                        canEdit: canEdit,
+                      );
+                  if (ok) {
+                    await _loadDescription();
+                    if (!mounted) return;
+                    setState(() {});
+                  }
+                },
+              ),
+            ),
+          ),
+        Expanded(
+          child: ProjectImagesSection(
+            customerId: widget.customerId,
+            projectId: widget.projectId,
+            isAdmin: canEdit,
+            initialFiles: _initialFiles,
+          ),
+        ),
+      ],
     );
   }
 
   Widget _buildPlikiTab() {
     final canEdit = widget.isAdmin && !_projectArchived;
-    return ProjectFilesOnlySection(
-      customerId: widget.customerId,
-      projectId: widget.projectId,
-      isAdmin: canEdit,
-      initialFiles: _initialFiles,
+    final hasShare = ProjectSharePasteService.instance.hasSharedItems;
+
+    return Column(
+      children: [
+        if (canEdit && hasShare)
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 12, 16, 6),
+            child: SizedBox(
+              width: double.infinity,
+              child: ElevatedButton.icon(
+                icon: const Icon(Icons.content_paste),
+                label: const Text('Upuść plik tu do Pliki'),
+                onPressed: () async {
+                  final ok = await ProjectSharePasteService.instance
+                      .pasteToFiles(
+                        context: context,
+                        customerId: widget.customerId,
+                        projectId: widget.projectId,
+                        canEdit: canEdit,
+                      );
+                  if (ok) {
+                    await _loadDescription();
+                    if (!mounted) return;
+                    setState(() {});
+                  }
+                },
+              ),
+            ),
+          ),
+        Expanded(
+          child: ProjectFilesOnlySection(
+            customerId: widget.customerId,
+            projectId: widget.projectId,
+            isAdmin: canEdit,
+            initialFiles: _initialFiles,
+          ),
+        ),
+      ],
     );
   }
 
