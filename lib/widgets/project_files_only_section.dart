@@ -131,47 +131,47 @@ class _ProjectFilesOnlySectionState extends State<ProjectFilesOnlySection> {
     });
   }
 
-  Future<void> _openSearchDialog() async {
-    final controller = TextEditingController(text: _searchQuery);
+  // Future<void> _openSearchDialog() async {
+  //   final controller = TextEditingController(text: _searchQuery);
 
-    await showDialog<void>(
-      context: context,
-      builder: (ctx) {
-        return AlertDialog(
-          title: const Text('Szukaj plików'),
-          content: TextField(
-            controller: controller,
-            autofocus: true,
-            decoration: const InputDecoration(
-              labelText: 'Nazwa pliku',
-              border: OutlineInputBorder(),
-            ),
-            onChanged: (value) {
-              setState(() {
-                _searchQuery = value.trim().toLowerCase();
-              });
-            },
-            onSubmitted: (_) {
-              Navigator.of(ctx).pop();
-            },
-          ),
-          actions: [
-            TextButton(
-              onPressed: () {
-                controller.clear();
-                setState(() => _searchQuery = '');
-              },
-              child: const Text('Wyczyść'),
-            ),
-            TextButton(
-              onPressed: () => Navigator.of(ctx).pop(),
-              child: const Text('Zamknij'),
-            ),
-          ],
-        );
-      },
-    );
-  }
+  //   await showDialog<void>(
+  //     context: context,
+  //     builder: (ctx) {
+  //       return AlertDialog(
+  //         title: const Text('Szukaj plików'),
+  //         content: TextField(
+  //           controller: controller,
+  //           autofocus: true,
+  //           decoration: const InputDecoration(
+  //             labelText: 'Nazwa pliku',
+  //             border: OutlineInputBorder(),
+  //           ),
+  //           onChanged: (value) {
+  //             setState(() {
+  //               _searchQuery = value.trim().toLowerCase();
+  //             });
+  //           },
+  //           onSubmitted: (_) {
+  //             Navigator.of(ctx).pop();
+  //           },
+  //         ),
+  //         actions: [
+  //           TextButton(
+  //             onPressed: () {
+  //               controller.clear();
+  //               setState(() => _searchQuery = '');
+  //             },
+  //             child: const Text('Wyczyść'),
+  //           ),
+  //           TextButton(
+  //             onPressed: () => Navigator.of(ctx).pop(),
+  //             child: const Text('Zamknij'),
+  //           ),
+  //         ],
+  //       );
+  //     },
+  //   );
+  // }
 
   List<int> _getOrder(List<Map<String, String>> items) {
     final idxs = List<int>.generate(items.length, (i) => i);
