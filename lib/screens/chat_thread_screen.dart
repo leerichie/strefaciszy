@@ -1084,8 +1084,9 @@ class _ChatThreadScreenState extends State<ChatThreadScreen> {
                                                           (a['name'] ?? 'plik')
                                                               .toString();
 
-                                                      if (url.isEmpty)
+                                                      if (url.isEmpty) {
                                                         return const SizedBox.shrink();
+                                                      }
 
                                                       if (type == 'image') {
                                                         return Padding(

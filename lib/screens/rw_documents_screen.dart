@@ -839,18 +839,26 @@ class _RWDocumentsScreenState extends State<RWDocumentsScreen> {
               for (final m in notesList) ...[
                 Padding(
                   padding: const EdgeInsets.symmetric(vertical: 2),
-                  child: Text(() {
-                    final ts = (m['createdAt'] as Timestamp).toDate();
-                    final tsStr = DateFormat(
-                      'dd.MM.yyyy HH:mm',
-                      'pl_PL',
-                    ).format(ts);
-                    final user = (m['userName'] ?? '').toString();
-                    final action = (m['action'] ?? '').toString().trim();
-                    final text = (m['text'] ?? '').toString();
-                    final actionPart = action.isNotEmpty ? ': $action' : '';
-                    return '• [$tsStr] $user$actionPart: $text';
-                  }()),
+                  child: Text(
+                    () {
+                      final ts = (m['createdAt'] as Timestamp).toDate();
+                      final tsStr = DateFormat(
+                        'dd.MM.yyyy HH:mm',
+                        'pl_PL',
+                      ).format(ts);
+                      final user = (m['userName'] ?? '').toString();
+                      final action = (m['action'] ?? '').toString().trim();
+                      final text = (m['text'] ?? '').toString();
+                      final actionPart = action.isNotEmpty ? ': $action' : '';
+                      return '• [$tsStr] $user$actionPart: $text';
+                    }(),
+                    style: TextStyle(
+                      color:
+                          ((m['color'] ?? '').toString().toLowerCase() == 'red')
+                          ? Colors.red
+                          : Colors.black,
+                    ),
+                  ),
                 ),
               ],
             ],
@@ -1080,7 +1088,15 @@ class _RWDocumentsScreenState extends State<RWDocumentsScreen> {
       final text = (m['text'] ?? '').toString();
       final actionPart = action.isNotEmpty ? ': $action' : '';
 
-      sheet.getRangeByName('A$row').setText('[$tsStr] $user$actionPart: $text');
+      final cell = sheet.getRangeByName('A$row');
+      cell.setText('[$tsStr] $user$actionPart: $text');
+
+      final colorStr = (m['color'] ?? '').toString().toLowerCase();
+      if (colorStr == 'red') {
+        cell.cellStyle.fontColor = '#FF0000';
+        cell.cellStyle.bold = true;
+      }
+
       row++;
     }
 

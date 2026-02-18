@@ -81,20 +81,47 @@ class _ProjectCurrentTabsState extends State<ProjectCurrentTabs> {
     super.dispose();
   }
 
+  Future<void> _removeProjectEntryById({
+    required String field,
+    required String entryId,
+    required User user,
+    required String userName,
+  }) async {
+    await FirebaseFirestore.instance.runTransaction((tx) async {
+      final snap = await tx.get(widget.projRef);
+      if (!snap.exists) return;
+
+      final data = snap.data() ?? <String, dynamic>{};
+      final raw = (data[field] as List?) ?? const [];
+
+      final updated = raw.where((e) {
+        if (e is! Map) return true;
+        return (e['id']?.toString() ?? '') != entryId;
+      }).toList();
+
+      tx.update(widget.projRef, {
+        field: updated,
+        'updatedAt': FieldValue.serverTimestamp(),
+        'updatedBy': user.uid,
+        'updatedByName': userName,
+      });
+    });
+  }
+
   Future<bool> _confirmDeleteDialog() async {
     final ok = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
-        title: const Text('Delete entry?'),
-        content: const Text('This will permanently delete this entry.'),
+        title: const Text('usuń?'),
+        content: const Text('Nieodwracalny...'),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(ctx, false),
-            child: const Text('Cancel'),
+            child: const Text('Anuluj'),
           ),
           ElevatedButton(
             onPressed: () => Navigator.pop(ctx, true),
-            child: const Text('Delete'),
+            child: const Text('USUŃ'),
           ),
         ],
       ),
@@ -117,11 +144,26 @@ class _ProjectCurrentTabsState extends State<ProjectCurrentTabs> {
     final ok = await _confirmDeleteDialog();
     if (!ok) return;
 
-    await widget.projRef.update({
-      field: FieldValue.arrayRemove([entry]),
-      'updatedAt': FieldValue.serverTimestamp(),
-      'updatedBy': user.uid,
-    });
+    final entryId = (entry['id'] ?? '').toString();
+    if (entryId.isEmpty) return;
+
+    final userName = await _resolveUserName(user);
+
+    await _removeProjectEntryById(
+      field: field,
+      entryId: entryId,
+      user: user,
+      userName: userName,
+    );
+
+    final isTask = entry['isTask'] == true;
+    if (field == kChangesNotesField && isTask) {
+      await _removeTaskFromTodayRw(
+        user: user,
+        userName: userName,
+        sourceTaskId: entryId,
+      );
+    }
   }
 
   Future<void> _loadIsAdmin() async {
@@ -182,20 +224,34 @@ class _ProjectCurrentTabsState extends State<ProjectCurrentTabs> {
     return showDialog<String>(
       context: context,
       builder: (ctx) => AlertDialog(
-        title: const Text('Nowy wpis checkbox'),
+        title: const Text('Wybierz typ zadanie:'),
         content: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
             ListTile(
               dense: true,
-              leading: const Icon(Icons.flag, color: Colors.red),
-              title: const Text('PILNY – czerwony'),
+              leading: const Icon(
+                Icons.done,
+                color: Colors.red,
+                fontWeight: FontWeight.w800,
+              ),
+              title: const Text(
+                'PILNY – czerwony',
+                style: TextStyle(fontSize: 20),
+              ),
               onTap: () => Navigator.pop(ctx, 'red'),
             ),
             ListTile(
               dense: true,
-              leading: const Icon(Icons.flag, color: Colors.black),
-              title: const Text('Normalne – czarny'),
+              leading: const Icon(
+                Icons.done,
+                color: Colors.black,
+                fontWeight: FontWeight.w800,
+              ),
+              title: const Text(
+                'Normalne – czarny',
+                style: TextStyle(fontSize: 20),
+              ),
               onTap: () => Navigator.pop(ctx, 'black'),
             ),
           ],
@@ -295,6 +351,134 @@ class _ProjectCurrentTabsState extends State<ProjectCurrentTabs> {
     });
   }
 
+  Future<DocumentReference<Map<String, dynamic>>?> _todayRwRef() async {
+    final proj = FirebaseFirestore.instance
+        .collection('customers')
+        .doc(widget.customerId)
+        .collection('projects')
+        .doc(widget.projectId);
+
+    final now = DateTime.now().toLocal();
+    final start = DateTime(now.year, now.month, now.day);
+    final end = start.add(const Duration(days: 1));
+
+    final snap = await proj
+        .collection('rw_documents')
+        .where('type', isEqualTo: 'RW')
+        .where('createdAt', isGreaterThanOrEqualTo: start)
+        .where('createdAt', isLessThan: end)
+        .orderBy('createdAt', descending: true)
+        .limit(1)
+        .get();
+
+    if (snap.docs.isEmpty) return null;
+    return snap.docs.first.reference;
+  }
+
+  Future<void> _removeTaskFromTodayRw({
+    required User user,
+    required String userName,
+    required String sourceTaskId,
+  }) async {
+    final existingRwRef = await _todayRwRef();
+    if (existingRwRef == null) return;
+
+    await FirebaseFirestore.instance.runTransaction((tx) async {
+      final snap = await tx.get(existingRwRef);
+      if (!snap.exists) return;
+
+      final data = snap.data() ?? <String, dynamic>{};
+      final raw = (data['notesList'] as List?) ?? const [];
+
+      final updated = raw.where((e) {
+        if (e is! Map) return true;
+        final sid = (e['sourceTaskId'] ?? '').toString();
+        return sid != sourceTaskId;
+      }).toList();
+
+      tx.update(existingRwRef, {
+        'notesList': updated,
+        'lastUpdatedAt': FieldValue.serverTimestamp(),
+        'lastUpdatedBy': user.uid,
+        'lastUpdatedByName': userName,
+      });
+    });
+  }
+
+  Future<void> _appendTaskDoneToTodayRw({
+    required User user,
+    required String userName,
+    required Map<String, dynamic> taskEntry,
+  }) async {
+    if (taskEntry['isTask'] != true) return;
+
+    final text = (taskEntry['text'] ?? '').toString().trim();
+    if (text.isEmpty) return;
+
+    final sourceTaskId = (taskEntry['id'] ?? '').toString();
+    if (sourceTaskId.isEmpty) return;
+
+    final proj = FirebaseFirestore.instance
+        .collection('customers')
+        .doc(widget.customerId)
+        .collection('projects')
+        .doc(widget.projectId);
+
+    final noteMap = <String, dynamic>{
+      'text': text,
+      'userName': userName,
+      'createdAt': Timestamp.now(),
+      'action': 'Raporty/Zmiany',
+      if (taskEntry['color'] != null) 'color': taskEntry['color'],
+      'sourceTaskId': sourceTaskId,
+    };
+
+    final existingRwRef = await _todayRwRef();
+
+    if (existingRwRef != null) {
+      await FirebaseFirestore.instance.runTransaction((tx) async {
+        final snap = await tx.get(existingRwRef);
+        if (!snap.exists) return;
+
+        final data = snap.data() ?? <String, dynamic>{};
+        final raw = (data['notesList'] as List?) ?? const [];
+
+        final filtered = raw.where((e) {
+          if (e is! Map) return true;
+          return (e['sourceTaskId']?.toString() ?? '') != sourceTaskId;
+        }).toList();
+
+        filtered.add(noteMap);
+
+        tx.update(existingRwRef, {
+          'notesList': filtered,
+          'lastUpdatedAt': FieldValue.serverTimestamp(),
+          'lastUpdatedBy': user.uid,
+          'lastUpdatedByName': userName,
+        });
+      });
+
+      return;
+    }
+
+    final now = DateTime.now();
+    final newRwRef = proj.collection('rw_documents').doc();
+
+    await newRwRef.set({
+      'type': 'RW',
+      'customerId': widget.customerId,
+      'projectId': widget.projectId,
+      'customerName': widget.customerName,
+      'projectName': widget.projectName,
+      'createdDay': DateTime(now.year, now.month, now.day),
+      'createdAt': FieldValue.serverTimestamp(),
+      'createdBy': user.uid,
+      'createdByName': userName,
+      'items': <Map<String, dynamic>>[],
+      'notesList': [noteMap],
+    });
+  }
+
   Future<void> _toggleLogTaskDone({
     required String field,
     required Map<String, dynamic> oldEntry,
@@ -306,6 +490,15 @@ class _ProjectCurrentTabsState extends State<ProjectCurrentTabs> {
     if (user == null) return;
 
     if (!_canEditEntryWithAdmin(oldEntry, user)) return;
+
+    final wasDone = oldEntry['done'] == true;
+    final isTask = oldEntry['isTask'] == true;
+
+    final shouldCopyToRw =
+        (field == kChangesNotesField) && isTask && (done == true) && !wasDone;
+
+    final shouldRemoveFromRw =
+        (field == kChangesNotesField) && isTask && (done == false) && wasDone;
 
     final userName = await _resolveUserName(user);
     final now = Timestamp.now();
@@ -322,6 +515,25 @@ class _ProjectCurrentTabsState extends State<ProjectCurrentTabs> {
     await widget.projRef.update({
       field: FieldValue.arrayUnion([updated]),
     });
+
+    if (shouldCopyToRw) {
+      await _appendTaskDoneToTodayRw(
+        user: user,
+        userName: userName,
+        taskEntry: updated,
+      );
+    }
+
+    if (shouldRemoveFromRw) {
+      final sourceTaskId = (oldEntry['id'] ?? '').toString();
+      if (sourceTaskId.isNotEmpty) {
+        await _removeTaskFromTodayRw(
+          user: user,
+          userName: userName,
+          sourceTaskId: sourceTaskId,
+        );
+      }
+    }
   }
 
   List<Map<String, dynamic>> _readEntries(
@@ -426,8 +638,10 @@ class _ProjectCurrentTabsState extends State<ProjectCurrentTabs> {
                         ? IconButton(
                             tooltip: 'Wpis checkbox',
                             icon: Icon(
-                              Icons.check_box_outlined,
+                              Icons.check_box,
                               color: iconColor,
+                              fontWeight: FontWeight.w800,
+                              size: 25,
                             ),
                             onPressed: widget.readOnly
                                 ? null
@@ -536,6 +750,8 @@ class _ProjectCurrentTabsState extends State<ProjectCurrentTabs> {
                                   done: v == true,
                                 )
                               : null,
+                          activeColor: Colors.green,
+                          checkColor: Colors.white,
                           materialTapTargetSize:
                               MaterialTapTargetSize.shrinkWrap,
                           visualDensity: const VisualDensity(
@@ -634,12 +850,13 @@ class _ProjectCurrentTabsState extends State<ProjectCurrentTabs> {
               border: Border(bottom: BorderSide(color: Colors.grey.shade300)),
             ),
             child: const TabBar(
-              labelColor: Colors.black,
+              labelColor: Color.fromARGB(255, 47, 101, 182),
               unselectedLabelColor: Colors.black54,
+
               tabs: [
-                Tab(text: 'Instalator'),
-                Tab(text: 'Koordynacja'),
-                Tab(text: 'Raporty'),
+                Tab(text: 'INSTALATOR'),
+                Tab(text: 'KOORDYNACJA'),
+                Tab(text: 'ZMIANY'),
               ],
             ),
           ),
@@ -666,17 +883,17 @@ class _ProjectCurrentTabsState extends State<ProjectCurrentTabs> {
                   children: [
                     _compactLogEditor(
                       field: kInstallerField,
-                      hint: 'Notatki instalatora...',
+                      hint: 'Wpisz do instalatora...',
                       entries: installer,
                     ),
                     _compactLogEditor(
                       field: kCoordinationField,
-                      hint: 'Koordynacja...',
+                      hint: 'Wpisz do koordynacja...',
                       entries: coordination,
                     ),
                     _compactLogEditor(
                       field: kChangesNotesField,
-                      hint: 'Raporty / zmiany...',
+                      hint: 'Wpisz raport / Dodać Zadanie',
                       entries: changesNotes,
                       bottom: _legacyCompactBlock(legacyCurrentText),
                     ),

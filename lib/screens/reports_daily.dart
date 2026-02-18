@@ -2,6 +2,7 @@
 
 import 'dart:convert';
 
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
@@ -22,16 +23,116 @@ class _ReportsDailyScreenState extends State<ReportsDailyScreen> {
   String? _statusMessage;
   final TextEditingController _emailController = TextEditingController();
 
-  // adjust if you use a different region / project
   static const _functionUrl =
       'https://us-central1-strefa-ciszy.cloudfunctions.net/sendDailyRwReportHttp';
 
   String get _dayKey => DateFormat('yyyy-MM-dd').format(_selectedDate);
+  static const String _devEmail = 'leerichie@wp.pl';
+
+  static const String _devCustomerId = 'hjX1oWT4RrH9UkGbJUYt';
+  static const String _devProjectId = 'RqTUcyIGnGJ1ErsuVJn';
+  static const String _devCustomerName = 'aaa lee **test**';
+  static const String _devProjectName = 'RW COPY TEST';
+
+  bool get _isDevUser {
+    final u = FirebaseAuth.instance.currentUser;
+    final email = (u?.email ?? '').toLowerCase().trim();
+    return email == _devEmail.toLowerCase();
+  }
+
+  bool _isDevRunning = false;
+  String? _devStatus;
 
   @override
   void dispose() {
     _emailController.dispose();
     super.dispose();
+  }
+
+  Future<void> _devAppendNoteToTodayRw() async {
+    final user = FirebaseAuth.instance.currentUser;
+    if (user == null) {
+      setState(() => _devStatus = 'Brak zalogowanego użytkownika.');
+      return;
+    }
+
+    setState(() {
+      _isDevRunning = true;
+      _devStatus = null;
+    });
+
+    try {
+      final db = FirebaseFirestore.instance;
+
+      final proj = db
+          .collection('customers')
+          .doc(_devCustomerId)
+          .collection('projects')
+          .doc(_devProjectId);
+
+      final now = DateTime.now().toLocal();
+      final start = DateTime(now.year, now.month, now.day);
+      final end = start.add(const Duration(days: 1));
+
+      final q = await proj
+          .collection('rw_documents')
+          .where('type', isEqualTo: 'RW')
+          .where('createdAt', isGreaterThanOrEqualTo: start)
+          .where('createdAt', isLessThan: end)
+          .orderBy('createdAt', descending: true)
+          .limit(1)
+          .get();
+
+      DocumentReference<Map<String, dynamic>> rwRef;
+
+      if (q.docs.isNotEmpty) {
+        rwRef = q.docs.first.reference;
+      } else {
+        rwRef = proj.collection('rw_documents').doc();
+        await rwRef.set({
+          'type': 'RW',
+          'customerId': _devCustomerId,
+          'projectId': _devProjectId,
+          'customerName': _devCustomerName,
+          'projectName': _devProjectName,
+          'createdDay': start,
+          'createdAt': FieldValue.serverTimestamp(),
+          'createdBy': user.uid,
+          'createdByName': user.email ?? 'dev',
+          'items': <Map<String, dynamic>>[],
+          'notesList': <Map<String, dynamic>>[],
+        });
+      }
+
+      final note = <String, dynamic>{
+        'text':
+            'DEV TEST NOTE • ${DateFormat('HH:mm:ss').format(DateTime.now())}',
+        'userName': user.email ?? 'dev',
+        'createdAt': Timestamp.now(),
+        'action': 'DEV_BUTTON',
+        'color': 'black',
+        'sourceTaskId': 'dev_${DateTime.now().millisecondsSinceEpoch}',
+      };
+
+      await rwRef.update({
+        'notesList': FieldValue.arrayUnion([note]),
+        'lastUpdatedAt': FieldValue.serverTimestamp(),
+        'lastUpdatedBy': user.uid,
+        'lastUpdatedByName': user.email ?? 'dev',
+      });
+
+      setState(() {
+        _devStatus =
+            'OK: dopisano notatkę do RW (dzisiaj).\n'
+            'customerId=$_devCustomerId\n'
+            'projectId=$_devProjectId\n'
+            'rwId=${rwRef.id}';
+      });
+    } catch (e) {
+      setState(() => _devStatus = 'DEV ERROR: $e');
+    } finally {
+      if (mounted) setState(() => _isDevRunning = false);
+    }
   }
 
   Future<void> _pickDate() async {
@@ -205,6 +306,39 @@ class _ReportsDailyScreenState extends State<ReportsDailyScreen> {
               ),
             ),
             const SizedBox(height: 24),
+
+            // if (_isDevUser) ...[
+            //   const SizedBox(height: 24),
+            //   const Divider(),
+            //   const SizedBox(height: 12),
+            //   Text(
+            //     'DEV: Test RW',
+            //     style: Theme.of(context).textTheme.titleMedium,
+            //   ),
+            //   const SizedBox(height: 10),
+            //   SizedBox(
+            //     width: double.infinity,
+            //     child: ElevatedButton.icon(
+            //       onPressed: _isDevRunning ? null : _devAppendNoteToTodayRw,
+            //       icon: _isDevRunning
+            //           ? const SizedBox(
+            //               width: 20,
+            //               height: 20,
+            //               child: CircularProgressIndicator(strokeWidth: 2),
+            //             )
+            //           : const Icon(Icons.bug_report),
+            //       label: Text(_isDevRunning ? 'Test' : 'DEV: make note'),
+            //     ),
+            //   ),
+            //   const SizedBox(height: 12),
+            //   if (_devStatus != null)
+            //     Card(
+            //       child: Padding(
+            //         padding: const EdgeInsets.all(12),
+            //         child: Text(_devStatus!),
+            //       ),
+            //     ),
+            // ],
             if (_statusMessage != null)
               Card(
                 color: Theme.of(context).colorScheme.surfaceContainerHighest,
