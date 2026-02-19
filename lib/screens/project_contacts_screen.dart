@@ -196,19 +196,37 @@ class _ProjectContactsScreenState extends State<ProjectContactsScreen> {
     if (_selectedContactEmails.isEmpty) {
       ScaffoldMessenger.of(
         context,
-      ).showSnackBar(const SnackBar(content: Text('Nie wybrane kontaktów')));
+      ).showSnackBar(const SnackBar(content: Text('No contacts selected')));
       return;
     }
 
-    final toParam = _selectedContactEmails.join(';');
-    final uri = Uri.parse('mailto:$toParam');
+    final emails = _selectedContactEmails
+        .map((e) => e.trim())
+        .where((e) => e.isNotEmpty)
+        .toList();
 
-    if (await canLaunchUrl(uri)) {
-      await launchUrl(uri);
-    } else {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Nie można otworzyć klienta email: $uri')),
-      );
+    final uri = Uri(
+      scheme: 'mailto',
+      path: '',
+      queryParameters: {
+        'to': emails.join(','),
+        // optional:
+        // 'subject': '...',
+        // 'body': '...',
+      },
+    );
+
+    try {
+      final ok = await launchUrl(uri, mode: LaunchMode.platformDefault);
+      if (!ok) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Cannot open email client: $uri')),
+        );
+      }
+    } catch (_) {
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('Cannot open email client: $uri')));
     }
   }
 

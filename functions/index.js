@@ -257,9 +257,9 @@ function _asDate(raw) {
 }
 
 function _buildNotesCellValue(lines) {
-  const hasRed = lines.some(l => (l.color || '').toLowerCase() === 'red');
+  const hasRed = lines.some((l) => (l.color || '').toLowerCase() === 'red');
   if (!hasRed) {
-    return lines.map(l => l.text).join('\n');
+    return lines.map((l) => l.text).join('\n');
   }
 
   const richText = [];
@@ -268,10 +268,10 @@ function _buildNotesCellValue(lines) {
     const isRed = (line.color || '').toLowerCase() === 'red';
     richText.push({
       text: line.text + (i === lines.length - 1 ? '' : '\n'),
-      font: isRed ? { color: { argb: 'FFFF0000' }, bold: true } : undefined,
+      font: isRed ? {color: {argb: 'FFFF0000'}, bold: true} : undefined,
     });
   }
-  return { richText };
+  return {richText};
 }
 
 async function _getDoneTasksForDayFromProject({
@@ -279,7 +279,6 @@ async function _getDoneTasksForDayFromProject({
   dayStartUtc,
   dayEndUtc,
 }) {
-
   try {
     const snap = await projectRef.get();
     if (!snap.exists) return [];
@@ -517,7 +516,7 @@ exports.sendDailyRwReportHttp = functions.https.onRequest(async (req, res) => {
 
     // TEST block
 
-        //  3) Build Excel workbook
+    //  3) Build Excel workbook
     const workbook = new ExcelJS.Workbook();
     const sheet = workbook.addWorksheet(`RW ${dayKey}`);
 
@@ -546,74 +545,7 @@ exports.sendDailyRwReportHttp = functions.https.onRequest(async (req, res) => {
       minute: "2-digit",
     });
 
-    function _asDate(raw) {
-      if (!raw) return null;
-      if (raw.toDate) return raw.toDate();
-      if (typeof raw === "string") {
-        const d = new Date(raw);
-        return isNaN(d.getTime()) ? null : d;
-      }
-      if (raw instanceof Date) return raw;
-      return null;
-    }
-
-    function _buildNotesCellValue(lines) {
-      const richText = [];
-
-      for (let i = 0; i < lines.length; i++) {
-        const line = lines[i];
-        const color = (line.color || "").toString().toLowerCase();
-        const isRed = color === "red";
-
-        richText.push({
-          text: line.text + (i === lines.length - 1 ? "" : "\n"),
-          font: isRed ? { color: { argb: "FFFF0000" }, bold: true } : undefined,
-        });
-      }
-
-      return { richText };
-    }
-
-    async function _getDoneTasksForDayFromProject({projectRef, dayStartUtc, dayEndUtc}) {
-      try {
-        const snap = await projectRef.get();
-        if (!snap.exists) return [];
-
-        const p = snap.data() || {};
-        const raw = Array.isArray(p.currentChangesNotes) ? p.currentChangesNotes : [];
-
-        const out = [];
-        for (const e of raw) {
-          if (!e || typeof e !== "object") continue;
-          if (e.isTask !== true) continue;
-          if (e.done !== true) continue;
-
-          const doneAt = _asDate(e.updatedAt) || _asDate(e.createdAt);
-          if (!doneAt) continue;
-
-          if (doneAt >= dayStartUtc && doneAt <= dayEndUtc) {
-            const text = (e.text || "").toString().trim();
-            if (!text) continue;
-
-            out.push({
-              id: (e.id || "").toString(),
-              text,
-              createdByName: (e.createdByName || "").toString().trim(),
-              color: (e.color || "").toString().toLowerCase(),
-              doneAt,
-            });
-          }
-        }
-
-        out.sort((a, b) => a.doneAt.getTime() - b.doneAt.getTime());
-        return out;
-      } catch (err) {
-        console.error("[RW] Failed to read currentChangesNotes for", projectRef.path, err);
-        return [];
-      }
-    }
-
-    const projectTasksCache = new Map(); 
+    const projectTasksCache = new Map();
 
     for (const {ref, data: dData, createdAt} of docsForDay) {
       const items    = Array.isArray(dData.items) ? dData.items : [];
@@ -658,7 +590,7 @@ exports.sendDailyRwReportHttp = functions.https.onRequest(async (req, res) => {
         const who = t.createdByName ? ` • ${t.createdByName}` : "";
         exportLines.push({
           text: `TODO${who}: ${t.text}`,
-          color: t.color || null, 
+          color: t.color || null,
         });
       }
 
@@ -674,7 +606,7 @@ exports.sendDailyRwReportHttp = functions.https.onRequest(async (req, res) => {
 
         exportLines.push({
           text: `[${noteDateStr}] ${user}${actionPart}: ${text}`,
-          color: null, 
+          color: null,
         });
       }
 
@@ -699,7 +631,7 @@ exports.sendDailyRwReportHttp = functions.https.onRequest(async (req, res) => {
 
           if (first) {
             row.getCell(11).value = notesCellValue;
-            row.getCell(11).alignment = { wrapText: true, vertical: "top" };
+            row.getCell(11).alignment = {wrapText: true, vertical: "top"};
           }
           first = false;
         }
@@ -719,10 +651,10 @@ exports.sendDailyRwReportHttp = functions.https.onRequest(async (req, res) => {
         });
 
         row.getCell(11).value = notesCellValue;
-        row.getCell(11).alignment = { wrapText: true, vertical: "top" };
+        row.getCell(11).alignment = {wrapText: true, vertical: "top"};
       }
     }
-// end test
+    // end test
     const buffer   = await workbook.xlsx.writeBuffer();
     const fileName = `rw_raport_${dayKey}.xlsx`;
 
@@ -973,74 +905,7 @@ exports.sendDailyRwReportScheduled = onSchedule(
           minute: "2-digit",
         });
 
-        function _asDate(raw) {
-          if (!raw) return null;
-          if (raw.toDate) return raw.toDate();
-          if (typeof raw === "string") {
-            const d = new Date(raw);
-            return isNaN(d.getTime()) ? null : d;
-          }
-          if (raw instanceof Date) return raw;
-          return null;
-        }
-
-        function _buildNotesCellValue(lines) {
-          const richText = [];
-
-          for (let i = 0; i < lines.length; i++) {
-            const line = lines[i];
-            const color = (line.color || "").toString().toLowerCase();
-            const isRed = color === "red";
-
-            richText.push({
-              text: line.text + (i === lines.length - 1 ? "" : "\n"),
-              font: isRed ? { color: { argb: "FFFF0000" }, bold: true } : undefined,
-            });
-          }
-
-          return { richText };
-        }
-
-        async function _getDoneTasksForDayFromProject({projectRef, dayStartUtc, dayEndUtc}) {
-          try {
-            const snap = await projectRef.get();
-            if (!snap.exists) return [];
-
-            const p = snap.data() || {};
-            const raw = Array.isArray(p.currentChangesNotes) ? p.currentChangesNotes : [];
-
-            const out = [];
-            for (const e of raw) {
-              if (!e || typeof e !== "object") continue;
-              if (e.isTask !== true) continue;
-              if (e.done !== true) continue;
-
-              const doneAt = _asDate(e.updatedAt) || _asDate(e.createdAt);
-              if (!doneAt) continue;
-
-              if (doneAt >= dayStartUtc && doneAt <= dayEndUtc) {
-                const text = (e.text || "").toString().trim();
-                if (!text) continue;
-
-                out.push({
-                  id: (e.id || "").toString(),
-                  text,
-                  createdByName: (e.createdByName || "").toString().trim(),
-                  color: (e.color || "").toString().toLowerCase(),
-                  doneAt,
-                });
-              }
-            }
-
-            out.sort((a, b) => a.doneAt.getTime() - b.doneAt.getTime());
-            return out;
-          } catch (err) {
-            console.error("[RW scheduled] Failed to read currentChangesNotes for", projectRef.path, err);
-            return [];
-          }
-        }
-
-        const projectTasksCache = new Map(); 
+        const projectTasksCache = new Map();
 
         for (const {ref, data: dData, createdAt} of docsForDay) {
           const items    = Array.isArray(dData.items) ? dData.items : [];
@@ -1085,7 +950,7 @@ exports.sendDailyRwReportScheduled = onSchedule(
             const who = t.createdByName ? ` • ${t.createdByName}` : "";
             exportLines.push({
               text: `TODO${who}: ${t.text}`,
-              color: t.color || null, 
+              color: t.color || null,
             });
           }
 
@@ -1126,7 +991,7 @@ exports.sendDailyRwReportScheduled = onSchedule(
 
               if (first) {
                 row.getCell(11).value = notesCellValue;
-                row.getCell(11).alignment = { wrapText: true, vertical: "top" };
+                row.getCell(11).alignment = {wrapText: true, vertical: "top"};
               }
               first = false;
             }
@@ -1144,9 +1009,8 @@ exports.sendDailyRwReportScheduled = onSchedule(
               unit: "",
               notes: "",
             });
-
             row.getCell(11).value = notesCellValue;
-            row.getCell(11).alignment = { wrapText: true, vertical: "top" };
+            row.getCell(11).alignment = {wrapText: true, vertical: "top"};
           }
         }
 
