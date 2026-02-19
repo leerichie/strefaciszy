@@ -3,7 +3,7 @@
 import 'package:firebase_app_check/firebase_app_check.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_core/firebase_core.dart';
-import 'package:flutter/foundation.dart' show kReleaseMode;
+import 'package:flutter/foundation.dart' show kIsWeb, kReleaseMode;
 import 'package:flutter/material.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:strefa_ciszy/offline/offline_api.dart';
@@ -11,7 +11,6 @@ import 'package:strefa_ciszy/services/admin_api.dart';
 import 'package:strefa_ciszy/services/api_service.dart';
 import 'package:strefa_ciszy/services/push_router.dart';
 import 'package:strefa_ciszy/services/push_service.dart';
-import 'package:strefa_ciszy/services/share_incoming_service.dart';
 
 import 'firebase_options.dart';
 import 'offline/sync_orchestrator_stub.dart'
@@ -39,16 +38,17 @@ void main() async {
   //   DeviceOrientation.landscapeLeft,
   //   // DeviceOrientation.portraitDown,
   // ]);
-  await SharedIncomingService.instance.init();
 
-  await FirebaseAppCheck.instance.activate(
-    androidProvider: kReleaseMode
-        ? AndroidProvider.playIntegrity
-        : AndroidProvider.debug,
-    appleProvider: kReleaseMode
-        ? AppleProvider.appAttestWithDeviceCheckFallback
-        : AppleProvider.debug,
-  );
+  if (!kIsWeb) {
+    await FirebaseAppCheck.instance.activate(
+      androidProvider: kReleaseMode
+          ? AndroidProvider.playIntegrity
+          : AndroidProvider.debug,
+      appleProvider: kReleaseMode
+          ? AppleProvider.appAttestWithDeviceCheckFallback
+          : AppleProvider.debug,
+    );
+  }
 
   runApp(const StrefaCiszyApp());
   _postBootstrap();
