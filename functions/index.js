@@ -243,6 +243,78 @@ exports.backfillProjects = onDocumentWritten(
     },
 );
 
+//  TODO tasks
+
+function _asDate(raw) {
+  if (!raw) return null;
+  if (raw.toDate) return raw.toDate();
+  if (typeof raw === 'string') {
+    const d = new Date(raw);
+    return isNaN(d.getTime()) ? null : d;
+  }
+  if (raw instanceof Date) return raw;
+  return null;
+}
+
+function _buildNotesCellValue(lines) {
+  const hasRed = lines.some(l => (l.color || '').toLowerCase() === 'red');
+  if (!hasRed) {
+    return lines.map(l => l.text).join('\n');
+  }
+
+  const richText = [];
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i];
+    const isRed = (line.color || '').toLowerCase() === 'red';
+    richText.push({
+      text: line.text + (i === lines.length - 1 ? '' : '\n'),
+      font: isRed ? { color: { argb: 'FFFF0000' }, bold: true } : undefined,
+    });
+  }
+  return { richText };
+}
+
+async function _getDoneTasksForDayFromProject({
+  projectRef,
+  dayStartUtc,
+  dayEndUtc,
+}) {
+
+  try {
+    const snap = await projectRef.get();
+    if (!snap.exists) return [];
+
+    const data = snap.data() || {};
+    const raw = Array.isArray(data.currentChangesNotes) ? data.currentChangesNotes : [];
+
+    const out = [];
+    for (const e of raw) {
+      if (!e || typeof e !== 'object') continue;
+      if (e.isTask !== true) continue;
+      if (e.done !== true) continue;
+
+      const doneAt = _asDate(e.updatedAt) || _asDate(e.createdAt);
+      if (!doneAt) continue;
+
+      if (doneAt >= dayStartUtc && doneAt <= dayEndUtc) {
+        out.push({
+          id: (e.id || '').toString(),
+          text: (e.text || '').toString().trim(),
+          createdByName: (e.createdByName || '').toString().trim(),
+          color: (e.color || '').toString().toLowerCase(), // 'red'|'black'
+          doneAt,
+        });
+      }
+    }
+
+    out.sort((a, b) => a.doneAt.getTime() - b.doneAt.getTime());
+    return out;
+  } catch (e) {
+    console.error('[RW] failed to read currentChangesNotes for project:', projectRef.path, e);
+    return [];
+  }
+}
+
 // 6) End-of-day RW report -> Excel -> email
 exports.sendDailyRwReportHttp = functions.https.onRequest(async (req, res) => {
   if (req.method === "OPTIONS") {
@@ -340,7 +412,112 @@ exports.sendDailyRwReportHttp = functions.https.onRequest(async (req, res) => {
 
     docsForDay.sort((a, b) => a.createdAt.getTime() - b.createdAt.getTime());
 
+    // OLD block
     //  3) Build Excel workbook
+    // const workbook = new ExcelJS.Workbook();
+    // const sheet = workbook.addWorksheet(`RW ${dayKey}`);
+
+    // sheet.columns = [
+    //   {header: "Data",       key: "date",     width: 19},
+    //   {header: "Typ",        key: "type",     width: 8},
+    //   {header: "Klient",     key: "customer", width: 26},
+    //   {header: "Projekt",    key: "project",  width: 30},
+    //   {header: "Użytkownik", key: "user",     width: 20},
+    //   {header: "Opis",       key: "desc",     width: 30},
+    //   {header: "Producent",  key: "producer", width: 18},
+    //   {header: "Model",      key: "name",     width: 24},
+    //   {header: "Ilość",      key: "qty",      width: 10},
+    //   {header: "Jm",         key: "unit",     width: 6},
+    //   {header: "Notatki",    key: "notes",    width: 45},
+    // ];
+    // sheet.getRow(1).font = {bold: true};
+    // sheet.getColumn("qty").alignment  = {horizontal: "right"};
+    // sheet.getColumn("unit").alignment = {horizontal: "center"};
+
+    // const polish = new Intl.DateTimeFormat("pl-PL", {
+    //   day: "2-digit",
+    //   month: "2-digit",
+    //   year: "numeric",
+    //   hour: "2-digit",
+    //   minute: "2-digit",
+    // });
+
+    // docsForDay.forEach(({data: dData, createdAt}) => {
+    //   const items    = Array.isArray(dData.items) ? dData.items : [];
+    //   const notesRaw = Array.isArray(dData.notesList) ? dData.notesList : [];
+
+    //   if (items.length === 0 && notesRaw.length === 0) {
+    //     console.log("[RW] skipping empty doc", dData.id || "(no id)");
+    //     return;
+    //   }
+
+    //   const dateStr  = polish.format(createdAt);
+    //   const type     = dData.type || "RW";
+    //   const customer = dData.customerName || "";
+    //   const project  = dData.projectName || "";
+    //   const creator  = dData.createdBy || "";
+    //   const userName = userNames[creator] || creator;
+
+    //   const notesList = [...notesRaw];
+    //   notesList.sort((a, b) => {
+    //     const ta = a.createdAt && a.createdAt.toDate ? a.createdAt.toDate() : null;
+    //     const tb = b.createdAt && b.createdAt.toDate ? b.createdAt.toDate() : null;
+    //     if (!ta || !tb) return 0;
+    //     return ta.getTime() - tb.getTime();
+    //   });
+
+    //   const notesText = notesList
+    //       .map((m) => {
+    //         let noteDateStr = "";
+    //         if (m.createdAt && m.createdAt.toDate) {
+    //           noteDateStr = polish.format(m.createdAt.toDate());
+    //         }
+    //         const user   = (m.userName || "").toString();
+    //         const action = (m.action || "").toString().trim();
+    //         const text   = (m.text || "").toString();
+    //         const actionPart = action ? `: ${action}` : "";
+    //         return `[${noteDateStr}] ${user}${actionPart}: ${text}`;
+    //       })
+    //       .join("\n");
+
+    //   if (items.length > 0) {
+    //     let first = true;
+    //     items.forEach((it) => {
+    //       sheet.addRow({
+    //         date: dateStr,
+    //         type,
+    //         customer,
+    //         project,
+    //         user: userName,
+    //         desc: (it.description || "").toString(),
+    //         producer: (it.producent  || "").toString(),
+    //         name: (it.name       || "").toString(),
+    //         qty: it.quantity != null ? Number(it.quantity) : "",
+    //         unit: (it.unit       || "").toString(),
+    //         notes: first ? notesText : "",
+    //       });
+    //       first = false;
+    //     });
+    //   } else {
+    //     sheet.addRow({
+    //       date: dateStr,
+    //       type,
+    //       customer,
+    //       project,
+    //       user: userName,
+    //       desc: "",
+    //       producer: "",
+    //       name: "",
+    //       qty: "",
+    //       unit: "",
+    //       notes: notesText,
+    //     });
+    //   }
+    // });
+
+    // TEST block
+
+        //  3) Build Excel workbook
     const workbook = new ExcelJS.Workbook();
     const sheet = workbook.addWorksheet(`RW ${dayKey}`);
 
@@ -369,13 +546,82 @@ exports.sendDailyRwReportHttp = functions.https.onRequest(async (req, res) => {
       minute: "2-digit",
     });
 
-    docsForDay.forEach(({data: dData, createdAt}) => {
+    function _asDate(raw) {
+      if (!raw) return null;
+      if (raw.toDate) return raw.toDate();
+      if (typeof raw === "string") {
+        const d = new Date(raw);
+        return isNaN(d.getTime()) ? null : d;
+      }
+      if (raw instanceof Date) return raw;
+      return null;
+    }
+
+    function _buildNotesCellValue(lines) {
+      const richText = [];
+
+      for (let i = 0; i < lines.length; i++) {
+        const line = lines[i];
+        const color = (line.color || "").toString().toLowerCase();
+        const isRed = color === "red";
+
+        richText.push({
+          text: line.text + (i === lines.length - 1 ? "" : "\n"),
+          font: isRed ? { color: { argb: "FFFF0000" }, bold: true } : undefined,
+        });
+      }
+
+      return { richText };
+    }
+
+    async function _getDoneTasksForDayFromProject({projectRef, dayStartUtc, dayEndUtc}) {
+      try {
+        const snap = await projectRef.get();
+        if (!snap.exists) return [];
+
+        const p = snap.data() || {};
+        const raw = Array.isArray(p.currentChangesNotes) ? p.currentChangesNotes : [];
+
+        const out = [];
+        for (const e of raw) {
+          if (!e || typeof e !== "object") continue;
+          if (e.isTask !== true) continue;
+          if (e.done !== true) continue;
+
+          const doneAt = _asDate(e.updatedAt) || _asDate(e.createdAt);
+          if (!doneAt) continue;
+
+          if (doneAt >= dayStartUtc && doneAt <= dayEndUtc) {
+            const text = (e.text || "").toString().trim();
+            if (!text) continue;
+
+            out.push({
+              id: (e.id || "").toString(),
+              text,
+              createdByName: (e.createdByName || "").toString().trim(),
+              color: (e.color || "").toString().toLowerCase(),
+              doneAt,
+            });
+          }
+        }
+
+        out.sort((a, b) => a.doneAt.getTime() - b.doneAt.getTime());
+        return out;
+      } catch (err) {
+        console.error("[RW] Failed to read currentChangesNotes for", projectRef.path, err);
+        return [];
+      }
+    }
+
+    const projectTasksCache = new Map(); 
+
+    for (const {ref, data: dData, createdAt} of docsForDay) {
       const items    = Array.isArray(dData.items) ? dData.items : [];
       const notesRaw = Array.isArray(dData.notesList) ? dData.notesList : [];
 
       if (items.length === 0 && notesRaw.length === 0) {
         console.log("[RW] skipping empty doc", dData.id || "(no id)");
-        return;
+        continue;
       }
 
       const dateStr  = polish.format(createdAt);
@@ -385,6 +631,19 @@ exports.sendDailyRwReportHttp = functions.https.onRequest(async (req, res) => {
       const creator  = dData.createdBy || "";
       const userName = userNames[creator] || creator;
 
+      const projectRef = ref.parent.parent;
+      const cacheKey = projectRef.path;
+
+      let doneTasks = projectTasksCache.get(cacheKey);
+      if (!doneTasks) {
+        doneTasks = await _getDoneTasksForDayFromProject({
+          projectRef,
+          dayStartUtc,
+          dayEndUtc,
+        });
+        projectTasksCache.set(cacheKey, doneTasks);
+      }
+
       const notesList = [...notesRaw];
       notesList.sort((a, b) => {
         const ta = a.createdAt && a.createdAt.toDate ? a.createdAt.toDate() : null;
@@ -393,24 +652,38 @@ exports.sendDailyRwReportHttp = functions.https.onRequest(async (req, res) => {
         return ta.getTime() - tb.getTime();
       });
 
-      const notesText = notesList
-          .map((m) => {
-            let noteDateStr = "";
-            if (m.createdAt && m.createdAt.toDate) {
-              noteDateStr = polish.format(m.createdAt.toDate());
-            }
-            const user   = (m.userName || "").toString();
-            const action = (m.action || "").toString().trim();
-            const text   = (m.text || "").toString();
-            const actionPart = action ? `: ${action}` : "";
-            return `[${noteDateStr}] ${user}${actionPart}: ${text}`;
-          })
-          .join("\n");
+      const exportLines = [];
+
+      for (const t of doneTasks) {
+        const who = t.createdByName ? ` • ${t.createdByName}` : "";
+        exportLines.push({
+          text: `TODO${who}: ${t.text}`,
+          color: t.color || null, 
+        });
+      }
+
+      for (const m of notesList) {
+        let noteDateStr = "";
+        if (m.createdAt && m.createdAt.toDate) {
+          noteDateStr = polish.format(m.createdAt.toDate());
+        }
+        const user   = (m.userName || "").toString();
+        const action = (m.action || "").toString().trim();
+        const text   = (m.text || "").toString();
+        const actionPart = action ? `: ${action}` : "";
+
+        exportLines.push({
+          text: `[${noteDateStr}] ${user}${actionPart}: ${text}`,
+          color: null, 
+        });
+      }
+
+      const notesCellValue = _buildNotesCellValue(exportLines);
 
       if (items.length > 0) {
         let first = true;
-        items.forEach((it) => {
-          sheet.addRow({
+        for (const it of items) {
+          const row = sheet.addRow({
             date: dateStr,
             type,
             customer,
@@ -421,12 +694,17 @@ exports.sendDailyRwReportHttp = functions.https.onRequest(async (req, res) => {
             name: (it.name       || "").toString(),
             qty: it.quantity != null ? Number(it.quantity) : "",
             unit: (it.unit       || "").toString(),
-            notes: first ? notesText : "",
+            notes: "",
           });
+
+          if (first) {
+            row.getCell(11).value = notesCellValue;
+            row.getCell(11).alignment = { wrapText: true, vertical: "top" };
+          }
           first = false;
-        });
+        }
       } else {
-        sheet.addRow({
+        const row = sheet.addRow({
           date: dateStr,
           type,
           customer,
@@ -437,11 +715,14 @@ exports.sendDailyRwReportHttp = functions.https.onRequest(async (req, res) => {
           name: "",
           qty: "",
           unit: "",
-          notes: notesText,
+          notes: "",
         });
-      }
-    });
 
+        row.getCell(11).value = notesCellValue;
+        row.getCell(11).alignment = { wrapText: true, vertical: "top" };
+      }
+    }
+// end test
     const buffer   = await workbook.xlsx.writeBuffer();
     const fileName = `rw_raport_${dayKey}.xlsx`;
 
@@ -559,6 +840,110 @@ exports.sendDailyRwReportScheduled = onSchedule(
 
         docsForDay.sort((a, b) => a.createdAt.getTime() - b.createdAt.getTime());
 
+        // OLD block
+        // Build Excel
+        // const workbook = new ExcelJS.Workbook();
+        // const sheet = workbook.addWorksheet(`RW ${dayKey}`);
+
+        // sheet.columns = [
+        //   {header: "Data",       key: "date",     width: 19},
+        //   {header: "Typ",        key: "type",     width: 8},
+        //   {header: "Klient",     key: "customer", width: 26},
+        //   {header: "Projekt",    key: "project",  width: 30},
+        //   {header: "Użytkownik", key: "user",     width: 20},
+        //   {header: "Opis",       key: "desc",     width: 30},
+        //   {header: "Producent",  key: "producer", width: 18},
+        //   {header: "Model",      key: "name",     width: 24},
+        //   {header: "Ilość",      key: "qty",      width: 10},
+        //   {header: "Jm",         key: "unit",     width: 6},
+        //   {header: "Notatki",    key: "notes",    width: 45},
+        // ];
+        // sheet.getRow(1).font = {bold: true};
+        // sheet.getColumn("qty").alignment  = {horizontal: "right"};
+        // sheet.getColumn("unit").alignment = {horizontal: "center"};
+
+        // const polish = new Intl.DateTimeFormat("pl-PL", {
+        //   day: "2-digit",
+        //   month: "2-digit",
+        //   year: "numeric",
+        //   hour: "2-digit",
+        //   minute: "2-digit",
+        // });
+
+        // docsForDay.forEach(({data: dData, createdAt}) => {
+        //   const items    = Array.isArray(dData.items) ? dData.items : [];
+        //   const notesRaw = Array.isArray(dData.notesList) ? dData.notesList : [];
+
+        //   if (items.length === 0 && notesRaw.length === 0) {
+        //     console.log("[RW scheduled] skipping empty doc", dData.id || "(no id)");
+        //     return;
+        //   }
+
+        //   const dateStr  = polish.format(createdAt);
+        //   const type     = dData.type || "RW";
+        //   const customer = dData.customerName || "";
+        //   const project  = dData.projectName || "";
+        //   const creator  = dData.createdBy || "";
+        //   const userName = userNames[creator] || creator;
+
+        //   const notesList = [...notesRaw];
+        //   notesList.sort((a, b) => {
+        //     const ta = a.createdAt && a.createdAt.toDate ? a.createdAt.toDate() : null;
+        //     const tb = b.createdAt && b.createdAt.toDate ? b.createdAt.toDate() : null;
+        //     if (!ta || !tb) return 0;
+        //     return ta.getTime() - tb.getTime();
+        //   });
+
+        //   const notesText = notesList
+        //       .map((m) => {
+        //         let noteDateStr = "";
+        //         if (m.createdAt && m.createdAt.toDate) {
+        //           noteDateStr = polish.format(m.createdAt.toDate());
+        //         }
+        //         const user   = (m.userName || "").toString();
+        //         const action = (m.action || "").toString().trim();
+        //         const text   = (m.text || "").toString();
+        //         const actionPart = action ? `: ${action}` : "";
+        //         return `[${noteDateStr}] ${user}${actionPart}: ${text}`;
+        //       })
+        //       .join("\n");
+
+        //   if (items.length > 0) {
+        //     let first = true;
+        //     items.forEach((it) => {
+        //       sheet.addRow({
+        //         date: dateStr,
+        //         type,
+        //         customer,
+        //         project,
+        //         user: userName,
+        //         desc: (it.description || "").toString(),
+        //         producer: (it.producent  || "").toString(),
+        //         name: (it.name       || "").toString(),
+        //         qty: it.quantity != null ? Number(it.quantity) : "",
+        //         unit: (it.unit       || "").toString(),
+        //         notes: first ? notesText : "",
+        //       });
+        //       first = false;
+        //     });
+        //   } else {
+        //     sheet.addRow({
+        //       date: dateStr,
+        //       type,
+        //       customer,
+        //       project,
+        //       user: userName,
+        //       desc: "",
+        //       producer: "",
+        //       name: "",
+        //       qty: "",
+        //       unit: "",
+        //       notes: notesText,
+        //     });
+        //   }
+        // });
+
+        // test block scheduled
         // Build Excel
         const workbook = new ExcelJS.Workbook();
         const sheet = workbook.addWorksheet(`RW ${dayKey}`);
@@ -588,13 +973,82 @@ exports.sendDailyRwReportScheduled = onSchedule(
           minute: "2-digit",
         });
 
-        docsForDay.forEach(({data: dData, createdAt}) => {
+        function _asDate(raw) {
+          if (!raw) return null;
+          if (raw.toDate) return raw.toDate();
+          if (typeof raw === "string") {
+            const d = new Date(raw);
+            return isNaN(d.getTime()) ? null : d;
+          }
+          if (raw instanceof Date) return raw;
+          return null;
+        }
+
+        function _buildNotesCellValue(lines) {
+          const richText = [];
+
+          for (let i = 0; i < lines.length; i++) {
+            const line = lines[i];
+            const color = (line.color || "").toString().toLowerCase();
+            const isRed = color === "red";
+
+            richText.push({
+              text: line.text + (i === lines.length - 1 ? "" : "\n"),
+              font: isRed ? { color: { argb: "FFFF0000" }, bold: true } : undefined,
+            });
+          }
+
+          return { richText };
+        }
+
+        async function _getDoneTasksForDayFromProject({projectRef, dayStartUtc, dayEndUtc}) {
+          try {
+            const snap = await projectRef.get();
+            if (!snap.exists) return [];
+
+            const p = snap.data() || {};
+            const raw = Array.isArray(p.currentChangesNotes) ? p.currentChangesNotes : [];
+
+            const out = [];
+            for (const e of raw) {
+              if (!e || typeof e !== "object") continue;
+              if (e.isTask !== true) continue;
+              if (e.done !== true) continue;
+
+              const doneAt = _asDate(e.updatedAt) || _asDate(e.createdAt);
+              if (!doneAt) continue;
+
+              if (doneAt >= dayStartUtc && doneAt <= dayEndUtc) {
+                const text = (e.text || "").toString().trim();
+                if (!text) continue;
+
+                out.push({
+                  id: (e.id || "").toString(),
+                  text,
+                  createdByName: (e.createdByName || "").toString().trim(),
+                  color: (e.color || "").toString().toLowerCase(),
+                  doneAt,
+                });
+              }
+            }
+
+            out.sort((a, b) => a.doneAt.getTime() - b.doneAt.getTime());
+            return out;
+          } catch (err) {
+            console.error("[RW scheduled] Failed to read currentChangesNotes for", projectRef.path, err);
+            return [];
+          }
+        }
+
+        const projectTasksCache = new Map(); 
+
+        for (const {ref, data: dData, createdAt} of docsForDay) {
           const items    = Array.isArray(dData.items) ? dData.items : [];
           const notesRaw = Array.isArray(dData.notesList) ? dData.notesList : [];
 
           if (items.length === 0 && notesRaw.length === 0) {
             console.log("[RW scheduled] skipping empty doc", dData.id || "(no id)");
-            return;
+            continue;
           }
 
           const dateStr  = polish.format(createdAt);
@@ -604,6 +1058,19 @@ exports.sendDailyRwReportScheduled = onSchedule(
           const creator  = dData.createdBy || "";
           const userName = userNames[creator] || creator;
 
+          const projectRef = ref.parent.parent;
+          const cacheKey = projectRef.path;
+
+          let doneTasks = projectTasksCache.get(cacheKey);
+          if (!doneTasks) {
+            doneTasks = await _getDoneTasksForDayFromProject({
+              projectRef,
+              dayStartUtc,
+              dayEndUtc,
+            });
+            projectTasksCache.set(cacheKey, doneTasks);
+          }
+
           const notesList = [...notesRaw];
           notesList.sort((a, b) => {
             const ta = a.createdAt && a.createdAt.toDate ? a.createdAt.toDate() : null;
@@ -612,24 +1079,38 @@ exports.sendDailyRwReportScheduled = onSchedule(
             return ta.getTime() - tb.getTime();
           });
 
-          const notesText = notesList
-              .map((m) => {
-                let noteDateStr = "";
-                if (m.createdAt && m.createdAt.toDate) {
-                  noteDateStr = polish.format(m.createdAt.toDate());
-                }
-                const user   = (m.userName || "").toString();
-                const action = (m.action || "").toString().trim();
-                const text   = (m.text || "").toString();
-                const actionPart = action ? `: ${action}` : "";
-                return `[${noteDateStr}] ${user}${actionPart}: ${text}`;
-              })
-              .join("\n");
+          const exportLines = [];
+
+          for (const t of doneTasks) {
+            const who = t.createdByName ? ` • ${t.createdByName}` : "";
+            exportLines.push({
+              text: `TODO${who}: ${t.text}`,
+              color: t.color || null, 
+            });
+          }
+
+          for (const m of notesList) {
+            let noteDateStr = "";
+            if (m.createdAt && m.createdAt.toDate) {
+              noteDateStr = polish.format(m.createdAt.toDate());
+            }
+            const user   = (m.userName || "").toString();
+            const action = (m.action || "").toString().trim();
+            const text   = (m.text || "").toString();
+            const actionPart = action ? `: ${action}` : "";
+
+            exportLines.push({
+              text: `[${noteDateStr}] ${user}${actionPart}: ${text}`,
+              color: null,
+            });
+          }
+
+          const notesCellValue = _buildNotesCellValue(exportLines);
 
           if (items.length > 0) {
             let first = true;
-            items.forEach((it) => {
-              sheet.addRow({
+            for (const it of items) {
+              const row = sheet.addRow({
                 date: dateStr,
                 type,
                 customer,
@@ -640,12 +1121,17 @@ exports.sendDailyRwReportScheduled = onSchedule(
                 name: (it.name       || "").toString(),
                 qty: it.quantity != null ? Number(it.quantity) : "",
                 unit: (it.unit       || "").toString(),
-                notes: first ? notesText : "",
+                notes: "",
               });
+
+              if (first) {
+                row.getCell(11).value = notesCellValue;
+                row.getCell(11).alignment = { wrapText: true, vertical: "top" };
+              }
               first = false;
-            });
+            }
           } else {
-            sheet.addRow({
+            const row = sheet.addRow({
               date: dateStr,
               type,
               customer,
@@ -656,10 +1142,15 @@ exports.sendDailyRwReportScheduled = onSchedule(
               name: "",
               qty: "",
               unit: "",
-              notes: notesText,
+              notes: "",
             });
+
+            row.getCell(11).value = notesCellValue;
+            row.getCell(11).alignment = { wrapText: true, vertical: "top" };
           }
-        });
+        }
+
+        // end test
 
         const buffer   = await workbook.xlsx.writeBuffer();
         const fileName = `rw_raport_${dayKey}.xlsx`;
