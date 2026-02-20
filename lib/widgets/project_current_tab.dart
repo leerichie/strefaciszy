@@ -230,28 +230,27 @@ class _ProjectCurrentTabsState extends State<ProjectCurrentTabs> {
           children: [
             ListTile(
               dense: true,
-              leading: const Icon(
-                Icons.done,
-                color: Colors.red,
-                fontWeight: FontWeight.w800,
-              ),
+              leading: const Icon(Icons.circle, color: Colors.red),
               title: const Text(
-                'PILNY – czerwony',
-                style: TextStyle(fontSize: 20),
+                'Pilny!!',
+                style: TextStyle(fontSize: 20, color: Colors.red),
               ),
               onTap: () => Navigator.pop(ctx, 'red'),
             ),
             ListTile(
               dense: true,
-              leading: const Icon(
-                Icons.done,
-                color: Colors.black,
-                fontWeight: FontWeight.w800,
-              ),
+              leading: const Icon(Icons.circle, color: Colors.blue),
               title: const Text(
-                'Normalne – czarny',
-                style: TextStyle(fontSize: 20),
+                'Dodatkowe prace',
+                style: TextStyle(fontSize: 20, color: Colors.blue),
               ),
+              onTap: () => Navigator.pop(ctx, 'blue'),
+            ),
+
+            ListTile(
+              dense: true,
+              leading: const Icon(Icons.circle, color: Colors.black),
+              title: const Text('Normalny', style: TextStyle(fontSize: 20)),
               onTap: () => Navigator.pop(ctx, 'black'),
             ),
           ],
@@ -614,6 +613,8 @@ class _ProjectCurrentTabsState extends State<ProjectCurrentTabs> {
             final armed = _pendingTaskColorByField[field];
             final iconColor = armed == 'red'
                 ? Colors.red
+                : armed == 'blue'
+                ? Colors.blue
                 : armed == 'black'
                 ? Colors.black
                 : Colors.black54;
@@ -707,7 +708,11 @@ class _ProjectCurrentTabsState extends State<ProjectCurrentTabs> {
           final isTask = e['isTask'] == true;
           final done = e['done'] == true;
           final colorStr = (e['color'] ?? 'black').toString();
-          final taskColor = colorStr == 'red' ? Colors.red : Colors.black;
+          final taskColor = colorStr == 'red'
+              ? Colors.red
+              : colorStr == 'blue'
+              ? Colors.blue
+              : Colors.black;
 
           return Padding(
             padding: EdgeInsets.only(
@@ -768,6 +773,7 @@ class _ProjectCurrentTabsState extends State<ProjectCurrentTabs> {
                                 focusNode: focus,
                                 minLines: 1,
                                 maxLines: null,
+                                textInputAction: TextInputAction.done,
                                 decoration: const InputDecoration(
                                   isDense: true,
                                   border: InputBorder.none,
@@ -778,17 +784,11 @@ class _ProjectCurrentTabsState extends State<ProjectCurrentTabs> {
                                   height: 1.2,
                                   color: taskColor,
                                 ),
-                                onChanged: (v) {
-                                  _entryDebounce[id]?.cancel();
-                                  _entryDebounce[id] = Timer(
-                                    const Duration(milliseconds: 700),
-                                    () => _updateLogEntry(
-                                      field: field,
-                                      oldEntry: e,
-                                      newText: v,
-                                    ),
-                                  );
-                                },
+                                onSubmitted: (v) => _updateLogEntry(
+                                  field: field,
+                                  oldEntry: e,
+                                  newText: v,
+                                ),
                               )
                             : SelectableText(
                                 text,
@@ -808,23 +808,18 @@ class _ProjectCurrentTabsState extends State<ProjectCurrentTabs> {
                           focusNode: focus,
                           minLines: 1,
                           maxLines: null,
+                          textInputAction: TextInputAction.done,
                           decoration: const InputDecoration(
                             isDense: true,
                             border: InputBorder.none,
                             contentPadding: EdgeInsets.zero,
                           ),
                           style: const TextStyle(fontSize: 13, height: 1.2),
-                          onChanged: (v) {
-                            _entryDebounce[id]?.cancel();
-                            _entryDebounce[id] = Timer(
-                              const Duration(milliseconds: 700),
-                              () => _updateLogEntry(
-                                field: field,
-                                oldEntry: e,
-                                newText: v,
-                              ),
-                            );
-                          },
+                          onSubmitted: (v) => _updateLogEntry(
+                            field: field,
+                            oldEntry: e,
+                            newText: v,
+                          ),
                         )
                       : SelectableText(
                           text,
