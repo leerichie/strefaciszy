@@ -242,117 +242,110 @@ class _ReportsDailyScreenState extends State<ReportsDailyScreen> {
 
     return AppScaffold(
       title: 'Raport dzienny RW',
-      body: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              'Tu można wygenerować raporty RW za dowolny dzień i wysłać na wskazany adres email poniżej lub na domyślne ustalony adres info@strefaciszy.net',
-              style: Theme.of(context).textTheme.titleMedium,
-            ),
-            const SizedBox(height: 24),
-            Row(
-              children: [
-                Expanded(
-                  child: InputDecorator(
-                    decoration: const InputDecoration(
-                      labelText: 'Dzień raportu',
-                      border: OutlineInputBorder(),
-                    ),
-                    child: Text(dateLabel),
-                  ),
-                ),
-                const SizedBox(width: 12),
-                ElevatedButton.icon(
-                  onPressed: _pickDate,
-                  icon: const Icon(Icons.calendar_today),
-                  label: const Text('Zmień'),
-                ),
-              ],
-            ),
-            const SizedBox(height: 24),
-            TextField(
-              controller: _emailController,
-              keyboardType: TextInputType.emailAddress,
-              decoration: const InputDecoration(
-                labelText: 'Odbiorca email',
-                // hintText: 'pozostaw puste, aby użyć REPORTS_TO',
-                border: OutlineInputBorder(),
-              ),
-            ),
-            const SizedBox(height: 16),
-            // const Spacer(),
-            Text(
-              'Zostaw email puste aby raport wysłać na domyślne EMAIL. \n'
-              'Jeśli dodasz email raport idzie tylko na podany adres.',
-              style: Theme.of(
-                context,
-              ).textTheme.bodySmall?.copyWith(color: Colors.grey[600]),
-            ),
-            const SizedBox(height: 10),
-            SizedBox(
-              width: double.infinity,
-              child: ElevatedButton.icon(
-                onPressed: _isSending ? null : _sendReport,
-                icon: _isSending
-                    ? const SizedBox(
-                        width: 20,
-                        height: 20,
-                        child: CircularProgressIndicator(strokeWidth: 2),
-                      )
-                    : const Icon(Icons.send),
-                label: Text(_isSending ? 'Wysyłanie…' : 'Wyślij raport'),
-              ),
-            ),
-            const SizedBox(height: 24),
+      body: SafeArea(
+        child: LayoutBuilder(
+          builder: (context, constraints) {
+            return SingleChildScrollView(
+              padding: const EdgeInsets.all(16),
+              child: ConstrainedBox(
+                constraints: BoxConstraints(minHeight: constraints.maxHeight),
+                child: IntrinsicHeight(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'Tu można wygenerować raporty RW za dowolny dzień i wysłać na wskazany adres email poniżej lub na domyślne ustalony adres info@strefaciszy.net',
+                        style: Theme.of(context).textTheme.titleMedium,
+                      ),
+                      const SizedBox(height: 24),
 
-            // if (_isDevUser) ...[
-            //   const SizedBox(height: 24),
-            //   const Divider(),
-            //   const SizedBox(height: 12),
-            //   Text(
-            //     'DEV: Test RW',
-            //     style: Theme.of(context).textTheme.titleMedium,
-            //   ),
-            //   const SizedBox(height: 10),
-            //   SizedBox(
-            //     width: double.infinity,
-            //     child: ElevatedButton.icon(
-            //       onPressed: _isDevRunning ? null : _devAppendNoteToTodayRw,
-            //       icon: _isDevRunning
-            //           ? const SizedBox(
-            //               width: 20,
-            //               height: 20,
-            //               child: CircularProgressIndicator(strokeWidth: 2),
-            //             )
-            //           : const Icon(Icons.bug_report),
-            //       label: Text(_isDevRunning ? 'Test' : 'DEV: make note'),
-            //     ),
-            //   ),
-            //   const SizedBox(height: 12),
-            //   if (_devStatus != null)
-            //     Card(
-            //       child: Padding(
-            //         padding: const EdgeInsets.all(12),
-            //         child: Text(_devStatus!),
-            //       ),
-            //     ),
-            // ],
-            if (_statusMessage != null)
-              Card(
-                color: Theme.of(context).colorScheme.surfaceContainerHighest,
-                child: Padding(
-                  padding: const EdgeInsets.all(12),
-                  child: Text(
-                    _statusMessage!,
-                    style: Theme.of(
-                      context,
-                    ).textTheme.bodyMedium?.copyWith(fontSize: 14),
+                      Row(
+                        children: [
+                          Expanded(
+                            child: InputDecorator(
+                              decoration: const InputDecoration(
+                                labelText: 'Dzień raportu',
+                                border: OutlineInputBorder(),
+                              ),
+                              child: Text(dateLabel),
+                            ),
+                          ),
+                          const SizedBox(width: 12),
+                          ElevatedButton.icon(
+                            onPressed: _pickDate,
+                            icon: const Icon(Icons.calendar_today),
+                            label: const Text('Zmień'),
+                          ),
+                        ],
+                      ),
+
+                      const SizedBox(height: 24),
+
+                      TextField(
+                        controller: _emailController,
+                        keyboardType: TextInputType.emailAddress,
+                        decoration: const InputDecoration(
+                          labelText: 'Odbiorca email',
+                          border: OutlineInputBorder(),
+                        ),
+                      ),
+
+                      const SizedBox(height: 16),
+
+                      Text(
+                        'Zostaw email puste aby raport wysłać na domyślne EMAIL. \n'
+                        'Jeśli dodasz email raport idzie tylko na podany adres.',
+                        style: Theme.of(
+                          context,
+                        ).textTheme.bodySmall?.copyWith(color: Colors.grey),
+                      ),
+
+                      const SizedBox(height: 10),
+
+                      SizedBox(
+                        width: double.infinity,
+                        child: ElevatedButton.icon(
+                          onPressed: _isSending ? null : _sendReport,
+                          icon: _isSending
+                              ? const SizedBox(
+                                  width: 20,
+                                  height: 20,
+                                  child: CircularProgressIndicator(
+                                    strokeWidth: 2,
+                                  ),
+                                )
+                              : const Icon(Icons.send),
+                          label: Text(
+                            _isSending ? 'Wysyłanie…' : 'Wyślij raport',
+                          ),
+                        ),
+                      ),
+
+                      const SizedBox(height: 24),
+
+                      if (_statusMessage != null)
+                        Card(
+                          color: Theme.of(
+                            context,
+                          ).colorScheme.surfaceContainerHighest,
+                          child: Padding(
+                            padding: const EdgeInsets.all(12),
+                            child: Text(
+                              _statusMessage!,
+                              style: Theme.of(
+                                context,
+                              ).textTheme.bodyMedium?.copyWith(fontSize: 14),
+                            ),
+                          ),
+                        ),
+
+                      const Spacer(),
+                    ],
                   ),
                 ),
               ),
-          ],
+            );
+          },
         ),
       ),
     );

@@ -257,20 +257,41 @@ function _asDate(raw) {
 }
 
 function _buildNotesCellValue(lines) {
-  const hasRed = lines.some((l) => (l.color || '').toLowerCase() === 'red');
-  if (!hasRed) {
-    return lines.map((l) => l.text).join('\n');
+  const needsRich = lines.some((l) => {
+    const c = (l.color || "").toLowerCase();
+    const isTodo = (l.text || "").toString().startsWith("TODO");
+    return c === "red" || c === "blue" || (isTodo && (c === "black" || c === "" || c == null));
+  });
+
+  if (!needsRich) {
+    return lines.map((l) => l.text).join("\n");
   }
 
   const richText = [];
   for (let i = 0; i < lines.length; i++) {
     const line = lines[i];
-    const isRed = (line.color || '').toLowerCase() === 'red';
+    const text = (line.text || "").toString();
+    const color = (line.color || "").toLowerCase();
+    const isTodo = text.startsWith("TODO");
+
+    let font;
+
+    if (isTodo) {
+      if (color === "red") {
+        font = {color: {argb: "FFFF0000"}, bold: true};
+      } else if (color === "blue") {
+        font = {color: {argb: "FF0000FF"}, bold: true};
+      } else {
+        font = {bold: true};
+      }
+    }
+
     richText.push({
-      text: line.text + (i === lines.length - 1 ? '' : '\n'),
-      font: isRed ? {color: {argb: 'FFFF0000'}, bold: true} : undefined,
+      text: text + (i === lines.length - 1 ? "" : "\n"),
+      font,
     });
   }
+
   return {richText};
 }
 
@@ -300,7 +321,7 @@ async function _getDoneTasksForDayFromProject({
           id: (e.id || '').toString(),
           text: (e.text || '').toString().trim(),
           createdByName: (e.createdByName || '').toString().trim(),
-          color: (e.color || '').toString().toLowerCase(), // 'red'|'black'
+          color: (e.color || '').toString().toLowerCase(),
           doneAt,
         });
       }
@@ -594,21 +615,6 @@ exports.sendDailyRwReportHttp = functions.https.onRequest(async (req, res) => {
         });
       }
 
-      for (const m of notesList) {
-        let noteDateStr = "";
-        if (m.createdAt && m.createdAt.toDate) {
-          noteDateStr = polish.format(m.createdAt.toDate());
-        }
-        const user   = (m.userName || "").toString();
-        const action = (m.action || "").toString().trim();
-        const text   = (m.text || "").toString();
-        const actionPart = action ? `: ${action}` : "";
-
-        exportLines.push({
-          text: `[${noteDateStr}] ${user}${actionPart}: ${text}`,
-          color: null,
-        });
-      }
 
       const notesCellValue = _buildNotesCellValue(exportLines);
 
@@ -954,21 +960,21 @@ exports.sendDailyRwReportScheduled = onSchedule(
             });
           }
 
-          for (const m of notesList) {
-            let noteDateStr = "";
-            if (m.createdAt && m.createdAt.toDate) {
-              noteDateStr = polish.format(m.createdAt.toDate());
-            }
-            const user   = (m.userName || "").toString();
-            const action = (m.action || "").toString().trim();
-            const text   = (m.text || "").toString();
-            const actionPart = action ? `: ${action}` : "";
+          // for (const m of notesList) {
+          //   let noteDateStr = "";
+          //   if (m.createdAt && m.createdAt.toDate) {
+          //     noteDateStr = polish.format(m.createdAt.toDate());
+          //   }
+          //   const user   = (m.userName || "").toString();
+          //   const action = (m.action || "").toString().trim();
+          //   const text   = (m.text || "").toString();
+          //   const actionPart = action ? `: ${action}` : "";
 
-            exportLines.push({
-              text: `[${noteDateStr}] ${user}${actionPart}: ${text}`,
-              color: null,
-            });
-          }
+          //   exportLines.push({
+          //     text: `[${noteDateStr}] ${user}${actionPart}: ${text}`,
+          //     color: null,
+          //   });
+          // }
 
           const notesCellValue = _buildNotesCellValue(exportLines);
 

@@ -853,10 +853,12 @@ class _RWDocumentsScreenState extends State<RWDocumentsScreen> {
                       return '• [$tsStr] $user$actionPart: $text';
                     }(),
                     style: TextStyle(
-                      color:
-                          ((m['color'] ?? '').toString().toLowerCase() == 'red')
-                          ? Colors.red
-                          : Colors.black,
+                      color: () {
+                        final c = (m['color'] ?? '').toString().toLowerCase();
+                        if (c == 'red') return Colors.red;
+                        if (c == 'blue') return Colors.blue;
+                        return Colors.black;
+                      }(),
                     ),
                   ),
                 ),
@@ -1092,8 +1094,16 @@ class _RWDocumentsScreenState extends State<RWDocumentsScreen> {
       cell.setText('[$tsStr] $user$actionPart: $text');
 
       final colorStr = (m['color'] ?? '').toString().toLowerCase();
+      final cellText = (m['text'] ?? '').toString();
+      final isTodoLine = cellText.trimLeft().startsWith('TODO');
+
       if (colorStr == 'red') {
         cell.cellStyle.fontColor = '#FF0000';
+        cell.cellStyle.bold = true;
+      } else if (colorStr == 'blue') {
+        cell.cellStyle.fontColor = '#0000FF';
+        cell.cellStyle.bold = true;
+      } else if (isTodoLine) {
         cell.cellStyle.bold = true;
       }
 
