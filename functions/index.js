@@ -256,12 +256,47 @@ function _asDate(raw) {
   return null;
 }
 
+// function _buildNotesCellValue(lines) {
+//   const needsRich = lines.some((l) => {
+//     const c = (l.color || "").toLowerCase();
+//     const isTodo = (l.text || "").toString().startsWith("TODO");
+//     return c === "red" || c === "blue" || (isTodo && (c === "black" || c === "" || c == null));
+//   });
+
+//   if (!needsRich) {
+//     return lines.map((l) => l.text).join("\n");
+//   }
+
+//   const richText = [];
+//   for (let i = 0; i < lines.length; i++) {
+//     const line = lines[i];
+//     const text = (line.text || "").toString();
+//     const color = (line.color || "").toLowerCase();
+//     const isTodo = text.startsWith("TODO");
+
+//     let font;
+
+//     if (isTodo) {
+//       if (color === "red") {
+//         font = {color: {argb: "FFFF0000"}, bold: true};
+//       } else if (color === "blue") {
+//         font = {color: {argb: "FF0000FF"}, bold: true};
+//       } else {
+//         font = {bold: true};
+//       }
+//     }
+
+//     richText.push({
+//       text: text + (i === lines.length - 1 ? "" : "\n"),
+//       font,
+//     });
+//   }
+
+//   return {richText};
+// }
+
 function _buildNotesCellValue(lines) {
-  const needsRich = lines.some((l) => {
-    const c = (l.color || "").toLowerCase();
-    const isTodo = (l.text || "").toString().startsWith("TODO");
-    return c === "red" || c === "blue" || (isTodo && (c === "black" || c === "" || c == null));
-  });
+  const needsRich = lines.some((l) => l.isTask === true);
 
   if (!needsRich) {
     return lines.map((l) => l.text).join("\n");
@@ -272,9 +307,11 @@ function _buildNotesCellValue(lines) {
     const line = lines[i];
     const text = (line.text || "").toString();
     const color = (line.color || "").toLowerCase();
-    const isTodo = text.startsWith("TODO");
+    const isTodo = line.isTask === true;
 
-    let font;
+    // IMPORTANT: default font for NON-TODO lines must be explicit,
+    // otherwise Excel may inherit previous red/blue.
+    let font = {color: {argb: "FF000000"}, bold: false};
 
     if (isTodo) {
       if (color === "red") {
@@ -282,7 +319,7 @@ function _buildNotesCellValue(lines) {
       } else if (color === "blue") {
         font = {color: {argb: "FF0000FF"}, bold: true};
       } else {
-        font = {bold: true};
+        font = {color: {argb: "FF000000"}, bold: true};
       }
     }
 
@@ -608,28 +645,56 @@ exports.sendDailyRwReportHttp = functions.https.onRequest(async (req, res) => {
       const exportLines = [];
 
       for (const t of doneTasks) {
-        const who = t.createdByName ? ` • ${t.createdByName}` : "";
+        let doneDateStr = "";
+        if (t.doneAt) {
+          doneDateStr = polish.format(t.doneAt);
+        }
+
+        const user = (t.createdByName || "").toString();
+
         exportLines.push({
-          text: `TODO${who}: ${t.text}`,
+          text: `[${doneDateStr}] ${user}: ${t.text}`,
           color: t.color || null,
+          isTask: true,          // IMPORTANT
         });
       }
 
-      // for (const m of notesList) {
-      //     let noteDateStr = "";
-      //     if (m.createdAt && m.createdAt.toDate) {
-      //       noteDateStr = polish.format(m.createdAt.toDate());
-      //     }
-      //     const user   = (m.userName || "").toString();
-      //     const action = (m.action || "").toString().trim();
-      //     const text   = (m.text || "").toString();
-      //     const actionPart = action ? `: ${action}` : "";
+      const doneTaskTexts = new Set(
+          doneTasks.map((t) => (t.text || "").trim().toLowerCase()),
+      );
 
-      //     exportLines.push({
-      //       text: `[${noteDateStr}] ${user}${actionPart}: ${text}`,
-      //       color: null,
-      //     });
-      //   }
+      for (const m of notesList) {
+        let textRaw = (m.text || "").toString().trim();
+
+        // remove legacy prefixes
+        textRaw = textRaw
+            .replace(/^Raporty\/Zmiany:\s*/i, "")
+            .replace(/^TODO\s*/i, "")
+            .trim();
+
+        const textNorm = textRaw.toLowerCase();
+
+        // skip duplicates of DONE tasks
+        if (doneTaskTexts.has(textNorm)) {
+          continue;
+        }
+
+        let noteDateStr = "";
+        if (m.createdAt && m.createdAt.toDate) {
+          noteDateStr = polish.format(m.createdAt.toDate());
+        }
+
+        const user   = (m.userName || "").toString();
+        const action = (m.action || "").toString().trim();
+        const text   = textRaw;
+        const actionPart = action ? `: ${action}` : "";
+
+        exportLines.push({
+          text: `[${noteDateStr}] ${user}${actionPart}: ${text}`,
+          color: null,
+          isTask: false,
+        });
+      }
 
       const notesCellValue = _buildNotesCellValue(exportLines);
 
@@ -968,26 +1033,54 @@ exports.sendDailyRwReportScheduled = onSchedule(
           const exportLines = [];
 
           for (const t of doneTasks) {
-            const who = t.createdByName ? ` • ${t.createdByName}` : "";
+            let doneDateStr = "";
+            if (t.doneAt) {
+              doneDateStr = polish.format(t.doneAt);
+            }
+
+            const user = (t.createdByName || "").toString();
+
             exportLines.push({
-              text: `TODO${who}: ${t.text}`,
+              text: `[${doneDateStr}] ${user}: ${t.text}`,
               color: t.color || null,
+              isTask: true,          // IMPORTANT
             });
           }
 
+          const doneTaskTexts = new Set(
+              doneTasks.map((t) => (t.text || "").trim().toLowerCase()),
+          );
+
           for (const m of notesList) {
+            let textRaw = (m.text || "").toString().trim();
+
+            // remove legacy prefixes
+            textRaw = textRaw
+                .replace(/^Raporty\/Zmiany:\s*/i, "")
+                .replace(/^TODO\s*/i, "")
+                .trim();
+
+            const textNorm = textRaw.toLowerCase();
+
+            // skip duplicates of DONE tasks
+            if (doneTaskTexts.has(textNorm)) {
+              continue;
+            }
+
             let noteDateStr = "";
             if (m.createdAt && m.createdAt.toDate) {
               noteDateStr = polish.format(m.createdAt.toDate());
             }
+
             const user   = (m.userName || "").toString();
             const action = (m.action || "").toString().trim();
-            const text   = (m.text || "").toString();
+            const text   = textRaw;
             const actionPart = action ? `: ${action}` : "";
 
             exportLines.push({
               text: `[${noteDateStr}] ${user}${actionPart}: ${text}`,
               color: null,
+              isTask: false,
             });
           }
 
