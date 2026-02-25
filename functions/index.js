@@ -615,6 +615,21 @@ exports.sendDailyRwReportHttp = functions.https.onRequest(async (req, res) => {
         });
       }
 
+      // for (const m of notesList) {
+      //     let noteDateStr = "";
+      //     if (m.createdAt && m.createdAt.toDate) {
+      //       noteDateStr = polish.format(m.createdAt.toDate());
+      //     }
+      //     const user   = (m.userName || "").toString();
+      //     const action = (m.action || "").toString().trim();
+      //     const text   = (m.text || "").toString();
+      //     const actionPart = action ? `: ${action}` : "";
+
+      //     exportLines.push({
+      //       text: `[${noteDateStr}] ${user}${actionPart}: ${text}`,
+      //       color: null,
+      //     });
+      //   }
 
       const notesCellValue = _buildNotesCellValue(exportLines);
 
@@ -960,21 +975,21 @@ exports.sendDailyRwReportScheduled = onSchedule(
             });
           }
 
-          // for (const m of notesList) {
-          //   let noteDateStr = "";
-          //   if (m.createdAt && m.createdAt.toDate) {
-          //     noteDateStr = polish.format(m.createdAt.toDate());
-          //   }
-          //   const user   = (m.userName || "").toString();
-          //   const action = (m.action || "").toString().trim();
-          //   const text   = (m.text || "").toString();
-          //   const actionPart = action ? `: ${action}` : "";
+          for (const m of notesList) {
+            let noteDateStr = "";
+            if (m.createdAt && m.createdAt.toDate) {
+              noteDateStr = polish.format(m.createdAt.toDate());
+            }
+            const user   = (m.userName || "").toString();
+            const action = (m.action || "").toString().trim();
+            const text   = (m.text || "").toString();
+            const actionPart = action ? `: ${action}` : "";
 
-          //   exportLines.push({
-          //     text: `[${noteDateStr}] ${user}${actionPart}: ${text}`,
-          //     color: null,
-          //   });
-          // }
+            exportLines.push({
+              text: `[${noteDateStr}] ${user}${actionPart}: ${text}`,
+              color: null,
+            });
+          }
 
           const notesCellValue = _buildNotesCellValue(exportLines);
 

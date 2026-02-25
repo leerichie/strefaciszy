@@ -95,6 +95,39 @@ class _ProjectEditorScreenState extends State<ProjectEditorScreen> {
   Timer? _midnightRolloverTimer;
   final Map<String, int> _serverAvail = {};
 
+  String _readProjectTitle(Map<String, dynamic> data) {
+    final t = (data['title'] as String?)?.trim();
+    if (t != null && t.isNotEmpty) return t;
+
+    // legacy broken projects: items is a MAP with items.name
+    final items = data['items'];
+    if (items is Map) {
+      final legacy = (items['name'] as String?)?.trim();
+      if (legacy != null && legacy.isNotEmpty) return legacy;
+    }
+
+    // tolerate other legacy key
+    final t2 = (data['name'] as String?)?.trim();
+    if (t2 != null && t2.isNotEmpty) return t2;
+
+    return '';
+  }
+
+  List<ProjectLine> _readProjectLines(Map<String, dynamic> data) {
+    final raw = data['items'];
+
+    // normal schema: list
+    if (raw is List) {
+      return raw
+          .map((e) => ProjectLine.fromMap(Map<String, dynamic>.from(e as Map)))
+          .where((l) => l.requestedQty > 0)
+          .toList();
+    }
+
+    // broken schema: map (items.name/items.status). No lines.
+    return <ProjectLine>[];
+  }
+
   @override
   void initState() {
     super.initState();
@@ -184,38 +217,53 @@ class _ProjectEditorScreenState extends State<ProjectEditorScreen> {
               .toList()
             ..sort((a, b) => b.createdAt.compareTo(a.createdAt));
 
-      final projItemsRaw = (data['items'] as List<dynamic>?) ?? const [];
-      final freshLines = projItemsRaw
-          .map((e) {
-            final m = Map<String, dynamic>.from(e as Map);
-            final itemId = m['itemId'] as String? ?? '';
-            final qty = (m['quantity'] as num?)?.toInt() ?? 0;
-            final unit = m['unit'] as String? ?? '';
-            final name = (m['name'] as String?) ?? '';
+      // final projItemsRaw = (data['items'] as List<dynamic>?) ?? const [];
+      // final freshLines = projItemsRaw
+      //     .map((e) {
+      //       final m = Map<String, dynamic>.from(e as Map);
+      //       final itemId = m['itemId'] as String? ?? '';
+      //       final qty = (m['quantity'] as num?)?.toInt() ?? 0;
+      //       final unit = m['unit'] as String? ?? '';
+      //       final name = (m['name'] as String?) ?? '';
 
-            final idx = _stockItems.indexWhere((s) => s.id == itemId);
-            final isStock = itemId.isNotEmpty;
-            final originalStock = idx == -1 ? qty : _stockItems[idx].quantity;
+      //       final idx = _stockItems.indexWhere((s) => s.id == itemId);
+      //       final isStock = itemId.isNotEmpty;
+      //       final originalStock = idx == -1 ? qty : _stockItems[idx].quantity;
 
-            return ProjectLine(
-              isStock: isStock,
-              itemRef: itemId,
-              customName: isStock ? '' : name,
-              requestedQty: qty,
-              previousQty: qty,
-              originalStock: originalStock,
-              unit: unit,
-            );
-          })
-          .where((l) => l.requestedQty > 0)
-          .toList();
+      //       return ProjectLine(
+      //         isStock: isStock,
+      //         itemRef: itemId,
+      //         customName: isStock ? '' : name,
+      //         requestedQty: qty,
+      //         previousQty: qty,
+      //         originalStock: originalStock,
+      //         unit: unit,
+      //       );
+      //     })
+      //     .where((l) => l.requestedQty > 0)
+      //     .toList();
 
+      // final serverCurrentText = (data['currentText'] as String?) ?? '';
+
+      // setState(() {
+      //   _notes = todayNotes;
+      //   _lines = freshLines;
+      //   _title = (data['title'] as String?) ?? _title;
+
+      //   _projectArchived = (data['archived'] as bool?) ?? false;
+
+      //   if (_currentCtrl.text.isEmpty) {
+      //     _currentText = serverCurrentText;
+      //     _currentCtrl.text = serverCurrentText;
+      //   }
+      // });
+      final freshLines = _readProjectLines(data);
       final serverCurrentText = (data['currentText'] as String?) ?? '';
 
       setState(() {
         _notes = todayNotes;
         _lines = freshLines;
-        _title = (data['title'] as String?) ?? _title;
+        _title = _readProjectTitle(data);
 
         _projectArchived = (data['archived'] as bool?) ?? false;
 
@@ -501,9 +549,13 @@ class _ProjectEditorScreenState extends State<ProjectEditorScreen> {
           .where((l) => l.requestedQty > 0)
           .toList();
 
+      // final projSnapForTitle = await projRef.get();
+      // final projData = projSnapForTitle.data() ?? <String, dynamic>{};
+      // _title = projData['title'] as String? ?? '';
       final projSnapForTitle = await projRef.get();
       final projData = projSnapForTitle.data() ?? <String, dynamic>{};
-      _title = projData['title'] as String? ?? '';
+      _title = _readProjectTitle(projData);
+
       setState(() {
         _loading = false;
         _initialized = true;
@@ -524,24 +576,46 @@ class _ProjectEditorScreenState extends State<ProjectEditorScreen> {
       return;
     }
 
+    // final data = snap.data() ?? <String, dynamic>{};
+    // final lastRwRaw = data['lastRwDate'];
+    // DateTime? lastRwDate = lastRwRaw is Timestamp ? lastRwRaw.toDate() : null;
+
+    // if (lastRwDate == null || lastRwDate.isBefore(startOfDay)) {
+    //   await projRef.update({
+    //     'items': <Map<String, dynamic>>[],
+    //     'status': 'draft',
+    //   });
+    //   _lines = [];
+    // } else {
+    //   _lines = (data['items'] as List<dynamic>? ?? [])
+    //       .map((m) => ProjectLine.fromMap(m))
+    //       .where((l) => l.requestedQty > 0)
+    //       .toList();
+    // }
+
+    // _title = data['title'] as String? ?? '';
+    // _status = data['status'] as String? ?? 'draft';
+    // _images = ((data['images'] as List<dynamic>?) ?? [])
+    //     .cast<String>()
+    //     .map((u) => XFile(u))
+    //     .toList();
+
+    // setState(() {
+    //   _loading = false;
+    //   _initialized = true;
+    // });
     final data = snap.data() ?? <String, dynamic>{};
+
     final lastRwRaw = data['lastRwDate'];
     DateTime? lastRwDate = lastRwRaw is Timestamp ? lastRwRaw.toDate() : null;
-
     if (lastRwDate == null || lastRwDate.isBefore(startOfDay)) {
-      await projRef.update({
-        'items': <Map<String, dynamic>>[],
-        'status': 'draft',
-      });
-      _lines = [];
+      _lines = <ProjectLine>[];
     } else {
-      _lines = (data['items'] as List<dynamic>? ?? [])
-          .map((m) => ProjectLine.fromMap(m))
-          .where((l) => l.requestedQty > 0)
-          .toList();
+      _lines = _readProjectLines(data);
     }
 
-    _title = data['title'] as String? ?? '';
+    _title = _readProjectTitle(data);
+
     _status = data['status'] as String? ?? 'draft';
     _images = ((data['images'] as List<dynamic>?) ?? [])
         .cast<String>()
@@ -619,8 +693,11 @@ class _ProjectEditorScreenState extends State<ProjectEditorScreen> {
         .collection('projects')
         .doc(widget.projectId)
         .get(const GetOptions(source: Source.server));
-    final projectName =
-        projSnap.data()?['title'] as String? ?? '<nieznany projekt>';
+    // final projectName =
+    //     projSnap.data()?['title'] as String? ?? '<nieznany projekt>';
+    final projectName = _readProjectTitle(
+      projSnap.data() ?? <String, dynamic>{},
+    );
 
     final fullLines = List<ProjectLine>.from(_lines);
     final filteredLines = fullLines.where((l) => l.requestedQty > 0).toList();
