@@ -14,6 +14,7 @@ import 'package:strefa_ciszy/screens/inventory_list_screen.dart';
 import 'package:strefa_ciszy/screens/login_screen.dart';
 import 'package:strefa_ciszy/screens/projects_list_screen.dart';
 import 'package:strefa_ciszy/screens/reports_daily.dart';
+import 'package:strefa_ciszy/screens/shopping_list_screen.dart';
 import 'package:strefa_ciszy/widgets/app_scaffold.dart';
 import 'package:url_launcher/url_launcher.dart';
 
@@ -301,6 +302,15 @@ class _MainMenuScreenState extends State<MainMenuScreen> {
                   );
                 },
               ),
+        ListTile(
+          leading: const Icon(Icons.shopping_cart_outlined),
+          title: const Text('Lista zakupów'),
+          onTap: () {
+            Navigator.of(context).push(
+              MaterialPageRoute(builder: (_) => const ShoppingListScreen()),
+            );
+          },
+        ),
 
         // ListTile(
         //   leading: const Icon(Icons.qr_code_scanner),

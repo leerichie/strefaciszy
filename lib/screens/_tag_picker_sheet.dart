@@ -55,91 +55,27 @@ class _TagPickerSheetState extends State<TagPickerSheet> {
     final content = SizedBox(
       height: widget.compact ? 260 : 520,
       child: Padding(
-        padding: const EdgeInsets.only(left: 12, right: 12, top: 8, bottom: 8),
+        padding: const EdgeInsets.only(left: 12, right: 12, top: 0, bottom: 0),
         child: Column(
           children: [
-            Row(
-              children: [
-                const Text(
-                  'Wybierz #',
-                  style: TextStyle(fontWeight: FontWeight.w600),
-                ),
-                const Spacer(),
-                IconButton(
-                  icon: const Icon(Icons.close),
-                  onPressed: () => Navigator.pop(context),
-                  tooltip: 'Zamknij',
-                ),
-              ],
-            ),
-            const SizedBox(height: 8),
-
+            // Row(
+            //   children: [
+            //     const Text(
+            //       'Wybierz #',
+            //       style: TextStyle(fontWeight: FontWeight.w600),
+            //     ),
+            //     const Spacer(),
+            //     IconButton(
+            //       icon: const Icon(Icons.close),
+            //       onPressed: () => Navigator.pop(context),
+            //       tooltip: 'Zamknij',
+            //     ),
+            //   ],
+            // ),
+            // const SizedBox(height: 8),
             Expanded(
               child: ListView(
                 children: [
-                  const _SectionHeader('Klienci'),
-                  StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
-                    stream: FirebaseFirestore.instance
-                        .collection('customers')
-                        .orderBy('name')
-                        .limit(200)
-                        .snapshots(),
-                    builder: (ctx, snap) {
-                      if (snap.connectionState == ConnectionState.waiting) {
-                        return const Padding(
-                          padding: EdgeInsets.all(12),
-                          child: Center(child: CircularProgressIndicator()),
-                        );
-                      }
-
-                      final docs = snap.data?.docs ?? [];
-                      final items = docs
-                          .map((d) {
-                            final name =
-                                (d.data()['name'] as String?)?.trim() ?? '';
-                            return {'id': d.id, 'label': name};
-                          })
-                          .where((x) => (x['label'] as String).isNotEmpty)
-                          .where((x) => _match(x['label'] as String))
-                          .take(30)
-                          .toList();
-
-                      if (items.isEmpty) {
-                        return const Padding(
-                          padding: EdgeInsets.only(left: 8, top: 6, bottom: 10),
-                          child: Text('Brak wyników.'),
-                        );
-                      }
-
-                      return Column(
-                        children: items.map((c) {
-                          final label = c['label'] as String;
-                          final token = _toToken(label);
-                          return ListTile(
-                            dense: true,
-                            leading: const Icon(Icons.business),
-                            title: Text(label),
-                            subtitle: token.isEmpty ? null : Text('#$token'),
-                            onTap: () {
-                              final picked = <String, dynamic>{
-                                'type': 'client',
-                                'id': c['id'],
-                                'label': label,
-                                'token': token,
-                              };
-                              if (widget.onPick != null) {
-                                widget.onPick!(picked);
-                              } else {
-                                Navigator.pop(context, picked);
-                              }
-                            },
-                          );
-                        }).toList(),
-                      );
-                    },
-                  ),
-
-                  const SizedBox(height: 6),
                   const _SectionHeader('Projekty'),
                   StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
                     stream: FirebaseFirestore.instance
@@ -187,7 +123,7 @@ class _TagPickerSheetState extends State<TagPickerSheet> {
                           final token = _toToken(title);
                           return ListTile(
                             dense: true,
-                            leading: const Icon(Icons.folder_open),
+                            leading: const Icon(Icons.apartment_outlined),
                             title: Text(title),
                             subtitle: token.isEmpty ? null : Text('#$token'),
                             onTap: () {
@@ -209,6 +145,69 @@ class _TagPickerSheetState extends State<TagPickerSheet> {
                       );
                     },
                   ),
+                  const _SectionHeader('Klienci'),
+                  StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
+                    stream: FirebaseFirestore.instance
+                        .collection('customers')
+                        .orderBy('name')
+                        .limit(200)
+                        .snapshots(),
+                    builder: (ctx, snap) {
+                      if (snap.connectionState == ConnectionState.waiting) {
+                        return const Padding(
+                          padding: EdgeInsets.all(12),
+                          child: Center(child: CircularProgressIndicator()),
+                        );
+                      }
+
+                      final docs = snap.data?.docs ?? [];
+                      final items = docs
+                          .map((d) {
+                            final name =
+                                (d.data()['name'] as String?)?.trim() ?? '';
+                            return {'id': d.id, 'label': name};
+                          })
+                          .where((x) => (x['label'] as String).isNotEmpty)
+                          .where((x) => _match(x['label'] as String))
+                          .take(30)
+                          .toList();
+
+                      if (items.isEmpty) {
+                        return const Padding(
+                          padding: EdgeInsets.only(left: 8, top: 6, bottom: 10),
+                          child: Text('Brak wyników.'),
+                        );
+                      }
+
+                      return Column(
+                        children: items.map((c) {
+                          final label = c['label'] as String;
+                          final token = _toToken(label);
+                          return ListTile(
+                            dense: true,
+                            leading: const Icon(Icons.person_pin_rounded),
+                            title: Text(label),
+                            subtitle: token.isEmpty ? null : Text('#$token'),
+                            onTap: () {
+                              final picked = <String, dynamic>{
+                                'type': 'client',
+                                'id': c['id'],
+                                'label': label,
+                                'token': token,
+                              };
+                              if (widget.onPick != null) {
+                                widget.onPick!(picked);
+                              } else {
+                                Navigator.pop(context, picked);
+                              }
+                            },
+                          );
+                        }).toList(),
+                      );
+                    },
+                  ),
+
+                  const SizedBox(height: 6),
                 ],
               ),
             ),
