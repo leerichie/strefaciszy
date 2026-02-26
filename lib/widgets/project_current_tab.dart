@@ -39,6 +39,12 @@ class _ProjectCurrentTabsState extends State<ProjectCurrentTabs> {
   static const String kUpdatedBy = 'updatedBy';
   static const String kUpdatedByName = 'updatedByName';
 
+  // coord todo
+  static const String kShoppingTaskKey = 'shopping';
+  static const String kTaskKeyField = 'taskKey';
+  static const String kActionField = 'action';
+  bool _shoppingEnsured = false;
+
   final Map<String, TextEditingController> _newEntryCtrls = {};
   final Map<String, Timer?> _newEntryDebounce = {};
   final Map<String, ScrollController> _logScrollCtrls = {};
@@ -80,6 +86,176 @@ class _ProjectCurrentTabsState extends State<ProjectCurrentTabs> {
 
     super.dispose();
   }
+
+  // Future<void> _setTaskColour({
+  //   required String field,
+  //   required Map<String, dynamic> oldEntry,
+  //   required String color, // 'red' | 'blue' | 'black'
+  // }) async {
+  //   if (widget.readOnly) return;
+
+  //   final user = FirebaseAuth.instance.currentUser;
+  //   if (user == null) return;
+
+  //   if (oldEntry['done'] == true) return;
+  //   final userName = await _resolveUserName(user);
+  //   final now = Timestamp.now();
+
+  //   final updated = Map<String, dynamic>.from(oldEntry);
+  //   updated['color'] = color;
+  //   updated[kUpdatedAt] = now;
+  //   updated[kUpdatedBy] = user.uid;
+  //   updated[kUpdatedByName] = userName;
+
+  //   await widget.projRef.update({
+  //     field: FieldValue.arrayRemove([oldEntry]),
+  //   });
+  //   await widget.projRef.update({
+  //     field: FieldValue.arrayUnion([updated]),
+  //     'updatedAt': FieldValue.serverTimestamp(),
+  //     'updatedBy': user.uid,
+  //   });
+
+  //   final isDone = oldEntry['done'] == true;
+  //   if (field == kChangesNotesField && isDone) {
+  //     final sourceTaskId = (oldEntry['id'] ?? '').toString();
+  //     if (sourceTaskId.isNotEmpty) {
+  //       await _updateTaskColourInTodayRw(
+  //         user: user,
+  //         userName: userName,
+  //         sourceTaskId: sourceTaskId,
+  //         color: color,
+  //       );
+  //     }
+  //   }
+  // }
+
+  Future<void> _onHeaderLongPress({
+    required String field,
+    required Map<String, dynamic> entry,
+  }) async {
+    if (widget.readOnly) return;
+
+    final user = FirebaseAuth.instance.currentUser;
+    if (user == null) return;
+
+    final isTask = entry['isTask'] == true;
+
+    if (!isTask) {
+      if (_isAdmin) {
+        await _deleteLogEntry(field: field, entry: entry);
+      }
+      return;
+    }
+    final isShoppingTask =
+        (entry[kTaskKeyField]?.toString() ?? '') == kShoppingTaskKey;
+
+    if (isShoppingTask) {
+      // Only admin delete allowed from this dialog; no colour changes.
+      if (_isAdmin) {
+        final ok = await _confirmDeleteDialog();
+        if (!ok) return;
+        await _deleteLogEntry(field: field, entry: entry);
+      }
+      return;
+    }
+    final isDone = entry['done'] == true;
+    final current = (entry['color'] ?? 'black').toString();
+
+    final picked = await _pickTaskColourOrDeleteDialog(
+      isDone: isDone,
+      isAdmin: _isAdmin,
+      currentColor: current,
+    );
+
+    if (picked == null) return;
+
+    if (picked == '__delete__') {
+      if (_isAdmin) {
+        await _deleteLogEntry(field: field, entry: entry);
+      }
+      return;
+    }
+
+    if (!isDone && picked != current) {
+      await _setTaskColour(field: field, oldEntry: entry, newColor: picked);
+    }
+  }
+
+  Future<void> _setTaskColour({
+    required String field,
+    required Map<String, dynamic> oldEntry,
+    required String newColor, // 'red' | 'blue' | 'black'
+  }) async {
+    if (widget.readOnly) return;
+
+    // Only for checkbox tasks
+    if (oldEntry['isTask'] != true) return;
+
+    // Don’t allow changing colour after done (your requirement)
+    if (oldEntry['done'] == true) return;
+
+    final user = FirebaseAuth.instance.currentUser;
+    if (user == null) return;
+
+    final userName = await _resolveUserName(user);
+    final now = Timestamp.now();
+
+    final updated = Map<String, dynamic>.from(oldEntry);
+    updated['color'] = newColor;
+    updated[kUpdatedAt] = now;
+    updated[kUpdatedBy] = user.uid;
+    updated[kUpdatedByName] = userName;
+
+    await widget.projRef.update({
+      field: FieldValue.arrayRemove([oldEntry]),
+    });
+    await widget.projRef.update({
+      field: FieldValue.arrayUnion([updated]),
+      'updatedAt': FieldValue.serverTimestamp(),
+      'updatedBy': user.uid,
+    });
+  }
+
+  // Future<void> _updateTaskColourInTodayRw({
+  //   required User user,
+  //   required String userName,
+  //   required String sourceTaskId,
+  //   required String color,
+  // }) async {
+  //   final rwRef = await _todayRwRef();
+  //   if (rwRef == null) return;
+
+  //   await FirebaseFirestore.instance.runTransaction((tx) async {
+  //     final snap = await tx.get(rwRef);
+  //     if (!snap.exists) return;
+
+  //     final data = snap.data() ?? <String, dynamic>{};
+  //     final raw = (data['notesList'] as List?) ?? const [];
+
+  //     bool changed = false;
+
+  //     final updatedNotes = raw.map((e) {
+  //       if (e is! Map) return e;
+  //       final sid = (e['sourceTaskId'] ?? '').toString();
+  //       if (sid != sourceTaskId) return e;
+
+  //       final m = Map<String, dynamic>.from(e);
+  //       m['color'] = color;
+  //       changed = true;
+  //       return m;
+  //     }).toList();
+
+  //     if (!changed) return;
+
+  //     tx.update(rwRef, {
+  //       'notesList': updatedNotes,
+  //       'lastUpdatedAt': FieldValue.serverTimestamp(),
+  //       'lastUpdatedBy': user.uid,
+  //       'lastUpdatedByName': userName,
+  //     });
+  //   });
+  // }
 
   Future<void> _removeProjectEntryById({
     required String field,
@@ -130,6 +306,70 @@ class _ProjectCurrentTabsState extends State<ProjectCurrentTabs> {
     return ok == true;
   }
 
+  Future<bool> _confirmMarkDoneDialog() async {
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Wykonane?'),
+        content: const Text(
+          'Zadanie zostanie wpisany do raportu i nie będzie widoczny tu.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Anuluj'),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('OK'),
+          ),
+        ],
+      ),
+    );
+
+    return ok == true;
+  }
+
+  Future<bool> _confirmAddShoppingTaskDialog({
+    required String previewText,
+  }) async {
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Zakupy'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text('Dodać "Do zakupy" jako TODO?'),
+            const SizedBox(height: 12),
+            const Text(
+              'Treść:',
+              style: TextStyle(fontSize: 15, fontWeight: FontWeight.w600),
+            ),
+            const SizedBox(height: 6),
+            Text(
+              previewText.isEmpty ? 'Do zakupy' : previewText,
+              style: const TextStyle(color: Colors.red, fontSize: 15),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Anuluj'),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('Dodaj'),
+          ),
+        ],
+      ),
+    );
+
+    return ok == true;
+  }
+
   Future<void> _deleteLogEntry({
     required String field,
     required Map<String, dynamic> entry,
@@ -139,8 +379,7 @@ class _ProjectCurrentTabsState extends State<ProjectCurrentTabs> {
     final user = FirebaseAuth.instance.currentUser;
     if (user == null) return;
 
-    if (!_canEditEntryWithAdmin(entry, user)) return;
-
+    if (!_isAdmin) return;
     final ok = await _confirmDeleteDialog();
     if (!ok) return;
 
@@ -157,7 +396,10 @@ class _ProjectCurrentTabsState extends State<ProjectCurrentTabs> {
     );
 
     final isTask = entry['isTask'] == true;
-    if (field == kChangesNotesField && isTask) {
+    final isShoppingTask =
+        (entry[kTaskKeyField]?.toString() ?? '') == kShoppingTaskKey;
+
+    if (isTask && (field == kChangesNotesField || isShoppingTask)) {
       await _removeTaskFromTodayRw(
         user: user,
         userName: userName,
@@ -166,24 +408,57 @@ class _ProjectCurrentTabsState extends State<ProjectCurrentTabs> {
     }
   }
 
+  // Future<void> _loadIsAdmin() async {
+  //   final user = FirebaseAuth.instance.currentUser;
+  //   if (user == null) return;
+
+  //   try {
+  //     final u = await FirebaseFirestore.instance
+  //         .collection('users')
+  //         .doc(user.uid)
+  //         .get();
+  //     final v = u.data()?['isAdmin'];
+  //     final isAdmin = v == true;
+
+  //     if (mounted) {
+  //       setState(() => _isAdmin = isAdmin);
+  //     }
+  //   } catch (_) {
+  //   }
+  // }
   Future<void> _loadIsAdmin() async {
     final user = FirebaseAuth.instance.currentUser;
     if (user == null) return;
 
-    try {
-      final u = await FirebaseFirestore.instance
-          .collection('users')
-          .doc(user.uid)
-          .get();
-      final v = u.data()?['isAdmin'];
-      final isAdmin = v == true;
+    bool isAdmin = false;
 
-      if (mounted) {
-        setState(() => _isAdmin = isAdmin);
+    // 1) Prefer custom claims: request.auth.token.admin
+    try {
+      final token = await user.getIdTokenResult(true);
+      final claimAdmin = token.claims?['admin'];
+      if (claimAdmin == true) {
+        isAdmin = true;
       }
     } catch (_) {
-      // keep false
+      // ignore
     }
+
+    // 2) Fallback to users/{uid}.isAdmin (optional)
+    if (!isAdmin) {
+      try {
+        final u = await FirebaseFirestore.instance
+            .collection('users')
+            .doc(user.uid)
+            .get();
+        if (u.data()?['isAdmin'] == true) {
+          isAdmin = true;
+        }
+      } catch (_) {
+        // ignore
+      }
+    }
+
+    if (mounted) setState(() => _isAdmin = isAdmin);
   }
 
   String _fmt(DateTime dt) {
@@ -205,19 +480,119 @@ class _ProjectCurrentTabsState extends State<ProjectCurrentTabs> {
     return (user.email ?? '—');
   }
 
-  bool _canEditEntryWithAdmin(Map<String, dynamic> e, User user) {
-    if (_isAdmin) return true;
+  // bool _canEditEntryWithAdmin(Map<String, dynamic> e, User user) {
+  //   if (_isAdmin) return true;
 
-    final createdBy = (e['createdBy'] as String?) ?? '';
-    if (createdBy != user.uid) return false;
+  //   final createdBy = (e['createdBy'] as String?) ?? '';
+  //   if (createdBy != user.uid) return false;
 
-    final createdAt = (e['createdAt'] as Timestamp?)?.toDate();
-    if (createdAt == null) return false;
+  //   final createdAt = (e['createdAt'] as Timestamp?)?.toDate();
+  //   if (createdAt == null) return false;
 
-    final c = createdAt.toLocal();
-    final now = DateTime.now().toLocal();
+  //   final c = createdAt.toLocal();
+  //   final now = DateTime.now().toLocal();
 
-    return c.year == now.year && c.month == now.month && c.day == now.day;
+  //   return c.year == now.year && c.month == now.month && c.day == now.day;
+  // }
+
+  Future<String?> _pickTaskColourOrDeleteDialog({
+    required bool isDone,
+    required bool isAdmin,
+    required String currentColor, // 'red' | 'blue' | 'black'
+  }) async {
+    return showDialog<String>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        // title: const Text('Wybierz typ zadanie:'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              isDone ? 'TODO już wykonane (zablokowany).' : 'Zmienić typ TODO?',
+              style: TextStyle(fontSize: 15, fontWeight: FontWeight.w600),
+            ),
+            const SizedBox(height: 12),
+
+            // --- colours (disabled if done)
+            Opacity(
+              opacity: isDone ? 0.45 : 1.0,
+              child: IgnorePointer(
+                ignoring: isDone,
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    ListTile(
+                      dense: true,
+                      leading: const Icon(Icons.circle, color: Colors.red),
+                      title: const Text(
+                        'Pilny!!',
+                        style: TextStyle(fontSize: 15, color: Colors.red),
+                      ),
+                      trailing: currentColor == 'red'
+                          ? const Icon(Icons.check, size: 18)
+                          : null,
+                      onTap: () => Navigator.pop(ctx, 'red'),
+                    ),
+                    ListTile(
+                      dense: true,
+                      leading: const Icon(Icons.circle, color: Colors.blue),
+                      title: const Text(
+                        'Dodatkowe prace',
+                        style: TextStyle(fontSize: 15, color: Colors.blue),
+                      ),
+                      trailing: currentColor == 'blue'
+                          ? const Icon(Icons.check, size: 18)
+                          : null,
+                      onTap: () => Navigator.pop(ctx, 'blue'),
+                    ),
+                    ListTile(
+                      dense: true,
+                      leading: const Icon(Icons.circle, color: Colors.black),
+                      title: const Text(
+                        'Normalny',
+                        style: TextStyle(fontSize: 15),
+                      ),
+                      trailing: currentColor == 'black'
+                          ? const Icon(Icons.check, size: 18)
+                          : null,
+                      onTap: () => Navigator.pop(ctx, 'black'),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+            Divider(),
+
+            // --- admin delete section
+            if (isAdmin) ...[
+              // const SizedBox(height: 12),
+              Divider(color: Colors.grey.shade300),
+              const SizedBox(height: 2),
+              const Text(
+                'Admin:',
+                style: TextStyle(fontSize: 15, fontWeight: FontWeight.w600),
+              ),
+              ListTile(
+                dense: true,
+                leading: const Icon(Icons.delete, color: Colors.red),
+                title: const Text(
+                  'Usuń zadanie TODO',
+                  style: TextStyle(fontSize: 15, fontWeight: FontWeight.w600),
+                ),
+                onTap: () => Navigator.pop(ctx, '__delete__'),
+              ),
+            ],
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, null),
+            child: const Text('Anuluj'),
+          ),
+        ],
+      ),
+    );
   }
 
   Future<String?> _pickTaskColourDialog() async {
@@ -316,6 +691,64 @@ class _ProjectCurrentTabsState extends State<ProjectCurrentTabs> {
     }
   }
 
+  Future<void> _ensureShoppingTaskExists(
+    Map<String, dynamic> projectData,
+  ) async {
+    if (_shoppingEnsured) return;
+
+    final user = FirebaseAuth.instance.currentUser;
+    if (user == null) return;
+    if (widget.readOnly) return;
+
+    // If already exists in snapshot, just mark ensured and exit.
+    final raw = (projectData[kCoordinationField] as List?) ?? const [];
+    final exists = raw.any((e) {
+      if (e is! Map) return false;
+      return (e[kTaskKeyField]?.toString() ?? '') == kShoppingTaskKey;
+    });
+
+    if (exists) {
+      _shoppingEnsured = true;
+      return;
+    }
+
+    _shoppingEnsured = true; // prevent multiple calls while transaction runs
+
+    final userName = await _resolveUserName(user);
+    final entry = <String, dynamic>{
+      'id': kShoppingTaskKey, // fixed id so we can reliably find it
+      kTaskKeyField: kShoppingTaskKey, // fixed “kind”
+      'text': 'Do zakupy',
+      'createdAt': Timestamp.now(),
+      'createdBy': user.uid,
+      'createdByName': userName,
+      'isTask': true,
+      'done': false,
+      'color': 'red',
+    };
+
+    await FirebaseFirestore.instance.runTransaction((tx) async {
+      final snap = await tx.get(widget.projRef);
+      if (!snap.exists) return;
+
+      final data = snap.data() ?? <String, dynamic>{};
+      final list = (data[kCoordinationField] as List?) ?? const [];
+
+      final stillMissing = !list.any((e) {
+        if (e is! Map) return false;
+        return (e[kTaskKeyField]?.toString() ?? '') == kShoppingTaskKey;
+      });
+      if (!stillMissing) return;
+
+      tx.update(widget.projRef, {
+        kCoordinationField: FieldValue.arrayUnion([entry]),
+        'updatedAt': FieldValue.serverTimestamp(),
+        'updatedBy': user.uid,
+        'updatedByName': userName,
+      });
+    });
+  }
+
   Future<void> _updateLogEntry({
     required String field,
     required Map<String, dynamic> oldEntry,
@@ -326,7 +759,7 @@ class _ProjectCurrentTabsState extends State<ProjectCurrentTabs> {
     final user = FirebaseAuth.instance.currentUser;
     if (user == null) return;
 
-    if (!_canEditEntryWithAdmin(oldEntry, user)) return;
+    // if (!_canEditEntryWithAdmin(oldEntry, user)) return;
 
     final trimmed = newText.trim();
     if (trimmed.isEmpty) return;
@@ -350,6 +783,30 @@ class _ProjectCurrentTabsState extends State<ProjectCurrentTabs> {
     });
   }
 
+  // Future<DocumentReference<Map<String, dynamic>>?> _todayRwRef() async {
+  //   final proj = FirebaseFirestore.instance
+  //       .collection('customers')
+  //       .doc(widget.customerId)
+  //       .collection('projects')
+  //       .doc(widget.projectId);
+
+  //   final now = DateTime.now().toLocal();
+  //   final start = DateTime(now.year, now.month, now.day);
+  //   final end = start.add(const Duration(days: 1));
+
+  //   final snap = await proj
+  //       .collection('rw_documents')
+  //       .where('type', isEqualTo: 'RW')
+  //       .where('createdAt', isGreaterThanOrEqualTo: start)
+  //       .where('createdAt', isLessThan: end)
+  //       .orderBy('createdAt', descending: true)
+  //       .limit(1)
+  //       .get();
+
+  //   if (snap.docs.isEmpty) return null;
+  //   return snap.docs.first.reference;
+  // }
+
   Future<DocumentReference<Map<String, dynamic>>?> _todayRwRef() async {
     final proj = FirebaseFirestore.instance
         .collection('customers')
@@ -358,15 +815,12 @@ class _ProjectCurrentTabsState extends State<ProjectCurrentTabs> {
         .doc(widget.projectId);
 
     final now = DateTime.now().toLocal();
-    final start = DateTime(now.year, now.month, now.day);
-    final end = start.add(const Duration(days: 1));
+    final day = DateTime(now.year, now.month, now.day);
 
     final snap = await proj
         .collection('rw_documents')
         .where('type', isEqualTo: 'RW')
-        .where('createdAt', isGreaterThanOrEqualTo: start)
-        .where('createdAt', isLessThan: end)
-        .orderBy('createdAt', descending: true)
+        .where('createdDay', isEqualTo: day)
         .limit(1)
         .get();
 
@@ -408,6 +862,7 @@ class _ProjectCurrentTabsState extends State<ProjectCurrentTabs> {
     required User user,
     required String userName,
     required Map<String, dynamic> taskEntry,
+    required String action,
   }) async {
     if (taskEntry['isTask'] != true) return;
 
@@ -427,7 +882,7 @@ class _ProjectCurrentTabsState extends State<ProjectCurrentTabs> {
       'text': text,
       'userName': userName,
       'createdAt': Timestamp.now(),
-      'action': 'Raporty/Zmiany',
+      'action': action,
       if (taskEntry['color'] != null) 'color': taskEntry['color'],
       'sourceTaskId': sourceTaskId,
     };
@@ -488,16 +943,25 @@ class _ProjectCurrentTabsState extends State<ProjectCurrentTabs> {
     final user = FirebaseAuth.instance.currentUser;
     if (user == null) return;
 
-    if (!_canEditEntryWithAdmin(oldEntry, user)) return;
+    // if (!_canEditEntryWithAdmin(oldEntry, user)) return;
 
     final wasDone = oldEntry['done'] == true;
     final isTask = oldEntry['isTask'] == true;
 
+    final isShoppingTask =
+        (oldEntry[kTaskKeyField]?.toString() ?? '') == kShoppingTaskKey;
+
     final shouldCopyToRw =
-        (field == kChangesNotesField) && isTask && (done == true) && !wasDone;
+        isTask &&
+        (done == true) &&
+        !wasDone &&
+        (field == kChangesNotesField || isShoppingTask);
 
     final shouldRemoveFromRw =
-        (field == kChangesNotesField) && isTask && (done == false) && wasDone;
+        isTask &&
+        (done == false) &&
+        wasDone &&
+        (field == kChangesNotesField || isShoppingTask);
 
     final userName = await _resolveUserName(user);
     final now = Timestamp.now();
@@ -516,10 +980,12 @@ class _ProjectCurrentTabsState extends State<ProjectCurrentTabs> {
     });
 
     if (shouldCopyToRw) {
+      final action = isShoppingTask ? 'Koordynacja/Zakupy' : 'Raporty/Zmiany';
       await _appendTaskDoneToTodayRw(
         user: user,
         userName: userName,
         taskEntry: updated,
+        action: action,
       );
     }
 
@@ -533,6 +999,77 @@ class _ProjectCurrentTabsState extends State<ProjectCurrentTabs> {
         );
       }
     }
+  }
+
+  Future<void> _addShoppingTask({required String text}) async {
+    if (widget.readOnly) return;
+
+    final user = FirebaseAuth.instance.currentUser;
+    if (user == null) return;
+
+    final trimmed = text.trim();
+    final finalText = trimmed.isEmpty ? 'Do zakupy' : trimmed;
+
+    final userName = await _resolveUserName(user);
+
+    final entry = <String, dynamic>{
+      'id': kShoppingTaskKey, // fixed id
+      kTaskKeyField: kShoppingTaskKey,
+      'text': finalText,
+      'createdAt': Timestamp.now(),
+      'createdBy': user.uid,
+      'createdByName': userName,
+      'isTask': true,
+      'done': false,
+      'color': 'red',
+    };
+
+    await FirebaseFirestore.instance.runTransaction((tx) async {
+      final snap = await tx.get(widget.projRef);
+      if (!snap.exists) return;
+
+      final data = snap.data() ?? <String, dynamic>{};
+      final list = (data[kCoordinationField] as List?) ?? const [];
+
+      // If it already exists and NOT done -> update its text (replace the map)
+      final existing = list.cast<dynamic>().firstWhere(
+        (e) =>
+            e is Map &&
+            (e[kTaskKeyField]?.toString() ?? '') == kShoppingTaskKey,
+        orElse: () => null,
+      );
+
+      if (existing != null && existing is Map) {
+        final existingMap = Map<String, dynamic>.from(existing);
+
+        // If it was done, allow re-creating a fresh one (optional).
+        // If you want "done stays done forever", then: if (existingMap['done'] == true) return;
+        final updated = Map<String, dynamic>.from(existingMap);
+        updated['text'] = finalText;
+        updated[kUpdatedAt] = Timestamp.now();
+        updated[kUpdatedBy] = user.uid;
+        updated[kUpdatedByName] = userName;
+
+        tx.update(widget.projRef, {
+          kCoordinationField: FieldValue.arrayRemove([existingMap]),
+        });
+        tx.update(widget.projRef, {
+          kCoordinationField: FieldValue.arrayUnion([updated]),
+          'updatedAt': FieldValue.serverTimestamp(),
+          'updatedBy': user.uid,
+          'updatedByName': userName,
+        });
+        return;
+      }
+
+      // Otherwise create it
+      tx.update(widget.projRef, {
+        kCoordinationField: FieldValue.arrayUnion([entry]),
+        'updatedAt': FieldValue.serverTimestamp(),
+        'updatedBy': user.uid,
+        'updatedByName': userName,
+      });
+    });
   }
 
   List<Map<String, dynamic>> _readEntries(
@@ -635,7 +1172,7 @@ class _ProjectCurrentTabsState extends State<ProjectCurrentTabs> {
                       horizontal: 10,
                       vertical: 8,
                     ),
-                    suffixIcon: field == kChangesNotesField
+                    suffixIcon: (field == kChangesNotesField)
                         ? IconButton(
                             tooltip: 'Wpis checkbox',
                             icon: Icon(
@@ -654,6 +1191,28 @@ class _ProjectCurrentTabsState extends State<ProjectCurrentTabs> {
                                       () => _pendingTaskColorByField[field] =
                                           picked,
                                     );
+                                  },
+                          )
+                        : (field == kCoordinationField)
+                        ? IconButton(
+                            tooltip: 'Dodaj: Do zakupy',
+                            icon: const Icon(
+                              Icons.check_box,
+                              color: Colors.red,
+                              size: 25,
+                            ),
+                            onPressed: widget.readOnly
+                                ? null
+                                : () async {
+                                    final typed = inputCtrl.text;
+                                    final ok =
+                                        await _confirmAddShoppingTaskDialog(
+                                          previewText: typed,
+                                        );
+                                    if (!ok) return;
+
+                                    await _addShoppingTask(text: typed);
+                                    inputCtrl.clear();
                                   },
                           )
                         : null,
@@ -683,8 +1242,8 @@ class _ProjectCurrentTabsState extends State<ProjectCurrentTabs> {
           final updatedAt = (e[kUpdatedAt] as Timestamp?)?.toDate().toLocal();
           final updatedByName = (e[kUpdatedByName] as String?) ?? '';
 
-          final canEdit = user != null && _canEditEntryWithAdmin(e, user);
-
+          final canEdit = user != null;
+          final canDelete = _isAdmin && user != null;
           final headerTime = updatedAt ?? createdAt;
           final headerName = (updatedAt != null ? updatedByName : createdByName)
               .trim();
@@ -723,8 +1282,8 @@ class _ProjectCurrentTabsState extends State<ProjectCurrentTabs> {
               children: [
                 // HEADER
                 InkWell(
-                  onLongPress: (canEdit && !widget.readOnly)
-                      ? () => _deleteLogEntry(field: field, entry: e)
+                  onLongPress: (user != null && !widget.readOnly)
+                      ? () => _onHeaderLongPress(field: field, entry: e)
                       : null,
                   child: Text(
                     header,
@@ -749,11 +1308,20 @@ class _ProjectCurrentTabsState extends State<ProjectCurrentTabs> {
                         child: Checkbox(
                           value: done,
                           onChanged: (canEdit && !widget.readOnly)
-                              ? (v) => _toggleLogTaskDone(
-                                  field: field,
-                                  oldEntry: e,
-                                  done: v == true,
-                                )
+                              ? (v) async {
+                                  final nextDone = (v == true);
+
+                                  if (nextDone) {
+                                    final ok = await _confirmMarkDoneDialog();
+                                    if (!ok) return;
+                                  }
+
+                                  await _toggleLogTaskDone(
+                                    field: field,
+                                    oldEntry: e,
+                                    done: nextDone,
+                                  );
+                                }
                               : null,
                           activeColor: Colors.green,
                           checkColor: Colors.white,
@@ -851,7 +1419,7 @@ class _ProjectCurrentTabsState extends State<ProjectCurrentTabs> {
               tabs: [
                 Tab(text: 'INSTALATOR'),
                 Tab(text: 'KOORDYNACJA'),
-                Tab(text: 'ZMIANY'),
+                Tab(text: 'TODO'),
               ],
             ),
           ),
@@ -872,8 +1440,36 @@ class _ProjectCurrentTabsState extends State<ProjectCurrentTabs> {
 
                 final installer = _readEntries(data, kInstallerField);
                 final coordination = _readEntries(data, kCoordinationField);
-                final changesNotes = _readEntries(data, kChangesNotesField);
+                // Ensure the single “Do zakupy” task exists (once) so toggling works reliably.
+                // if (!_shoppingEnsured) {
+                //   // fire-and-forget, but only once
+                //   _ensureShoppingTaskExists(data);
+                // }
+                // Pull out the special shopping task so it doesn’t mix with normal notes.
+                Map<String, dynamic>? shopping;
+                final coordinationRest = <Map<String, dynamic>>[];
 
+                for (final e in coordination) {
+                  final isShoppingTask =
+                      (e[kTaskKeyField]?.toString() ?? '') == kShoppingTaskKey;
+                  if (isShoppingTask) {
+                    shopping = e;
+                  } else {
+                    coordinationRest.add(e);
+                  }
+                }
+
+                // Hide it in UI when done
+                final shoppingDone = shopping?['done'] == true;
+                final changesNotesAll = _readEntries(data, kChangesNotesField);
+
+                final changesNotes = changesNotesAll.where((e) {
+                  final isTask = e['isTask'] == true;
+                  final done = e['done'] == true;
+
+                  if (isTask && done) return false;
+                  return true;
+                }).toList();
                 return TabBarView(
                   children: [
                     _compactLogEditor(
@@ -884,7 +1480,10 @@ class _ProjectCurrentTabsState extends State<ProjectCurrentTabs> {
                     _compactLogEditor(
                       field: kCoordinationField,
                       hint: 'Wpisz do koordynacja...',
-                      entries: coordination,
+                      entries: [
+                        if (shopping != null && !shoppingDone) shopping,
+                        ...coordinationRest,
+                      ],
                     ),
                     _compactLogEditor(
                       field: kChangesNotesField,

@@ -16,6 +16,7 @@ import 'package:strefa_ciszy/screens/main_menu_screen.dart';
 import 'package:strefa_ciszy/screens/project_editor_screen.dart';
 import 'package:strefa_ciszy/screens/projects_list_screen.dart';
 import 'package:strefa_ciszy/screens/scan_screen.dart';
+import 'package:strefa_ciszy/screens/shopping_list_screen.dart';
 
 class AppDrawer extends StatefulWidget {
   const AppDrawer({super.key});
@@ -579,6 +580,25 @@ class _AppDrawerState extends State<AppDrawer> {
                         context,
                         const ContactsListScreen(isAdmin: true),
                       ),
+                    ),
+                  ),
+                  Theme(
+                    data: Theme.of(context).copyWith(
+                      dividerColor: Colors.transparent,
+                      unselectedWidgetColor: Colors.white70,
+                      colorScheme: const ColorScheme.dark(
+                        primary: Colors.tealAccent,
+                        onSurface: Colors.white,
+                      ),
+                    ),
+                    child: ListTile(
+                      leading: const Icon(
+                        Icons.shopping_cart,
+                        color: Colors.white,
+                      ),
+                      title: Text('Zakupy', style: menuTitles),
+                      onTap: () =>
+                          _openPage(context, const ShoppingListScreen()),
                     ),
                   ),
                   Divider(),
