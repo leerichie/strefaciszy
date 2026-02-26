@@ -480,21 +480,14 @@ class _ChatThreadScreenState extends State<ChatThreadScreen> {
                         ? sel.baseOffset
                         : text.length;
 
-                    final hasAtBeforeCursor =
-                        cursor > 0 && text[cursor - 1] == '@';
-                    final replaceStart = hasAtBeforeCursor
-                        ? cursor - 1
-                        : cursor;
-                    final replaceEnd = (sel.extentOffset >= 0)
-                        ? sel.extentOffset
-                        : cursor;
+                    final uptoCursor = text.substring(0, cursor);
+                    final at = uptoCursor.lastIndexOf('@');
+                    if (at == -1) return;
 
-                    final newText = text.replaceRange(
-                      replaceStart,
-                      replaceEnd,
-                      insert,
-                    );
-                    final newCursorPos = replaceStart + insert.length;
+                    if (at > 0 && uptoCursor[at - 1].trim().isNotEmpty) return;
+
+                    final newText = text.replaceRange(at, cursor, insert);
+                    final newCursorPos = at + insert.length;
 
                     _controller.value = value.copyWith(
                       text: newText,
