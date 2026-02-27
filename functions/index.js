@@ -469,110 +469,6 @@ exports.sendDailyRwReportHttp = functions.https.onRequest(async (req, res) => {
 
     docsForDay.sort((a, b) => a.createdAt.getTime() - b.createdAt.getTime());
 
-    // OLD block
-    //  3) Build Excel workbook
-    // const workbook = new ExcelJS.Workbook();
-    // const sheet = workbook.addWorksheet(`RW ${dayKey}`);
-
-    // sheet.columns = [
-    //   {header: "Data",       key: "date",     width: 19},
-    //   {header: "Typ",        key: "type",     width: 8},
-    //   {header: "Klient",     key: "customer", width: 26},
-    //   {header: "Projekt",    key: "project",  width: 30},
-    //   {header: "Użytkownik", key: "user",     width: 20},
-    //   {header: "Opis",       key: "desc",     width: 30},
-    //   {header: "Producent",  key: "producer", width: 18},
-    //   {header: "Model",      key: "name",     width: 24},
-    //   {header: "Ilość",      key: "qty",      width: 10},
-    //   {header: "Jm",         key: "unit",     width: 6},
-    //   {header: "Notatki",    key: "notes",    width: 45},
-    // ];
-    // sheet.getRow(1).font = {bold: true};
-    // sheet.getColumn("qty").alignment  = {horizontal: "right"};
-    // sheet.getColumn("unit").alignment = {horizontal: "center"};
-
-    // const polish = new Intl.DateTimeFormat("pl-PL", {
-    //   day: "2-digit",
-    //   month: "2-digit",
-    //   year: "numeric",
-    //   hour: "2-digit",
-    //   minute: "2-digit",
-    // });
-
-    // docsForDay.forEach(({data: dData, createdAt}) => {
-    //   const items    = Array.isArray(dData.items) ? dData.items : [];
-    //   const notesRaw = Array.isArray(dData.notesList) ? dData.notesList : [];
-
-    //   if (items.length === 0 && notesRaw.length === 0) {
-    //     console.log("[RW] skipping empty doc", dData.id || "(no id)");
-    //     return;
-    //   }
-
-    //   const dateStr  = polish.format(createdAt);
-    //   const type     = dData.type || "RW";
-    //   const customer = dData.customerName || "";
-    //   const project  = dData.projectName || "";
-    //   const creator  = dData.createdBy || "";
-    //   const userName = userNames[creator] || creator;
-
-    //   const notesList = [...notesRaw];
-    //   notesList.sort((a, b) => {
-    //     const ta = a.createdAt && a.createdAt.toDate ? a.createdAt.toDate() : null;
-    //     const tb = b.createdAt && b.createdAt.toDate ? b.createdAt.toDate() : null;
-    //     if (!ta || !tb) return 0;
-    //     return ta.getTime() - tb.getTime();
-    //   });
-
-    //   const notesText = notesList
-    //       .map((m) => {
-    //         let noteDateStr = "";
-    //         if (m.createdAt && m.createdAt.toDate) {
-    //           noteDateStr = polish.format(m.createdAt.toDate());
-    //         }
-    //         const user   = (m.userName || "").toString();
-    //         const action = (m.action || "").toString().trim();
-    //         const text   = (m.text || "").toString();
-    //         const actionPart = action ? `: ${action}` : "";
-    //         return `[${noteDateStr}] ${user}${actionPart}: ${text}`;
-    //       })
-    //       .join("\n");
-
-    //   if (items.length > 0) {
-    //     let first = true;
-    //     items.forEach((it) => {
-    //       sheet.addRow({
-    //         date: dateStr,
-    //         type,
-    //         customer,
-    //         project,
-    //         user: userName,
-    //         desc: (it.description || "").toString(),
-    //         producer: (it.producent  || "").toString(),
-    //         name: (it.name       || "").toString(),
-    //         qty: it.quantity != null ? Number(it.quantity) : "",
-    //         unit: (it.unit       || "").toString(),
-    //         notes: first ? notesText : "",
-    //       });
-    //       first = false;
-    //     });
-    //   } else {
-    //     sheet.addRow({
-    //       date: dateStr,
-    //       type,
-    //       customer,
-    //       project,
-    //       user: userName,
-    //       desc: "",
-    //       producer: "",
-    //       name: "",
-    //       qty: "",
-    //       unit: "",
-    //       notes: notesText,
-    //     });
-    //   }
-    // });
-
-    // TEST block
 
     //  3) Build Excel workbook
     const workbook = new ExcelJS.Workbook();
@@ -669,6 +565,7 @@ exports.sendDailyRwReportHttp = functions.https.onRequest(async (req, res) => {
         // remove legacy prefixes
         textRaw = textRaw
             .replace(/^Raporty\/Zmiany:\s*/i, "")
+            .replace(/^Koordynacja\/Zakupy:\s*/i, "")
             .replace(/^TODO\s*/i, "")
             .trim();
 
@@ -687,12 +584,21 @@ exports.sendDailyRwReportHttp = functions.https.onRequest(async (req, res) => {
         const user   = (m.userName || "").toString();
         const action = (m.action || "").toString().trim();
         const text   = textRaw;
-        const actionPart = action ? `: ${action}` : "";
+
+        // Treat task-based notes (and any ZAKUPY line) as task lines for rich formatting
+        const isTaskNote =
+          (m.sourceTaskId != null && String(m.sourceTaskId).trim() !== "") ||
+          (m.color != null && String(m.color).trim() !== "") ||
+          action.toUpperCase() === "ZAKUPY";
+
+        // Format: [timestamp] user ZAKUPY: text
+        const actionLabel = action ? action.toUpperCase() : "";
+        const prefix = actionLabel ? ` ${actionLabel}: ` : ": ";
 
         exportLines.push({
-          text: `[${noteDateStr}] ${user}${actionPart}: ${text}`,
-          color: null,
-          isTask: false,
+          text: `[${noteDateStr}] ${user}${prefix}${text}`,
+          color: isTaskNote ? (m.color || null) : null,
+          isTask: isTaskNote,
         });
       }
 
@@ -858,110 +764,6 @@ exports.sendDailyRwReportScheduled = onSchedule(
 
         docsForDay.sort((a, b) => a.createdAt.getTime() - b.createdAt.getTime());
 
-        // OLD block
-        // Build Excel
-        // const workbook = new ExcelJS.Workbook();
-        // const sheet = workbook.addWorksheet(`RW ${dayKey}`);
-
-        // sheet.columns = [
-        //   {header: "Data",       key: "date",     width: 19},
-        //   {header: "Typ",        key: "type",     width: 8},
-        //   {header: "Klient",     key: "customer", width: 26},
-        //   {header: "Projekt",    key: "project",  width: 30},
-        //   {header: "Użytkownik", key: "user",     width: 20},
-        //   {header: "Opis",       key: "desc",     width: 30},
-        //   {header: "Producent",  key: "producer", width: 18},
-        //   {header: "Model",      key: "name",     width: 24},
-        //   {header: "Ilość",      key: "qty",      width: 10},
-        //   {header: "Jm",         key: "unit",     width: 6},
-        //   {header: "Notatki",    key: "notes",    width: 45},
-        // ];
-        // sheet.getRow(1).font = {bold: true};
-        // sheet.getColumn("qty").alignment  = {horizontal: "right"};
-        // sheet.getColumn("unit").alignment = {horizontal: "center"};
-
-        // const polish = new Intl.DateTimeFormat("pl-PL", {
-        //   day: "2-digit",
-        //   month: "2-digit",
-        //   year: "numeric",
-        //   hour: "2-digit",
-        //   minute: "2-digit",
-        // });
-
-        // docsForDay.forEach(({data: dData, createdAt}) => {
-        //   const items    = Array.isArray(dData.items) ? dData.items : [];
-        //   const notesRaw = Array.isArray(dData.notesList) ? dData.notesList : [];
-
-        //   if (items.length === 0 && notesRaw.length === 0) {
-        //     console.log("[RW scheduled] skipping empty doc", dData.id || "(no id)");
-        //     return;
-        //   }
-
-        //   const dateStr  = polish.format(createdAt);
-        //   const type     = dData.type || "RW";
-        //   const customer = dData.customerName || "";
-        //   const project  = dData.projectName || "";
-        //   const creator  = dData.createdBy || "";
-        //   const userName = userNames[creator] || creator;
-
-        //   const notesList = [...notesRaw];
-        //   notesList.sort((a, b) => {
-        //     const ta = a.createdAt && a.createdAt.toDate ? a.createdAt.toDate() : null;
-        //     const tb = b.createdAt && b.createdAt.toDate ? b.createdAt.toDate() : null;
-        //     if (!ta || !tb) return 0;
-        //     return ta.getTime() - tb.getTime();
-        //   });
-
-        //   const notesText = notesList
-        //       .map((m) => {
-        //         let noteDateStr = "";
-        //         if (m.createdAt && m.createdAt.toDate) {
-        //           noteDateStr = polish.format(m.createdAt.toDate());
-        //         }
-        //         const user   = (m.userName || "").toString();
-        //         const action = (m.action || "").toString().trim();
-        //         const text   = (m.text || "").toString();
-        //         const actionPart = action ? `: ${action}` : "";
-        //         return `[${noteDateStr}] ${user}${actionPart}: ${text}`;
-        //       })
-        //       .join("\n");
-
-        //   if (items.length > 0) {
-        //     let first = true;
-        //     items.forEach((it) => {
-        //       sheet.addRow({
-        //         date: dateStr,
-        //         type,
-        //         customer,
-        //         project,
-        //         user: userName,
-        //         desc: (it.description || "").toString(),
-        //         producer: (it.producent  || "").toString(),
-        //         name: (it.name       || "").toString(),
-        //         qty: it.quantity != null ? Number(it.quantity) : "",
-        //         unit: (it.unit       || "").toString(),
-        //         notes: first ? notesText : "",
-        //       });
-        //       first = false;
-        //     });
-        //   } else {
-        //     sheet.addRow({
-        //       date: dateStr,
-        //       type,
-        //       customer,
-        //       project,
-        //       user: userName,
-        //       desc: "",
-        //       producer: "",
-        //       name: "",
-        //       qty: "",
-        //       unit: "",
-        //       notes: notesText,
-        //     });
-        //   }
-        // });
-
-        // test block scheduled
         // Build Excel
         const workbook = new ExcelJS.Workbook();
         const sheet = workbook.addWorksheet(`RW ${dayKey}`);
@@ -1057,6 +859,7 @@ exports.sendDailyRwReportScheduled = onSchedule(
             // remove legacy prefixes
             textRaw = textRaw
                 .replace(/^Raporty\/Zmiany:\s*/i, "")
+                .replace(/^Koordynacja\/Zakupy:\s*/i, "")
                 .replace(/^TODO\s*/i, "")
                 .trim();
 
@@ -1075,12 +878,19 @@ exports.sendDailyRwReportScheduled = onSchedule(
             const user   = (m.userName || "").toString();
             const action = (m.action || "").toString().trim();
             const text   = textRaw;
-            const actionPart = action ? `: ${action}` : "";
+
+            const isTaskNote =
+              (m.sourceTaskId != null && String(m.sourceTaskId).trim() !== "") ||
+              (m.color != null && String(m.color).trim() !== "") ||
+              action.toUpperCase() === "ZAKUPY";
+
+            const actionLabel = action ? action.toUpperCase() : "";
+            const prefix = actionLabel ? ` ${actionLabel}: ` : ": ";
 
             exportLines.push({
-              text: `[${noteDateStr}] ${user}${actionPart}: ${text}`,
-              color: null,
-              isTask: false,
+              text: `[${noteDateStr}] ${user}${prefix}${text}`,
+              color: isTaskNote ? (m.color || null) : null,
+              isTask: isTaskNote,
             });
           }
 
