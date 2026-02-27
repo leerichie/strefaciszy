@@ -9,8 +9,9 @@ open -a Simulator
 firebase deploy
 .... --only hosting (web)
 
--- fetch indexes
+-- fetch indexes / rules
 firebase firestore:indexes > firestore.indexes.json
+firebase firestore:rules > firestore.rules
 
 -push
 firebase deploy --only firestore:indexes / rules
