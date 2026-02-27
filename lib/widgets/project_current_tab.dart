@@ -147,18 +147,7 @@ class _ProjectCurrentTabsState extends State<ProjectCurrentTabs> {
       }
       return;
     }
-    final isShoppingTask =
-        (entry[kTaskKeyField]?.toString() ?? '') == kShoppingTaskKey;
 
-    if (isShoppingTask) {
-      // Only admin delete allowed from this dialog; no colour changes.
-      if (_isAdmin) {
-        final ok = await _confirmDeleteDialog();
-        if (!ok) return;
-        await _deleteLogEntry(field: field, entry: entry);
-      }
-      return;
-    }
     final isDone = entry['done'] == true;
     final current = (entry['color'] ?? 'black').toString();
 
@@ -495,6 +484,36 @@ class _ProjectCurrentTabsState extends State<ProjectCurrentTabs> {
   //   return c.year == now.year && c.month == now.month && c.day == now.day;
   // }
 
+  Future<String?> _pickCoordinationTaskDialog() async {
+    // TODO-style dialog, but only one choice: Do zakupy (red)
+    return showDialog<String>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Wybierz typ zadanie:'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            ListTile(
+              dense: true,
+              leading: const Icon(Icons.circle, color: Colors.red),
+              title: const Text(
+                'Do zakupy',
+                style: TextStyle(fontSize: 20, color: Colors.red),
+              ),
+              onTap: () => Navigator.pop(ctx, 'red'),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, null),
+            child: const Text('Anuluj'),
+          ),
+        ],
+      ),
+    );
+  }
+
   Future<String?> _pickTaskColourOrDeleteDialog({
     required bool isDone,
     required bool isAdmin,
@@ -657,7 +676,9 @@ class _ProjectCurrentTabsState extends State<ProjectCurrentTabs> {
     final now = Timestamp.now();
 
     final taskColor = _pendingTaskColorByField[field];
-    final isTask = (field == kChangesNotesField) && (taskColor != null);
+    final isTask =
+        (taskColor != null) &&
+        (field == kChangesNotesField || field == kCoordinationField);
 
     final entry = <String, dynamic>{
       'id': id,
@@ -948,20 +969,17 @@ class _ProjectCurrentTabsState extends State<ProjectCurrentTabs> {
     final wasDone = oldEntry['done'] == true;
     final isTask = oldEntry['isTask'] == true;
 
-    final isShoppingTask =
-        (oldEntry[kTaskKeyField]?.toString() ?? '') == kShoppingTaskKey;
-
     final shouldCopyToRw =
         isTask &&
-        (done == true) &&
+        done == true &&
         !wasDone &&
-        (field == kChangesNotesField || isShoppingTask);
+        (field == kChangesNotesField || field == kCoordinationField);
 
     final shouldRemoveFromRw =
         isTask &&
-        (done == false) &&
+        done == false &&
         wasDone &&
-        (field == kChangesNotesField || isShoppingTask);
+        (field == kChangesNotesField || field == kCoordinationField);
 
     final userName = await _resolveUserName(user);
     final now = Timestamp.now();
@@ -980,7 +998,7 @@ class _ProjectCurrentTabsState extends State<ProjectCurrentTabs> {
     });
 
     if (shouldCopyToRw) {
-      final action = isShoppingTask ? 'Koordynacja/Zakupy' : 'Raporty/Zmiany';
+      final action = (field == kCoordinationField) ? 'ZAKUPY' : 'TODO';
       await _appendTaskDoneToTodayRw(
         user: user,
         userName: userName,
@@ -1195,7 +1213,7 @@ class _ProjectCurrentTabsState extends State<ProjectCurrentTabs> {
                           )
                         : (field == kCoordinationField)
                         ? IconButton(
-                            tooltip: 'Dodaj: Do zakupy',
+                            tooltip: 'Wpis checkbox',
                             icon: const Icon(
                               Icons.check_box,
                               color: Colors.red,
@@ -1204,15 +1222,20 @@ class _ProjectCurrentTabsState extends State<ProjectCurrentTabs> {
                             onPressed: widget.readOnly
                                 ? null
                                 : () async {
-                                    final typed = inputCtrl.text;
-                                    final ok =
-                                        await _confirmAddShoppingTaskDialog(
-                                          previewText: typed,
-                                        );
-                                    if (!ok) return;
+                                    final picked =
+                                        await _pickCoordinationTaskDialog();
+                                    if (picked == null) return;
 
-                                    await _addShoppingTask(text: typed);
-                                    inputCtrl.clear();
+                                    setState(
+                                      () => _pendingTaskColorByField[field] =
+                                          picked,
+                                    );
+
+                                    final typed = inputCtrl.text.trim();
+                                    await _createLogEntry(
+                                      field: field,
+                                      text: typed.isEmpty ? 'Do zakupy' : typed,
+                                    );
                                   },
                           )
                         : null,
@@ -1439,28 +1462,14 @@ class _ProjectCurrentTabsState extends State<ProjectCurrentTabs> {
                     (data[kLegacyCurrentTextField] as String?)?.trim() ?? '';
 
                 final installer = _readEntries(data, kInstallerField);
-                final coordination = _readEntries(data, kCoordinationField);
-                // Ensure the single “Do zakupy” task exists (once) so toggling works reliably.
-                // if (!_shoppingEnsured) {
-                //   // fire-and-forget, but only once
-                //   _ensureShoppingTaskExists(data);
-                // }
-                // Pull out the special shopping task so it doesn’t mix with normal notes.
-                Map<String, dynamic>? shopping;
-                final coordinationRest = <Map<String, dynamic>>[];
+                final coordinationAll = _readEntries(data, kCoordinationField);
 
-                for (final e in coordination) {
-                  final isShoppingTask =
-                      (e[kTaskKeyField]?.toString() ?? '') == kShoppingTaskKey;
-                  if (isShoppingTask) {
-                    shopping = e;
-                  } else {
-                    coordinationRest.add(e);
-                  }
-                }
-
-                // Hide it in UI when done
-                final shoppingDone = shopping?['done'] == true;
+                final coordination = coordinationAll.where((e) {
+                  final isTask = e['isTask'] == true;
+                  final done = e['done'] == true;
+                  if (isTask && done) return false;
+                  return true;
+                }).toList();
                 final changesNotesAll = _readEntries(data, kChangesNotesField);
 
                 final changesNotes = changesNotesAll.where((e) {
@@ -1480,14 +1489,11 @@ class _ProjectCurrentTabsState extends State<ProjectCurrentTabs> {
                     _compactLogEditor(
                       field: kCoordinationField,
                       hint: 'Wpisz do koordynacja...',
-                      entries: [
-                        if (shopping != null && !shoppingDone) shopping,
-                        ...coordinationRest,
-                      ],
+                      entries: coordination,
                     ),
                     _compactLogEditor(
                       field: kChangesNotesField,
-                      hint: 'Wpisz raport / Dodać Zadanie',
+                      hint: 'Wpisz zadanie TODO',
                       entries: changesNotes,
                       bottom: _legacyCompactBlock(legacyCurrentText),
                     ),
