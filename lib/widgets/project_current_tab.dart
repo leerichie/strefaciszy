@@ -43,6 +43,7 @@ class _ProjectCurrentTabsState extends State<ProjectCurrentTabs> {
   static const String kShoppingTaskKey = 'shopping';
   static const String kTaskKeyField = 'taskKey';
   static const String kActionField = 'action';
+  static const String kShoppingItemIdField = 'shoppingItemId';
   bool _shoppingEnsured = false;
 
   final Map<String, TextEditingController> _newEntryCtrls = {};
@@ -87,48 +88,79 @@ class _ProjectCurrentTabsState extends State<ProjectCurrentTabs> {
     super.dispose();
   }
 
-  // Future<void> _setTaskColour({
-  //   required String field,
-  //   required Map<String, dynamic> oldEntry,
-  //   required String color, // 'red' | 'blue' | 'black'
-  // }) async {
-  //   if (widget.readOnly) return;
+  Future<void> _ensureLinkedShoppingDoc({
+    required Map<String, dynamic> entry,
+  }) async {
+    final user = FirebaseAuth.instance.currentUser;
+    if (user == null) return;
 
-  //   final user = FirebaseAuth.instance.currentUser;
-  //   if (user == null) return;
+    final entryId = (entry['id'] ?? '').toString();
+    if (entryId.isEmpty) return;
 
-  //   if (oldEntry['done'] == true) return;
-  //   final userName = await _resolveUserName(user);
-  //   final now = Timestamp.now();
+    final existingShoppingId = (entry[kShoppingItemIdField] ?? '').toString();
+    if (existingShoppingId.isNotEmpty) return;
 
-  //   final updated = Map<String, dynamic>.from(oldEntry);
-  //   updated['color'] = color;
-  //   updated[kUpdatedAt] = now;
-  //   updated[kUpdatedBy] = user.uid;
-  //   updated[kUpdatedByName] = userName;
+    final myName = await _resolveUserName(user);
 
-  //   await widget.projRef.update({
-  //     field: FieldValue.arrayRemove([oldEntry]),
-  //   });
-  //   await widget.projRef.update({
-  //     field: FieldValue.arrayUnion([updated]),
-  //     'updatedAt': FieldValue.serverTimestamp(),
-  //     'updatedBy': user.uid,
-  //   });
+    final shoppingRef = FirebaseFirestore.instance
+        .collection('shopping_items')
+        .doc();
 
-  //   final isDone = oldEntry['done'] == true;
-  //   if (field == kChangesNotesField && isDone) {
-  //     final sourceTaskId = (oldEntry['id'] ?? '').toString();
-  //     if (sourceTaskId.isNotEmpty) {
-  //       await _updateTaskColourInTodayRw(
-  //         user: user,
-  //         userName: userName,
-  //         sourceTaskId: sourceTaskId,
-  //         color: color,
-  //       );
-  //     }
-  //   }
-  // }
+    await FirebaseFirestore.instance.runTransaction((tx) async {
+      final projSnap = await tx.get(widget.projRef);
+      if (!projSnap.exists) return;
+
+      final data = projSnap.data() ?? <String, dynamic>{};
+      final raw = (data[kCoordinationField] as List?) ?? const [];
+
+      Map<String, dynamic>? found;
+      for (final e in raw) {
+        if (e is Map && (e['id']?.toString() ?? '') == entryId) {
+          found = Map<String, dynamic>.from(e);
+          break;
+        }
+      }
+      if (found == null) return;
+
+      final already = (found[kShoppingItemIdField] ?? '').toString();
+      if (already.isNotEmpty) return;
+
+      final bool done = (found['done'] == true);
+
+      tx.set(shoppingRef, {
+        'text': (found['text'] ?? '').toString(),
+        'createdBy': user.uid,
+        'createdByName': myName,
+        'createdAt': FieldValue.serverTimestamp(),
+
+        'bought': done,
+        'boughtAt': done ? FieldValue.serverTimestamp() : null,
+        'boughtBy': done ? user.uid : null,
+        'boughtByName': done ? myName : null,
+
+        'sourceTaskId': entryId,
+        'customerId': widget.customerId,
+        'projectId': widget.projectId,
+      });
+
+      final updatedEntry = Map<String, dynamic>.from(found);
+      updatedEntry[kShoppingItemIdField] = shoppingRef.id;
+
+      final updatedList = raw.map((x) {
+        if (x is Map && (x['id']?.toString() ?? '') == entryId) {
+          return updatedEntry;
+        }
+        return x;
+      }).toList();
+
+      tx.update(widget.projRef, {
+        kCoordinationField: updatedList,
+        'updatedAt': FieldValue.serverTimestamp(),
+        'updatedBy': user.uid,
+        'updatedByName': myName,
+      });
+    });
+  }
 
   Future<void> _onHeaderLongPress({
     required String field,
@@ -140,21 +172,16 @@ class _ProjectCurrentTabsState extends State<ProjectCurrentTabs> {
     if (user == null) return;
 
     final isTask = entry['isTask'] == true;
-
-    if (!isTask) {
-      if (_isAdmin) {
-        await _deleteLogEntry(field: field, entry: entry);
-      }
-      return;
-    }
-
     final isDone = entry['done'] == true;
     final current = (entry['color'] ?? 'black').toString();
 
     final picked = await _pickTaskColourOrDeleteDialog(
-      isDone: isDone,
+      isDone: isTask ? isDone : false,
       isAdmin: _isAdmin,
-      currentColor: current,
+      currentColor: isTask ? current : 'black',
+      isTask: isTask,
+      allowToText: isTask,
+      coordMode: field == kCoordinationField,
     );
 
     if (picked == null) return;
@@ -166,9 +193,98 @@ class _ProjectCurrentTabsState extends State<ProjectCurrentTabs> {
       return;
     }
 
-    if (!isDone && picked != current) {
-      await _setTaskColour(field: field, oldEntry: entry, newColor: picked);
+    if (picked == '__to_text__') {
+      if (isTask) {
+        await _convertTaskToNormalText(field: field, oldEntry: entry);
+      }
+      return;
     }
+
+    if (picked == 'red' || picked == 'blue' || picked == 'black') {
+      if (isTask) {
+        if (!isDone && picked != current) {
+          await _setTaskColour(field: field, oldEntry: entry, newColor: picked);
+        }
+      } else {
+        if (field == kCoordinationField && picked != 'red') return;
+
+        await _convertNormalTextToTask(
+          field: field,
+          oldEntry: entry,
+          color: picked,
+        );
+      }
+    }
+  }
+
+  Future<void> _convertNormalTextToTask({
+    required String field,
+    required Map<String, dynamic> oldEntry,
+    required String color,
+  }) async {
+    if (widget.readOnly) return;
+
+    final user = FirebaseAuth.instance.currentUser;
+    if (user == null) return;
+
+    if (oldEntry['isTask'] == true) return;
+
+    final userName = await _resolveUserName(user);
+    final now = Timestamp.now();
+
+    final updated = Map<String, dynamic>.from(oldEntry);
+    updated['isTask'] = true;
+    updated['done'] = false;
+    updated['color'] = color;
+
+    updated[kUpdatedAt] = now;
+    updated[kUpdatedBy] = user.uid;
+    updated[kUpdatedByName] = userName;
+
+    await widget.projRef.update({
+      field: FieldValue.arrayRemove([oldEntry]),
+    });
+    await widget.projRef.update({
+      field: FieldValue.arrayUnion([updated]),
+      'updatedAt': FieldValue.serverTimestamp(),
+      'updatedBy': user.uid,
+    });
+  }
+
+  Future<void> _convertTaskToNormalText({
+    required String field,
+    required Map<String, dynamic> oldEntry,
+  }) async {
+    if (widget.readOnly) return;
+
+    final user = FirebaseAuth.instance.currentUser;
+    if (user == null) return;
+
+    if (oldEntry['isTask'] != true) return;
+
+    final userName = await _resolveUserName(user);
+    final now = Timestamp.now();
+
+    final updated = Map<String, dynamic>.from(oldEntry);
+
+    updated['isTask'] = false;
+    updated.remove('done');
+    updated.remove('color');
+    updated.remove(kTaskKeyField);
+    updated.remove(kShoppingItemIdField);
+
+    updated[kUpdatedAt] = now;
+    updated[kUpdatedBy] = user.uid;
+    updated[kUpdatedByName] = userName;
+
+    await widget.projRef.update({
+      field: FieldValue.arrayRemove([oldEntry]),
+    });
+    await widget.projRef.update({
+      field: FieldValue.arrayUnion([updated]),
+      'updatedAt': FieldValue.serverTimestamp(),
+      'updatedBy': user.uid,
+    });
   }
 
   Future<void> _setTaskColour({
@@ -178,10 +294,20 @@ class _ProjectCurrentTabsState extends State<ProjectCurrentTabs> {
   }) async {
     if (widget.readOnly) return;
 
-    // Only for checkbox tasks
     if (oldEntry['isTask'] != true) return;
+    final isShoppingTask =
+        (oldEntry[kTaskKeyField]?.toString() ?? '') == kShoppingTaskKey;
 
-    // Don’t allow changing colour after done (your requirement)
+    if (field == kCoordinationField && isShoppingTask) {
+      final shoppingId = (oldEntry[kShoppingItemIdField] ?? '').toString();
+      if (shoppingId.isNotEmpty) {
+        await FirebaseFirestore.instance
+            .collection('shopping_items')
+            .doc(shoppingId)
+            .delete();
+      }
+    }
+
     if (oldEntry['done'] == true) return;
 
     final user = FirebaseAuth.instance.currentUser;
@@ -205,46 +331,6 @@ class _ProjectCurrentTabsState extends State<ProjectCurrentTabs> {
       'updatedBy': user.uid,
     });
   }
-
-  // Future<void> _updateTaskColourInTodayRw({
-  //   required User user,
-  //   required String userName,
-  //   required String sourceTaskId,
-  //   required String color,
-  // }) async {
-  //   final rwRef = await _todayRwRef();
-  //   if (rwRef == null) return;
-
-  //   await FirebaseFirestore.instance.runTransaction((tx) async {
-  //     final snap = await tx.get(rwRef);
-  //     if (!snap.exists) return;
-
-  //     final data = snap.data() ?? <String, dynamic>{};
-  //     final raw = (data['notesList'] as List?) ?? const [];
-
-  //     bool changed = false;
-
-  //     final updatedNotes = raw.map((e) {
-  //       if (e is! Map) return e;
-  //       final sid = (e['sourceTaskId'] ?? '').toString();
-  //       if (sid != sourceTaskId) return e;
-
-  //       final m = Map<String, dynamic>.from(e);
-  //       m['color'] = color;
-  //       changed = true;
-  //       return m;
-  //     }).toList();
-
-  //     if (!changed) return;
-
-  //     tx.update(rwRef, {
-  //       'notesList': updatedNotes,
-  //       'lastUpdatedAt': FieldValue.serverTimestamp(),
-  //       'lastUpdatedBy': user.uid,
-  //       'lastUpdatedByName': userName,
-  //     });
-  //   });
-  // }
 
   Future<void> _removeProjectEntryById({
     required String field,
@@ -319,46 +405,6 @@ class _ProjectCurrentTabsState extends State<ProjectCurrentTabs> {
     return ok == true;
   }
 
-  Future<bool> _confirmAddShoppingTaskDialog({
-    required String previewText,
-  }) async {
-    final ok = await showDialog<bool>(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Text('Zakupy'),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            const Text('Dodać "Do zakupy" jako TODO?'),
-            const SizedBox(height: 12),
-            const Text(
-              'Treść:',
-              style: TextStyle(fontSize: 15, fontWeight: FontWeight.w600),
-            ),
-            const SizedBox(height: 6),
-            Text(
-              previewText.isEmpty ? 'Do zakupy' : previewText,
-              style: const TextStyle(color: Colors.red, fontSize: 15),
-            ),
-          ],
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx, false),
-            child: const Text('Anuluj'),
-          ),
-          ElevatedButton(
-            onPressed: () => Navigator.pop(ctx, true),
-            child: const Text('Dodaj'),
-          ),
-        ],
-      ),
-    );
-
-    return ok == true;
-  }
-
   Future<void> _deleteLogEntry({
     required String field,
     required Map<String, dynamic> entry,
@@ -377,6 +423,10 @@ class _ProjectCurrentTabsState extends State<ProjectCurrentTabs> {
 
     final userName = await _resolveUserName(user);
 
+    final isTask = entry['isTask'] == true;
+    final isShoppingTask =
+        (entry[kTaskKeyField]?.toString() ?? '') == kShoppingTaskKey;
+
     await _removeProjectEntryById(
       field: field,
       entryId: entryId,
@@ -384,9 +434,15 @@ class _ProjectCurrentTabsState extends State<ProjectCurrentTabs> {
       userName: userName,
     );
 
-    final isTask = entry['isTask'] == true;
-    final isShoppingTask =
-        (entry[kTaskKeyField]?.toString() ?? '') == kShoppingTaskKey;
+    if (field == kCoordinationField && isShoppingTask) {
+      final shoppingId = (entry[kShoppingItemIdField] ?? '').toString();
+      if (shoppingId.isNotEmpty) {
+        await FirebaseFirestore.instance
+            .collection('shopping_items')
+            .doc(shoppingId)
+            .delete();
+      }
+    }
 
     if (isTask && (field == kChangesNotesField || isShoppingTask)) {
       await _removeTaskFromTodayRw(
@@ -397,42 +453,20 @@ class _ProjectCurrentTabsState extends State<ProjectCurrentTabs> {
     }
   }
 
-  // Future<void> _loadIsAdmin() async {
-  //   final user = FirebaseAuth.instance.currentUser;
-  //   if (user == null) return;
-
-  //   try {
-  //     final u = await FirebaseFirestore.instance
-  //         .collection('users')
-  //         .doc(user.uid)
-  //         .get();
-  //     final v = u.data()?['isAdmin'];
-  //     final isAdmin = v == true;
-
-  //     if (mounted) {
-  //       setState(() => _isAdmin = isAdmin);
-  //     }
-  //   } catch (_) {
-  //   }
-  // }
   Future<void> _loadIsAdmin() async {
     final user = FirebaseAuth.instance.currentUser;
     if (user == null) return;
 
     bool isAdmin = false;
 
-    // 1) Prefer custom claims: request.auth.token.admin
     try {
       final token = await user.getIdTokenResult(true);
       final claimAdmin = token.claims?['admin'];
       if (claimAdmin == true) {
         isAdmin = true;
       }
-    } catch (_) {
-      // ignore
-    }
+    } catch (_) {}
 
-    // 2) Fallback to users/{uid}.isAdmin (optional)
     if (!isAdmin) {
       try {
         final u = await FirebaseFirestore.instance
@@ -442,9 +476,7 @@ class _ProjectCurrentTabsState extends State<ProjectCurrentTabs> {
         if (u.data()?['isAdmin'] == true) {
           isAdmin = true;
         }
-      } catch (_) {
-        // ignore
-      }
+      } catch (_) {}
     }
 
     if (mounted) setState(() => _isAdmin = isAdmin);
@@ -469,23 +501,7 @@ class _ProjectCurrentTabsState extends State<ProjectCurrentTabs> {
     return (user.email ?? '—');
   }
 
-  // bool _canEditEntryWithAdmin(Map<String, dynamic> e, User user) {
-  //   if (_isAdmin) return true;
-
-  //   final createdBy = (e['createdBy'] as String?) ?? '';
-  //   if (createdBy != user.uid) return false;
-
-  //   final createdAt = (e['createdAt'] as Timestamp?)?.toDate();
-  //   if (createdAt == null) return false;
-
-  //   final c = createdAt.toLocal();
-  //   final now = DateTime.now().toLocal();
-
-  //   return c.year == now.year && c.month == now.month && c.day == now.day;
-  // }
-
   Future<String?> _pickCoordinationTaskDialog() async {
-    // TODO-style dialog, but only one choice: Do zakupy (red)
     return showDialog<String>(
       context: context,
       builder: (ctx) => AlertDialog(
@@ -517,12 +533,14 @@ class _ProjectCurrentTabsState extends State<ProjectCurrentTabs> {
   Future<String?> _pickTaskColourOrDeleteDialog({
     required bool isDone,
     required bool isAdmin,
-    required String currentColor, // 'red' | 'blue' | 'black'
+    required String currentColor,
+    required bool isTask,
+    required bool allowToText,
+    required bool coordMode,
   }) async {
     return showDialog<String>(
       context: context,
       builder: (ctx) => AlertDialog(
-        // title: const Text('Wybierz typ zadanie:'),
         content: Column(
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -541,51 +559,79 @@ class _ProjectCurrentTabsState extends State<ProjectCurrentTabs> {
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    ListTile(
-                      dense: true,
-                      leading: const Icon(Icons.circle, color: Colors.red),
-                      title: const Text(
-                        'Pilny!!',
-                        style: TextStyle(fontSize: 15, color: Colors.red),
+                    // COORDINATION: only Zakupy (red)
+                    if (coordMode)
+                      ListTile(
+                        dense: true,
+                        leading: const Icon(Icons.circle, color: Colors.red),
+                        title: const Text(
+                          'Do zakupy',
+                          style: TextStyle(fontSize: 15, color: Colors.red),
+                        ),
+                        trailing: (currentColor == 'red' && isTask)
+                            ? const Icon(Icons.check, size: 18)
+                            : null,
+                        onTap: () => Navigator.pop(ctx, 'red'),
+                      )
+                    else ...[
+                      // TODO TAB: full 3 priorities
+                      ListTile(
+                        dense: true,
+                        leading: const Icon(Icons.circle, color: Colors.red),
+                        title: const Text(
+                          'Pilny!!',
+                          style: TextStyle(fontSize: 15, color: Colors.red),
+                        ),
+                        trailing: currentColor == 'red'
+                            ? const Icon(Icons.check, size: 18)
+                            : null,
+                        onTap: () => Navigator.pop(ctx, 'red'),
                       ),
-                      trailing: currentColor == 'red'
-                          ? const Icon(Icons.check, size: 18)
-                          : null,
-                      onTap: () => Navigator.pop(ctx, 'red'),
-                    ),
-                    ListTile(
-                      dense: true,
-                      leading: const Icon(Icons.circle, color: Colors.blue),
-                      title: const Text(
-                        'Dodatkowe prace',
-                        style: TextStyle(fontSize: 15, color: Colors.blue),
+                      ListTile(
+                        dense: true,
+                        leading: const Icon(Icons.circle, color: Colors.blue),
+                        title: const Text(
+                          'Dodatkowe prace',
+                          style: TextStyle(fontSize: 15, color: Colors.blue),
+                        ),
+                        trailing: currentColor == 'blue'
+                            ? const Icon(Icons.check, size: 18)
+                            : null,
+                        onTap: () => Navigator.pop(ctx, 'blue'),
                       ),
-                      trailing: currentColor == 'blue'
-                          ? const Icon(Icons.check, size: 18)
-                          : null,
-                      onTap: () => Navigator.pop(ctx, 'blue'),
-                    ),
-                    ListTile(
-                      dense: true,
-                      leading: const Icon(Icons.circle, color: Colors.black),
-                      title: const Text(
-                        'Normalny',
-                        style: TextStyle(fontSize: 15),
+                      ListTile(
+                        dense: true,
+                        leading: const Icon(Icons.circle, color: Colors.black),
+                        title: const Text(
+                          'Normalny',
+                          style: TextStyle(fontSize: 15),
+                        ),
+                        trailing: currentColor == 'black'
+                            ? const Icon(Icons.check, size: 18)
+                            : null,
+                        onTap: () => Navigator.pop(ctx, 'black'),
                       ),
-                      trailing: currentColor == 'black'
-                          ? const Icon(Icons.check, size: 18)
-                          : null,
-                      onTap: () => Navigator.pop(ctx, 'black'),
-                    ),
+                    ],
                   ],
                 ),
               ),
             ),
-            Divider(),
+            if (allowToText) ...[
+              const Divider(),
+              ListTile(
+                dense: true,
+                leading: const Icon(Icons.text_fields, color: Colors.black87),
+                title: const Text(
+                  'Zwykly tekst',
+                  style: TextStyle(fontSize: 15, fontWeight: FontWeight.w600),
+                ),
+                onTap: () => Navigator.pop(ctx, '__to_text__'),
+              ),
+            ],
+            const Divider(),
 
             // --- admin delete section
             if (isAdmin) ...[
-              // const SizedBox(height: 12),
               Divider(color: Colors.grey.shade300),
               const SizedBox(height: 2),
               const Text(
@@ -689,7 +735,8 @@ class _ProjectCurrentTabsState extends State<ProjectCurrentTabs> {
       if (isTask) ...{
         'isTask': true,
         'done': false,
-        'color': taskColor, // 'red' | 'black'
+        'color': taskColor,
+        if (field == kCoordinationField) kTaskKeyField: kShoppingTaskKey,
       },
     };
 
@@ -698,6 +745,9 @@ class _ProjectCurrentTabsState extends State<ProjectCurrentTabs> {
       'updatedAt': FieldValue.serverTimestamp(),
       'updatedBy': user.uid,
     });
+    if (isTask && field == kCoordinationField) {
+      await _ensureLinkedShoppingDoc(entry: {'id': id});
+    }
 
     _newEntryCtrls[field]?.clear();
     if (isTask) _pendingTaskColorByField[field] = null;
@@ -721,7 +771,6 @@ class _ProjectCurrentTabsState extends State<ProjectCurrentTabs> {
     if (user == null) return;
     if (widget.readOnly) return;
 
-    // If already exists in snapshot, just mark ensured and exit.
     final raw = (projectData[kCoordinationField] as List?) ?? const [];
     final exists = raw.any((e) {
       if (e is! Map) return false;
@@ -730,15 +779,17 @@ class _ProjectCurrentTabsState extends State<ProjectCurrentTabs> {
 
     if (exists) {
       _shoppingEnsured = true;
+
+      await _ensureLinkedShoppingDoc(entry: {'id': kShoppingTaskKey});
       return;
     }
 
-    _shoppingEnsured = true; // prevent multiple calls while transaction runs
+    _shoppingEnsured = true; // prevent multiple
 
     final userName = await _resolveUserName(user);
     final entry = <String, dynamic>{
-      'id': kShoppingTaskKey, // fixed id so we can reliably find it
-      kTaskKeyField: kShoppingTaskKey, // fixed “kind”
+      'id': kShoppingTaskKey,
+      kTaskKeyField: kShoppingTaskKey,
       'text': 'Do zakupy',
       'createdAt': Timestamp.now(),
       'createdBy': user.uid,
@@ -767,6 +818,7 @@ class _ProjectCurrentTabsState extends State<ProjectCurrentTabs> {
         'updatedBy': user.uid,
         'updatedByName': userName,
       });
+      await _ensureLinkedShoppingDoc(entry: {'id': kShoppingTaskKey});
     });
   }
 
@@ -779,8 +831,6 @@ class _ProjectCurrentTabsState extends State<ProjectCurrentTabs> {
 
     final user = FirebaseAuth.instance.currentUser;
     if (user == null) return;
-
-    // if (!_canEditEntryWithAdmin(oldEntry, user)) return;
 
     final trimmed = newText.trim();
     if (trimmed.isEmpty) return;
@@ -802,31 +852,36 @@ class _ProjectCurrentTabsState extends State<ProjectCurrentTabs> {
       'updatedAt': FieldValue.serverTimestamp(),
       'updatedBy': user.uid,
     });
+    final isShoppingTask =
+        (oldEntry[kTaskKeyField]?.toString() ?? '') == kShoppingTaskKey;
+
+    if (field == kCoordinationField && isShoppingTask) {
+      await _ensureLinkedShoppingDoc(
+        entry: {'id': (oldEntry['id'] ?? '').toString()},
+      );
+
+      final snap = await widget.projRef.get();
+      final data = snap.data() ?? <String, dynamic>{};
+      final list = (data[kCoordinationField] as List?) ?? const [];
+
+      final found = list.cast<dynamic>().firstWhere(
+        (e) =>
+            e is Map &&
+            (e['id']?.toString() ?? '') == (oldEntry['id'] ?? '').toString(),
+        orElse: () => null,
+      );
+
+      if (found is Map) {
+        final shoppingId = (found[kShoppingItemIdField] ?? '').toString();
+        if (shoppingId.isNotEmpty) {
+          await FirebaseFirestore.instance
+              .collection('shopping_items')
+              .doc(shoppingId)
+              .update({'text': trimmed});
+        }
+      }
+    }
   }
-
-  // Future<DocumentReference<Map<String, dynamic>>?> _todayRwRef() async {
-  //   final proj = FirebaseFirestore.instance
-  //       .collection('customers')
-  //       .doc(widget.customerId)
-  //       .collection('projects')
-  //       .doc(widget.projectId);
-
-  //   final now = DateTime.now().toLocal();
-  //   final start = DateTime(now.year, now.month, now.day);
-  //   final end = start.add(const Duration(days: 1));
-
-  //   final snap = await proj
-  //       .collection('rw_documents')
-  //       .where('type', isEqualTo: 'RW')
-  //       .where('createdAt', isGreaterThanOrEqualTo: start)
-  //       .where('createdAt', isLessThan: end)
-  //       .orderBy('createdAt', descending: true)
-  //       .limit(1)
-  //       .get();
-
-  //   if (snap.docs.isEmpty) return null;
-  //   return snap.docs.first.reference;
-  // }
 
   Future<DocumentReference<Map<String, dynamic>>?> _todayRwRef() async {
     final proj = FirebaseFirestore.instance
@@ -997,6 +1052,41 @@ class _ProjectCurrentTabsState extends State<ProjectCurrentTabs> {
       field: FieldValue.arrayUnion([updated]),
     });
 
+    final isShoppingTask =
+        (oldEntry[kTaskKeyField]?.toString() ?? '') == kShoppingTaskKey;
+
+    if (field == kCoordinationField && isShoppingTask) {
+      await _ensureLinkedShoppingDoc(
+        entry: {'id': (oldEntry['id'] ?? '').toString()},
+      );
+
+      final snap = await widget.projRef.get();
+      final data = snap.data() ?? <String, dynamic>{};
+      final list = (data[kCoordinationField] as List?) ?? const [];
+
+      final found = list.cast<dynamic>().firstWhere(
+        (e) =>
+            e is Map &&
+            (e['id']?.toString() ?? '') == (oldEntry['id'] ?? '').toString(),
+        orElse: () => null,
+      );
+
+      if (found is Map) {
+        final shoppingId = (found[kShoppingItemIdField] ?? '').toString();
+        if (shoppingId.isNotEmpty) {
+          await FirebaseFirestore.instance
+              .collection('shopping_items')
+              .doc(shoppingId)
+              .update({
+                'bought': done,
+                'boughtAt': done ? FieldValue.serverTimestamp() : null,
+                'boughtBy': done ? user.uid : null,
+                'boughtByName': done ? userName : null,
+              });
+        }
+      }
+    }
+
     if (shouldCopyToRw) {
       final action = (field == kCoordinationField) ? 'ZAKUPY' : 'TODO';
       await _appendTaskDoneToTodayRw(
@@ -1019,76 +1109,72 @@ class _ProjectCurrentTabsState extends State<ProjectCurrentTabs> {
     }
   }
 
-  Future<void> _addShoppingTask({required String text}) async {
-    if (widget.readOnly) return;
+  // Future<void> _addShoppingTask({required String text}) async {
+  //   if (widget.readOnly) return;
 
-    final user = FirebaseAuth.instance.currentUser;
-    if (user == null) return;
+  //   final user = FirebaseAuth.instance.currentUser;
+  //   if (user == null) return;
 
-    final trimmed = text.trim();
-    final finalText = trimmed.isEmpty ? 'Do zakupy' : trimmed;
+  //   final trimmed = text.trim();
+  //   final finalText = trimmed.isEmpty ? 'Do zakupy' : trimmed;
 
-    final userName = await _resolveUserName(user);
+  //   final userName = await _resolveUserName(user);
 
-    final entry = <String, dynamic>{
-      'id': kShoppingTaskKey, // fixed id
-      kTaskKeyField: kShoppingTaskKey,
-      'text': finalText,
-      'createdAt': Timestamp.now(),
-      'createdBy': user.uid,
-      'createdByName': userName,
-      'isTask': true,
-      'done': false,
-      'color': 'red',
-    };
+  //   final entry = <String, dynamic>{
+  //     'id': kShoppingTaskKey,
+  //     kTaskKeyField: kShoppingTaskKey,
+  //     'text': finalText,
+  //     'createdAt': Timestamp.now(),
+  //     'createdBy': user.uid,
+  //     'createdByName': userName,
+  //     'isTask': true,
+  //     'done': false,
+  //     'color': 'red',
+  //   };
 
-    await FirebaseFirestore.instance.runTransaction((tx) async {
-      final snap = await tx.get(widget.projRef);
-      if (!snap.exists) return;
+  //   await FirebaseFirestore.instance.runTransaction((tx) async {
+  //     final snap = await tx.get(widget.projRef);
+  //     if (!snap.exists) return;
 
-      final data = snap.data() ?? <String, dynamic>{};
-      final list = (data[kCoordinationField] as List?) ?? const [];
+  //     final data = snap.data() ?? <String, dynamic>{};
+  //     final list = (data[kCoordinationField] as List?) ?? const [];
 
-      // If it already exists and NOT done -> update its text (replace the map)
-      final existing = list.cast<dynamic>().firstWhere(
-        (e) =>
-            e is Map &&
-            (e[kTaskKeyField]?.toString() ?? '') == kShoppingTaskKey,
-        orElse: () => null,
-      );
+  //     final existing = list.cast<dynamic>().firstWhere(
+  //       (e) =>
+  //           e is Map &&
+  //           (e[kTaskKeyField]?.toString() ?? '') == kShoppingTaskKey,
+  //       orElse: () => null,
+  //     );
 
-      if (existing != null && existing is Map) {
-        final existingMap = Map<String, dynamic>.from(existing);
+  //     if (existing != null && existing is Map) {
+  //       final existingMap = Map<String, dynamic>.from(existing);
+  //       final updated = Map<String, dynamic>.from(existingMap);
+  //       updated['text'] = finalText;
+  //       updated[kUpdatedAt] = Timestamp.now();
+  //       updated[kUpdatedBy] = user.uid;
+  //       updated[kUpdatedByName] = userName;
 
-        // If it was done, allow re-creating a fresh one (optional).
-        // If you want "done stays done forever", then: if (existingMap['done'] == true) return;
-        final updated = Map<String, dynamic>.from(existingMap);
-        updated['text'] = finalText;
-        updated[kUpdatedAt] = Timestamp.now();
-        updated[kUpdatedBy] = user.uid;
-        updated[kUpdatedByName] = userName;
+  //       tx.update(widget.projRef, {
+  //         kCoordinationField: FieldValue.arrayRemove([existingMap]),
+  //       });
+  //       tx.update(widget.projRef, {
+  //         kCoordinationField: FieldValue.arrayUnion([updated]),
+  //         'updatedAt': FieldValue.serverTimestamp(),
+  //         'updatedBy': user.uid,
+  //         'updatedByName': userName,
+  //       });
+  //       return;
+  //     }
 
-        tx.update(widget.projRef, {
-          kCoordinationField: FieldValue.arrayRemove([existingMap]),
-        });
-        tx.update(widget.projRef, {
-          kCoordinationField: FieldValue.arrayUnion([updated]),
-          'updatedAt': FieldValue.serverTimestamp(),
-          'updatedBy': user.uid,
-          'updatedByName': userName,
-        });
-        return;
-      }
-
-      // Otherwise create it
-      tx.update(widget.projRef, {
-        kCoordinationField: FieldValue.arrayUnion([entry]),
-        'updatedAt': FieldValue.serverTimestamp(),
-        'updatedBy': user.uid,
-        'updatedByName': userName,
-      });
-    });
-  }
+  //     tx.update(widget.projRef, {
+  //       kCoordinationField: FieldValue.arrayUnion([entry]),
+  //       'updatedAt': FieldValue.serverTimestamp(),
+  //       'updatedBy': user.uid,
+  //       'updatedByName': userName,
+  //     });
+  //   });
+  //   await _ensureLinkedShoppingDoc(entry: {'id': kShoppingTaskKey});
+  // }
 
   List<Map<String, dynamic>> _readEntries(
     Map<String, dynamic> data,
@@ -1163,7 +1249,6 @@ class _ProjectCurrentTabsState extends State<ProjectCurrentTabs> {
         padding: EdgeInsets.zero,
         itemCount: 1 + entries.length + (bottom != null ? 1 : 0),
         itemBuilder: (context, index) {
-          // INPUT ROW
           if (index == 0) {
             final armed = _pendingTaskColorByField[field];
             final iconColor = armed == 'red'
@@ -1205,6 +1290,7 @@ class _ProjectCurrentTabsState extends State<ProjectCurrentTabs> {
                                     final picked =
                                         await _pickTaskColourDialog();
                                     if (picked == null) return;
+
                                     setState(
                                       () => _pendingTaskColorByField[field] =
                                           picked,
