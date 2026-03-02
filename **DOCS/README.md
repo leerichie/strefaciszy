@@ -25,7 +25,7 @@ run
 run -d chome
 
 4. IOS build
-bumb Version
+bump Version
 flutter build ios --release
 
 5. Xcode
