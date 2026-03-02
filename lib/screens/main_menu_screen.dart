@@ -304,7 +304,7 @@ class _MainMenuScreenState extends State<MainMenuScreen> {
               ),
         ListTile(
           leading: const Icon(Icons.shopping_cart_outlined),
-          title: const Text('Lista zakupów'),
+          title: const Text('Zakupy'),
           onTap: () {
             Navigator.of(context).push(
               MaterialPageRoute(builder: (_) => const ShoppingListScreen()),

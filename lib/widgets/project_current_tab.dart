@@ -133,14 +133,19 @@ class _ProjectCurrentTabsState extends State<ProjectCurrentTabs> {
         'createdByName': myName,
         'createdAt': FieldValue.serverTimestamp(),
 
-        'bought': done,
-        'boughtAt': done ? FieldValue.serverTimestamp() : null,
-        'boughtBy': done ? user.uid : null,
-        'boughtByName': done ? myName : null,
+        'bought': (found['done'] == true),
+        'boughtAt': (found['done'] == true)
+            ? FieldValue.serverTimestamp()
+            : null,
+        'boughtBy': (found['done'] == true) ? user.uid : null,
+        'boughtByName': (found['done'] == true) ? myName : null,
 
         'sourceTaskId': entryId,
         'customerId': widget.customerId,
         'projectId': widget.projectId,
+
+        'customerName': widget.customerName,
+        'projectName': widget.projectName,
       });
 
       final updatedEntry = Map<String, dynamic>.from(found);
@@ -249,6 +254,9 @@ class _ProjectCurrentTabsState extends State<ProjectCurrentTabs> {
       'updatedAt': FieldValue.serverTimestamp(),
       'updatedBy': user.uid,
     });
+    if (field == kCoordinationField && updated['isTask'] == true) {
+      await _ensureLinkedShoppingDoc(entry: {'id': updated['id']});
+    }
   }
 
   Future<void> _convertTaskToNormalText({
@@ -748,6 +756,10 @@ class _ProjectCurrentTabsState extends State<ProjectCurrentTabs> {
     if (isTask && field == kCoordinationField) {
       await _ensureLinkedShoppingDoc(entry: {'id': id});
     }
+    // dupe???_updateLogEntry
+    if (field == kCoordinationField && isTask) {
+      await _ensureLinkedShoppingDoc(entry: {'id': id});
+    }
 
     _newEntryCtrls[field]?.clear();
     if (isTask) _pendingTaskColorByField[field] = null;
@@ -852,10 +864,13 @@ class _ProjectCurrentTabsState extends State<ProjectCurrentTabs> {
       'updatedAt': FieldValue.serverTimestamp(),
       'updatedBy': user.uid,
     });
-    final isShoppingTask =
-        (oldEntry[kTaskKeyField]?.toString() ?? '') == kShoppingTaskKey;
+    // final isShoppingTask =
+    //     (oldEntry[kTaskKeyField]?.toString() ?? '') == kShoppingTaskKey;
 
-    if (field == kCoordinationField && isShoppingTask) {
+    final isCoordTask =
+        field == kCoordinationField && (oldEntry['isTask'] == true);
+
+    if (isCoordTask) {
       await _ensureLinkedShoppingDoc(
         entry: {'id': (oldEntry['id'] ?? '').toString()},
       );
@@ -1052,10 +1067,13 @@ class _ProjectCurrentTabsState extends State<ProjectCurrentTabs> {
       field: FieldValue.arrayUnion([updated]),
     });
 
-    final isShoppingTask =
-        (oldEntry[kTaskKeyField]?.toString() ?? '') == kShoppingTaskKey;
+    // final isShoppingTask =
+    //     (oldEntry[kTaskKeyField]?.toString() ?? '') == kShoppingTaskKey;
 
-    if (field == kCoordinationField && isShoppingTask) {
+    final isCoordTask =
+        field == kCoordinationField && (oldEntry['isTask'] == true);
+
+    if (isCoordTask) {
       await _ensureLinkedShoppingDoc(
         entry: {'id': (oldEntry['id'] ?? '').toString()},
       );
