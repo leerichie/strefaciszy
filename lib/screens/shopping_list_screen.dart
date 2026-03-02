@@ -14,36 +14,81 @@ class ShoppingListScreen extends StatefulWidget {
   State<ShoppingListScreen> createState() => _ShoppingListScreenState();
 }
 
+enum _SortMode { time, project, user, nonProject }
+
 class _ShoppingListScreenState extends State<ShoppingListScreen>
     with SingleTickerProviderStateMixin {
-  late final TabController _tabCtrl;
-  final _newCtrl = TextEditingController();
+  late final TabController tabCtrl;
+  final newCtrl = TextEditingController();
+
+  _SortMode _sortMode = _SortMode.time;
 
   @override
   void initState() {
     super.initState();
-    _tabCtrl = TabController(length: 2, vsync: this);
+    tabCtrl = TabController(length: 2, vsync: this);
   }
 
   @override
   void dispose() {
-    _tabCtrl.dispose();
-    _newCtrl.dispose();
+    tabCtrl.dispose();
+    newCtrl.dispose();
     super.dispose();
   }
 
-  String _firstNameFromDisplayName(String? s) {
+  void openSortDialog() async {
+    final res = await showDialog<_SortMode>(
+      context: context,
+      builder: (ctx) => SimpleDialog(
+        title: const Text('Sortowanie'),
+        children: [
+          RadioGroup<_SortMode>(
+            groupValue: _sortMode,
+            onChanged: (v) {
+              Navigator.pop(ctx, v);
+            },
+            child: Column(
+              children: const [
+                RadioListTile<_SortMode>(
+                  title: Text('Najnowszy'),
+                  value: _SortMode.time,
+                ),
+                RadioListTile<_SortMode>(
+                  title: Text('Projekt'),
+                  value: _SortMode.project,
+                ),
+                RadioListTile<_SortMode>(
+                  title: Text('User'),
+                  value: _SortMode.user,
+                ),
+                RadioListTile<_SortMode>(
+                  title: Text('Bez projektu'),
+                  value: _SortMode.nonProject,
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+
+    if (res != null) {
+      setState(() => _sortMode = res);
+    }
+  }
+
+  String firstNameFromDisplayName(String? s) {
     final v = (s ?? '').trim();
     if (v.isEmpty) return 'User';
     final parts = v.split(RegExp(r'\s+'));
     return parts.isEmpty ? v : parts.first;
   }
 
-  Future<String> _resolveMyName(String uid) async {
+  Future<String> resolveMyName(String uid) async {
     // 1) try FirebaseAuth displayName
     final authName = FirebaseAuth.instance.currentUser?.displayName;
     if ((authName ?? '').trim().isNotEmpty) {
-      return _firstNameFromDisplayName(authName);
+      return firstNameFromDisplayName(authName);
     }
 
     // 2) try Firestore users/{uid}.name (your chat screen uses this)
@@ -53,22 +98,22 @@ class _ShoppingListScreenState extends State<ShoppingListScreen>
           .doc(uid)
           .get();
       final name = (snap.data()?['name'] as String?)?.trim();
-      if ((name ?? '').isNotEmpty) return _firstNameFromDisplayName(name);
+      if ((name ?? '').isNotEmpty) return firstNameFromDisplayName(name);
     } catch (_) {}
 
     return 'User';
   }
 
-  Future<void> _addItem() async {
+  Future<void> addItem() async {
     final uid = FirebaseAuth.instance.currentUser?.uid;
     if (uid == null) return;
 
-    final text = _newCtrl.text.trim();
+    final text = newCtrl.text.trim();
     if (text.isEmpty) return;
 
-    _newCtrl.clear();
+    newCtrl.clear();
 
-    final myName = await _resolveMyName(uid);
+    final myName = await resolveMyName(uid);
 
     await FirebaseFirestore.instance.collection('shopping_items').add({
       'text': text,
@@ -82,7 +127,7 @@ class _ShoppingListScreenState extends State<ShoppingListScreen>
     });
   }
 
-  Future<void> _scanAndAdd() async {
+  Future<void> scanAndAdd() async {
     final res = await Navigator.of(context).push<String>(
       MaterialPageRoute(
         builder: (_) => ScanScreen(
@@ -96,17 +141,17 @@ class _ShoppingListScreenState extends State<ShoppingListScreen>
     final code = (res ?? '').trim();
     if (code.isEmpty) return;
 
-    _newCtrl.text = code;
-    _newCtrl.selection = TextSelection.collapsed(offset: code.length);
+    newCtrl.text = code;
+    newCtrl.selection = TextSelection.collapsed(offset: code.length);
 
-    await _addItem();
+    await addItem();
   }
 
-  Future<void> _setBought({required String docId, required bool bought}) async {
+  Future<void> setBought({required String docId, required bool bought}) async {
     final uid = FirebaseAuth.instance.currentUser?.uid;
     if (uid == null) return;
 
-    final myName = await _resolveMyName(uid);
+    final myName = await resolveMyName(uid);
 
     final ref = FirebaseFirestore.instance
         .collection('shopping_items')
@@ -160,7 +205,7 @@ class _ShoppingListScreenState extends State<ShoppingListScreen>
     });
   }
 
-  Future<void> _deleteItem(String docId) async {
+  Future<void> deleteItem(String docId) async {
     final ref = FirebaseFirestore.instance
         .collection('shopping_items')
         .doc(docId);
@@ -202,7 +247,7 @@ class _ShoppingListScreenState extends State<ShoppingListScreen>
     await ref.delete();
   }
 
-  Stream<QuerySnapshot<Map<String, dynamic>>> _activeStream() {
+  Stream<QuerySnapshot<Map<String, dynamic>>> activeStream() {
     return FirebaseFirestore.instance
         .collection('shopping_items')
         .where('bought', isEqualTo: false)
@@ -211,7 +256,7 @@ class _ShoppingListScreenState extends State<ShoppingListScreen>
         .snapshots();
   }
 
-  Stream<QuerySnapshot<Map<String, dynamic>>> _historyStream() {
+  Stream<QuerySnapshot<Map<String, dynamic>>> historyStream() {
     return FirebaseFirestore.instance
         .collection('shopping_items')
         .where('bought', isEqualTo: true)
@@ -229,8 +274,8 @@ class _ShoppingListScreenState extends State<ShoppingListScreen>
     }
 
     return AppScaffold(
-      title: '',
-      titleWidget: const Text('Lista zakupów', style: TextStyle(fontSize: 15)),
+      title: 'Zakupy',
+      // titleWidget: const Text('Lista zakupów', style: TextStyle(fontSize: 15)),
       showBackOnMobile: true,
       showBackOnWeb: true,
       showPersistentDrawerOnWeb: true,
@@ -242,7 +287,7 @@ class _ShoppingListScreenState extends State<ShoppingListScreen>
             Material(
               color: Colors.transparent,
               child: TabBar(
-                controller: _tabCtrl,
+                controller: tabCtrl,
                 tabs: const [
                   Tab(text: 'Zapotrzebowanie'),
                   Tab(text: 'Historia zakupów'),
@@ -256,9 +301,9 @@ class _ShoppingListScreenState extends State<ShoppingListScreen>
                 children: [
                   Expanded(
                     child: TextField(
-                      controller: _newCtrl,
+                      controller: newCtrl,
                       textInputAction: TextInputAction.done,
-                      onSubmitted: (_) => _addItem(),
+                      onSubmitted: (_) => addItem(),
                       decoration: InputDecoration(
                         hintText: 'Wpisz nazwa lub skanuj…',
                         border: const OutlineInputBorder(),
@@ -266,7 +311,7 @@ class _ShoppingListScreenState extends State<ShoppingListScreen>
                         suffixIcon: IconButton(
                           tooltip: 'Skanuj',
                           icon: const Icon(Icons.qr_code_scanner),
-                          onPressed: _scanAndAdd,
+                          onPressed: scanAndAdd,
                         ),
                       ),
                     ),
@@ -280,27 +325,36 @@ class _ShoppingListScreenState extends State<ShoppingListScreen>
                   //     label: const Text('Dodaj'),
                   //   ),
                   // ),
+                  const SizedBox(width: 6),
+
+                  IconButton(
+                    tooltip: 'Sortuj',
+                    icon: const Icon(Icons.sort),
+                    onPressed: openSortDialog,
+                  ),
                 ],
               ),
             ),
 
             Expanded(
               child: TabBarView(
-                controller: _tabCtrl,
+                controller: tabCtrl,
                 children: [
                   _ItemsList(
-                    stream: _activeStream(),
-                    onToggleBought: (id, v) => _setBought(docId: id, bought: v),
-                    onDelete: _deleteItem,
+                    stream: activeStream(),
+                    onToggleBought: (id, v) => setBought(docId: id, bought: v),
+                    onDelete: deleteItem,
                     emptyText: 'brak.',
                     showRestore: false,
+                    sortMode: _sortMode,
                   ),
                   _ItemsList(
-                    stream: _historyStream(),
-                    onToggleBought: (id, v) => _setBought(docId: id, bought: v),
-                    onDelete: _deleteItem,
+                    stream: historyStream(),
+                    onToggleBought: (id, v) => setBought(docId: id, bought: v),
+                    onDelete: deleteItem,
                     emptyText: 'Nie kupiono nic jeszcze.',
                     showRestore: true,
+                    sortMode: _sortMode,
                   ),
                 ],
               ),
@@ -318,6 +372,7 @@ class _ItemsList extends StatelessWidget {
   final void Function(String docId) onDelete;
   final String emptyText;
   final bool showRestore;
+  final _SortMode sortMode;
 
   const _ItemsList({
     required this.stream,
@@ -325,10 +380,29 @@ class _ItemsList extends StatelessWidget {
     required this.onDelete,
     required this.emptyText,
     required this.showRestore,
+    required this.sortMode,
   });
 
   @override
   Widget build(BuildContext context) {
+    Color bgForProject(String projectId) {
+      final palette = <Color>[
+        const Color(0xFFF3F6FF), // very light blue
+        const Color(0xFFF4FFF6), // very light green
+        const Color(0xFFFFF6F2), // very light orange
+        const Color(0xFFFFF4FA), // very light pink
+        const Color(0xFFF7F3FF), // very light purple
+        const Color(0xFFFFFFF1), // very light yellow
+      ];
+
+      // deterministic hash
+      var h = 0;
+      for (final c in projectId.codeUnits) {
+        h = (h * 31 + c) & 0x7fffffff;
+      }
+      return palette[h % palette.length];
+    }
+
     return StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
       stream: stream,
       builder: (ctx, snap) {
@@ -336,7 +410,45 @@ class _ItemsList extends StatelessWidget {
           return const Center(child: CircularProgressIndicator());
         }
 
-        final docs = snap.data?.docs ?? const [];
+        var docs = snap.data?.docs ?? const [];
+
+        docs = docs.toList();
+
+        docs.sort((a, b) {
+          final da = a.data();
+          final db = b.data();
+
+          String pa = (da['projectName'] ?? '').toString();
+          String pb = (db['projectName'] ?? '').toString();
+
+          String ua = (da['createdByName'] ?? '').toString();
+          String ub = (db['createdByName'] ?? '').toString();
+
+          Timestamp? ta = da['createdAt'];
+          Timestamp? tb = db['createdAt'];
+
+          switch (sortMode) {
+            case _SortMode.project:
+              return pa.compareTo(pb);
+
+            case _SortMode.user:
+              return ua.compareTo(ub);
+
+            case _SortMode.nonProject:
+              final aEmpty = pa.isEmpty;
+              final bEmpty = pb.isEmpty;
+              if (aEmpty != bEmpty) return aEmpty ? -1 : 1;
+              return (tb?.millisecondsSinceEpoch ?? 0).compareTo(
+                ta?.millisecondsSinceEpoch ?? 0,
+              );
+
+            case _SortMode.time:
+            default:
+              return (tb?.millisecondsSinceEpoch ?? 0).compareTo(
+                ta?.millisecondsSinceEpoch ?? 0,
+              );
+          }
+        });
         if (docs.isEmpty) {
           return Center(child: Text(emptyText));
         }
@@ -350,6 +462,21 @@ class _ItemsList extends StatelessWidget {
 
             final text = (data['text'] ?? '').toString().trim();
             final createdByName = (data['createdByName'] ?? 'User').toString();
+            String short(String s, int max) {
+              final t = s.trim();
+              if (t.length <= max) return t;
+              return '${t.substring(0, max - 1)}…';
+            }
+
+            final projectName = (data['projectName'] ?? '').toString().trim();
+            final projectId = (data['projectId'] ?? '').toString().trim();
+            final cardColor = projectId.isEmpty
+                ? Colors.grey.shade100
+                : bgForProject(projectId);
+
+            final projTag = (projectId.isNotEmpty && projectName.isNotEmpty)
+                ? '  •  ${short(projectName, 18)}'
+                : '';
             final bought = (data['bought'] == true);
 
             if (text.isEmpty) return const SizedBox.shrink();
@@ -364,7 +491,7 @@ class _ItemsList extends StatelessWidget {
             return Padding(
               padding: const EdgeInsets.only(bottom: 6),
               child: Material(
-                color: Colors.grey.shade100,
+                color: cardColor,
                 borderRadius: BorderRadius.circular(10),
                 child: ListTile(
                   dense: true,
@@ -378,8 +505,8 @@ class _ItemsList extends StatelessWidget {
 
                   title: Text(
                     tsText.isEmpty
-                        ? createdByName
-                        : '$createdByName  •  $tsText',
+                        ? '$createdByName$projTag'
+                        : '$createdByName  •  $tsText$projTag',
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                     style: const TextStyle(
