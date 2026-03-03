@@ -40,11 +40,14 @@ class _MainMenuScreenState extends State<MainMenuScreen> {
     super.initState();
     _loadVersion();
   }
+  // manual access to reports screen
 
-  bool get _isLee {
+  bool get _isReportsUser {
     final email = FirebaseAuth.instance.currentUser?.email?.toLowerCase() ?? '';
-    return email == 'leerichie@wp.pl';
+    return email == 'info@strefaciszy.net';
   }
+
+  bool get canSeeReportsRW => isAdmin || _isReportsUser;
 
   Widget _storeIconButton({
     required String assetPath,
@@ -144,13 +147,13 @@ class _MainMenuScreenState extends State<MainMenuScreen> {
       children: [
         Image.asset('assets/images/strefa_ciszy_logo.png', width: 200),
         const SizedBox(height: 24),
+        Divider(),
 
-        if (_isLee && isAdmin) ...[
-          // const DebugReserveButton(),
-          const SizedBox(height: 16),
-          const Divider(),
-        ],
-
+        // if (_isLee && isAdmin) ...[
+        //   // const DebugReserveButton(),
+        //   const SizedBox(height: 16),
+        //   const Divider(),
+        // ],
         if (isAdmin) ...[
           ListTile(
             visualDensity: const VisualDensity(
@@ -163,9 +166,11 @@ class _MainMenuScreenState extends State<MainMenuScreen> {
               MaterialPageRoute(builder: (_) => const ManageUsersScreen()),
             ),
           ),
+        ],
+
+        if (canSeeReportsRW) ...[
           ListTile(
             visualDensity: const VisualDensity(vertical: -4),
-
             leading: const Icon(Icons.summarize_outlined),
             title: const Text('Raporty RW'),
             subtitle: const Text('Wygenerować raport za dowolny dzień'),
@@ -175,6 +180,10 @@ class _MainMenuScreenState extends State<MainMenuScreen> {
               );
             },
           ),
+          Divider(),
+        ],
+
+        if (isAdmin) ...[
           ListTile(
             visualDensity: const VisualDensity(vertical: -4),
 
