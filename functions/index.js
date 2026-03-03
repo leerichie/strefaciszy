@@ -11,6 +11,10 @@ admin.initializeApp();
 const ExcelJS   = require('exceljs');
 const nodemailer = require('nodemailer');
 
+const REPORTS_MANUAL_SEND_EMAILS = [
+  'info@strefaciszy.net',
+];
+
 async function verifyAdmin(req, res) {
   const auth = req.header('Authorization') || '';
   const match = auth.match(/^Bearer (.+)$/);
@@ -35,11 +39,39 @@ async function verifyAdmin(req, res) {
   return decoded.uid;
 }
 
+
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'Authorization, Content-Type',
 };
 
+async function verifyAdminOrReportSender(req, res) {
+  const auth = req.header('Authorization') || '';
+  const match = auth.match(/^Bearer (.+)$/);
+  if (!match) {
+    res.status(401).json({error: 'Unauthenticated'});
+    return null;
+  }
+
+  let decoded;
+  try {
+    decoded = await admin.auth().verifyIdToken(match[1]);
+  } catch (e) {
+    res.status(401).json({error: 'Invalid token'});
+    return null;
+  }
+
+  if (decoded.admin) return decoded.uid;
+
+  const email = (decoded.email || '').toLowerCase().trim();
+  const allowed = REPORTS_MANUAL_SEND_EMAILS.includes(email);
+  if (!allowed) {
+    res.status(403).json({error: 'Admin only'});
+    return null;
+  }
+
+  return decoded.uid;
+}
 // daily report
 const smtpHost  = process.env.SMTP_HOST || null;
 const smtpUser  = process.env.SMTP_USER || null;
@@ -379,8 +411,8 @@ exports.sendDailyRwReportHttp = functions.https.onRequest(async (req, res) => {
   }
   res.set(corsHeaders);
 
-  const adminUid = await verifyAdmin(req, res);
-  if (!adminUid) return;
+  const uid = await verifyAdminOrReportSender(req, res);
+  if (!uid) return;
 
   const body = (req.body && typeof req.body === "object") ? req.body : {};
   let {dayKey, to} = body;
