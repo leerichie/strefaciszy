@@ -38,13 +38,15 @@ class _ProjectCurrentTabsState extends State<ProjectCurrentTabs> {
   static const String kUpdatedAt = 'updatedAt';
   static const String kUpdatedBy = 'updatedBy';
   static const String kUpdatedByName = 'updatedByName';
+  static const String kPosField = 'pos';
 
   // coord todo
   static const String kShoppingTaskKey = 'shopping';
   static const String kTaskKeyField = 'taskKey';
   static const String kActionField = 'action';
   static const String kShoppingItemIdField = 'shoppingItemId';
-  bool _shoppingEnsured = false;
+  final bool _shoppingEnsured = false;
+  final Map<String, bool> _posMigratedField = {};
 
   final Map<String, TextEditingController> _newEntryCtrls = {};
   final Map<String, Timer?> _newEntryDebounce = {};
@@ -734,8 +736,14 @@ class _ProjectCurrentTabsState extends State<ProjectCurrentTabs> {
         (taskColor != null) &&
         (field == kChangesNotesField || field == kCoordinationField);
 
+    final snap = await widget.projRef.get();
+    final data = snap.data() ?? <String, dynamic>{};
+    final existing = _readEntries(data, field);
+    final newPos = _newTopPos(existing);
+
     final entry = <String, dynamic>{
       'id': id,
+      kPosField: newPos,
       'text': trimmed,
       'createdAt': now,
       'createdBy': user.uid,
@@ -774,65 +782,65 @@ class _ProjectCurrentTabsState extends State<ProjectCurrentTabs> {
     }
   }
 
-  Future<void> _ensureShoppingTaskExists(
-    Map<String, dynamic> projectData,
-  ) async {
-    if (_shoppingEnsured) return;
+  // Future<void> _ensureShoppingTaskExists(
+  //   Map<String, dynamic> projectData,
+  // ) async {
+  //   if (_shoppingEnsured) return;
 
-    final user = FirebaseAuth.instance.currentUser;
-    if (user == null) return;
-    if (widget.readOnly) return;
+  //   final user = FirebaseAuth.instance.currentUser;
+  //   if (user == null) return;
+  //   if (widget.readOnly) return;
 
-    final raw = (projectData[kCoordinationField] as List?) ?? const [];
-    final exists = raw.any((e) {
-      if (e is! Map) return false;
-      return (e[kTaskKeyField]?.toString() ?? '') == kShoppingTaskKey;
-    });
+  //   final raw = (projectData[kCoordinationField] as List?) ?? const [];
+  //   final exists = raw.any((e) {
+  //     if (e is! Map) return false;
+  //     return (e[kTaskKeyField]?.toString() ?? '') == kShoppingTaskKey;
+  //   });
 
-    if (exists) {
-      _shoppingEnsured = true;
+  //   if (exists) {
+  //     _shoppingEnsured = true;
 
-      await _ensureLinkedShoppingDoc(entry: {'id': kShoppingTaskKey});
-      return;
-    }
+  //     await _ensureLinkedShoppingDoc(entry: {'id': kShoppingTaskKey});
+  //     return;
+  //   }
 
-    _shoppingEnsured = true; // prevent multiple
+  //   _shoppingEnsured = true; // prevent multiple
 
-    final userName = await _resolveUserName(user);
-    final entry = <String, dynamic>{
-      'id': kShoppingTaskKey,
-      kTaskKeyField: kShoppingTaskKey,
-      'text': 'Do zakupy',
-      'createdAt': Timestamp.now(),
-      'createdBy': user.uid,
-      'createdByName': userName,
-      'isTask': true,
-      'done': false,
-      'color': 'red',
-    };
+  //   final userName = await _resolveUserName(user);
+  //   final entry = <String, dynamic>{
+  //     'id': kShoppingTaskKey,
+  //     kTaskKeyField: kShoppingTaskKey,
+  //     'text': 'Do zakupy',
+  //     'createdAt': Timestamp.now(),
+  //     'createdBy': user.uid,
+  //     'createdByName': userName,
+  //     'isTask': true,
+  //     'done': false,
+  //     'color': 'red',
+  //   };
 
-    await FirebaseFirestore.instance.runTransaction((tx) async {
-      final snap = await tx.get(widget.projRef);
-      if (!snap.exists) return;
+  //   await FirebaseFirestore.instance.runTransaction((tx) async {
+  //     final snap = await tx.get(widget.projRef);
+  //     if (!snap.exists) return;
 
-      final data = snap.data() ?? <String, dynamic>{};
-      final list = (data[kCoordinationField] as List?) ?? const [];
+  //     final data = snap.data() ?? <String, dynamic>{};
+  //     final list = (data[kCoordinationField] as List?) ?? const [];
 
-      final stillMissing = !list.any((e) {
-        if (e is! Map) return false;
-        return (e[kTaskKeyField]?.toString() ?? '') == kShoppingTaskKey;
-      });
-      if (!stillMissing) return;
+  //     final stillMissing = !list.any((e) {
+  //       if (e is! Map) return false;
+  //       return (e[kTaskKeyField]?.toString() ?? '') == kShoppingTaskKey;
+  //     });
+  //     if (!stillMissing) return;
 
-      tx.update(widget.projRef, {
-        kCoordinationField: FieldValue.arrayUnion([entry]),
-        'updatedAt': FieldValue.serverTimestamp(),
-        'updatedBy': user.uid,
-        'updatedByName': userName,
-      });
-      await _ensureLinkedShoppingDoc(entry: {'id': kShoppingTaskKey});
-    });
-  }
+  //     tx.update(widget.projRef, {
+  //       kCoordinationField: FieldValue.arrayUnion([entry]),
+  //       'updatedAt': FieldValue.serverTimestamp(),
+  //       'updatedBy': user.uid,
+  //       'updatedByName': userName,
+  //     });
+  //     await _ensureLinkedShoppingDoc(entry: {'id': kShoppingTaskKey});
+  //   });
+  // }
 
   Future<void> _updateLogEntry({
     required String field,
@@ -1127,72 +1135,133 @@ class _ProjectCurrentTabsState extends State<ProjectCurrentTabs> {
     }
   }
 
-  // Future<void> _addShoppingTask({required String text}) async {
-  //   if (widget.readOnly) return;
+  double _posOf(Map<String, dynamic> e) {
+    final v = e[kPosField];
+    if (v is num) return v.toDouble();
+    return double.nan;
+  }
 
-  //   final user = FirebaseAuth.instance.currentUser;
-  //   if (user == null) return;
+  double _newTopPos(List<Map<String, dynamic>> entries) {
+    double minPos = 0.0;
+    bool found = false;
 
-  //   final trimmed = text.trim();
-  //   final finalText = trimmed.isEmpty ? 'Do zakupy' : trimmed;
+    for (final e in entries) {
+      final p = _posOf(e);
+      if (p.isNaN) continue;
+      if (!found || p < minPos) {
+        minPos = p;
+        found = true;
+      }
+    }
 
-  //   final userName = await _resolveUserName(user);
+    return found ? (minPos - 1.0) : 0.0;
+  }
 
-  //   final entry = <String, dynamic>{
-  //     'id': kShoppingTaskKey,
-  //     kTaskKeyField: kShoppingTaskKey,
-  //     'text': finalText,
-  //     'createdAt': Timestamp.now(),
-  //     'createdBy': user.uid,
-  //     'createdByName': userName,
-  //     'isTask': true,
-  //     'done': false,
-  //     'color': 'red',
-  //   };
+  Future<void> _setEntryPos({
+    required String field,
+    required Map<String, dynamic> oldEntry,
+    required double newPos,
+  }) async {
+    if (widget.readOnly) return;
 
-  //   await FirebaseFirestore.instance.runTransaction((tx) async {
-  //     final snap = await tx.get(widget.projRef);
-  //     if (!snap.exists) return;
+    final user = FirebaseAuth.instance.currentUser;
+    if (user == null) return;
 
-  //     final data = snap.data() ?? <String, dynamic>{};
-  //     final list = (data[kCoordinationField] as List?) ?? const [];
+    final userName = await _resolveUserName(user);
+    final now = Timestamp.now();
 
-  //     final existing = list.cast<dynamic>().firstWhere(
-  //       (e) =>
-  //           e is Map &&
-  //           (e[kTaskKeyField]?.toString() ?? '') == kShoppingTaskKey,
-  //       orElse: () => null,
-  //     );
+    final updated = Map<String, dynamic>.from(oldEntry);
+    updated[kPosField] = newPos;
+    updated[kUpdatedAt] = now;
+    updated[kUpdatedBy] = user.uid;
+    updated[kUpdatedByName] = userName;
 
-  //     if (existing != null && existing is Map) {
-  //       final existingMap = Map<String, dynamic>.from(existing);
-  //       final updated = Map<String, dynamic>.from(existingMap);
-  //       updated['text'] = finalText;
-  //       updated[kUpdatedAt] = Timestamp.now();
-  //       updated[kUpdatedBy] = user.uid;
-  //       updated[kUpdatedByName] = userName;
+    await widget.projRef.update({
+      field: FieldValue.arrayRemove([oldEntry]),
+    });
+    await widget.projRef.update({
+      field: FieldValue.arrayUnion([updated]),
+      'updatedAt': FieldValue.serverTimestamp(),
+      'updatedBy': user.uid,
+    });
+  }
 
-  //       tx.update(widget.projRef, {
-  //         kCoordinationField: FieldValue.arrayRemove([existingMap]),
-  //       });
-  //       tx.update(widget.projRef, {
-  //         kCoordinationField: FieldValue.arrayUnion([updated]),
-  //         'updatedAt': FieldValue.serverTimestamp(),
-  //         'updatedBy': user.uid,
-  //         'updatedByName': userName,
-  //       });
-  //       return;
-  //     }
+  // migration reposition entries---
+  Future<void> _migrateMissingPos({
+    required Map<String, dynamic> projectData,
+    required String field,
+  }) async {
+    if (_posMigratedField[field] == true) return;
 
-  //     tx.update(widget.projRef, {
-  //       kCoordinationField: FieldValue.arrayUnion([entry]),
-  //       'updatedAt': FieldValue.serverTimestamp(),
-  //       'updatedBy': user.uid,
-  //       'updatedByName': userName,
-  //     });
-  //   });
-  //   await _ensureLinkedShoppingDoc(entry: {'id': kShoppingTaskKey});
-  // }
+    final user = FirebaseAuth.instance.currentUser;
+    if (user == null) return;
+
+    final raw = (projectData[field] as List?) ?? const [];
+    if (raw.isEmpty) {
+      _posMigratedField[field] = true;
+      return;
+    }
+
+    bool hasMissing = false;
+    for (final e in raw) {
+      if (e is! Map) continue;
+      final v = e[kPosField];
+      if (v is! num) {
+        hasMissing = true;
+        break;
+      }
+    }
+
+    if (!hasMissing) {
+      _posMigratedField[field] = true;
+      return;
+    }
+
+    _posMigratedField[field] = true;
+
+    final userName = await _resolveUserName(user);
+
+    DateTime activityAt(Map<String, dynamic> e) {
+      final u = (e[kUpdatedAt] as Timestamp?)?.toDate();
+      final c = (e['createdAt'] as Timestamp?)?.toDate();
+      return (u ?? c ?? DateTime.fromMillisecondsSinceEpoch(0)).toLocal();
+    }
+
+    try {
+      await FirebaseFirestore.instance.runTransaction((tx) async {
+        final snap = await tx.get(widget.projRef);
+        if (!snap.exists) return;
+
+        final data = snap.data() ?? <String, dynamic>{};
+        final listRaw = (data[field] as List?) ?? const [];
+
+        final list = <Map<String, dynamic>>[];
+        for (final e in listRaw) {
+          if (e is Map) list.add(Map<String, dynamic>.from(e));
+        }
+
+        final stillMissing = list.any((e) => e[kPosField] is! num);
+        if (!stillMissing) return;
+
+        list.sort((a, b) => activityAt(b).compareTo(activityAt(a)));
+
+        for (int i = 0; i < list.length; i++) {
+          if (list[i][kPosField] is! num) {
+            list[i][kPosField] = i.toDouble();
+          }
+        }
+
+        tx.update(widget.projRef, {
+          field: list,
+          'updatedAt': FieldValue.serverTimestamp(),
+          'updatedBy': user.uid,
+          'updatedByName': userName,
+        });
+      });
+    } catch (_) {
+      _posMigratedField[field] = false;
+    }
+  }
 
   List<Map<String, dynamic>> _readEntries(
     Map<String, dynamic> data,
@@ -1207,7 +1276,21 @@ class _ProjectCurrentTabsState extends State<ProjectCurrentTabs> {
       return (u ?? c ?? DateTime.fromMillisecondsSinceEpoch(0)).toLocal();
     }
 
-    list.sort((a, b) => activityAt(b).compareTo(activityAt(a)));
+    list.sort((a, b) {
+      final pa = _posOf(a);
+      final pb = _posOf(b);
+
+      final aHas = !pa.isNaN;
+      final bHas = !pb.isNaN;
+
+      if (aHas && bHas) return pa.compareTo(pb);
+
+      if (aHas && !bHas) return -1;
+      if (!aHas && bHas) return 1;
+
+      return activityAt(b).compareTo(activityAt(a));
+    });
+
     return list;
   }
 
@@ -1262,207 +1345,579 @@ class _ProjectCurrentTabsState extends State<ProjectCurrentTabs> {
         borderRadius: BorderRadius.circular(6),
       ),
       padding: const EdgeInsets.all(8),
-      child: ListView.builder(
-        controller: scrollCtrl,
-        padding: EdgeInsets.zero,
-        itemCount: 1 + entries.length + (bottom != null ? 1 : 0),
-        itemBuilder: (context, index) {
-          if (index == 0) {
-            final armed = _pendingTaskColorByField[field];
-            final iconColor = armed == 'red'
-                ? Colors.red
-                : armed == 'blue'
-                ? Colors.blue
-                : armed == 'black'
-                ? Colors.black
-                : Colors.black54;
+      // child: ListView.builder(
+      //   controller: scrollCtrl,
+      //   padding: EdgeInsets.zero,
+      //   itemCount: 1 + entries.length + (bottom != null ? 1 : 0),
+      //   itemBuilder: (context, index) {
+      //     if (index == 0) {
+      //       final armed = _pendingTaskColorByField[field];
+      //       final iconColor = armed == 'red'
+      //           ? Colors.red
+      //           : armed == 'blue'
+      //           ? Colors.blue
+      //           : armed == 'black'
+      //           ? Colors.black
+      //           : Colors.black54;
 
-            return Column(
-              children: [
-                TextField(
-                  controller: inputCtrl,
-                  enabled: !widget.readOnly,
-                  minLines: 1,
-                  maxLines: 3,
-                  textInputAction: TextInputAction.done,
-                  decoration: InputDecoration(
-                    isDense: true,
-                    border: const OutlineInputBorder(),
-                    hintText: hint,
-                    contentPadding: const EdgeInsets.symmetric(
-                      horizontal: 10,
-                      vertical: 8,
+      //       return Column(
+      //         children: [
+      //           TextField(
+      //             controller: inputCtrl,
+      //             enabled: !widget.readOnly,
+      //             minLines: 1,
+      //             maxLines: 3,
+      //             textInputAction: TextInputAction.done,
+      //             decoration: InputDecoration(
+      //               isDense: true,
+      //               border: const OutlineInputBorder(),
+      //               hintText: hint,
+      //               contentPadding: const EdgeInsets.symmetric(
+      //                 horizontal: 10,
+      //                 vertical: 8,
+      //               ),
+      //               suffixIcon: (field == kChangesNotesField)
+      //                   ? IconButton(
+      //                       tooltip: 'Wpis checkbox',
+      //                       icon: Icon(
+      //                         Icons.check_box,
+      //                         color: iconColor,
+      //                         fontWeight: FontWeight.w800,
+      //                         size: 25,
+      //                       ),
+      //                       onPressed: widget.readOnly
+      //                           ? null
+      //                           : () async {
+      //                               final picked =
+      //                                   await _pickTaskColourDialog();
+      //                               if (picked == null) return;
+
+      //                               setState(
+      //                                 () => _pendingTaskColorByField[field] =
+      //                                     picked,
+      //                               );
+      //                             },
+      //                     )
+      //                   : (field == kCoordinationField)
+      //                   ? IconButton(
+      //                       tooltip: 'Wpis checkbox',
+      //                       icon: const Icon(
+      //                         Icons.check_box,
+      //                         color: Colors.red,
+      //                         size: 25,
+      //                       ),
+      //                       onPressed: widget.readOnly
+      //                           ? null
+      //                           : () async {
+      //                               final picked =
+      //                                   await _pickCoordinationTaskDialog();
+      //                               if (picked == null) return;
+
+      //                               setState(
+      //                                 () => _pendingTaskColorByField[field] =
+      //                                     picked,
+      //                               );
+
+      //                               final typed = inputCtrl.text.trim();
+      //                               await _createLogEntry(
+      //                                 field: field,
+      //                                 text: typed.isEmpty ? 'Do zakupy' : typed,
+      //                               );
+      //                             },
+      //                     )
+      //                   : null,
+      //             ),
+      //             onSubmitted: (v) => _createLogEntry(field: field, text: v),
+      //           ),
+
+      //           const SizedBox(height: 8),
+      //         ],
+      //       );
+      //     }
+
+      //     final entryIndex = index - 1;
+
+      //     // LEGACY
+      //     if (bottom != null && entryIndex == entries.length) {
+      //       return bottom;
+      //     }
+
+      //     final e = entries[entryIndex];
+      //     final id = (e['id'] as String?) ?? '';
+      //     final text = (e['text'] as String?) ?? '';
+
+      //     final createdAt = (e['createdAt'] as Timestamp?)?.toDate().toLocal();
+      //     final createdByName = (e['createdByName'] as String?) ?? '';
+
+      //     final updatedAt = (e[kUpdatedAt] as Timestamp?)?.toDate().toLocal();
+      //     final updatedByName = (e[kUpdatedByName] as String?) ?? '';
+
+      //     final canEdit = user != null;
+      //     final canDelete = _isAdmin && user != null;
+      //     final headerTime = updatedAt ?? createdAt;
+      //     final headerName = (updatedAt != null ? updatedByName : createdByName)
+      //         .trim();
+
+      //     final header = headerTime == null
+      //         ? '—'
+      //         : '${_fmt(headerTime)}'
+      //               '${headerName.isNotEmpty ? ' • $headerName' : ''}'
+      //               '${updatedAt != null ? ' (edyt.)' : ''}';
+
+      //     final ctrl = _entryCtrls.putIfAbsent(
+      //       id,
+      //       () => TextEditingController(),
+      //     );
+      //     final focus = _entryFocus.putIfAbsent(id, () => FocusNode());
+
+      //     if (!focus.hasFocus && ctrl.text != text) {
+      //       ctrl.text = text;
+      //     }
+
+      //     final isTask = e['isTask'] == true;
+      //     final done = e['done'] == true;
+      //     final colorStr = (e['color'] ?? 'black').toString();
+      //     final taskColor = colorStr == 'red'
+      //         ? Colors.red
+      //         : colorStr == 'blue'
+      //         ? Colors.blue
+      //         : Colors.black;
+
+      //     return Padding(
+      //       padding: EdgeInsets.only(
+      //         bottom: entryIndex == entries.length - 1 ? 0 : 10,
+      //       ),
+      //       child: Column(
+      //         crossAxisAlignment: CrossAxisAlignment.start,
+      //         children: [
+      //           // HEADER
+      //           InkWell(
+      //             onLongPress: (user != null && !widget.readOnly)
+      //                 ? () => _onHeaderLongPress(field: field, entry: e)
+      //                 : null,
+      //             child: Text(
+      //               header,
+      //               style: const TextStyle(
+      //                 fontSize: 11,
+      //                 color: Colors.black54,
+      //                 height: 1.1,
+      //               ),
+      //             ),
+      //           ),
+
+      //           const SizedBox(height: 3),
+
+      //           // BODY
+      //           if (isTask)
+      //             Row(
+      //               crossAxisAlignment: CrossAxisAlignment.start,
+      //               children: [
+      //                 SizedBox(
+      //                   height: 20,
+      //                   width: 20,
+      //                   child: Checkbox(
+      //                     value: done,
+      //                     onChanged: (canEdit && !widget.readOnly)
+      //                         ? (v) async {
+      //                             final nextDone = (v == true);
+
+      //                             if (nextDone) {
+      //                               final ok = await _confirmMarkDoneDialog();
+      //                               if (!ok) return;
+      //                             }
+
+      //                             await _toggleLogTaskDone(
+      //                               field: field,
+      //                               oldEntry: e,
+      //                               done: nextDone,
+      //                             );
+      //                           }
+      //                         : null,
+      //                     activeColor: Colors.green,
+      //                     checkColor: Colors.white,
+      //                     materialTapTargetSize:
+      //                         MaterialTapTargetSize.shrinkWrap,
+      //                     visualDensity: const VisualDensity(
+      //                       horizontal: -4,
+      //                       vertical: -4,
+      //                     ),
+      //                   ),
+      //                 ),
+      //                 const SizedBox(width: 6),
+      //                 Expanded(
+      //                   child: (canEdit && !widget.readOnly)
+      //                       ? TextField(
+      //                           controller: ctrl,
+      //                           focusNode: focus,
+      //                           minLines: 1,
+      //                           maxLines: null,
+      //                           textInputAction: TextInputAction.done,
+      //                           decoration: const InputDecoration(
+      //                             isDense: true,
+      //                             border: InputBorder.none,
+      //                             contentPadding: EdgeInsets.zero,
+      //                           ),
+      //                           style: TextStyle(
+      //                             fontSize: 13,
+      //                             height: 1.2,
+      //                             color: taskColor,
+      //                           ),
+      //                           onSubmitted: (v) => _updateLogEntry(
+      //                             field: field,
+      //                             oldEntry: e,
+      //                             newText: v,
+      //                           ),
+      //                         )
+      //                       : SelectableText(
+      //                           text,
+      //                           style: TextStyle(
+      //                             fontSize: 13,
+      //                             height: 1.2,
+      //                             color: taskColor,
+      //                           ),
+      //                         ),
+      //                 ),
+      //               ],
+      //             )
+      //           else
+      //             (canEdit && !widget.readOnly)
+      //                 ? TextField(
+      //                     controller: ctrl,
+      //                     focusNode: focus,
+      //                     minLines: 1,
+      //                     maxLines: null,
+      //                     textInputAction: TextInputAction.done,
+      //                     decoration: const InputDecoration(
+      //                       isDense: true,
+      //                       border: InputBorder.none,
+      //                       contentPadding: EdgeInsets.zero,
+      //                     ),
+      //                     style: const TextStyle(fontSize: 13, height: 1.2),
+      //                     onSubmitted: (v) => _updateLogEntry(
+      //                       field: field,
+      //                       oldEntry: e,
+      //                       newText: v,
+      //                     ),
+      //                   )
+      //                 : SelectableText(
+      //                     text,
+      //                     style: const TextStyle(fontSize: 13, height: 1.2),
+      //                   ),
+      //         ],
+      //       ),
+      //     );
+      //   },
+      // ),
+      child: Column(
+        children: [
+          Builder(
+            builder: (context) {
+              final armed = _pendingTaskColorByField[field];
+              final iconColor = armed == 'red'
+                  ? Colors.red
+                  : armed == 'blue'
+                  ? Colors.blue
+                  : armed == 'black'
+                  ? Colors.black
+                  : Colors.black54;
+
+              return Column(
+                children: [
+                  TextField(
+                    controller: inputCtrl,
+                    enabled: !widget.readOnly,
+                    minLines: 1,
+                    maxLines: 3,
+                    textInputAction: TextInputAction.done,
+                    decoration: InputDecoration(
+                      isDense: true,
+                      border: const OutlineInputBorder(),
+                      hintText: hint,
+                      contentPadding: const EdgeInsets.symmetric(
+                        horizontal: 10,
+                        vertical: 8,
+                      ),
+                      suffixIcon: (field == kChangesNotesField)
+                          ? IconButton(
+                              tooltip: 'Wpis checkbox',
+                              icon: Icon(
+                                Icons.check_box,
+                                color: iconColor,
+                                fontWeight: FontWeight.w800,
+                                size: 25,
+                              ),
+                              onPressed: widget.readOnly
+                                  ? null
+                                  : () async {
+                                      final picked =
+                                          await _pickTaskColourDialog();
+                                      if (picked == null) return;
+
+                                      setState(
+                                        () => _pendingTaskColorByField[field] =
+                                            picked,
+                                      );
+                                    },
+                            )
+                          : (field == kCoordinationField)
+                          ? IconButton(
+                              tooltip: 'Wpis checkbox',
+                              icon: const Icon(
+                                Icons.check_box,
+                                color: Colors.red,
+                                size: 25,
+                              ),
+                              onPressed: widget.readOnly
+                                  ? null
+                                  : () async {
+                                      final picked =
+                                          await _pickCoordinationTaskDialog();
+                                      if (picked == null) return;
+
+                                      setState(
+                                        () => _pendingTaskColorByField[field] =
+                                            picked,
+                                      );
+
+                                      final typed = inputCtrl.text.trim();
+                                      await _createLogEntry(
+                                        field: field,
+                                        text: typed.isEmpty
+                                            ? 'Do zakupy'
+                                            : typed,
+                                      );
+                                    },
+                            )
+                          : null,
                     ),
-                    suffixIcon: (field == kChangesNotesField)
-                        ? IconButton(
-                            tooltip: 'Wpis checkbox',
-                            icon: Icon(
-                              Icons.check_box,
-                              color: iconColor,
-                              fontWeight: FontWeight.w800,
-                              size: 25,
-                            ),
-                            onPressed: widget.readOnly
-                                ? null
-                                : () async {
-                                    final picked =
-                                        await _pickTaskColourDialog();
-                                    if (picked == null) return;
-
-                                    setState(
-                                      () => _pendingTaskColorByField[field] =
-                                          picked,
-                                    );
-                                  },
-                          )
-                        : (field == kCoordinationField)
-                        ? IconButton(
-                            tooltip: 'Wpis checkbox',
-                            icon: const Icon(
-                              Icons.check_box,
-                              color: Colors.red,
-                              size: 25,
-                            ),
-                            onPressed: widget.readOnly
-                                ? null
-                                : () async {
-                                    final picked =
-                                        await _pickCoordinationTaskDialog();
-                                    if (picked == null) return;
-
-                                    setState(
-                                      () => _pendingTaskColorByField[field] =
-                                          picked,
-                                    );
-
-                                    final typed = inputCtrl.text.trim();
-                                    await _createLogEntry(
-                                      field: field,
-                                      text: typed.isEmpty ? 'Do zakupy' : typed,
-                                    );
-                                  },
-                          )
-                        : null,
+                    onSubmitted: (v) => _createLogEntry(field: field, text: v),
                   ),
-                  onSubmitted: (v) => _createLogEntry(field: field, text: v),
-                ),
+                  const SizedBox(height: 8),
+                ],
+              );
+            },
+          ),
 
-                const SizedBox(height: 8),
-              ],
-            );
-          }
+          // --- ENTRIES (reorderable)
+          Expanded(
+            child: ReorderableListView.builder(
+              buildDefaultDragHandles: false,
+              padding: EdgeInsets.zero,
+              itemCount: entries.length + (bottom != null ? 1 : 0),
+              onReorder: widget.readOnly
+                  ? (_, __) {}
+                  : (oldIndex, newIndex) async {
+                      if (newIndex > oldIndex) newIndex -= 1;
 
-          final entryIndex = index - 1;
+                      if (bottom != null &&
+                          (oldIndex >= entries.length ||
+                              newIndex >= entries.length)) {
+                        return;
+                      }
 
-          // LEGACY
-          if (bottom != null && entryIndex == entries.length) {
-            return bottom;
-          }
+                      final moved = entries[oldIndex];
 
-          final e = entries[entryIndex];
-          final id = (e['id'] as String?) ?? '';
-          final text = (e['text'] as String?) ?? '';
+                      final prev = (newIndex - 1 >= 0)
+                          ? entries[newIndex - 1]
+                          : null;
+                      final next = (newIndex + 1 < entries.length)
+                          ? entries[newIndex + 1]
+                          : null;
 
-          final createdAt = (e['createdAt'] as Timestamp?)?.toDate().toLocal();
-          final createdByName = (e['createdByName'] as String?) ?? '';
+                      final prevPos = prev == null ? double.nan : _posOf(prev);
+                      final nextPos = next == null ? double.nan : _posOf(next);
 
-          final updatedAt = (e[kUpdatedAt] as Timestamp?)?.toDate().toLocal();
-          final updatedByName = (e[kUpdatedByName] as String?) ?? '';
+                      double newPos;
 
-          final canEdit = user != null;
-          final canDelete = _isAdmin && user != null;
-          final headerTime = updatedAt ?? createdAt;
-          final headerName = (updatedAt != null ? updatedByName : createdByName)
-              .trim();
+                      if (!prevPos.isNaN && !nextPos.isNaN) {
+                        newPos = (prevPos + nextPos) / 2.0;
+                      } else if (!nextPos.isNaN) {
+                        newPos = nextPos - 1.0;
+                      } else if (!prevPos.isNaN) {
+                        newPos = prevPos + 1.0;
+                      } else {
+                        newPos = newIndex.toDouble();
+                      }
 
-          final header = headerTime == null
-              ? '—'
-              : '${_fmt(headerTime)}'
-                    '${headerName.isNotEmpty ? ' • $headerName' : ''}'
-                    '${updatedAt != null ? ' (edyt.)' : ''}';
+                      await _setEntryPos(
+                        field: field,
+                        oldEntry: moved,
+                        newPos: newPos,
+                      );
+                    },
+              itemBuilder: (context, index) {
+                // legacy bottom block
+                if (bottom != null && index == entries.length) {
+                  return Container(
+                    key: const ValueKey('__legacy__'),
+                    child: bottom,
+                  );
+                }
 
-          final ctrl = _entryCtrls.putIfAbsent(
-            id,
-            () => TextEditingController(),
-          );
-          final focus = _entryFocus.putIfAbsent(id, () => FocusNode());
+                final e = entries[index];
+                final id = (e['id'] as String?) ?? '__noid__$index';
 
-          if (!focus.hasFocus && ctrl.text != text) {
-            ctrl.text = text;
-          }
+                final text = (e['text'] as String?) ?? '';
 
-          final isTask = e['isTask'] == true;
-          final done = e['done'] == true;
-          final colorStr = (e['color'] ?? 'black').toString();
-          final taskColor = colorStr == 'red'
-              ? Colors.red
-              : colorStr == 'blue'
-              ? Colors.blue
-              : Colors.black;
+                final createdAt = (e['createdAt'] as Timestamp?)
+                    ?.toDate()
+                    .toLocal();
+                final createdByName = (e['createdByName'] as String?) ?? '';
 
-          return Padding(
-            padding: EdgeInsets.only(
-              bottom: entryIndex == entries.length - 1 ? 0 : 10,
-            ),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                // HEADER
-                InkWell(
-                  onLongPress: (user != null && !widget.readOnly)
-                      ? () => _onHeaderLongPress(field: field, entry: e)
-                      : null,
-                  child: Text(
-                    header,
-                    style: const TextStyle(
-                      fontSize: 11,
-                      color: Colors.black54,
-                      height: 1.1,
-                    ),
+                final updatedAt = (e[kUpdatedAt] as Timestamp?)
+                    ?.toDate()
+                    .toLocal();
+                final updatedByName = (e[kUpdatedByName] as String?) ?? '';
+
+                final canEdit = user != null;
+                final headerTime = updatedAt ?? createdAt;
+                final headerName =
+                    (updatedAt != null ? updatedByName : createdByName).trim();
+
+                final header = headerTime == null
+                    ? '—'
+                    : '${_fmt(headerTime)}'
+                          '${headerName.isNotEmpty ? ' • $headerName' : ''}'
+                          '${updatedAt != null ? ' (edyt.)' : ''}';
+
+                final ctrl = _entryCtrls.putIfAbsent(
+                  id,
+                  () => TextEditingController(),
+                );
+                final focus = _entryFocus.putIfAbsent(id, () => FocusNode());
+
+                if (!focus.hasFocus && ctrl.text != text) {
+                  ctrl.text = text;
+                }
+
+                final isTask = e['isTask'] == true;
+                final done = e['done'] == true;
+                final colorStr = (e['color'] ?? 'black').toString();
+                final taskColor = colorStr == 'red'
+                    ? Colors.red
+                    : colorStr == 'blue'
+                    ? Colors.blue
+                    : Colors.black;
+
+                return Container(
+                  key: ValueKey(id),
+                  padding: EdgeInsets.only(
+                    bottom: index == entries.length - 1 ? 0 : 10,
                   ),
-                ),
-
-                const SizedBox(height: 3),
-
-                // BODY
-                if (isTask)
-                  Row(
+                  child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      SizedBox(
-                        height: 20,
-                        width: 20,
-                        child: Checkbox(
-                          value: done,
-                          onChanged: (canEdit && !widget.readOnly)
-                              ? (v) async {
-                                  final nextDone = (v == true);
-
-                                  if (nextDone) {
-                                    final ok = await _confirmMarkDoneDialog();
-                                    if (!ok) return;
-                                  }
-
-                                  await _toggleLogTaskDone(
-                                    field: field,
-                                    oldEntry: e,
-                                    done: nextDone,
-                                  );
-                                }
-                              : null,
-                          activeColor: Colors.green,
-                          checkColor: Colors.white,
-                          materialTapTargetSize:
-                              MaterialTapTargetSize.shrinkWrap,
-                          visualDensity: const VisualDensity(
-                            horizontal: -4,
-                            vertical: -4,
+                      Row(
+                        children: [
+                          Expanded(
+                            child: InkWell(
+                              onLongPress: (user != null && !widget.readOnly)
+                                  ? () => _onHeaderLongPress(
+                                      field: field,
+                                      entry: e,
+                                    )
+                                  : null,
+                              child: Text(
+                                header,
+                                style: const TextStyle(
+                                  fontSize: 11,
+                                  color: Colors.black54,
+                                  height: 1.1,
+                                ),
+                              ),
+                            ),
                           ),
-                        ),
+                          if (!widget.readOnly)
+                            ReorderableDragStartListener(
+                              index: index,
+                              child: const Padding(
+                                padding: EdgeInsets.only(left: 8.0),
+                                child: Icon(
+                                  Icons.drag_handle,
+                                  size: 18,
+                                  color: Colors.black45,
+                                ),
+                              ),
+                            ),
+                        ],
                       ),
-                      const SizedBox(width: 6),
-                      Expanded(
-                        child: (canEdit && !widget.readOnly)
+                      const SizedBox(height: 3),
+                      const SizedBox(height: 3),
+
+                      if (isTask)
+                        Row(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            SizedBox(
+                              height: 20,
+                              width: 20,
+                              child: Checkbox(
+                                value: done,
+                                onChanged: (canEdit && !widget.readOnly)
+                                    ? (v) async {
+                                        final nextDone = (v == true);
+
+                                        if (nextDone) {
+                                          final ok =
+                                              await _confirmMarkDoneDialog();
+                                          if (!ok) return;
+                                        }
+
+                                        await _toggleLogTaskDone(
+                                          field: field,
+                                          oldEntry: e,
+                                          done: nextDone,
+                                        );
+                                      }
+                                    : null,
+                                activeColor: Colors.green,
+                                checkColor: Colors.white,
+                                materialTapTargetSize:
+                                    MaterialTapTargetSize.shrinkWrap,
+                                visualDensity: const VisualDensity(
+                                  horizontal: -4,
+                                  vertical: -4,
+                                ),
+                              ),
+                            ),
+                            const SizedBox(width: 6),
+                            Expanded(
+                              child: (canEdit && !widget.readOnly)
+                                  ? TextField(
+                                      controller: ctrl,
+                                      focusNode: focus,
+                                      minLines: 1,
+                                      maxLines: null,
+                                      textInputAction: TextInputAction.done,
+                                      decoration: const InputDecoration(
+                                        isDense: true,
+                                        border: InputBorder.none,
+                                        contentPadding: EdgeInsets.zero,
+                                      ),
+                                      style: TextStyle(
+                                        fontSize: 13,
+                                        height: 1.2,
+                                        color: taskColor,
+                                      ),
+                                      onSubmitted: (v) => _updateLogEntry(
+                                        field: field,
+                                        oldEntry: e,
+                                        newText: v,
+                                      ),
+                                    )
+                                  : SelectableText(
+                                      text,
+                                      style: TextStyle(
+                                        fontSize: 13,
+                                        height: 1.2,
+                                        color: taskColor,
+                                      ),
+                                    ),
+                            ),
+                          ],
+                        )
+                      else
+                        (canEdit && !widget.readOnly)
                             ? TextField(
                                 controller: ctrl,
                                 focusNode: focus,
@@ -1474,10 +1929,9 @@ class _ProjectCurrentTabsState extends State<ProjectCurrentTabs> {
                                   border: InputBorder.none,
                                   contentPadding: EdgeInsets.zero,
                                 ),
-                                style: TextStyle(
+                                style: const TextStyle(
                                   fontSize: 13,
                                   height: 1.2,
-                                  color: taskColor,
                                 ),
                                 onSubmitted: (v) => _updateLogEntry(
                                   field: field,
@@ -1487,43 +1941,18 @@ class _ProjectCurrentTabsState extends State<ProjectCurrentTabs> {
                               )
                             : SelectableText(
                                 text,
-                                style: TextStyle(
+                                style: const TextStyle(
                                   fontSize: 13,
                                   height: 1.2,
-                                  color: taskColor,
                                 ),
                               ),
-                      ),
                     ],
-                  )
-                else
-                  (canEdit && !widget.readOnly)
-                      ? TextField(
-                          controller: ctrl,
-                          focusNode: focus,
-                          minLines: 1,
-                          maxLines: null,
-                          textInputAction: TextInputAction.done,
-                          decoration: const InputDecoration(
-                            isDense: true,
-                            border: InputBorder.none,
-                            contentPadding: EdgeInsets.zero,
-                          ),
-                          style: const TextStyle(fontSize: 13, height: 1.2),
-                          onSubmitted: (v) => _updateLogEntry(
-                            field: field,
-                            oldEntry: e,
-                            newText: v,
-                          ),
-                        )
-                      : SelectableText(
-                          text,
-                          style: const TextStyle(fontSize: 13, height: 1.2),
-                        ),
-              ],
+                  ),
+                );
+              },
             ),
-          );
-        },
+          ),
+        ],
       ),
     );
   }
@@ -1561,6 +1990,16 @@ class _ProjectCurrentTabsState extends State<ProjectCurrentTabs> {
                 }
 
                 final data = snap.data!.data() ?? <String, dynamic>{};
+                // one-time pos migration
+                _migrateMissingPos(projectData: data, field: kInstallerField);
+                _migrateMissingPos(
+                  projectData: data,
+                  field: kCoordinationField,
+                );
+                _migrateMissingPos(
+                  projectData: data,
+                  field: kChangesNotesField,
+                );
 
                 final legacyCurrentText =
                     (data[kLegacyCurrentTextField] as String?)?.trim() ?? '';
