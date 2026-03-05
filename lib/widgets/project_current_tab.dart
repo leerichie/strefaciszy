@@ -39,6 +39,7 @@ class _ProjectCurrentTabsState extends State<ProjectCurrentTabs> {
   static const String kUpdatedBy = 'updatedBy';
   static const String kUpdatedByName = 'updatedByName';
   static const String kPosField = 'pos';
+  static const String kPinnedField = 'pinned';
 
   // coord todo
   static const String kShoppingTaskKey = 'shopping';
@@ -88,6 +89,10 @@ class _ProjectCurrentTabsState extends State<ProjectCurrentTabs> {
     }
 
     super.dispose();
+  }
+
+  bool _isPinned(Map<String, dynamic> e) {
+    return e[kPinnedField] == true;
   }
 
   Future<void> _ensureLinkedShoppingDoc({
@@ -736,14 +741,13 @@ class _ProjectCurrentTabsState extends State<ProjectCurrentTabs> {
         (taskColor != null) &&
         (field == kChangesNotesField || field == kCoordinationField);
 
-    final snap = await widget.projRef.get();
-    final data = snap.data() ?? <String, dynamic>{};
-    final existing = _readEntries(data, field);
-    final newPos = _newTopPos(existing);
+    // final snap = await widget.projRef.get();
+    // final data = snap.data() ?? <String, dynamic>{};
+    // final existing = _readEntries(data, field);
+    // final newPos = _newTopPos(existing);
 
     final entry = <String, dynamic>{
       'id': id,
-      kPosField: newPos,
       'text': trimmed,
       'createdAt': now,
       'createdBy': user.uid,
@@ -859,6 +863,7 @@ class _ProjectCurrentTabsState extends State<ProjectCurrentTabs> {
     final now = Timestamp.now();
 
     final updated = Map<String, dynamic>.from(oldEntry);
+    updated[kPinnedField] = true;
     updated['text'] = trimmed;
     updated[kUpdatedAt] = now;
     updated[kUpdatedBy] = user.uid;
@@ -1172,6 +1177,7 @@ class _ProjectCurrentTabsState extends State<ProjectCurrentTabs> {
 
     final updated = Map<String, dynamic>.from(oldEntry);
     updated[kPosField] = newPos;
+    updated[kPinnedField] = true;
     updated[kUpdatedAt] = now;
     updated[kUpdatedBy] = user.uid;
     updated[kUpdatedByName] = userName;
@@ -1249,6 +1255,9 @@ class _ProjectCurrentTabsState extends State<ProjectCurrentTabs> {
           if (list[i][kPosField] is! num) {
             list[i][kPosField] = i.toDouble();
           }
+          if (list[i][kPinnedField] != true) {
+            list[i][kPinnedField] = false;
+          }
         }
 
         tx.update(widget.projRef, {
@@ -1277,16 +1286,25 @@ class _ProjectCurrentTabsState extends State<ProjectCurrentTabs> {
     }
 
     list.sort((a, b) {
-      final pa = _posOf(a);
-      final pb = _posOf(b);
+      final aPinned = _isPinned(a);
+      final bPinned = _isPinned(b);
 
-      final aHas = !pa.isNaN;
-      final bHas = !pb.isNaN;
+      if (aPinned && !bPinned) return -1;
+      if (!aPinned && bPinned) return 1;
 
-      if (aHas && bHas) return pa.compareTo(pb);
+      if (aPinned && bPinned) {
+        final pa = _posOf(a);
+        final pb = _posOf(b);
 
-      if (aHas && !bHas) return -1;
-      if (!aHas && bHas) return 1;
+        final aHas = !pa.isNaN;
+        final bHas = !pb.isNaN;
+
+        if (aHas && bHas) return pa.compareTo(pb);
+        if (aHas && !bHas) return -1;
+        if (!aHas && bHas) return 1;
+
+        return activityAt(b).compareTo(activityAt(a));
+      }
 
       return activityAt(b).compareTo(activityAt(a));
     });
@@ -1755,7 +1773,15 @@ class _ProjectCurrentTabsState extends State<ProjectCurrentTabs> {
                 }
 
                 final e = entries[index];
-                final id = (e['id'] as String?) ?? '__noid__$index';
+
+                final rawId = (e['id'] as String?) ?? '';
+                final createdMs = (e['createdAt'] is Timestamp)
+                    ? (e['createdAt'] as Timestamp).millisecondsSinceEpoch
+                    : 0;
+
+                final rowKey = '$field:$rawId:$createdMs:$index';
+
+                final id = rawId.isNotEmpty ? rawId : '__noid__$index';
 
                 final text = (e['text'] as String?) ?? '';
 
@@ -1800,7 +1826,7 @@ class _ProjectCurrentTabsState extends State<ProjectCurrentTabs> {
                     : Colors.black;
 
                 return Container(
-                  key: ValueKey(id),
+                  key: ValueKey(rowKey),
                   padding: EdgeInsets.only(
                     bottom: index == entries.length - 1 ? 0 : 10,
                   ),
@@ -1991,15 +2017,15 @@ class _ProjectCurrentTabsState extends State<ProjectCurrentTabs> {
 
                 final data = snap.data!.data() ?? <String, dynamic>{};
                 // one-time pos migration
-                _migrateMissingPos(projectData: data, field: kInstallerField);
-                _migrateMissingPos(
-                  projectData: data,
-                  field: kCoordinationField,
-                );
-                _migrateMissingPos(
-                  projectData: data,
-                  field: kChangesNotesField,
-                );
+                // _migrateMissingPos(projectData: data, field: kInstallerField);
+                // _migrateMissingPos(
+                //   projectData: data,
+                //   field: kCoordinationField,
+                // );
+                // _migrateMissingPos(
+                //   projectData: data,
+                //   field: kChangesNotesField,
+                // );
 
                 final legacyCurrentText =
                     (data[kLegacyCurrentTextField] as String?)?.trim() ?? '';
