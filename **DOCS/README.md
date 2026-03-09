@@ -16,6 +16,9 @@ firebase firestore:rules > firestore.rules
 -push
 firebase deploy --only firestore:indexes / rules
 
+index.js changes:
+firebase deploy --only functions
+
 
 3. RUN
 clean
