@@ -12,6 +12,7 @@ import 'package:strefa_ciszy/screens/chat_list_screen.dart';
 import 'package:strefa_ciszy/screens/contacts_list_screen.dart';
 import 'package:strefa_ciszy/screens/inventory_list_screen.dart';
 import 'package:strefa_ciszy/screens/login_screen.dart';
+import 'package:strefa_ciszy/screens/my_day_screen.dart';
 import 'package:strefa_ciszy/screens/projects_list_screen.dart';
 import 'package:strefa_ciszy/screens/reports_daily.dart';
 import 'package:strefa_ciszy/screens/shopping_list_screen.dart';
@@ -182,6 +183,18 @@ class _MainMenuScreenState extends State<MainMenuScreen> {
           ),
           Divider(),
         ],
+
+        ListTile(
+          leading: const Icon(Icons.calendar_today_outlined),
+          title: const Text('Mój Dzień'),
+          // subtitle: const Text('Logi o dzień pracy'),
+          onTap: () {
+            Navigator.of(
+              context,
+            ).push(MaterialPageRoute(builder: (_) => const MyDayScreen()));
+          },
+        ),
+        Divider(),
 
         if (isAdmin) ...[
           ListTile(

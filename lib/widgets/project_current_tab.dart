@@ -374,6 +374,36 @@ class _ProjectCurrentTabsState extends State<ProjectCurrentTabs> {
     });
   }
 
+  Future<void> _replaceProjectEntryById({
+    required String field,
+    required String entryId,
+    required Map<String, dynamic> newEntry,
+    required User user,
+    required String userName,
+  }) async {
+    await FirebaseFirestore.instance.runTransaction((tx) async {
+      final snap = await tx.get(widget.projRef);
+      if (!snap.exists) return;
+
+      final data = snap.data() ?? <String, dynamic>{};
+      final raw = (data[field] as List?) ?? const [];
+
+      final updatedList = raw.map((e) {
+        if (e is Map && (e['id']?.toString() ?? '') == entryId) {
+          return Map<String, dynamic>.from(newEntry);
+        }
+        return e;
+      }).toList();
+
+      tx.update(widget.projRef, {
+        field: updatedList,
+        'updatedAt': FieldValue.serverTimestamp(),
+        'updatedBy': user.uid,
+        'updatedByName': userName,
+      });
+    });
+  }
+
   Future<bool> _confirmDeleteDialog() async {
     final ok = await showDialog<bool>(
       context: context,
@@ -768,10 +798,6 @@ class _ProjectCurrentTabsState extends State<ProjectCurrentTabs> {
     if (isTask && field == kCoordinationField) {
       await _ensureLinkedShoppingDoc(entry: {'id': id});
     }
-    // dupe???_updateLogEntry
-    if (field == kCoordinationField && isTask) {
-      await _ensureLinkedShoppingDoc(entry: {'id': id});
-    }
 
     _newEntryCtrls[field]?.clear();
     if (isTask) _pendingTaskColorByField[field] = null;
@@ -785,66 +811,6 @@ class _ProjectCurrentTabsState extends State<ProjectCurrentTabs> {
       );
     }
   }
-
-  // Future<void> _ensureShoppingTaskExists(
-  //   Map<String, dynamic> projectData,
-  // ) async {
-  //   if (_shoppingEnsured) return;
-
-  //   final user = FirebaseAuth.instance.currentUser;
-  //   if (user == null) return;
-  //   if (widget.readOnly) return;
-
-  //   final raw = (projectData[kCoordinationField] as List?) ?? const [];
-  //   final exists = raw.any((e) {
-  //     if (e is! Map) return false;
-  //     return (e[kTaskKeyField]?.toString() ?? '') == kShoppingTaskKey;
-  //   });
-
-  //   if (exists) {
-  //     _shoppingEnsured = true;
-
-  //     await _ensureLinkedShoppingDoc(entry: {'id': kShoppingTaskKey});
-  //     return;
-  //   }
-
-  //   _shoppingEnsured = true; // prevent multiple
-
-  //   final userName = await _resolveUserName(user);
-  //   final entry = <String, dynamic>{
-  //     'id': kShoppingTaskKey,
-  //     kTaskKeyField: kShoppingTaskKey,
-  //     'text': 'Do zakupy',
-  //     'createdAt': Timestamp.now(),
-  //     'createdBy': user.uid,
-  //     'createdByName': userName,
-  //     'isTask': true,
-  //     'done': false,
-  //     'color': 'red',
-  //   };
-
-  //   await FirebaseFirestore.instance.runTransaction((tx) async {
-  //     final snap = await tx.get(widget.projRef);
-  //     if (!snap.exists) return;
-
-  //     final data = snap.data() ?? <String, dynamic>{};
-  //     final list = (data[kCoordinationField] as List?) ?? const [];
-
-  //     final stillMissing = !list.any((e) {
-  //       if (e is! Map) return false;
-  //       return (e[kTaskKeyField]?.toString() ?? '') == kShoppingTaskKey;
-  //     });
-  //     if (!stillMissing) return;
-
-  //     tx.update(widget.projRef, {
-  //       kCoordinationField: FieldValue.arrayUnion([entry]),
-  //       'updatedAt': FieldValue.serverTimestamp(),
-  //       'updatedBy': user.uid,
-  //       'updatedByName': userName,
-  //     });
-  //     await _ensureLinkedShoppingDoc(entry: {'id': kShoppingTaskKey});
-  //   });
-  // }
 
   Future<void> _updateLogEntry({
     required String field,
@@ -1047,8 +1013,6 @@ class _ProjectCurrentTabsState extends State<ProjectCurrentTabs> {
     final user = FirebaseAuth.instance.currentUser;
     if (user == null) return;
 
-    // if (!_canEditEntryWithAdmin(oldEntry, user)) return;
-
     final wasDone = oldEntry['done'] == true;
     final isTask = oldEntry['isTask'] == true;
 
@@ -1066,6 +1030,8 @@ class _ProjectCurrentTabsState extends State<ProjectCurrentTabs> {
 
     final userName = await _resolveUserName(user);
     final now = Timestamp.now();
+    final entryId = (oldEntry['id'] ?? '').toString();
+    if (entryId.isEmpty) return;
 
     final updated = Map<String, dynamic>.from(oldEntry);
     updated['done'] = done;
@@ -1073,36 +1039,33 @@ class _ProjectCurrentTabsState extends State<ProjectCurrentTabs> {
     updated[kUpdatedBy] = user.uid;
     updated[kUpdatedByName] = userName;
 
-    await widget.projRef.update({
-      field: FieldValue.arrayRemove([oldEntry]),
-    });
-    await widget.projRef.update({
-      field: FieldValue.arrayUnion([updated]),
-    });
-
-    // final isShoppingTask =
-    //     (oldEntry[kTaskKeyField]?.toString() ?? '') == kShoppingTaskKey;
+    await _replaceProjectEntryById(
+      field: field,
+      entryId: entryId,
+      newEntry: updated,
+      user: user,
+      userName: userName,
+    );
 
     final isCoordTask =
         field == kCoordinationField && (oldEntry['isTask'] == true);
 
     if (isCoordTask) {
-      await _ensureLinkedShoppingDoc(
-        entry: {'id': (oldEntry['id'] ?? '').toString()},
-      );
+      await _ensureLinkedShoppingDoc(entry: {'id': entryId});
 
       final snap = await widget.projRef.get();
       final data = snap.data() ?? <String, dynamic>{};
       final list = (data[kCoordinationField] as List?) ?? const [];
 
-      final found = list.cast<dynamic>().firstWhere(
-        (e) =>
-            e is Map &&
-            (e['id']?.toString() ?? '') == (oldEntry['id'] ?? '').toString(),
-        orElse: () => null,
-      );
+      Map<String, dynamic>? found;
+      for (final e in list) {
+        if (e is Map && (e['id']?.toString() ?? '') == entryId) {
+          found = Map<String, dynamic>.from(e);
+          break;
+        }
+      }
 
-      if (found is Map) {
+      if (found != null) {
         final shoppingId = (found[kShoppingItemIdField] ?? '').toString();
         if (shoppingId.isNotEmpty) {
           await FirebaseFirestore.instance
@@ -1129,14 +1092,11 @@ class _ProjectCurrentTabsState extends State<ProjectCurrentTabs> {
     }
 
     if (shouldRemoveFromRw) {
-      final sourceTaskId = (oldEntry['id'] ?? '').toString();
-      if (sourceTaskId.isNotEmpty) {
-        await _removeTaskFromTodayRw(
-          user: user,
-          userName: userName,
-          sourceTaskId: sourceTaskId,
-        );
-      }
+      await _removeTaskFromTodayRw(
+        user: user,
+        userName: userName,
+        sourceTaskId: entryId,
+      );
     }
   }
 
@@ -1363,269 +1323,7 @@ class _ProjectCurrentTabsState extends State<ProjectCurrentTabs> {
         borderRadius: BorderRadius.circular(6),
       ),
       padding: const EdgeInsets.all(8),
-      // child: ListView.builder(
-      //   controller: scrollCtrl,
-      //   padding: EdgeInsets.zero,
-      //   itemCount: 1 + entries.length + (bottom != null ? 1 : 0),
-      //   itemBuilder: (context, index) {
-      //     if (index == 0) {
-      //       final armed = _pendingTaskColorByField[field];
-      //       final iconColor = armed == 'red'
-      //           ? Colors.red
-      //           : armed == 'blue'
-      //           ? Colors.blue
-      //           : armed == 'black'
-      //           ? Colors.black
-      //           : Colors.black54;
 
-      //       return Column(
-      //         children: [
-      //           TextField(
-      //             controller: inputCtrl,
-      //             enabled: !widget.readOnly,
-      //             minLines: 1,
-      //             maxLines: 3,
-      //             textInputAction: TextInputAction.done,
-      //             decoration: InputDecoration(
-      //               isDense: true,
-      //               border: const OutlineInputBorder(),
-      //               hintText: hint,
-      //               contentPadding: const EdgeInsets.symmetric(
-      //                 horizontal: 10,
-      //                 vertical: 8,
-      //               ),
-      //               suffixIcon: (field == kChangesNotesField)
-      //                   ? IconButton(
-      //                       tooltip: 'Wpis checkbox',
-      //                       icon: Icon(
-      //                         Icons.check_box,
-      //                         color: iconColor,
-      //                         fontWeight: FontWeight.w800,
-      //                         size: 25,
-      //                       ),
-      //                       onPressed: widget.readOnly
-      //                           ? null
-      //                           : () async {
-      //                               final picked =
-      //                                   await _pickTaskColourDialog();
-      //                               if (picked == null) return;
-
-      //                               setState(
-      //                                 () => _pendingTaskColorByField[field] =
-      //                                     picked,
-      //                               );
-      //                             },
-      //                     )
-      //                   : (field == kCoordinationField)
-      //                   ? IconButton(
-      //                       tooltip: 'Wpis checkbox',
-      //                       icon: const Icon(
-      //                         Icons.check_box,
-      //                         color: Colors.red,
-      //                         size: 25,
-      //                       ),
-      //                       onPressed: widget.readOnly
-      //                           ? null
-      //                           : () async {
-      //                               final picked =
-      //                                   await _pickCoordinationTaskDialog();
-      //                               if (picked == null) return;
-
-      //                               setState(
-      //                                 () => _pendingTaskColorByField[field] =
-      //                                     picked,
-      //                               );
-
-      //                               final typed = inputCtrl.text.trim();
-      //                               await _createLogEntry(
-      //                                 field: field,
-      //                                 text: typed.isEmpty ? 'Do zakupy' : typed,
-      //                               );
-      //                             },
-      //                     )
-      //                   : null,
-      //             ),
-      //             onSubmitted: (v) => _createLogEntry(field: field, text: v),
-      //           ),
-
-      //           const SizedBox(height: 8),
-      //         ],
-      //       );
-      //     }
-
-      //     final entryIndex = index - 1;
-
-      //     // LEGACY
-      //     if (bottom != null && entryIndex == entries.length) {
-      //       return bottom;
-      //     }
-
-      //     final e = entries[entryIndex];
-      //     final id = (e['id'] as String?) ?? '';
-      //     final text = (e['text'] as String?) ?? '';
-
-      //     final createdAt = (e['createdAt'] as Timestamp?)?.toDate().toLocal();
-      //     final createdByName = (e['createdByName'] as String?) ?? '';
-
-      //     final updatedAt = (e[kUpdatedAt] as Timestamp?)?.toDate().toLocal();
-      //     final updatedByName = (e[kUpdatedByName] as String?) ?? '';
-
-      //     final canEdit = user != null;
-      //     final canDelete = _isAdmin && user != null;
-      //     final headerTime = updatedAt ?? createdAt;
-      //     final headerName = (updatedAt != null ? updatedByName : createdByName)
-      //         .trim();
-
-      //     final header = headerTime == null
-      //         ? '—'
-      //         : '${_fmt(headerTime)}'
-      //               '${headerName.isNotEmpty ? ' • $headerName' : ''}'
-      //               '${updatedAt != null ? ' (edyt.)' : ''}';
-
-      //     final ctrl = _entryCtrls.putIfAbsent(
-      //       id,
-      //       () => TextEditingController(),
-      //     );
-      //     final focus = _entryFocus.putIfAbsent(id, () => FocusNode());
-
-      //     if (!focus.hasFocus && ctrl.text != text) {
-      //       ctrl.text = text;
-      //     }
-
-      //     final isTask = e['isTask'] == true;
-      //     final done = e['done'] == true;
-      //     final colorStr = (e['color'] ?? 'black').toString();
-      //     final taskColor = colorStr == 'red'
-      //         ? Colors.red
-      //         : colorStr == 'blue'
-      //         ? Colors.blue
-      //         : Colors.black;
-
-      //     return Padding(
-      //       padding: EdgeInsets.only(
-      //         bottom: entryIndex == entries.length - 1 ? 0 : 10,
-      //       ),
-      //       child: Column(
-      //         crossAxisAlignment: CrossAxisAlignment.start,
-      //         children: [
-      //           // HEADER
-      //           InkWell(
-      //             onLongPress: (user != null && !widget.readOnly)
-      //                 ? () => _onHeaderLongPress(field: field, entry: e)
-      //                 : null,
-      //             child: Text(
-      //               header,
-      //               style: const TextStyle(
-      //                 fontSize: 11,
-      //                 color: Colors.black54,
-      //                 height: 1.1,
-      //               ),
-      //             ),
-      //           ),
-
-      //           const SizedBox(height: 3),
-
-      //           // BODY
-      //           if (isTask)
-      //             Row(
-      //               crossAxisAlignment: CrossAxisAlignment.start,
-      //               children: [
-      //                 SizedBox(
-      //                   height: 20,
-      //                   width: 20,
-      //                   child: Checkbox(
-      //                     value: done,
-      //                     onChanged: (canEdit && !widget.readOnly)
-      //                         ? (v) async {
-      //                             final nextDone = (v == true);
-
-      //                             if (nextDone) {
-      //                               final ok = await _confirmMarkDoneDialog();
-      //                               if (!ok) return;
-      //                             }
-
-      //                             await _toggleLogTaskDone(
-      //                               field: field,
-      //                               oldEntry: e,
-      //                               done: nextDone,
-      //                             );
-      //                           }
-      //                         : null,
-      //                     activeColor: Colors.green,
-      //                     checkColor: Colors.white,
-      //                     materialTapTargetSize:
-      //                         MaterialTapTargetSize.shrinkWrap,
-      //                     visualDensity: const VisualDensity(
-      //                       horizontal: -4,
-      //                       vertical: -4,
-      //                     ),
-      //                   ),
-      //                 ),
-      //                 const SizedBox(width: 6),
-      //                 Expanded(
-      //                   child: (canEdit && !widget.readOnly)
-      //                       ? TextField(
-      //                           controller: ctrl,
-      //                           focusNode: focus,
-      //                           minLines: 1,
-      //                           maxLines: null,
-      //                           textInputAction: TextInputAction.done,
-      //                           decoration: const InputDecoration(
-      //                             isDense: true,
-      //                             border: InputBorder.none,
-      //                             contentPadding: EdgeInsets.zero,
-      //                           ),
-      //                           style: TextStyle(
-      //                             fontSize: 13,
-      //                             height: 1.2,
-      //                             color: taskColor,
-      //                           ),
-      //                           onSubmitted: (v) => _updateLogEntry(
-      //                             field: field,
-      //                             oldEntry: e,
-      //                             newText: v,
-      //                           ),
-      //                         )
-      //                       : SelectableText(
-      //                           text,
-      //                           style: TextStyle(
-      //                             fontSize: 13,
-      //                             height: 1.2,
-      //                             color: taskColor,
-      //                           ),
-      //                         ),
-      //                 ),
-      //               ],
-      //             )
-      //           else
-      //             (canEdit && !widget.readOnly)
-      //                 ? TextField(
-      //                     controller: ctrl,
-      //                     focusNode: focus,
-      //                     minLines: 1,
-      //                     maxLines: null,
-      //                     textInputAction: TextInputAction.done,
-      //                     decoration: const InputDecoration(
-      //                       isDense: true,
-      //                       border: InputBorder.none,
-      //                       contentPadding: EdgeInsets.zero,
-      //                     ),
-      //                     style: const TextStyle(fontSize: 13, height: 1.2),
-      //                     onSubmitted: (v) => _updateLogEntry(
-      //                       field: field,
-      //                       oldEntry: e,
-      //                       newText: v,
-      //                     ),
-      //                   )
-      //                 : SelectableText(
-      //                     text,
-      //                     style: const TextStyle(fontSize: 13, height: 1.2),
-      //                   ),
-      //         ],
-      //       ),
-      //     );
-      //   },
-      // ),
       child: Column(
         children: [
           Builder(

@@ -4,6 +4,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
+import 'package:strefa_ciszy/screens/project_editor_screen.dart';
 import 'package:strefa_ciszy/screens/scan_screen.dart';
 import 'package:strefa_ciszy/widgets/app_scaffold.dart';
 
@@ -460,23 +461,33 @@ class _ItemsList extends StatelessWidget {
             final d = docs[i];
             final data = d.data();
 
+            final customerId = (data['customerId'] ?? '').toString().trim();
+            final projectName = (data['projectName'] ?? '').toString().trim();
+            final projectId = (data['projectId'] ?? '').toString().trim();
+
+            final hasProjectLink =
+                customerId.isNotEmpty &&
+                projectId.isNotEmpty &&
+                projectName.isNotEmpty;
+
             final text = (data['text'] ?? '').toString().trim();
             final createdByName = (data['createdByName'] ?? 'User').toString();
+
             String short(String s, int max) {
               final t = s.trim();
               if (t.length <= max) return t;
               return '${t.substring(0, max - 1)}…';
             }
 
-            final projectName = (data['projectName'] ?? '').toString().trim();
-            final projectId = (data['projectId'] ?? '').toString().trim();
+            // final projectName = (data['projectName'] ?? '').toString().trim();
+            // final projectId = (data['projectId'] ?? '').toString().trim();
             final cardColor = projectId.isEmpty
                 ? Colors.grey.shade100
                 : bgForProject(projectId);
 
-            final projTag = (projectId.isNotEmpty && projectName.isNotEmpty)
-                ? '  •  ${short(projectName, 18)}'
-                : '';
+            // final projTag = (projectId.isNotEmpty && projectName.isNotEmpty)
+            //     ? '  •  ${short(projectName, 18)}'
+            //     : '';
             final bought = (data['bought'] == true);
 
             if (text.isEmpty) return const SizedBox.shrink();
@@ -503,18 +514,60 @@ class _ItemsList extends StatelessWidget {
                   minLeadingWidth: 0,
                   horizontalTitleGap: 8,
 
-                  title: Text(
-                    tsText.isEmpty
-                        ? '$createdByName$projTag'
-                        : '$createdByName  •  $tsText$projTag',
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(
-                      fontSize: 11,
-                      fontWeight: FontWeight.w600,
-                      color: Colors.black54,
-                      height: 1.0,
-                    ),
+                  title: Wrap(
+                    crossAxisAlignment: WrapCrossAlignment.center,
+                    spacing: 4,
+                    children: [
+                      Text(
+                        tsText.isEmpty
+                            ? createdByName
+                            : '$createdByName  •  $tsText',
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(
+                          fontSize: 11,
+                          fontWeight: FontWeight.w600,
+                          color: Colors.black54,
+                          height: 1.0,
+                        ),
+                      ),
+                      if (hasProjectLink) ...[
+                        const Text(
+                          '•',
+                          style: TextStyle(
+                            fontSize: 11,
+                            fontWeight: FontWeight.w600,
+                            color: Colors.black54,
+                            height: 1.0,
+                          ),
+                        ),
+                        GestureDetector(
+                          onTap: () {
+                            Navigator.of(context).push(
+                              MaterialPageRoute(
+                                builder: (_) => ProjectEditorScreen(
+                                  customerId: customerId,
+                                  projectId: projectId,
+                                  isAdmin: false,
+                                ),
+                              ),
+                            );
+                          },
+                          child: Text(
+                            short(projectName, 18),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: const TextStyle(
+                              fontSize: 11,
+                              fontWeight: FontWeight.w700,
+                              color: Colors.blue,
+                              decoration: TextDecoration.underline,
+                              height: 1.0,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ],
                   ),
 
                   subtitle: Padding(
