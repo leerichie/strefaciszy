@@ -583,90 +583,162 @@ class _MyDayScreenState extends State<MyDayScreen> {
 
     return AppScaffold(
       title: 'Mój Dzień',
-      body: Column(
-        children: [
-          Padding(
-            padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
-            child: Row(
-              children: [
-                Expanded(
-                  child: OutlinedButton.icon(
-                    onPressed: _pickDay,
-                    icon: const Icon(Icons.calendar_today),
-                    label: Text('Data: $dateLabel'),
+      body: SafeArea(
+        child: Column(
+          children: [
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: OutlinedButton.icon(
+                      onPressed: _pickDay,
+                      icon: const Icon(Icons.calendar_today),
+                      label: Text('Data: $dateLabel'),
+                    ),
                   ),
-                ),
-                const SizedBox(width: 8),
-                ElevatedButton.icon(
-                  onPressed: _projectsLoading
-                      ? null
-                      : () async {
-                          if (!_projectsLoaded) {
-                            await _ensureProjectsLoaded();
-                          }
-                          if (!mounted) return;
-                          _showEntryDialog();
-                        },
-                  icon: _projectsLoading
-                      ? const SizedBox(
-                          width: 16,
-                          height: 16,
-                          child: CircularProgressIndicator(strokeWidth: 2),
-                        )
-                      : const Icon(Icons.add),
-                  label: Text(_projectsLoading ? 'Ładowanie...' : 'Dodaj'),
-                ),
-              ],
+                  const SizedBox(width: 8),
+                  ElevatedButton.icon(
+                    onPressed: _projectsLoading
+                        ? null
+                        : () async {
+                            if (!_projectsLoaded) {
+                              await _ensureProjectsLoaded();
+                            }
+                            if (!mounted) return;
+                            _showEntryDialog();
+                          },
+                    icon: _projectsLoading
+                        ? const SizedBox(
+                            width: 16,
+                            height: 16,
+                            child: CircularProgressIndicator(strokeWidth: 2),
+                          )
+                        : const Icon(Icons.add),
+                    label: Text(_projectsLoading ? 'Ładowanie...' : 'Dodaj'),
+                  ),
+                ],
+              ),
             ),
-          ),
-          Expanded(
-            child: StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
-              stream: query.snapshots(),
-              builder: (context, snap) {
-                if (snap.connectionState == ConnectionState.waiting) {
-                  return const Center(child: CircularProgressIndicator());
-                }
+            Expanded(
+              child: StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
+                stream: query.snapshots(),
+                builder: (context, snap) {
+                  if (snap.connectionState == ConnectionState.waiting) {
+                    return const Center(child: CircularProgressIndicator());
+                  }
 
-                final docs = snap.data?.docs ?? const [];
-                int totalMinutes = 0;
+                  final docs = snap.data?.docs ?? const [];
+                  int totalMinutes = 0;
 
-                for (final d in docs) {
-                  final data = d.data();
-                  totalMinutes +=
-                      (data['durationMinutes'] as num?)?.toInt() ?? 0;
-                }
-                // final allDocs = snap.data?.docs ?? const [];
+                  for (final d in docs) {
+                    final data = d.data();
+                    totalMinutes +=
+                        (data['durationMinutes'] as num?)?.toInt() ?? 0;
+                  }
+                  // final allDocs = snap.data?.docs ?? const [];
 
-                // final docs =
-                //     allDocs.where((d) {
-                //       final data = d.data();
-                //       return (data['dayKey'] as String?) ==
-                //           _dayKey(_selectedDay);
-                //     }).toList()..sort((a, b) {
-                //       final am =
-                //           (a.data()['startMinutes'] as num?)?.toInt() ?? 0;
-                //       final bm =
-                //           (b.data()['startMinutes'] as num?)?.toInt() ?? 0;
-                //       return am.compareTo(bm);
-                //     });
+                  // final docs =
+                  //     allDocs.where((d) {
+                  //       final data = d.data();
+                  //       return (data['dayKey'] as String?) ==
+                  //           _dayKey(_selectedDay);
+                  //     }).toList()..sort((a, b) {
+                  //       final am =
+                  //           (a.data()['startMinutes'] as num?)?.toInt() ?? 0;
+                  //       final bm =
+                  //           (b.data()['startMinutes'] as num?)?.toInt() ?? 0;
+                  //       return am.compareTo(bm);
+                  //     });
 
-                // int totalMinutes = 0;
+                  // int totalMinutes = 0;
 
-                // for (final d in docs) {
-                //   final data = d.data();
-                //   totalMinutes +=
-                //       (data['durationMinutes'] as num?)?.toInt() ?? 0;
-                // }
+                  // for (final d in docs) {
+                  //   final data = d.data();
+                  //   totalMinutes +=
+                  //       (data['durationMinutes'] as num?)?.toInt() ?? 0;
+                  // }
 
-                if (docs.isEmpty) {
+                  if (docs.isEmpty) {
+                    return Column(
+                      children: [
+                        Expanded(
+                          child: Center(
+                            child: Text(
+                              'Brak wpisów za ten dzień',
+                              style: Theme.of(context).textTheme.titleMedium,
+                            ),
+                          ),
+                        ),
+                        Padding(
+                          padding: const EdgeInsets.all(16),
+                          child: Card(
+                            child: ListTile(
+                              leading: const Icon(Icons.schedule),
+                              title: const Text('Suma godzin'),
+                              trailing: Text(_hoursLabel(totalMinutes)),
+                            ),
+                          ),
+                        ),
+                      ],
+                    );
+                  }
+
                   return Column(
                     children: [
                       Expanded(
-                        child: Center(
-                          child: Text(
-                            'Brak wpisów za ten dzień',
-                            style: Theme.of(context).textTheme.titleMedium,
-                          ),
+                        child: ListView.separated(
+                          padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
+                          itemCount: docs.length,
+                          separatorBuilder: (_, __) =>
+                              const SizedBox(height: 8),
+                          itemBuilder: (context, index) {
+                            final doc = docs[index];
+                            final data = doc.data();
+
+                            final startTime =
+                                (data['startTime'] as String?) ?? '';
+                            final endTime = (data['endTime'] as String?) ?? '';
+                            final projectName =
+                                (data['projectName'] as String?) ?? '';
+                            final description =
+                                (data['description'] as String?) ?? '';
+
+                            final subtitleParts = <String>[
+                              if (projectName.isNotEmpty)
+                                'Projekt: $projectName',
+                              if (description.isNotEmpty) description,
+                            ];
+
+                            return Card(
+                              child: ListTile(
+                                title: Text('$startTime - $endTime'),
+                                subtitle: subtitleParts.isEmpty
+                                    ? null
+                                    : Text(subtitleParts.join('\n')),
+                                isThreeLine: subtitleParts.length > 1,
+                                trailing: PopupMenuButton<String>(
+                                  onSelected: (value) {
+                                    if (value == 'edit') {
+                                      _showEntryDialog(doc: doc);
+                                    } else if (value == 'delete') {
+                                      _deleteEntry(doc);
+                                    }
+                                  },
+                                  itemBuilder: (_) => const [
+                                    PopupMenuItem(
+                                      value: 'edit',
+                                      child: Text('Edytuj'),
+                                    ),
+                                    PopupMenuItem(
+                                      value: 'delete',
+                                      child: Text('Usuń'),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            );
+                          },
                         ),
                       ),
                       Padding(
@@ -681,79 +753,11 @@ class _MyDayScreenState extends State<MyDayScreen> {
                       ),
                     ],
                   );
-                }
-
-                return Column(
-                  children: [
-                    Expanded(
-                      child: ListView.separated(
-                        padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
-                        itemCount: docs.length,
-                        separatorBuilder: (_, __) => const SizedBox(height: 8),
-                        itemBuilder: (context, index) {
-                          final doc = docs[index];
-                          final data = doc.data();
-
-                          final startTime =
-                              (data['startTime'] as String?) ?? '';
-                          final endTime = (data['endTime'] as String?) ?? '';
-                          final projectName =
-                              (data['projectName'] as String?) ?? '';
-                          final description =
-                              (data['description'] as String?) ?? '';
-
-                          final subtitleParts = <String>[
-                            if (projectName.isNotEmpty) 'Projekt: $projectName',
-                            if (description.isNotEmpty) description,
-                          ];
-
-                          return Card(
-                            child: ListTile(
-                              title: Text('$startTime - $endTime'),
-                              subtitle: subtitleParts.isEmpty
-                                  ? null
-                                  : Text(subtitleParts.join('\n')),
-                              isThreeLine: subtitleParts.length > 1,
-                              trailing: PopupMenuButton<String>(
-                                onSelected: (value) {
-                                  if (value == 'edit') {
-                                    _showEntryDialog(doc: doc);
-                                  } else if (value == 'delete') {
-                                    _deleteEntry(doc);
-                                  }
-                                },
-                                itemBuilder: (_) => const [
-                                  PopupMenuItem(
-                                    value: 'edit',
-                                    child: Text('Edytuj'),
-                                  ),
-                                  PopupMenuItem(
-                                    value: 'delete',
-                                    child: Text('Usuń'),
-                                  ),
-                                ],
-                              ),
-                            ),
-                          );
-                        },
-                      ),
-                    ),
-                    Padding(
-                      padding: const EdgeInsets.all(16),
-                      child: Card(
-                        child: ListTile(
-                          leading: const Icon(Icons.schedule),
-                          title: const Text('Suma godzin'),
-                          trailing: Text(_hoursLabel(totalMinutes)),
-                        ),
-                      ),
-                    ),
-                  ],
-                );
-              },
+                },
+              ),
             ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }
