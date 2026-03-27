@@ -3,6 +3,7 @@
 import 'dart:convert';
 
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:file_saver/file_saver.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
@@ -26,6 +27,9 @@ class _ReportsDailyScreenState extends State<ReportsDailyScreen> {
   static const _functionUrl =
       'https://us-central1-strefa-ciszy.cloudfunctions.net/sendDailyRwReportHttp';
 
+  static const _downloadFunctionUrl =
+      'https://us-central1-strefa-ciszy.cloudfunctions.net/downloadDailyRwReportHttp';
+
   String get _dayKey => DateFormat('yyyy-MM-dd').format(_selectedDate);
   static const String _devEmail = 'leerichie@wp.pl';
 
@@ -43,10 +47,85 @@ class _ReportsDailyScreenState extends State<ReportsDailyScreen> {
   bool _isDevRunning = false;
   String? _devStatus;
 
+  bool _isDownloading = false;
+
   @override
   void dispose() {
     _emailController.dispose();
     super.dispose();
+  }
+
+  // ice mahual download reports
+  Future<void> _downloadReport() async {
+    final user = FirebaseAuth.instance.currentUser;
+    if (user == null) {
+      setState(() {
+        _statusMessage = 'Brak zalogowanego użytkownika.';
+      });
+      return;
+    }
+
+    setState(() {
+      _isDownloading = true;
+      _statusMessage = null;
+    });
+
+    try {
+      final token = await user.getIdToken();
+
+      final resp = await http.post(
+        Uri.parse(_downloadFunctionUrl),
+        headers: {
+          'Authorization': 'Bearer $token',
+          'Content-Type': 'application/json',
+        },
+        body: jsonEncode({'dayKey': _dayKey}),
+      );
+
+      if (kDebugMode) {
+        print('downloadDailyRwReportHttp status: ${resp.statusCode}');
+        print('downloadDailyRwReportHttp headers: ${resp.headers}');
+      }
+
+      if (resp.statusCode == 200) {
+        final bytes = resp.bodyBytes;
+        final fileName = 'rw_raport_$_dayKey';
+
+        await FileSaver.instance.saveFile(
+          name: '$fileName.xlsx',
+          bytes: Uint8List.fromList(bytes),
+          mimeType: MimeType.microsoftExcel,
+        );
+
+        setState(() {
+          _statusMessage = 'Pobrano raport za $_dayKey.';
+        });
+      } else {
+        String msg = 'Błąd: ${resp.statusCode}';
+        try {
+          final data = jsonDecode(resp.body) as Map<String, dynamic>;
+          if (data['error'] != null) {
+            msg += ' – ${data['error']}';
+          }
+        } catch (_) {}
+        setState(() {
+          _statusMessage = msg;
+        });
+      }
+    } catch (e, st) {
+      if (kDebugMode) {
+        print('downloadDailyRwReportHttp exception: $e\n$st');
+      }
+      setState(() {
+        _statusMessage = 'Błąd pobierania: $e';
+      });
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isDownloading = false;
+        });
+      }
+    }
   }
 
   Future<void> _devAppendNoteToTodayRw() async {
@@ -254,7 +333,7 @@ class _ReportsDailyScreenState extends State<ReportsDailyScreen> {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
-                        'Tu można wygenerować raporty RW za dowolny dzień i wysłać na wskazany adres email poniżej lub na domyślne ustalony adres info@strefaciszy.net',
+                        'Tu można wygenerować raporty RW za dowolny dzień. Albo wysłać na email albo pobrać plik...',
                         style: Theme.of(context).textTheme.titleMedium,
                       ),
                       const SizedBox(height: 24),
@@ -302,23 +381,46 @@ class _ReportsDailyScreenState extends State<ReportsDailyScreen> {
 
                       const SizedBox(height: 10),
 
-                      SizedBox(
-                        width: double.infinity,
-                        child: ElevatedButton.icon(
-                          onPressed: _isSending ? null : _sendReport,
-                          icon: _isSending
-                              ? const SizedBox(
-                                  width: 20,
-                                  height: 20,
-                                  child: CircularProgressIndicator(
-                                    strokeWidth: 2,
-                                  ),
-                                )
-                              : const Icon(Icons.send),
-                          label: Text(
-                            _isSending ? 'Wysyłanie…' : 'Wyślij raport',
+                      Row(
+                        children: [
+                          Expanded(
+                            child: ElevatedButton.icon(
+                              onPressed: _isSending ? null : _sendReport,
+                              icon: _isSending
+                                  ? const SizedBox(
+                                      width: 20,
+                                      height: 20,
+                                      child: CircularProgressIndicator(
+                                        strokeWidth: 2,
+                                      ),
+                                    )
+                                  : const Icon(Icons.send),
+                              label: Text(
+                                _isSending ? 'Wysyłanie…' : 'Wyślij raport',
+                              ),
+                            ),
                           ),
-                        ),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: ElevatedButton.icon(
+                              onPressed: _isDownloading
+                                  ? null
+                                  : _downloadReport,
+                              icon: _isDownloading
+                                  ? const SizedBox(
+                                      width: 20,
+                                      height: 20,
+                                      child: CircularProgressIndicator(
+                                        strokeWidth: 2,
+                                      ),
+                                    )
+                                  : const Icon(Icons.download),
+                              label: Text(
+                                _isDownloading ? 'W toku...' : 'Pobierz report',
+                              ),
+                            ),
+                          ),
+                        ],
                       ),
 
                       const SizedBox(height: 24),

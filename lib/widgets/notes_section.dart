@@ -12,8 +12,14 @@ class Note {
   final String text;
   final String userName;
   final DateTime createdAt;
+  final bool previewOnly;
 
-  Note({required this.text, required this.userName, required this.createdAt});
+  Note({
+    required this.text,
+    required this.userName,
+    required this.createdAt,
+    this.previewOnly = false,
+  });
 }
 
 class NotesSection extends StatelessWidget {
@@ -89,19 +95,13 @@ class NotesSection extends StatelessWidget {
                   spacing: 3,
                   runSpacing: 3,
                   children: [
-                    // 🔴 OLD (buggy):
-                    // for (int i = 0; i < sorted.length; i++)
-                    //   _NoteTile(
-                    //     note: sorted[i],
-                    //     index: i,
-                    //     ...
                     for (final note in sorted)
                       _NoteTile(
                         note: note,
                         index: notes.indexOf(note),
                         onEdit: onEdit,
                         onDelete: onDelete,
-                        readOnly: readOnly,
+                        readOnly: readOnly || note.previewOnly,
                       ),
                   ],
                 ),
@@ -164,8 +164,8 @@ class _NoteTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final isPreview = note.previewOnly;
     final header = note.userName;
-
     return SizedBox(
       width: 64,
       height: 70,
@@ -203,7 +203,10 @@ class _NoteTile extends StatelessWidget {
                 header,
                 maxLines: 2,
                 minFontSize: 10,
-                style: const TextStyle(fontWeight: FontWeight.bold),
+                style: TextStyle(
+                  fontWeight: FontWeight.bold,
+                  color: isPreview ? Colors.red : Colors.black,
+                ),
               ),
             ),
           ),

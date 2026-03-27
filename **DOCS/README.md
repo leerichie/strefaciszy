@@ -19,6 +19,10 @@ firebase deploy --only firestore:indexes / rules
 index.js changes:
 firebase deploy --only functions
 
+GMAIL
+[REDACTED-EMAIL]
+[REDACTED-PASSWORD]
+
 
 3. RUN
 clean
