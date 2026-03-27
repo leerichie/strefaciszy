@@ -19,6 +19,10 @@ firebase deploy --only firestore:indexes / rules
 index.js changes:
 firebase deploy --only functions
 
+GMAIL
+info.strefaciszy@gmail
+Azymut@#33Gmail
+
 
 3. RUN
 clean

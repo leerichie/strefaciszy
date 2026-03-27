@@ -94,19 +94,35 @@ class _ProjectEditorScreenState extends State<ProjectEditorScreen> {
   _notesSub;
   Timer? _midnightRolloverTimer;
   final Map<String, int> _serverAvail = {};
+  static const String _kCoordinationField = 'currentCoordination';
+  static const String _kChangesNotesField = 'currentChangesNotes';
+
+  Future<void> _markTodoSeen() async {
+    final user = FirebaseAuth.instance.currentUser;
+    if (user == null) return;
+
+    await FirebaseFirestore.instance
+        .collection('users')
+        .doc(user.uid)
+        .collection('projectTodoSeen')
+        .doc(widget.projectId)
+        .set({
+          'customerId': widget.customerId,
+          'projectId': widget.projectId,
+          'seenAt': FieldValue.serverTimestamp(),
+        }, SetOptions(merge: true));
+  }
 
   String _readProjectTitle(Map<String, dynamic> data) {
     final t = (data['title'] as String?)?.trim();
     if (t != null && t.isNotEmpty) return t;
 
-    // legacy broken projects: items is a MAP with items.name
     final items = data['items'];
     if (items is Map) {
       final legacy = (items['name'] as String?)?.trim();
       if (legacy != null && legacy.isNotEmpty) return legacy;
     }
 
-    // tolerate other legacy key
     final t2 = (data['name'] as String?)?.trim();
     if (t2 != null && t2.isNotEmpty) return t2;
 
@@ -116,7 +132,6 @@ class _ProjectEditorScreenState extends State<ProjectEditorScreen> {
   List<ProjectLine> _readProjectLines(Map<String, dynamic> data) {
     final raw = data['items'];
 
-    // normal schema: list
     if (raw is List) {
       return raw
           .map((e) => ProjectLine.fromMap(Map<String, dynamic>.from(e as Map)))
@@ -124,8 +139,77 @@ class _ProjectEditorScreenState extends State<ProjectEditorScreen> {
           .toList();
     }
 
-    // broken schema: map (items.name/items.status). No lines.
     return <ProjectLine>[];
+  }
+
+  Note? _buildDonePreviewNote(Map<String, dynamic> data) {
+    final now = DateTime.now();
+    final startOfDay = DateTime(now.year, now.month, now.day);
+    final endOfDay = startOfDay.add(const Duration(days: 1));
+
+    DateTime? pickMoment(Map<String, dynamic> m) {
+      final updated = m['updatedAt'];
+      if (updated is Timestamp) return updated.toDate();
+
+      final created = m['createdAt'];
+      if (created is Timestamp) return created.toDate();
+
+      return null;
+    }
+
+    String prefixFor(String field, Map<String, dynamic> m) {
+      final color = (m['color'] ?? 'black').toString();
+      final dot = color == 'red'
+          ? '🔴'
+          : color == 'blue'
+          ? '🔵'
+          : '⚫';
+
+      final label = field == _kCoordinationField ? 'ZAKUPY' : 'TODO';
+      return '$dot [$label]';
+    }
+
+    final lines = <Map<String, dynamic>>[];
+
+    for (final field in [_kChangesNotesField, _kCoordinationField]) {
+      final raw = (data[field] as List?) ?? const [];
+
+      for (final item in raw) {
+        if (item is! Map) continue;
+
+        final m = Map<String, dynamic>.from(item);
+        final isTask = m['isTask'] == true;
+        final done = m['done'] == true;
+
+        if (!isTask || !done) continue;
+
+        final when = pickMoment(m);
+        if (when == null) continue;
+        if (when.isBefore(startOfDay) || !when.isBefore(endOfDay)) continue;
+
+        final text = (m['text'] ?? '').toString().trim();
+        if (text.isEmpty) continue;
+
+        lines.add({'when': when, 'line': '${prefixFor(field, m)} $text'});
+      }
+    }
+
+    if (lines.isEmpty) return null;
+
+    lines.sort(
+      (a, b) => (b['when'] as DateTime).compareTo(a['when'] as DateTime),
+    );
+
+    final previewText = lines.map((e) => e['line'] as String).join('\n');
+
+    final latestTime = lines.first['when'] as DateTime;
+
+    return Note(
+      text: previewText,
+      userName: 'DZIŚ',
+      createdAt: latestTime,
+      previewOnly: true,
+    );
   }
 
   @override
@@ -199,64 +283,32 @@ class _ProjectEditorScreenState extends State<ProjectEditorScreen> {
 
       final todaysRaw = rawNotes
           .where((m) {
-            final ts = (m['createdAt'] as Timestamp).toDate();
+            final map = Map<String, dynamic>.from(m as Map);
+            if (map['previewOnly'] == true) return false;
+
+            final ts = (map['createdAt'] as Timestamp).toDate();
             return !ts.isBefore(startOfDay) && ts.isBefore(endOfDay);
           })
           .cast<Map<String, dynamic>>()
           .toList();
 
-      final todayNotes =
-          todaysRaw
-              .map(
-                (m) => Note(
-                  text: m['text'] as String,
-                  userName: m['userName'] as String,
-                  createdAt: (m['createdAt'] as Timestamp).toDate(),
-                ),
-              )
-              .toList()
-            ..sort((a, b) => b.createdAt.compareTo(a.createdAt));
+      final todayNotes = todaysRaw
+          .map(
+            (m) => Note(
+              text: m['text'] as String,
+              userName: m['userName'] as String,
+              createdAt: (m['createdAt'] as Timestamp).toDate(),
+            ),
+          )
+          .toList();
 
-      // final projItemsRaw = (data['items'] as List<dynamic>?) ?? const [];
-      // final freshLines = projItemsRaw
-      //     .map((e) {
-      //       final m = Map<String, dynamic>.from(e as Map);
-      //       final itemId = m['itemId'] as String? ?? '';
-      //       final qty = (m['quantity'] as num?)?.toInt() ?? 0;
-      //       final unit = m['unit'] as String? ?? '';
-      //       final name = (m['name'] as String?) ?? '';
+      final previewNote = _buildDonePreviewNote(data);
+      if (previewNote != null) {
+        todayNotes.insert(0, previewNote);
+      }
 
-      //       final idx = _stockItems.indexWhere((s) => s.id == itemId);
-      //       final isStock = itemId.isNotEmpty;
-      //       final originalStock = idx == -1 ? qty : _stockItems[idx].quantity;
+      todayNotes.sort((a, b) => b.createdAt.compareTo(a.createdAt));
 
-      //       return ProjectLine(
-      //         isStock: isStock,
-      //         itemRef: itemId,
-      //         customName: isStock ? '' : name,
-      //         requestedQty: qty,
-      //         previousQty: qty,
-      //         originalStock: originalStock,
-      //         unit: unit,
-      //       );
-      //     })
-      //     .where((l) => l.requestedQty > 0)
-      //     .toList();
-
-      // final serverCurrentText = (data['currentText'] as String?) ?? '';
-
-      // setState(() {
-      //   _notes = todayNotes;
-      //   _lines = freshLines;
-      //   _title = (data['title'] as String?) ?? _title;
-
-      //   _projectArchived = (data['archived'] as bool?) ?? false;
-
-      //   if (_currentCtrl.text.isEmpty) {
-      //     _currentText = serverCurrentText;
-      //     _currentCtrl.text = serverCurrentText;
-      //   }
-      // });
       final freshLines = _readProjectLines(data);
       final serverCurrentText = (data['currentText'] as String?) ?? '';
 
@@ -278,6 +330,7 @@ class _ProjectEditorScreenState extends State<ProjectEditorScreen> {
     _checkTodayExists('RW');
     _checkTodayExists('MM');
     _scheduleMidnightRollover();
+    _markTodoSeen();
   }
 
   @override
@@ -390,6 +443,7 @@ class _ProjectEditorScreenState extends State<ProjectEditorScreen> {
       if (rwRef != null) {
         await rwRef.update({
           'notesList': _notes
+              .where((n) => !n.previewOnly)
               .map(
                 (n) => {
                   'text': n.text,
@@ -838,6 +892,7 @@ class _ProjectEditorScreenState extends State<ProjectEditorScreen> {
     rwData['createdByName'] = createdByName;
 
     rwData['notesList'] = _notes
+        .where((note) => !note.previewOnly)
         .map(
           (note) => {
             'text': note.text,
