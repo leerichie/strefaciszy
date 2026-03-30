@@ -134,6 +134,7 @@ class _MyDayScreenState extends State<MyDayScreen> {
 
     return showDialog<Map<String, String>?>(
       context: context,
+      barrierDismissible: true,
       builder: (dialogContext) {
         return StatefulBuilder(
           builder: (context, setLocalState) {
@@ -154,82 +155,145 @@ class _MyDayScreenState extends State<MyDayScreen> {
               });
             }
 
-            return AlertDialog(
-              title: const Text('Wybierz projekt'),
-              content: SizedBox(
-                width: 420,
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    TextField(
-                      controller: searchCtrl,
-                      autofocus: true,
-                      decoration: const InputDecoration(
-                        hintText: 'Szukaj projektu...',
-                        prefixIcon: Icon(Icons.search),
-                      ),
-                      onChanged: applyFilter,
+            final media = MediaQuery.of(context);
+            final screenHeight = media.size.height;
+            final screenWidth = media.size.width;
+            final keyboardInset = media.viewInsets.bottom;
+
+            return AnimatedPadding(
+              duration: const Duration(milliseconds: 180),
+              curve: Curves.easeOut,
+              padding: EdgeInsets.only(bottom: keyboardInset),
+              child: SafeArea(
+                child: Center(
+                  child: Dialog(
+                    insetPadding: const EdgeInsets.symmetric(
+                      horizontal: 16,
+                      vertical: 24,
                     ),
-                    const SizedBox(height: 12),
-                    Flexible(
-                      child: ConstrainedBox(
-                        constraints: const BoxConstraints(maxHeight: 320),
-                        child: filtered.isEmpty
-                            ? const Center(
-                                child: Padding(
-                                  padding: EdgeInsets.all(16),
-                                  child: Text('Brak pasujących projektów'),
-                                ),
-                              )
-                            : ListView.separated(
-                                shrinkWrap: true,
-                                itemCount: filtered.length + 1,
-                                separatorBuilder: (_, __) =>
-                                    const Divider(height: 1),
-                                itemBuilder: (context, index) {
-                                  if (index == 0) {
-                                    return ListTile(
-                                      dense: true,
-                                      leading: const Icon(Icons.clear),
-                                      title: const Text('Brak projektu'),
-                                      onTap: () {
-                                        Navigator.pop(dialogContext, {
-                                          'projectId': '',
-                                          'projectName': '',
-                                          'customerId': '',
-                                          'customerName': '',
-                                        });
-                                      },
-                                    );
-                                  }
-
-                                  final p = filtered[index - 1];
-                                  final projectName = p['projectName'] ?? '';
-                                  final customerName = p['customerName'] ?? '';
-
-                                  return ListTile(
-                                    dense: true,
-                                    title: Text(projectName),
-                                    subtitle: customerName.isEmpty
-                                        ? null
-                                        : Text(customerName),
-                                    onTap: () {
-                                      Navigator.pop(dialogContext, p);
-                                    },
-                                  );
-                                },
+                    child: ConstrainedBox(
+                      constraints: BoxConstraints(
+                        maxWidth: screenWidth > 500 ? 460 : screenWidth - 32,
+                        maxHeight: screenHeight * 0.75,
+                      ),
+                      child: Padding(
+                        padding: const EdgeInsets.fromLTRB(20, 20, 20, 12),
+                        child: Column(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Align(
+                              alignment: Alignment.centerLeft,
+                              child: Text(
+                                'Wybierz projekt',
+                                style: Theme.of(
+                                  context,
+                                ).textTheme.headlineSmall,
                               ),
+                            ),
+                            const SizedBox(height: 16),
+                            TextField(
+                              controller: searchCtrl,
+                              autofocus: true,
+                              textInputAction: TextInputAction.done,
+                              decoration: const InputDecoration(
+                                hintText: 'Szukaj projektu...',
+                                prefixIcon: Icon(Icons.search),
+                              ),
+                              onChanged: applyFilter,
+                              onTapOutside: (_) {
+                                FocusScope.of(context).unfocus();
+                              },
+                              onSubmitted: (_) {
+                                FocusScope.of(context).unfocus();
+                              },
+                            ),
+                            const SizedBox(height: 12),
+                            Expanded(
+                              child: filtered.isEmpty
+                                  ? const Center(
+                                      child: Padding(
+                                        padding: EdgeInsets.all(16),
+                                        child: Text(
+                                          'Brak pasujących projektów',
+                                        ),
+                                      ),
+                                    )
+                                  : ListView.separated(
+                                      keyboardDismissBehavior:
+                                          ScrollViewKeyboardDismissBehavior
+                                              .onDrag,
+                                      itemCount: filtered.length + 1,
+                                      separatorBuilder: (_, __) =>
+                                          const Divider(height: 1),
+                                      itemBuilder: (context, index) {
+                                        if (index == 0) {
+                                          return ListTile(
+                                            dense: false,
+                                            leading: const Icon(Icons.clear),
+                                            title: const Text('Brak projektu'),
+                                            onTap: () {
+                                              FocusScope.of(
+                                                dialogContext,
+                                              ).unfocus();
+                                              Navigator.pop(dialogContext, {
+                                                'projectId': '',
+                                                'projectName': '',
+                                                'customerId': '',
+                                                'customerName': '',
+                                              });
+                                            },
+                                          );
+                                        }
+
+                                        final p = filtered[index - 1];
+                                        final projectName =
+                                            p['projectName'] ?? '';
+                                        final customerName =
+                                            p['customerName'] ?? '';
+
+                                        return ListTile(
+                                          dense: false,
+                                          title: Text(
+                                            projectName,
+                                            maxLines: 2,
+                                            overflow: TextOverflow.ellipsis,
+                                          ),
+                                          subtitle: customerName.isEmpty
+                                              ? null
+                                              : Text(
+                                                  customerName,
+                                                  maxLines: 2,
+                                                  overflow:
+                                                      TextOverflow.ellipsis,
+                                                ),
+                                          onTap: () {
+                                            FocusScope.of(
+                                              dialogContext,
+                                            ).unfocus();
+                                            Navigator.pop(dialogContext, p);
+                                          },
+                                        );
+                                      },
+                                    ),
+                            ),
+                            const SizedBox(height: 8),
+                            Align(
+                              alignment: Alignment.centerRight,
+                              child: TextButton(
+                                onPressed: () {
+                                  FocusScope.of(dialogContext).unfocus();
+                                  Navigator.pop(dialogContext);
+                                },
+                                child: const Text('Anuluj'),
+                              ),
+                            ),
+                          ],
+                        ),
                       ),
                     ),
-                  ],
+                  ),
                 ),
               ),
-              actions: [
-                TextButton(
-                  onPressed: () => Navigator.pop(dialogContext),
-                  child: const Text('Anuluj'),
-                ),
-              ],
             );
           },
         );
@@ -560,8 +624,14 @@ class _MyDayScreenState extends State<MyDayScreen> {
   }
 
   String _hoursLabel(int totalMinutes) {
-    final hours = totalMinutes / 60.0;
-    return hours.toStringAsFixed(2);
+    final hours = totalMinutes ~/ 60;
+    final minutes = totalMinutes % 60;
+
+    if (minutes == 0) {
+      return '$hours h';
+    }
+
+    return '$hours.${minutes.toString().padLeft(2, '0')}';
   }
 
   @override
