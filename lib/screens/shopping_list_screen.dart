@@ -317,17 +317,7 @@ class _ShoppingListScreenState extends State<ShoppingListScreen>
                       ),
                     ),
                   ),
-                  // const SizedBox(width: 8),
-                  // SizedBox(
-                  //   height: 44,
-                  //   child: ElevatedButton.icon(
-                  //     onPressed: _addItem,
-                  //     icon: const Icon(Icons.add),
-                  //     label: const Text('Dodaj'),
-                  //   ),
-                  // ),
                   const SizedBox(width: 6),
-
                   IconButton(
                     tooltip: 'Sortuj',
                     icon: const Icon(Icons.sort),
@@ -367,7 +357,7 @@ class _ShoppingListScreenState extends State<ShoppingListScreen>
   }
 }
 
-class _ItemsList extends StatelessWidget {
+class _ItemsList extends StatefulWidget {
   final Stream<QuerySnapshot<Map<String, dynamic>>> stream;
   final void Function(String docId, bool bought) onToggleBought;
   final void Function(String docId) onDelete;
@@ -385,18 +375,24 @@ class _ItemsList extends StatelessWidget {
   });
 
   @override
+  State<_ItemsList> createState() => _ItemsListState();
+}
+
+class _ItemsListState extends State<_ItemsList> {
+  final Set<String> _justChecked = {};
+
+  @override
   Widget build(BuildContext context) {
     Color bgForProject(String projectId) {
       final palette = <Color>[
-        const Color(0xFFF3F6FF), // very light blue
-        const Color(0xFFF4FFF6), // very light green
-        const Color(0xFFFFF6F2), // very light orange
-        const Color(0xFFFFF4FA), // very light pink
-        const Color(0xFFF7F3FF), // very light purple
-        const Color(0xFFFFFFF1), // very light yellow
+        const Color(0xFFF3F6FF),
+        const Color(0xFFF4FFF6),
+        const Color(0xFFFFF6F2),
+        const Color(0xFFFFF4FA),
+        const Color(0xFFF7F3FF),
+        const Color(0xFFFFFFF1),
       ];
 
-      // deterministic hash
       var h = 0;
       for (final c in projectId.codeUnits) {
         h = (h * 31 + c) & 0x7fffffff;
@@ -405,7 +401,7 @@ class _ItemsList extends StatelessWidget {
     }
 
     return StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
-      stream: stream,
+      stream: widget.stream,
       builder: (ctx, snap) {
         if (snap.connectionState == ConnectionState.waiting) {
           return const Center(child: CircularProgressIndicator());
@@ -428,7 +424,7 @@ class _ItemsList extends StatelessWidget {
           Timestamp? ta = da['createdAt'];
           Timestamp? tb = db['createdAt'];
 
-          switch (sortMode) {
+          switch (widget.sortMode) {
             case _SortMode.project:
               return pa.compareTo(pb);
 
@@ -450,8 +446,9 @@ class _ItemsList extends StatelessWidget {
               );
           }
         });
+
         if (docs.isEmpty) {
-          return Center(child: Text(emptyText));
+          return Center(child: Text(widget.emptyText));
         }
 
         return ListView.builder(
@@ -479,15 +476,10 @@ class _ItemsList extends StatelessWidget {
               return '${t.substring(0, max - 1)}…';
             }
 
-            // final projectName = (data['projectName'] ?? '').toString().trim();
-            // final projectId = (data['projectId'] ?? '').toString().trim();
             final cardColor = projectId.isEmpty
                 ? Colors.grey.shade100
                 : bgForProject(projectId);
 
-            // final projTag = (projectId.isNotEmpty && projectName.isNotEmpty)
-            //     ? '  •  ${short(projectName, 18)}'
-            //     : '';
             final bought = (data['bought'] == true);
 
             if (text.isEmpty) return const SizedBox.shrink();
@@ -501,145 +493,214 @@ class _ItemsList extends StatelessWidget {
 
             return Padding(
               padding: const EdgeInsets.only(bottom: 6),
-              child: Material(
-                color: cardColor,
-                borderRadius: BorderRadius.circular(10),
-                child: ListTile(
-                  dense: true,
-                  visualDensity: VisualDensity.compact,
-                  contentPadding: const EdgeInsets.symmetric(
-                    horizontal: 10,
-                    vertical: 4,
-                  ),
-                  minLeadingWidth: 0,
-                  horizontalTitleGap: 8,
-
-                  title: Wrap(
-                    crossAxisAlignment: WrapCrossAlignment.center,
-                    spacing: 4,
-                    children: [
-                      Text(
-                        tsText.isEmpty
-                            ? createdByName
-                            : '$createdByName  •  $tsText',
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: const TextStyle(
-                          fontSize: 11,
-                          fontWeight: FontWeight.w600,
-                          color: Colors.black54,
-                          height: 1.0,
-                        ),
-                      ),
-                      if (hasProjectLink) ...[
-                        const Text(
-                          '•',
-                          style: TextStyle(
+              child: AnimatedContainer(
+                duration: const Duration(milliseconds: 200),
+                decoration: BoxDecoration(
+                  color: _justChecked.contains(d.id)
+                      ? Colors.green.withOpacity(0.15)
+                      : cardColor,
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                child: Material(
+                  color: Colors.transparent,
+                  borderRadius: BorderRadius.circular(10),
+                  child: ListTile(
+                    dense: true,
+                    visualDensity: VisualDensity.compact,
+                    contentPadding: const EdgeInsets.symmetric(
+                      horizontal: 10,
+                      vertical: 4,
+                    ),
+                    minLeadingWidth: 0,
+                    horizontalTitleGap: 8,
+                    title: Wrap(
+                      crossAxisAlignment: WrapCrossAlignment.center,
+                      spacing: 4,
+                      children: [
+                        Text(
+                          tsText.isEmpty
+                              ? createdByName
+                              : '$createdByName  •  $tsText',
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: const TextStyle(
                             fontSize: 11,
                             fontWeight: FontWeight.w600,
                             color: Colors.black54,
                             height: 1.0,
                           ),
                         ),
-                        GestureDetector(
-                          onTap: () {
-                            Navigator.of(context).push(
-                              MaterialPageRoute(
-                                builder: (_) => ProjectEditorScreen(
-                                  customerId: customerId,
-                                  projectId: projectId,
-                                  isAdmin: false,
-                                ),
-                              ),
-                            );
-                          },
-                          child: Text(
-                            short(projectName, 18),
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                            style: const TextStyle(
+                        if (hasProjectLink) ...[
+                          const Text(
+                            '•',
+                            style: TextStyle(
                               fontSize: 11,
-                              fontWeight: FontWeight.w700,
-                              color: Colors.blue,
-                              decoration: TextDecoration.underline,
+                              fontWeight: FontWeight.w600,
+                              color: Colors.black54,
                               height: 1.0,
                             ),
                           ),
-                        ),
-                      ],
-                    ],
-                  ),
-
-                  subtitle: Padding(
-                    padding: const EdgeInsets.only(top: 2),
-                    child: Text(
-                      text,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(
-                        fontSize: 15,
-                        height: 1.1,
-                        fontWeight: FontWeight.w700,
-                      ),
-                    ),
-                  ),
-
-                  leading: Checkbox(
-                    value: bought,
-                    materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                    visualDensity: VisualDensity.compact,
-                    onChanged: (v) {
-                      if (v == null) return;
-                      onToggleBought(d.id, v);
-                    },
-                  ),
-
-                  trailing: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      if (showRestore)
-                        IconButton(
-                          tooltip: 'Przywróć',
-                          icon: const Icon(Icons.undo, size: 18),
-                          visualDensity: VisualDensity.compact,
-                          padding: EdgeInsets.zero,
-                          constraints: const BoxConstraints(
-                            minWidth: 32,
-                            minHeight: 32,
+                          GestureDetector(
+                            onTap: () {
+                              Navigator.of(context).push(
+                                MaterialPageRoute(
+                                  builder: (_) => ProjectEditorScreen(
+                                    customerId: customerId,
+                                    projectId: projectId,
+                                    isAdmin: false,
+                                  ),
+                                ),
+                              );
+                            },
+                            child: Text(
+                              short(projectName, 18),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: const TextStyle(
+                                fontSize: 11,
+                                fontWeight: FontWeight.w700,
+                                color: Colors.blue,
+                                decoration: TextDecoration.underline,
+                                height: 1.0,
+                              ),
+                            ),
                           ),
-                          onPressed: () => onToggleBought(d.id, false),
-                        ),
-                      IconButton(
-                        tooltip: 'Usuń',
-                        icon: const Icon(
-                          Icons.delete_outline,
-                          color: Colors.red,
-                        ),
-                        onPressed: () async {
-                          final confirm = await showDialog<bool>(
+                        ],
+                      ],
+                    ),
+                    subtitle: Padding(
+                      padding: const EdgeInsets.only(top: 2),
+                      child: InkWell(
+                        borderRadius: BorderRadius.circular(6),
+                        onTap: () async {
+                          await showDialog<void>(
                             context: context,
                             builder: (ctx) => AlertDialog(
-                              title: const Text('Na pewno usunąć?'),
-                              content: Text(text),
+                              title: const Text('Pełna nazwa'),
+                              content: SingleChildScrollView(
+                                child: Text(
+                                  text,
+                                  style: const TextStyle(
+                                    fontSize: 16,
+                                    height: 1.3,
+                                    fontWeight: FontWeight.w600,
+                                  ),
+                                ),
+                              ),
                               actions: [
                                 TextButton(
-                                  onPressed: () => Navigator.pop(ctx, false),
-                                  child: const Text('Anuluj'),
-                                ),
-                                ElevatedButton(
-                                  onPressed: () => Navigator.pop(ctx, true),
-                                  child: const Text('Usuń'),
+                                  onPressed: () => Navigator.pop(ctx),
+                                  child: const Text('Zamknij'),
                                 ),
                               ],
                             ),
                           );
-
-                          if (confirm == true) {
-                            onDelete(d.id);
-                          }
                         },
+                        child: Text(
+                          text,
+                          maxLines: 3,
+                          softWrap: true,
+                          overflow: TextOverflow.ellipsis,
+                          style: const TextStyle(
+                            fontSize: 15,
+                            height: 1.2,
+                            fontWeight: FontWeight.w700,
+                          ),
+                        ),
                       ),
-                    ],
+                    ),
+                    leading: Checkbox(
+                      value: bought || _justChecked.contains(d.id),
+                      activeColor: Colors.green,
+                      materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                      visualDensity: VisualDensity.compact,
+                      onChanged: (v) async {
+                        if (v == null) return;
+
+                        if (v == true) {
+                          setState(() => _justChecked.add(d.id));
+
+                          await Future.delayed(const Duration(seconds: 1));
+
+                          if (!mounted) return;
+
+                          setState(() => _justChecked.remove(d.id));
+                          widget.onToggleBought(d.id, true);
+                        } else {
+                          widget.onToggleBought(d.id, false);
+                        }
+                      },
+                    ),
+                    trailing: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        if (widget.showRestore)
+                          IconButton(
+                            tooltip: 'Przywróć',
+                            icon: const Icon(Icons.undo, size: 18),
+                            visualDensity: VisualDensity.compact,
+                            padding: EdgeInsets.zero,
+                            constraints: const BoxConstraints(
+                              minWidth: 32,
+                              minHeight: 32,
+                            ),
+                            onPressed: () => widget.onToggleBought(d.id, false),
+                          ),
+                        GestureDetector(
+                          onLongPress: () async {
+                            final confirm = await showDialog<bool>(
+                              context: context,
+                              builder: (ctx) => AlertDialog(
+                                title: const Text('Na pewno usunąć?'),
+                                content: Column(
+                                  mainAxisSize: MainAxisSize.min,
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    const Text(
+                                      'Przytrzymanie pozwala na usuwanie.',
+                                    ),
+                                    const SizedBox(height: 8),
+                                    Text(text),
+                                  ],
+                                ),
+                                actions: [
+                                  TextButton(
+                                    onPressed: () => Navigator.pop(ctx, false),
+                                    child: const Text('Anuluj'),
+                                  ),
+                                  ElevatedButton(
+                                    onPressed: () => Navigator.pop(ctx, true),
+                                    child: const Text('Skasuj'),
+                                  ),
+                                ],
+                              ),
+                            );
+
+                            if (confirm == true) {
+                              widget.onDelete(d.id);
+                            }
+                          },
+                          child: IconButton(
+                            tooltip: 'Usuń (przytrzymaj)',
+                            icon: const Icon(
+                              Icons.delete_outline,
+                              color: Colors.red,
+                            ),
+                            onPressed: () {
+                              ScaffoldMessenger.of(
+                                context,
+                              ).hideCurrentSnackBar();
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                const SnackBar(
+                                  content: Text('Przytrzymaj kosz aby usunać.'),
+                                  duration: Duration(seconds: 2),
+                                ),
+                              );
+                            },
+                          ),
+                        ),
+                      ],
+                    ),
                   ),
                 ),
               ),
