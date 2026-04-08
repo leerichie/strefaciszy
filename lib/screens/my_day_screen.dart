@@ -18,7 +18,7 @@ class _MyDayScreenState extends State<MyDayScreen> {
   DateTime _selectedDay = DateTime.now();
 
   DateTime _focusedDay = DateTime.now();
-  CalendarFormat _calendarFormat = CalendarFormat.month;
+  CalendarFormat _calendarFormat = CalendarFormat.week;
 
   List<Map<String, String>> _projectsCache = [];
   bool _projectsLoading = false;
@@ -748,7 +748,13 @@ class _MyDayScreenState extends State<MyDayScreen> {
                             currentDay: DateTime.now(),
                             calendarFormat: _calendarFormat,
                             availableCalendarFormats: const {
+                              CalendarFormat.week: 'Tydzień',
                               CalendarFormat.month: 'Miesiąc',
+                            },
+                            onFormatChanged: (format) {
+                              setState(() {
+                                _calendarFormat = format;
+                              });
                             },
                             startingDayOfWeek: StartingDayOfWeek.monday,
                             selectedDayPredicate: (day) {
@@ -771,8 +777,9 @@ class _MyDayScreenState extends State<MyDayScreen> {
                               return List.generate(count, (index) => index);
                             },
                             headerStyle: const HeaderStyle(
-                              formatButtonVisible: false,
+                              formatButtonVisible: true,
                               titleCentered: true,
+                              formatButtonShowsNext: false,
                             ),
                             calendarStyle: const CalendarStyle(
                               markersMaxCount: 1,

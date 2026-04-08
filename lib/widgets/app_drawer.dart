@@ -18,6 +18,7 @@ import 'package:strefa_ciszy/screens/project_editor_screen.dart';
 import 'package:strefa_ciszy/screens/projects_list_screen.dart';
 import 'package:strefa_ciszy/screens/scan_screen.dart';
 import 'package:strefa_ciszy/screens/shopping_list_screen.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 class AppDrawer extends StatefulWidget {
   const AppDrawer({super.key});
@@ -694,10 +695,21 @@ class _AppDrawerState extends State<AppDrawer> {
               padding: const EdgeInsets.only(right: 16, bottom: 16),
               child: Align(
                 alignment: Alignment.bottomRight,
-                child: Image.asset(
-                  'assets/images/dev_logo.png',
-                  width: 80,
-                  fit: BoxFit.contain,
+                child: GestureDetector(
+                  onTap: () async {
+                    final url = Uri.parse('https://ashleyrichards.tech');
+                    if (await canLaunchUrl(url)) {
+                      await launchUrl(
+                        url,
+                        mode: LaunchMode.externalApplication,
+                      );
+                    }
+                  },
+                  child: Image.asset(
+                    'assets/images/dev_logo.png',
+                    width: 80,
+                    fit: BoxFit.contain,
+                  ),
                 ),
               ),
             ),

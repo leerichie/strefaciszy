@@ -435,10 +435,18 @@ class _MainMenuScreenState extends State<MainMenuScreen> {
           Positioned(
             bottom: 60,
             right: 20,
-            child: Image.asset(
-              'assets/images/dev_logo_PILL.png',
-              width: 80,
-              fit: BoxFit.contain,
+            child: GestureDetector(
+              onTap: () async {
+                final url = Uri.parse('https://ashleyrichards.tech');
+                if (await canLaunchUrl(url)) {
+                  await launchUrl(url, mode: LaunchMode.externalApplication);
+                }
+              },
+              child: Image.asset(
+                'assets/images/dev_logo_PILL.png',
+                width: 80,
+                fit: BoxFit.contain,
+              ),
             ),
           ),
         ],
