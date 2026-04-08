@@ -5,6 +5,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:strefa_ciszy/widgets/app_scaffold.dart';
+import 'package:table_calendar/table_calendar.dart';
 
 class MyDayScreen extends StatefulWidget {
   const MyDayScreen({super.key});
@@ -15,6 +16,9 @@ class MyDayScreen extends StatefulWidget {
 
 class _MyDayScreenState extends State<MyDayScreen> {
   DateTime _selectedDay = DateTime.now();
+
+  DateTime _focusedDay = DateTime.now();
+  CalendarFormat _calendarFormat = CalendarFormat.month;
 
   List<Map<String, String>> _projectsCache = [];
   bool _projectsLoading = false;
@@ -31,6 +35,45 @@ class _MyDayScreenState extends State<MyDayScreen> {
     final m = d.month.toString().padLeft(2, '0');
     final day = d.day.toString().padLeft(2, '0');
     return '$y-$m-$day';
+  }
+
+  DateTime _dateOnly(DateTime d) {
+    return DateTime(d.year, d.month, d.day);
+  }
+
+  DateTime _firstDayOfMonth(DateTime d) {
+    return DateTime(d.year, d.month, 1);
+  }
+
+  DateTime _firstDayOfNextMonth(DateTime d) {
+    if (d.month == 12) {
+      return DateTime(d.year + 1, 1, 1);
+    }
+    return DateTime(d.year, d.month + 1, 1);
+  }
+
+  Map<String, int> _buildDayCounts(
+    List<QueryDocumentSnapshot<Map<String, dynamic>>> docs,
+  ) {
+    final Map<String, int> counts = {};
+
+    for (final doc in docs) {
+      final data = doc.data();
+      final ts = data['workDate'] as Timestamp?;
+      if (ts == null) continue;
+
+      final day = _dateOnly(ts.toDate());
+      final key = _dayKey(day);
+
+      counts[key] = (counts[key] ?? 0) + 1;
+    }
+
+    return counts;
+  }
+
+  bool _isToday(DateTime d) {
+    final now = DateTime.now();
+    return d.year == now.year && d.month == now.month && d.day == now.day;
   }
 
   Future<String> _readUserName(User user) async {
@@ -301,24 +344,35 @@ class _MyDayScreenState extends State<MyDayScreen> {
     );
   }
 
-  Future<void> _pickDay() async {
-    final picked = await showDatePicker(
-      context: context,
-      initialDate: _selectedDay,
-      firstDate: DateTime(2024),
-      lastDate: DateTime(2100),
-    );
+  // Future<void> _pickDay() async {
+  //   final picked = await showDatePicker(
+  //     context: context,
+  //     initialDate: _selectedDay,
+  //     firstDate: DateTime(2024),
+  //     lastDate: DateTime(2100),
+  //   );
 
-    if (picked == null) return;
+  //   if (picked == null) return;
 
-    setState(() {
-      _selectedDay = DateTime(picked.year, picked.month, picked.day);
-    });
-  }
+  //   setState(() {
+  //     _selectedDay = DateTime(picked.year, picked.month, picked.day);
+  //   });
+  // }
 
   Future<void> _showEntryDialog({
     DocumentSnapshot<Map<String, dynamic>>? doc,
   }) async {
+    if (!_isToday(_selectedDay)) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text(
+            'Można dodawać i edytować wpisy tylko na dzisiejszy dzień',
+          ),
+        ),
+      );
+      return;
+    }
+
     final user = FirebaseAuth.instance.currentUser;
     if (user == null) return;
 
@@ -650,45 +704,155 @@ class _MyDayScreenState extends State<MyDayScreen> {
         .orderBy('startMinutes');
 
     final dateLabel = DateFormat('dd.MM.yyyy').format(_selectedDay);
+    final isTodaySelected = _isToday(_selectedDay);
+
+    final monthStart = _firstDayOfMonth(_focusedDay);
+    final nextMonthStart = _firstDayOfNextMonth(_focusedDay);
+
+    final monthQuery = FirebaseFirestore.instance
+        .collection('work_day_logs')
+        .where('userId', isEqualTo: uid)
+        .where(
+          'workDate',
+          isGreaterThanOrEqualTo: Timestamp.fromDate(monthStart),
+        )
+        .where('workDate', isLessThan: Timestamp.fromDate(nextMonthStart));
 
     return AppScaffold(
       title: 'Mój Dzień',
       body: SafeArea(
         child: Column(
           children: [
-            Padding(
-              padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
-              child: Row(
-                children: [
-                  Expanded(
-                    child: OutlinedButton.icon(
-                      onPressed: _pickDay,
-                      icon: const Icon(Icons.calendar_today),
-                      label: Text('Data: $dateLabel'),
-                    ),
+            StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
+              stream: monthQuery.snapshots(),
+              builder: (context, monthSnap) {
+                final monthDocs = monthSnap.data?.docs ?? const [];
+                final dayCounts = _buildDayCounts(monthDocs);
+
+                int countForDay(DateTime day) {
+                  return dayCounts[_dayKey(_dateOnly(day))] ?? 0;
+                }
+
+                return Padding(
+                  padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
+                  child: Column(
+                    children: [
+                      Card(
+                        child: Padding(
+                          padding: const EdgeInsets.all(8),
+                          child: TableCalendar<dynamic>(
+                            locale: 'pl_PL',
+                            firstDay: DateTime(2024, 1, 1),
+                            lastDay: DateTime(2100, 12, 31),
+                            focusedDay: _focusedDay,
+                            currentDay: DateTime.now(),
+                            calendarFormat: _calendarFormat,
+                            availableCalendarFormats: const {
+                              CalendarFormat.month: 'Miesiąc',
+                            },
+                            startingDayOfWeek: StartingDayOfWeek.monday,
+                            selectedDayPredicate: (day) {
+                              return isSameDay(_selectedDay, day);
+                            },
+                            onDaySelected: (selectedDay, focusedDay) {
+                              setState(() {
+                                _selectedDay = _dateOnly(selectedDay);
+                                _focusedDay = _dateOnly(focusedDay);
+                              });
+                            },
+                            onPageChanged: (focusedDay) {
+                              setState(() {
+                                _focusedDay = _dateOnly(focusedDay);
+                              });
+                            },
+                            eventLoader: (day) {
+                              final count = countForDay(day);
+                              if (count <= 0) return const [];
+                              return List.generate(count, (index) => index);
+                            },
+                            headerStyle: const HeaderStyle(
+                              formatButtonVisible: false,
+                              titleCentered: true,
+                            ),
+                            calendarStyle: const CalendarStyle(
+                              markersMaxCount: 1,
+                              outsideDaysVisible: true,
+                            ),
+                            calendarBuilders: CalendarBuilders(
+                              markerBuilder: (context, day, events) {
+                                final count = countForDay(day);
+                                if (count == 0) return const SizedBox.shrink();
+
+                                return Positioned(
+                                  bottom: 4,
+                                  child: Container(
+                                    padding: const EdgeInsets.symmetric(
+                                      horizontal: 6,
+                                      vertical: 2,
+                                    ),
+                                    decoration: BoxDecoration(
+                                      color: Theme.of(
+                                        context,
+                                      ).colorScheme.primary,
+                                      borderRadius: BorderRadius.circular(10),
+                                    ),
+                                    child: Text(
+                                      '$count',
+                                      style: TextStyle(
+                                        color: Theme.of(
+                                          context,
+                                        ).colorScheme.onPrimary,
+                                        fontSize: 11,
+                                        fontWeight: FontWeight.w700,
+                                      ),
+                                    ),
+                                  ),
+                                );
+                              },
+                            ),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                      Row(
+                        children: [
+                          Expanded(
+                            child: OutlinedButton.icon(
+                              onPressed: null,
+                              icon: const Icon(Icons.calendar_today),
+                              label: Text('Data: $dateLabel'),
+                            ),
+                          ),
+                          const SizedBox(width: 8),
+                          ElevatedButton.icon(
+                            onPressed: (_projectsLoading || !isTodaySelected)
+                                ? null
+                                : () async {
+                                    if (!_projectsLoaded) {
+                                      await _ensureProjectsLoaded();
+                                    }
+                                    if (!mounted) return;
+                                    _showEntryDialog();
+                                  },
+                            icon: _projectsLoading
+                                ? const SizedBox(
+                                    width: 16,
+                                    height: 16,
+                                    child: CircularProgressIndicator(
+                                      strokeWidth: 2,
+                                    ),
+                                  )
+                                : const Icon(Icons.add),
+                            label: Text(
+                              _projectsLoading ? 'Ładowanie...' : 'Dodaj',
+                            ),
+                          ),
+                        ],
+                      ),
+                    ],
                   ),
-                  const SizedBox(width: 8),
-                  ElevatedButton.icon(
-                    onPressed: _projectsLoading
-                        ? null
-                        : () async {
-                            if (!_projectsLoaded) {
-                              await _ensureProjectsLoaded();
-                            }
-                            if (!mounted) return;
-                            _showEntryDialog();
-                          },
-                    icon: _projectsLoading
-                        ? const SizedBox(
-                            width: 16,
-                            height: 16,
-                            child: CircularProgressIndicator(strokeWidth: 2),
-                          )
-                        : const Icon(Icons.add),
-                    label: Text(_projectsLoading ? 'Ładowanie...' : 'Dodaj'),
-                  ),
-                ],
-              ),
+                );
+              },
             ),
             Expanded(
               child: StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
@@ -794,16 +958,30 @@ class _MyDayScreenState extends State<MyDayScreen> {
                                     } else if (value == 'delete') {
                                       _deleteEntry(doc);
                                     }
+
+                                    // FUTURE OPTION:
+                                    // if you ever want to disable delete again,
+                                    // comment out the delete block above
+                                    // and also comment out the delete menu item below.
                                   },
-                                  itemBuilder: (_) => const [
-                                    PopupMenuItem(
-                                      value: 'edit',
-                                      child: Text('Edytuj'),
-                                    ),
-                                    PopupMenuItem(
-                                      value: 'delete',
-                                      child: Text('Usuń'),
-                                    ),
+                                  itemBuilder: (_) => [
+                                    if (isTodaySelected)
+                                      const PopupMenuItem(
+                                        value: 'edit',
+                                        child: Text('Edytuj'),
+                                      ),
+                                    if (isTodaySelected)
+                                      const PopupMenuItem(
+                                        value: 'delete',
+                                        child: Text('Usuń'),
+                                      ),
+
+                                    // DELETE HIDDEN VERSION FOR LATER:
+                                    // if (isTodaySelected)
+                                    //   const PopupMenuItem(
+                                    //     value: 'delete',
+                                    //     child: Text('Usuń'),
+                                    //   ),
                                   ],
                                 ),
                               ),
