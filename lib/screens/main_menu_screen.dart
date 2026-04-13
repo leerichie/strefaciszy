@@ -99,21 +99,28 @@ class _MainMenuScreenState extends State<MainMenuScreen> {
         .handleError((_) => false);
   }
 
-  Future<void> _loadVersion() async {
-    if (kIsWeb) {
-      try {
-        final jsonStr = await rootBundle.loadString('version.json');
-        final data = json.decode(jsonStr);
-        setState(() {
-          _version = 'v.${data["version"]} _${data["build_number"]}';
-        });
-        return;
-      } catch (e) {
-        setState(() => _version = 'v.unknown');
-        return;
-      }
-    }
+  // Future<void> _loadVersion() async {
+  //   if (kIsWeb) {
+  //     try {
+  //       final jsonStr = await rootBundle.loadString('version.json');
+  //       final data = json.decode(jsonStr);
+  //       setState(() {
+  //         _version = 'v.${data["version"]} _${data["build_number"]}';
+  //       });
+  //       return;
+  //     } catch (e) {
+  //       setState(() => _version = 'v.unknown');
+  //       return;
+  //     }
+  //   }
 
+  //   final info = await PackageInfo.fromPlatform();
+  //   setState(() {
+  //     _version = 'v.${info.version} _${info.buildNumber}';
+  //   });
+  // }
+
+  Future<void> _loadVersion() async {
     final info = await PackageInfo.fromPlatform();
     setState(() {
       _version = 'v.${info.version} _${info.buildNumber}';
