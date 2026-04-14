@@ -174,6 +174,21 @@ class _ProjectCurrentTabsState extends State<ProjectCurrentTabs> {
     });
   }
 
+  bool _canDeleteEntry({
+    required String field,
+    required Map<String, dynamic> entry,
+    required String currentUserId,
+  }) {
+    if (_isAdmin) return true;
+
+    if (field != kInstallerField) return false;
+
+    final updatedBy = (entry[kUpdatedBy] ?? '').toString();
+    final createdBy = (entry['createdBy'] ?? '').toString();
+
+    return updatedBy == currentUserId || createdBy == currentUserId;
+  }
+
   Future<void> _onHeaderLongPress({
     required String field,
     required Map<String, dynamic> entry,
@@ -187,9 +202,16 @@ class _ProjectCurrentTabsState extends State<ProjectCurrentTabs> {
     final isDone = entry['done'] == true;
     final current = (entry['color'] ?? 'black').toString();
 
+    final canDeleteHere = _canDeleteEntry(
+      field: field,
+      entry: entry,
+      currentUserId: user.uid,
+    );
+
     final picked = await _pickTaskColourOrDeleteDialog(
       isDone: isTask ? isDone : false,
       isAdmin: _isAdmin,
+      canDelete: canDeleteHere,
       currentColor: isTask ? current : 'black',
       isTask: isTask,
       allowToText: isTask,
@@ -199,7 +221,11 @@ class _ProjectCurrentTabsState extends State<ProjectCurrentTabs> {
     if (picked == null) return;
 
     if (picked == '__delete__') {
-      if (_isAdmin) {
+      if (_canDeleteEntry(
+        field: field,
+        entry: entry,
+        currentUserId: user.uid,
+      )) {
         await _deleteLogEntry(field: field, entry: entry);
       }
       return;
@@ -459,7 +485,14 @@ class _ProjectCurrentTabsState extends State<ProjectCurrentTabs> {
     final user = FirebaseAuth.instance.currentUser;
     if (user == null) return;
 
-    if (!_isAdmin) return;
+    if (!_isAdmin) {
+      if (field != kInstallerField) return;
+
+      final createdBy = (entry['createdBy'] ?? '').toString();
+      final updatedBy = (entry[kUpdatedBy] ?? '').toString();
+
+      if (createdBy != user.uid && updatedBy != user.uid) return;
+    }
     final ok = await _confirmDeleteDialog();
     if (!ok) return;
 
@@ -578,6 +611,7 @@ class _ProjectCurrentTabsState extends State<ProjectCurrentTabs> {
   Future<String?> _pickTaskColourOrDeleteDialog({
     required bool isDone,
     required bool isAdmin,
+    required bool canDelete,
     required String currentColor,
     required bool isTask,
     required bool allowToText,
@@ -676,13 +710,14 @@ class _ProjectCurrentTabsState extends State<ProjectCurrentTabs> {
             const Divider(),
 
             // --- admin delete section
-            if (isAdmin) ...[
+            if (canDelete) ...[
               Divider(color: Colors.grey.shade300),
               const SizedBox(height: 2),
-              const Text(
-                'Admin:',
-                style: TextStyle(fontSize: 15, fontWeight: FontWeight.w600),
-              ),
+              if (isAdmin)
+                const Text(
+                  'Admin:',
+                  style: TextStyle(fontSize: 15, fontWeight: FontWeight.w600),
+                ),
               ListTile(
                 dense: true,
                 leading: const Icon(Icons.delete, color: Colors.red),

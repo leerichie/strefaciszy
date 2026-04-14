@@ -24,6 +24,15 @@ class _MyDayScreenState extends State<MyDayScreen> {
   bool _projectsLoading = false;
   bool _projectsLoaded = false;
 
+  bool _timesOverlap({
+    required int startA,
+    required int endA,
+    required int startB,
+    required int endB,
+  }) {
+    return startA < endB && endA > startB;
+  }
+
   @override
   void initState() {
     super.initState();
@@ -201,28 +210,22 @@ class _MyDayScreenState extends State<MyDayScreen> {
             final media = MediaQuery.of(context);
             final screenHeight = media.size.height;
             final screenWidth = media.size.width;
-            final keyboardInset = media.viewInsets.bottom;
 
-            return AnimatedPadding(
-              duration: const Duration(milliseconds: 180),
-              curve: Curves.easeOut,
-              padding: EdgeInsets.only(bottom: keyboardInset),
-              child: SafeArea(
-                child: Center(
+            final dialogHeight = screenHeight * 0.72;
+
+            return SafeArea(
+              child: Align(
+                alignment: Alignment.topCenter,
+                child: Padding(
+                  padding: const EdgeInsets.only(top: 12),
                   child: Dialog(
-                    insetPadding: const EdgeInsets.symmetric(
-                      horizontal: 16,
-                      vertical: 24,
-                    ),
-                    child: ConstrainedBox(
-                      constraints: BoxConstraints(
-                        maxWidth: screenWidth > 500 ? 460 : screenWidth - 32,
-                        maxHeight: screenHeight * 0.75,
-                      ),
+                    insetPadding: const EdgeInsets.symmetric(horizontal: 16),
+                    child: SizedBox(
+                      width: screenWidth > 500 ? 460 : screenWidth - 32,
+                      height: dialogHeight,
                       child: Padding(
                         padding: const EdgeInsets.fromLTRB(20, 20, 20, 12),
                         child: Column(
-                          mainAxisSize: MainAxisSize.min,
                           children: [
                             Align(
                               alignment: Alignment.centerLeft,
@@ -237,18 +240,11 @@ class _MyDayScreenState extends State<MyDayScreen> {
                             TextField(
                               controller: searchCtrl,
                               autofocus: true,
-                              textInputAction: TextInputAction.done,
                               decoration: const InputDecoration(
                                 hintText: 'Szukaj projektu...',
                                 prefixIcon: Icon(Icons.search),
                               ),
                               onChanged: applyFilter,
-                              onTapOutside: (_) {
-                                FocusScope.of(context).unfocus();
-                              },
-                              onSubmitted: (_) {
-                                FocusScope.of(context).unfocus();
-                              },
                             ),
                             const SizedBox(height: 12),
                             Expanded(
@@ -271,13 +267,9 @@ class _MyDayScreenState extends State<MyDayScreen> {
                                       itemBuilder: (context, index) {
                                         if (index == 0) {
                                           return ListTile(
-                                            dense: false,
                                             leading: const Icon(Icons.clear),
                                             title: const Text('Brak projektu'),
                                             onTap: () {
-                                              FocusScope.of(
-                                                dialogContext,
-                                              ).unfocus();
                                               Navigator.pop(dialogContext, {
                                                 'projectId': '',
                                                 'projectName': '',
@@ -295,7 +287,6 @@ class _MyDayScreenState extends State<MyDayScreen> {
                                             p['customerName'] ?? '';
 
                                         return ListTile(
-                                          dense: false,
                                           title: Text(
                                             projectName,
                                             maxLines: 2,
@@ -310,9 +301,6 @@ class _MyDayScreenState extends State<MyDayScreen> {
                                                       TextOverflow.ellipsis,
                                                 ),
                                           onTap: () {
-                                            FocusScope.of(
-                                              dialogContext,
-                                            ).unfocus();
                                             Navigator.pop(dialogContext, p);
                                           },
                                         );
@@ -324,7 +312,6 @@ class _MyDayScreenState extends State<MyDayScreen> {
                               alignment: Alignment.centerRight,
                               child: TextButton(
                                 onPressed: () {
-                                  FocusScope.of(dialogContext).unfocus();
                                   Navigator.pop(dialogContext);
                                 },
                                 child: const Text('Anuluj'),
@@ -344,20 +331,54 @@ class _MyDayScreenState extends State<MyDayScreen> {
     );
   }
 
-  // Future<void> _pickDay() async {
-  //   final picked = await showDatePicker(
-  //     context: context,
-  //     initialDate: _selectedDay,
-  //     firstDate: DateTime(2024),
-  //     lastDate: DateTime(2100),
-  //   );
+  Future<Map<String, String>> _getNextFreeTimeSlot() async {
+    final user = FirebaseAuth.instance.currentUser;
+    if (user == null) {
+      return {'startTime': '08:00', 'endTime': '09:00'};
+    }
 
-  //   if (picked == null) return;
+    final snap = await FirebaseFirestore.instance
+        .collection('work_day_logs')
+        .where('userId', isEqualTo: user.uid)
+        .where('dayKey', isEqualTo: _dayKey(_selectedDay))
+        .orderBy('startMinutes')
+        .get();
 
-  //   setState(() {
-  //     _selectedDay = DateTime(picked.year, picked.month, picked.day);
-  //   });
-  // }
+    int candidateStart = 8 * 60;
+    const int slotLength = 60;
+    const int dayEnd = 23 * 60;
+
+    for (final doc in snap.docs) {
+      final data = doc.data();
+      final existingStart = (data['startMinutes'] as num?)?.toInt();
+      final existingEnd = (data['endMinutes'] as num?)?.toInt();
+
+      if (existingStart == null || existingEnd == null) continue;
+
+      if (candidateStart + slotLength <= existingStart) {
+        break;
+      }
+
+      if (candidateStart < existingEnd) {
+        candidateStart = existingEnd;
+      }
+    }
+
+    if (candidateStart + slotLength > dayEnd) {
+      candidateStart = 8 * 60;
+    }
+
+    String toTime(int minutes) {
+      final h = (minutes ~/ 60).toString().padLeft(2, '0');
+      final m = (minutes % 60).toString().padLeft(2, '0');
+      return '$h:$m';
+    }
+
+    return {
+      'startTime': toTime(candidateStart),
+      'endTime': toTime(candidateStart + slotLength),
+    };
+  }
 
   Future<void> _showEntryDialog({
     DocumentSnapshot<Map<String, dynamic>>? doc,
@@ -383,11 +404,13 @@ class _MyDayScreenState extends State<MyDayScreen> {
     final projects = _projectsCache;
     final data = doc?.data();
 
+    final suggestedSlot = doc == null ? await _getNextFreeTimeSlot() : null;
+
     final startCtrl = TextEditingController(
-      text: data?['startTime'] as String? ?? '',
+      text: data?['startTime'] as String? ?? suggestedSlot?['startTime'] ?? '',
     );
     final endCtrl = TextEditingController(
-      text: data?['endTime'] as String? ?? '',
+      text: data?['endTime'] as String? ?? suggestedSlot?['endTime'] ?? '',
     );
     final descCtrl = TextEditingController(
       text: data?['description'] as String? ?? '',
@@ -508,7 +531,6 @@ class _MyDayScreenState extends State<MyDayScreen> {
                       ],
                     ),
                     const SizedBox(height: 12),
-                    const SizedBox(height: 12),
                     InkWell(
                       onTap: () async {
                         final picked = await _pickProjectDialog(projects);
@@ -598,6 +620,61 @@ class _MyDayScreenState extends State<MyDayScreen> {
                       ScaffoldMessenger.of(context).showSnackBar(
                         const SnackBar(
                           content: Text('Wybierz projekt lub dodaj opis'),
+                        ),
+                      );
+                      return;
+                    }
+
+                    final existingEntries = await FirebaseFirestore.instance
+                        .collection('work_day_logs')
+                        .where('userId', isEqualTo: user.uid)
+                        .where('dayKey', isEqualTo: _dayKey(_selectedDay))
+                        .get();
+
+                    bool hasConflict = false;
+
+                    for (final existingDoc in existingEntries.docs) {
+                      if (doc != null && existingDoc.id == doc.id) {
+                        continue;
+                      }
+
+                      final existingData = existingDoc.data();
+                      final existingStart =
+                          (existingData['startMinutes'] as num?)?.toInt();
+                      final existingEnd = (existingData['endMinutes'] as num?)
+                          ?.toInt();
+
+                      if (existingStart == null || existingEnd == null)
+                        continue;
+
+                      if (_timesOverlap(
+                        startA: startMinutes,
+                        endA: endMinutes,
+                        startB: existingStart,
+                        endB: existingEnd,
+                      )) {
+                        hasConflict = true;
+                        break;
+                      }
+                    }
+
+                    if (hasConflict) {
+                      await showDialog<void>(
+                        context: dialogContext,
+                        builder: (conflictDialogContext) => AlertDialog(
+                          title: const Text(
+                            'Istnieje wpis o tej godzinie.\nWybierz inny czas! 🤪',
+                          ),
+                          // content: const Text(
+                          //   'Istnieje wpis o tej godzinie. Wybierz inny czas!',
+                          // ),
+                          actions: [
+                            TextButton(
+                              onPressed: () =>
+                                  Navigator.pop(conflictDialogContext),
+                              child: const Text('OK'),
+                            ),
+                          ],
                         ),
                       );
                       return;
@@ -877,28 +954,6 @@ class _MyDayScreenState extends State<MyDayScreen> {
                     totalMinutes +=
                         (data['durationMinutes'] as num?)?.toInt() ?? 0;
                   }
-                  // final allDocs = snap.data?.docs ?? const [];
-
-                  // final docs =
-                  //     allDocs.where((d) {
-                  //       final data = d.data();
-                  //       return (data['dayKey'] as String?) ==
-                  //           _dayKey(_selectedDay);
-                  //     }).toList()..sort((a, b) {
-                  //       final am =
-                  //           (a.data()['startMinutes'] as num?)?.toInt() ?? 0;
-                  //       final bm =
-                  //           (b.data()['startMinutes'] as num?)?.toInt() ?? 0;
-                  //       return am.compareTo(bm);
-                  //     });
-
-                  // int totalMinutes = 0;
-
-                  // for (final d in docs) {
-                  //   final data = d.data();
-                  //   totalMinutes +=
-                  //       (data['durationMinutes'] as num?)?.toInt() ?? 0;
-                  // }
 
                   if (docs.isEmpty) {
                     return Column(
@@ -965,11 +1020,6 @@ class _MyDayScreenState extends State<MyDayScreen> {
                                     } else if (value == 'delete') {
                                       _deleteEntry(doc);
                                     }
-
-                                    // FUTURE OPTION:
-                                    // if you ever want to disable delete again,
-                                    // comment out the delete block above
-                                    // and also comment out the delete menu item below.
                                   },
                                   itemBuilder: (_) => [
                                     if (isTodaySelected)
@@ -982,13 +1032,6 @@ class _MyDayScreenState extends State<MyDayScreen> {
                                         value: 'delete',
                                         child: Text('Usuń'),
                                       ),
-
-                                    // DELETE HIDDEN VERSION FOR LATER:
-                                    // if (isTodaySelected)
-                                    //   const PopupMenuItem(
-                                    //     value: 'delete',
-                                    //     child: Text('Usuń'),
-                                    //   ),
                                   ],
                                 ),
                               ),
