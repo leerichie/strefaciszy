@@ -1,10 +1,6 @@
-import 'dart:convert';
-
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
-import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 import 'package:strefa_ciszy/screens/approval_screen.dart';
 import 'package:strefa_ciszy/screens/archives_screen.dart';
@@ -99,27 +95,6 @@ class _MainMenuScreenState extends State<MainMenuScreen> {
         .handleError((_) => false);
   }
 
-  // Future<void> _loadVersion() async {
-  //   if (kIsWeb) {
-  //     try {
-  //       final jsonStr = await rootBundle.loadString('version.json');
-  //       final data = json.decode(jsonStr);
-  //       setState(() {
-  //         _version = 'v.${data["version"]} _${data["build_number"]}';
-  //       });
-  //       return;
-  //     } catch (e) {
-  //       setState(() => _version = 'v.unknown');
-  //       return;
-  //     }
-  //   }
-
-  //   final info = await PackageInfo.fromPlatform();
-  //   setState(() {
-  //     _version = 'v.${info.version} _${info.buildNumber}';
-  //   });
-  // }
-
   Future<void> _loadVersion() async {
     final info = await PackageInfo.fromPlatform();
     setState(() {
@@ -153,21 +128,12 @@ class _MainMenuScreenState extends State<MainMenuScreen> {
     final body = ListView(
       padding: const EdgeInsets.all(16),
       children: [
-        Image.asset('assets/images/strefa_ciszy_logo.png', width: 200),
-        const SizedBox(height: 24),
-        Divider(),
-
-        // if (_isLee && isAdmin) ...[
-        //   // const DebugReserveButton(),
-        //   const SizedBox(height: 16),
-        //   const Divider(),
-        // ],
+        // Image.asset('assets/images/strefa_ciszy_logo.png', width: 200),
+        // const SizedBox(height: 24),
+        // Divider(),
         if (isAdmin) ...[
           ListTile(
-            visualDensity: const VisualDensity(
-              vertical: -4,
-            ), // tighten gap between rows
-
+            visualDensity: const VisualDensity(vertical: -4),
             leading: const Icon(Icons.admin_panel_settings),
             title: const Text('Użytkownicy'),
             onTap: () => Navigator.of(context).push(
@@ -341,32 +307,8 @@ class _MainMenuScreenState extends State<MainMenuScreen> {
           },
         ),
 
-        // ListTile(
-        //   leading: const Icon(Icons.qr_code_scanner),
-        //   title: const Text('Skanuj'),
-        //   onTap: () {
-        //     Navigator.of(context).push(
-        //       MaterialPageRoute(
-        //         builder: (_) => const ScanScreen(purpose: ScanPurpose.search),
-        //       ),
-        //     );
-        //   },
-        // ),
         const Divider(),
 
-        // if (isAdmin) ...[
-        //   ListTile(
-        //     leading: const Icon(Icons.playlist_add_check_circle_outlined),
-        //     title: const Text('Rezerwacje (test)'),
-        //     subtitle: const Text('Reserve → Confirm → Invoiced/Release'),
-        //     onTap: () => Navigator.of(context).push(
-        //       MaterialPageRoute(
-        //         builder: (_) => const ReservationTesterScreen(),
-        //       ),
-        //     ),
-        //   ),
-        //   const Divider(),
-        // ],
         StreamBuilder<bool>(
           stream: _isApproverStream(),
           builder: (context, snap) {
@@ -431,7 +373,56 @@ class _MainMenuScreenState extends State<MainMenuScreen> {
       floatingActionButtonLocation: FloatingActionButtonLocation.centerFloat,
 
       title: '',
-      titleWidget: Text(_version, style: const TextStyle(fontSize: 15)),
+      // titleWidget: Text(_version, style: const TextStyle(fontSize: 15)),
+      titleWidget: LayoutBuilder(
+        builder: (context, constraints) {
+          final maxWidth = constraints.maxWidth;
+
+          final double logoHeight = maxWidth < 360
+              ? 18
+              : maxWidth < 420
+              ? 22
+              : 26;
+
+          return Stack(
+            alignment: Alignment.center,
+            children: [
+              // LEFT: version
+              Align(
+                alignment: Alignment.centerLeft,
+                child: Padding(
+                  padding: const EdgeInsets.only(left: 4),
+                  child: Text(
+                    _version,
+                    style: const TextStyle(fontSize: 13),
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ),
+              ),
+
+              Center(
+                child: Transform.translate(
+                  offset: const Offset(10, 0),
+                  child: ConstrainedBox(
+                    constraints: BoxConstraints(maxWidth: maxWidth * 0.5),
+                    child: Image.asset(
+                      'assets/images/strefa_ciszy_logo.png',
+                      height: logoHeight,
+                      fit: BoxFit.contain,
+                    ),
+                  ),
+                ),
+              ),
+
+              // RIGHT spacer (matches logout button width)
+              const Align(
+                alignment: Alignment.centerRight,
+                child: SizedBox(width: 48),
+              ),
+            ],
+          );
+        },
+      ),
       showBackOnMobile: false,
       showPersistentDrawerOnWeb: false,
       backgroundColor: Colors.white,
@@ -440,7 +431,7 @@ class _MainMenuScreenState extends State<MainMenuScreen> {
         children: [
           body,
           Positioned(
-            bottom: 60,
+            bottom: 20,
             right: 20,
             child: GestureDetector(
               onTap: () async {
