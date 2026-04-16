@@ -14,7 +14,7 @@ import 'package:strefa_ciszy/screens/reports_daily.dart';
 import 'package:strefa_ciszy/screens/shopping_list_screen.dart';
 import 'package:strefa_ciszy/widgets/app_scaffold.dart';
 import 'package:url_launcher/url_launcher.dart';
-
+import 'package:strefa_ciszy/services/app_update_service.dart';
 import 'customer_list_screen.dart';
 import 'manage_users_screen.dart';
 import 'scan_screen.dart';
@@ -36,6 +36,10 @@ class _MainMenuScreenState extends State<MainMenuScreen> {
   void initState() {
     super.initState();
     _loadVersion();
+
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      AppUpdateService.checkForUpdate(context);
+    });
   }
   // manual access to reports screen
 
