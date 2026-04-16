@@ -334,29 +334,29 @@ class _MainMenuScreenState extends State<MainMenuScreen> {
           },
         ),
 
-        ListTile(
-          leading: const Icon(Icons.download_rounded),
-          title: const Text('Tapnij aby pobrac:'),
-          // subtitle: const Text('Android APK / iOS TestFlight'),
-          trailing: Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              _storeIconButton(
-                assetPath: 'assets/images/android_logo.png',
-                tooltip: 'Pobierz APK (Android)',
-                onTap: () => _downloadApp(context),
-                size: 44,
-              ),
-              const SizedBox(width: 10),
-              _storeIconButton(
-                assetPath: 'assets/images/apple_ios_logo.png',
-                tooltip: 'Otwórz TestFlight (iOS)',
-                onTap: () => _openTestFlight(context),
-                size: 80,
-              ),
-            ],
-          ),
-        ),
+        // ListTile(
+        //   leading: const Icon(Icons.download_rounded),
+        //   title: const Text('Tapnij aby pobrac:'),
+        //   // subtitle: const Text('Android APK / iOS TestFlight'),
+        //   trailing: Row(
+        //     mainAxisSize: MainAxisSize.min,
+        //     children: [
+        //       _storeIconButton(
+        //         assetPath: 'assets/images/android_logo.png',
+        //         tooltip: 'Pobierz APK (Android)',
+        //         onTap: () => _downloadApp(context),
+        //         size: 44,
+        //       ),
+        //       const SizedBox(width: 10),
+        //       _storeIconButton(
+        //         assetPath: 'assets/images/apple_ios_logo.png',
+        //         tooltip: 'Otwórz TestFlight (iOS)',
+        //         onTap: () => _openTestFlight(context),
+        //         size: 80,
+        //       ),
+        //     ],
+        //   ),
+        // ),
       ],
     );
 
@@ -431,7 +431,7 @@ class _MainMenuScreenState extends State<MainMenuScreen> {
         children: [
           body,
           Positioned(
-            bottom: 20,
+            bottom: 80,
             right: 20,
             child: GestureDetector(
               onTap: () async {

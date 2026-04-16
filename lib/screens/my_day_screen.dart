@@ -644,8 +644,9 @@ class _MyDayScreenState extends State<MyDayScreen> {
                       final existingEnd = (existingData['endMinutes'] as num?)
                           ?.toInt();
 
-                      if (existingStart == null || existingEnd == null)
+                      if (existingStart == null || existingEnd == null) {
                         continue;
+                      }
 
                       if (_timesOverlap(
                         startA: startMinutes,

@@ -5,6 +5,7 @@
 list(APPEND FLUTTER_PLUGIN_LIST
   cloud_firestore
   desktop_drop
+  downloadsfolder
   file_saver
   file_selector_windows
   firebase_auth
