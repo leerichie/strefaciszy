@@ -1,4 +1,4 @@
-// lib/widgets/project_current_tabs.dart
+// lib/widgets/project_current_tab.dart
 
 import 'dart:async';
 

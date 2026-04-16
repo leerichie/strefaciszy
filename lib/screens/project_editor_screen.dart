@@ -16,6 +16,7 @@ import 'package:strefa_ciszy/models/stock_item.dart';
 import 'package:strefa_ciszy/offline/reservations_offline.dart';
 import 'package:strefa_ciszy/screens/project_contacts_screen.dart';
 import 'package:strefa_ciszy/screens/project_description_screen.dart';
+import 'package:strefa_ciszy/screens/project_today_screen.dart';
 import 'package:strefa_ciszy/screens/rw_documents_screen.dart';
 import 'package:strefa_ciszy/services/admin_api.dart';
 import 'package:strefa_ciszy/services/api_service.dart';
@@ -142,75 +143,75 @@ class _ProjectEditorScreenState extends State<ProjectEditorScreen> {
     return <ProjectLine>[];
   }
 
-  Note? _buildDonePreviewNote(Map<String, dynamic> data) {
-    final now = DateTime.now();
-    final startOfDay = DateTime(now.year, now.month, now.day);
-    final endOfDay = startOfDay.add(const Duration(days: 1));
+  // Note? _buildDonePreviewNote(Map<String, dynamic> data) {
+  //   final now = DateTime.now();
+  //   final startOfDay = DateTime(now.year, now.month, now.day);
+  //   final endOfDay = startOfDay.add(const Duration(days: 1));
 
-    DateTime? pickMoment(Map<String, dynamic> m) {
-      final updated = m['updatedAt'];
-      if (updated is Timestamp) return updated.toDate();
+  //   DateTime? pickMoment(Map<String, dynamic> m) {
+  //     final updated = m['updatedAt'];
+  //     if (updated is Timestamp) return updated.toDate();
 
-      final created = m['createdAt'];
-      if (created is Timestamp) return created.toDate();
+  //     final created = m['createdAt'];
+  //     if (created is Timestamp) return created.toDate();
 
-      return null;
-    }
+  //     return null;
+  //   }
 
-    String prefixFor(String field, Map<String, dynamic> m) {
-      final color = (m['color'] ?? 'black').toString();
-      final dot = color == 'red'
-          ? '🔴'
-          : color == 'blue'
-          ? '🔵'
-          : '⚫';
+  //   String prefixFor(String field, Map<String, dynamic> m) {
+  //     final color = (m['color'] ?? 'black').toString();
+  //     final dot = color == 'red'
+  //         ? '🔴'
+  //         : color == 'blue'
+  //         ? '🔵'
+  //         : '⚫';
 
-      final label = field == _kCoordinationField ? 'ZAKUPY' : 'TODO';
-      return '$dot [$label]';
-    }
+  //     final label = field == _kCoordinationField ? 'ZAKUPY' : 'TODO';
+  //     return '$dot [$label]';
+  //   }
 
-    final lines = <Map<String, dynamic>>[];
+  //   final lines = <Map<String, dynamic>>[];
 
-    for (final field in [_kChangesNotesField, _kCoordinationField]) {
-      final raw = (data[field] as List?) ?? const [];
+  //   for (final field in [_kChangesNotesField, _kCoordinationField]) {
+  //     final raw = (data[field] as List?) ?? const [];
 
-      for (final item in raw) {
-        if (item is! Map) continue;
+  //     for (final item in raw) {
+  //       if (item is! Map) continue;
 
-        final m = Map<String, dynamic>.from(item);
-        final isTask = m['isTask'] == true;
-        final done = m['done'] == true;
+  //       final m = Map<String, dynamic>.from(item);
+  //       final isTask = m['isTask'] == true;
+  //       final done = m['done'] == true;
 
-        if (!isTask || !done) continue;
+  //       if (!isTask || !done) continue;
 
-        final when = pickMoment(m);
-        if (when == null) continue;
-        if (when.isBefore(startOfDay) || !when.isBefore(endOfDay)) continue;
+  //       final when = pickMoment(m);
+  //       if (when == null) continue;
+  //       if (when.isBefore(startOfDay) || !when.isBefore(endOfDay)) continue;
 
-        final text = (m['text'] ?? '').toString().trim();
-        if (text.isEmpty) continue;
+  //       final text = (m['text'] ?? '').toString().trim();
+  //       if (text.isEmpty) continue;
 
-        lines.add({'when': when, 'line': '${prefixFor(field, m)} $text'});
-      }
-    }
+  //       lines.add({'when': when, 'line': '${prefixFor(field, m)} $text'});
+  //     }
+  //   }
 
-    if (lines.isEmpty) return null;
+  //   if (lines.isEmpty) return null;
 
-    lines.sort(
-      (a, b) => (b['when'] as DateTime).compareTo(a['when'] as DateTime),
-    );
+  //   lines.sort(
+  //     (a, b) => (b['when'] as DateTime).compareTo(a['when'] as DateTime),
+  //   );
 
-    final previewText = lines.map((e) => e['line'] as String).join('\n');
+  //   final previewText = lines.map((e) => e['line'] as String).join('\n');
 
-    final latestTime = lines.first['when'] as DateTime;
+  //   final latestTime = lines.first['when'] as DateTime;
 
-    return Note(
-      text: previewText,
-      userName: 'DZIŚ',
-      createdAt: latestTime,
-      previewOnly: true,
-    );
-  }
+  //   return Note(
+  //     text: previewText,
+  //     userName: 'DZIŚ',
+  //     createdAt: latestTime,
+  //     previewOnly: true,
+  //   );
+  // }
 
   @override
   void initState() {
@@ -302,10 +303,10 @@ class _ProjectEditorScreenState extends State<ProjectEditorScreen> {
           )
           .toList();
 
-      final previewNote = _buildDonePreviewNote(data);
-      if (previewNote != null) {
-        todayNotes.insert(0, previewNote);
-      }
+      // final previewNote = _buildDonePreviewNote(data);
+      // if (previewNote != null) {
+      //   todayNotes.insert(0, previewNote);
+      // }
 
       todayNotes.sort((a, b) => b.createdAt.compareTo(a.createdAt));
 
@@ -1423,6 +1424,17 @@ class _ProjectEditorScreenState extends State<ProjectEditorScreen> {
                     NotesSection(
                       notes: _notes,
                       readOnly: _projectArchived,
+                      onOpenToday: (ctx) {
+                        Navigator.of(ctx).push(
+                          MaterialPageRoute(
+                            builder: (_) => ProjectTodayScreen(
+                              projRef: projRef,
+                              readOnly: _projectArchived,
+                              isAdmin: widget.isAdmin,
+                            ),
+                          ),
+                        );
+                      },
                       onAddNote: (ctx) async {
                         if (_projectArchived) return Future.value(null);
 

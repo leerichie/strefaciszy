@@ -7,6 +7,7 @@ import 'package:strefa_ciszy/widgets/note_dialogue.dart';
 typedef OnNoteAdded = Future<Note?> Function(BuildContext context);
 typedef OnNoteEdited = Future<void> Function(int index, String newText);
 typedef OnNoteDeleted = Future<void> Function(int index);
+typedef OnOpenToday = void Function(BuildContext context);
 
 class Note {
   final String text;
@@ -28,6 +29,7 @@ class NotesSection extends StatelessWidget {
   final OnNoteEdited onEdit;
   final OnNoteDeleted onDelete;
   final bool readOnly;
+  final OnOpenToday? onOpenToday;
 
   const NotesSection({
     super.key,
@@ -36,6 +38,7 @@ class NotesSection extends StatelessWidget {
     required this.onEdit,
     required this.onDelete,
     this.readOnly = false,
+    this.onOpenToday,
   });
 
   @override
@@ -45,6 +48,7 @@ class NotesSection extends StatelessWidget {
 
     const double tileHeight = 70;
     const double addButtonSize = 22.0;
+    const double todayButtonHeight = 24.0;
 
     if (sorted.isEmpty) {
       return SizedBox(
@@ -65,6 +69,15 @@ class NotesSection extends StatelessWidget {
                     ),
                   ],
                 ),
+              ),
+            ),
+
+            Positioned(
+              top: 4,
+              left: 4,
+              child: _TodayButton(
+                height: todayButtonHeight,
+                onTap: () => onOpenToday?.call(context),
               ),
             ),
 
@@ -90,7 +103,7 @@ class NotesSection extends StatelessWidget {
             child: SingleChildScrollView(
               scrollDirection: Axis.vertical,
               child: Padding(
-                padding: const EdgeInsets.only(right: 36.0),
+                padding: const EdgeInsets.only(left: 52.0, right: 36.0),
                 child: Wrap(
                   spacing: 3,
                   runSpacing: 3,
@@ -106,6 +119,14 @@ class NotesSection extends StatelessWidget {
                   ],
                 ),
               ),
+            ),
+          ),
+          Positioned(
+            top: 4,
+            left: 4,
+            child: _TodayButton(
+              height: todayButtonHeight,
+              onTap: () => onOpenToday?.call(context),
             ),
           ),
 
@@ -144,6 +165,39 @@ Future<void> showNoteReadOnlyDialog(
       ],
     ),
   );
+}
+
+class _TodayButton extends StatelessWidget {
+  final double height;
+  final VoidCallback? onTap;
+
+  const _TodayButton({required this.height, required this.onTap});
+
+  @override
+  Widget build(BuildContext context) {
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(6),
+      child: Container(
+        height: 30,
+
+        padding: const EdgeInsets.symmetric(horizontal: 8),
+        decoration: BoxDecoration(
+          color: Colors.blueGrey.shade100,
+          borderRadius: BorderRadius.circular(6),
+        ),
+        alignment: Alignment.center,
+        child: Text(
+          'DZIŚ',
+          style: TextStyle(
+            fontSize: 15,
+            fontWeight: FontWeight.bold,
+            color: const Color.fromARGB(255, 223, 59, 59),
+          ),
+        ),
+      ),
+    );
+  }
 }
 
 class _NoteTile extends StatelessWidget {

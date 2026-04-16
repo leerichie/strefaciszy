@@ -2,6 +2,12 @@
 
 import 'dart:convert';
 
+import 'dart:io';
+
+import 'package:path_provider/path_provider.dart';
+import 'package:downloadsfolder/downloadsfolder.dart';
+import 'package:open_file/open_file.dart';
+
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:file_saver/file_saver.dart';
 import 'package:firebase_auth/firebase_auth.dart';
@@ -55,7 +61,79 @@ class _ReportsDailyScreenState extends State<ReportsDailyScreen> {
     super.dispose();
   }
 
-  // ice mahual download reports
+  // ice manual download reports
+  // Future<void> _downloadReport() async {
+  //   final user = FirebaseAuth.instance.currentUser;
+  //   if (user == null) {
+  //     setState(() {
+  //       _statusMessage = 'Brak zalogowanego użytkownika.';
+  //     });
+  //     return;
+  //   }
+
+  //   setState(() {
+  //     _isDownloading = true;
+  //     _statusMessage = null;
+  //   });
+
+  //   try {
+  //     final token = await user.getIdToken();
+
+  //     final resp = await http.post(
+  //       Uri.parse(_downloadFunctionUrl),
+  //       headers: {
+  //         'Authorization': 'Bearer $token',
+  //         'Content-Type': 'application/json',
+  //       },
+  //       body: jsonEncode({'dayKey': _dayKey}),
+  //     );
+
+  //     if (kDebugMode) {
+  //       print('downloadDailyRwReportHttp status: ${resp.statusCode}');
+  //       print('downloadDailyRwReportHttp headers: ${resp.headers}');
+  //     }
+
+  //     if (resp.statusCode == 200) {
+  //       final bytes = resp.bodyBytes;
+  //       final fileName = 'rw_raport_$_dayKey';
+
+  //       await FileSaver.instance.saveFile(
+  //         name: '$fileName.xlsx',
+  //         bytes: Uint8List.fromList(bytes),
+  //         mimeType: MimeType.microsoftExcel,
+  //       );
+
+  //       setState(() {
+  //         _statusMessage = 'Pobrano raport za $_dayKey.';
+  //       });
+  //     } else {
+  //       String msg = 'Błąd: ${resp.statusCode}';
+  //       try {
+  //         final data = jsonDecode(resp.body) as Map<String, dynamic>;
+  //         if (data['error'] != null) {
+  //           msg += ' – ${data['error']}';
+  //         }
+  //       } catch (_) {}
+  //       setState(() {
+  //         _statusMessage = msg;
+  //       });
+  //     }
+  //   } catch (e, st) {
+  //     if (kDebugMode) {
+  //       print('downloadDailyRwReportHttp exception: $e\n$st');
+  //     }
+  //     setState(() {
+  //       _statusMessage = 'Błąd pobierania: $e';
+  //     });
+  //   } finally {
+  //     if (mounted) {
+  //       setState(() {
+  //         _isDownloading = false;
+  //       });
+  //     }
+  //   }
+  // }
+
   Future<void> _downloadReport() async {
     final user = FirebaseAuth.instance.currentUser;
     if (user == null) {
@@ -88,18 +166,41 @@ class _ReportsDailyScreenState extends State<ReportsDailyScreen> {
       }
 
       if (resp.statusCode == 200) {
-        final bytes = resp.bodyBytes;
-        final fileName = 'rw_raport_$_dayKey';
+        final bytes = Uint8List.fromList(resp.bodyBytes);
+        final fileName = 'rw_raport_$_dayKey.xlsx';
 
-        await FileSaver.instance.saveFile(
-          name: '$fileName.xlsx',
-          bytes: Uint8List.fromList(bytes),
-          mimeType: MimeType.microsoftExcel,
-        );
+        if (kIsWeb) {
+          await FileSaver.instance.saveFile(
+            name: fileName,
+            bytes: bytes,
+            mimeType: MimeType.microsoftExcel,
+          );
 
-        setState(() {
-          _statusMessage = 'Pobrano raport za $_dayKey.';
-        });
+          setState(() {
+            _statusMessage = 'Pobrano raport za $_dayKey.';
+          });
+        } else {
+          final tempDir = await getTemporaryDirectory();
+          final tempFile = File('${tempDir.path}/$fileName');
+          await tempFile.writeAsBytes(bytes, flush: true);
+
+          final ok = await copyFileIntoDownloadFolder(tempFile.path, fileName);
+
+          if (ok == true) {
+            final downloadDir = await getDownloadDirectory();
+            final savedPath = '${downloadDir.path}/$fileName';
+
+            await OpenFile.open(savedPath);
+
+            setState(() {
+              _statusMessage = 'Raport zapisany w Downloads.';
+            });
+          } else {
+            setState(() {
+              _statusMessage = 'Nie udało się zapisać raport.';
+            });
+          }
+        }
       } else {
         String msg = 'Błąd: ${resp.statusCode}';
         try {
@@ -220,7 +321,7 @@ class _ReportsDailyScreenState extends State<ReportsDailyScreen> {
     final last = DateTime(now.year + 1, 12, 31);
 
     final picked = await showDatePicker(
-      context: context,
+      context: this.context,
       initialDate: _selectedDate,
       firstDate: first,
       lastDate: last,
@@ -279,13 +380,11 @@ class _ReportsDailyScreenState extends State<ReportsDailyScreen> {
         final sentTo =
             data['sentTo'] ??
             (customEmail.isNotEmpty ? customEmail : '(domyślny)');
-        final usedOverride = data['usedOverride'] == true;
 
         setState(() {
           _statusMessage =
               'Wysłano raport za $_dayKey (dok.: $count)\n'
-              'do: $sentTo'
-              '${usedOverride ? " " : " "}';
+              'do: $sentTo';
         });
       } else {
         String msg = 'Błąd: ${resp.statusCode}';
