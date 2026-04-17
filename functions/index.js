@@ -560,6 +560,25 @@ async function _getDoneTasksForDayFromProject({
   }
 }
 
+function _formatReportNoteText(m) {
+  let textRaw = (m.text || "").toString().trim();
+
+  textRaw = textRaw
+      .replace(/^Raporty\/Zmiany:\s*/i, "")
+      .replace(/^Koordynacja\/Zakupy:\s*/i, "")
+      .replace(/^TODO\s*/i, "")
+      .trim();
+
+  const isManualCard = m.todayManualCard === true;
+  const titleRaw = (m.todayCardTitle || "").toString().trim();
+
+  if (isManualCard && titleRaw) {
+    return `${titleRaw}: ${textRaw}`;
+  }
+
+  return textRaw;
+}
+
 // ICE download reports
 exports.downloadDailyRwReportHttp = functions.https.onRequest(async (req, res) => {
   if (req.method === "OPTIONS") {
@@ -740,15 +759,17 @@ exports.downloadDailyRwReportHttp = functions.https.onRequest(async (req, res) =
         );
 
         for (const m of notesList) {
-          let textRaw = (m.text || "").toString().trim();
+          // let textRaw = (m.text || "").toString().trim();
 
-          textRaw = textRaw
-              .replace(/^Raporty\/Zmiany:\s*/i, "")
-              .replace(/^Koordynacja\/Zakupy:\s*/i, "")
-              .replace(/^TODO\s*/i, "")
-              .trim();
+          // textRaw = textRaw
+          //     .replace(/^Raporty\/Zmiany:\s*/i, "")
+          //     .replace(/^Koordynacja\/Zakupy:\s*/i, "")
+          //     .replace(/^TODO\s*/i, "")
+          //     .trim();
 
-          const textNorm = textRaw.toLowerCase();
+          // const textNorm = textRaw.toLowerCase();
+          const textRaw = _formatReportNoteText(m);
+          const textNorm = (m.text || "").toString().trim().toLowerCase();
 
           if (doneTaskTexts.has(textNorm)) {
             continue;
@@ -1047,16 +1068,18 @@ exports.sendDailyRwReportHttp = functions.https.onRequest(async (req, res) => {
           );
 
           for (const m of notesList) {
-            let textRaw = (m.text || "").toString().trim();
+            // let textRaw = (m.text || "").toString().trim();
 
-            // remove legacy prefixes
-            textRaw = textRaw
-                .replace(/^Raporty\/Zmiany:\s*/i, "")
-                .replace(/^Koordynacja\/Zakupy:\s*/i, "")
-                .replace(/^TODO\s*/i, "")
-                .trim();
+            // textRaw = textRaw
+            //     .replace(/^Raporty\/Zmiany:\s*/i, "")
+            //     .replace(/^Koordynacja\/Zakupy:\s*/i, "")
+            //     .replace(/^TODO\s*/i, "")
+            //     .trim();
 
-            const textNorm = textRaw.toLowerCase();
+            // const textNorm = textRaw.toLowerCase();
+
+            const textRaw = _formatReportNoteText(m);
+            const textNorm = (m.text || "").toString().trim().toLowerCase();
 
             // skip duplicates of DONE tasks
             if (doneTaskTexts.has(textNorm)) {
@@ -1360,16 +1383,18 @@ exports.sendDailyRwReportScheduled = onSchedule(
             );
 
             for (const m of notesList) {
-              let textRaw = (m.text || "").toString().trim();
+              // let textRaw = (m.text || "").toString().trim();
 
-              // remove legacy prefixes
-              textRaw = textRaw
-                  .replace(/^Raporty\/Zmiany:\s*/i, "")
-                  .replace(/^Koordynacja\/Zakupy:\s*/i, "")
-                  .replace(/^TODO\s*/i, "")
-                  .trim();
+              // textRaw = textRaw
+              //     .replace(/^Raporty\/Zmiany:\s*/i, "")
+              //     .replace(/^Koordynacja\/Zakupy:\s*/i, "")
+              //     .replace(/^TODO\s*/i, "")
+              //     .trim();
 
-              const textNorm = textRaw.toLowerCase();
+              // const textNorm = textRaw.toLowerCase();
+
+              const textRaw = _formatReportNoteText(m);
+              const textNorm = (m.text || "").toString().trim().toLowerCase();
 
               // skip duplicates of DONE tasks
               if (doneTaskTexts.has(textNorm)) {

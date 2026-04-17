@@ -3,6 +3,7 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
+import 'package:strefa_ciszy/widgets/app_scaffold.dart';
 
 class ProjectTodayScreen extends StatefulWidget {
   final DocumentReference<Map<String, dynamic>> projRef;
@@ -276,6 +277,43 @@ class _ProjectTodayScreenState extends State<ProjectTodayScreen> {
     });
   }
 
+  Future<void> _replaceNoteEverywhere({
+    required Map<String, dynamic> oldMap,
+    required Map<String, dynamic> newMap,
+  }) async {
+    await widget.projRef.update({
+      'notesList': FieldValue.arrayRemove([oldMap]),
+    });
+    await widget.projRef.update({
+      'notesList': FieldValue.arrayUnion([newMap]),
+    });
+
+    final rwRef = await _todayRwRef();
+    if (rwRef != null) {
+      await rwRef.update({
+        'notesList': FieldValue.arrayRemove([oldMap]),
+      });
+      await rwRef.update({
+        'notesList': FieldValue.arrayUnion([newMap]),
+      });
+    }
+  }
+
+  Future<void> _removeNoteEverywhere({
+    required Map<String, dynamic> map,
+  }) async {
+    await widget.projRef.update({
+      'notesList': FieldValue.arrayRemove([map]),
+    });
+
+    final rwRef = await _todayRwRef();
+    if (rwRef != null) {
+      await rwRef.update({
+        'notesList': FieldValue.arrayRemove([map]),
+      });
+    }
+  }
+
   Future<void> _createManualTodayCard() async {
     if (!_resolvedIsAdmin || widget.readOnly) return;
 
@@ -291,10 +329,12 @@ class _ProjectTodayScreenState extends State<ProjectTodayScreen> {
       userName = userDoc.data()?['name'] as String? ?? authUser.email ?? '—';
     }
 
+    final now = Timestamp.now();
+
     final newMap = {
       'text': 'bla blaaa',
       'userName': userName,
-      'createdAt': Timestamp.now(),
+      'createdAt': now,
       'todayManualCard': true,
       'todayCardTitle': 'NOWY WPIS - ADMIN',
     };
@@ -324,18 +364,6 @@ class _ProjectTodayScreenState extends State<ProjectTodayScreen> {
     final trimmed = newText.trim();
     if (trimmed == oldText) return;
 
-    final authUser = FirebaseAuth.instance.currentUser!;
-    String userName = authUser.displayName ?? '';
-    if (userName.isEmpty) {
-      final userDoc = await FirebaseFirestore.instance
-          .collection('users')
-          .doc(authUser.uid)
-          .get();
-      userName = userDoc.data()?['name'] as String? ?? authUser.email!;
-    }
-
-    final now = DateTime.now();
-
     final oldMap = {
       'text': oldText,
       'userName': oldUserName,
@@ -346,28 +374,13 @@ class _ProjectTodayScreenState extends State<ProjectTodayScreen> {
 
     final newMap = {
       'text': trimmed,
-      'userName': userName,
-      'createdAt': Timestamp.fromDate(now),
+      'userName': oldUserName,
+      'createdAt': Timestamp.fromDate(oldCreatedAt),
       if (isManualCard) 'todayManualCard': true,
       if (isManualCard && oldTitle != null) 'todayCardTitle': oldTitle,
     };
 
-    await widget.projRef.update({
-      'notesList': FieldValue.arrayRemove([oldMap]),
-    });
-    await widget.projRef.update({
-      'notesList': FieldValue.arrayUnion([newMap]),
-    });
-
-    final rwRef = await _todayRwRef();
-    if (rwRef != null) {
-      await rwRef.update({
-        'notesList': FieldValue.arrayRemove([oldMap]),
-      });
-      await rwRef.update({
-        'notesList': FieldValue.arrayUnion([newMap]),
-      });
-    }
+    await _replaceNoteEverywhere(oldMap: oldMap, newMap: newMap);
   }
 
   Future<void> _updateManualCardTitle({
@@ -398,22 +411,7 @@ class _ProjectTodayScreenState extends State<ProjectTodayScreen> {
       'todayCardTitle': trimmed,
     };
 
-    await widget.projRef.update({
-      'notesList': FieldValue.arrayRemove([oldMap]),
-    });
-    await widget.projRef.update({
-      'notesList': FieldValue.arrayUnion([newMap]),
-    });
-
-    final rwRef = await _todayRwRef();
-    if (rwRef != null) {
-      await rwRef.update({
-        'notesList': FieldValue.arrayRemove([oldMap]),
-      });
-      await rwRef.update({
-        'notesList': FieldValue.arrayUnion([newMap]),
-      });
-    }
+    await _replaceNoteEverywhere(oldMap: oldMap, newMap: newMap);
   }
 
   Future<void> _deleteNote({
@@ -434,23 +432,16 @@ class _ProjectTodayScreenState extends State<ProjectTodayScreen> {
       if (isManualCard && manualTitle != null) 'todayCardTitle': manualTitle,
     };
 
-    await widget.projRef.update({
-      'notesList': FieldValue.arrayRemove([map]),
-    });
-
-    final rwRef = await _todayRwRef();
-    if (rwRef != null) {
-      await rwRef.update({
-        'notesList': FieldValue.arrayRemove([map]),
-      });
-    }
+    await _removeNoteEverywhere(map: map);
   }
 
   @override
   Widget build(BuildContext context) {
     final bool canEditTodayScreen = _resolvedIsAdmin && !widget.readOnly;
-    return Scaffold(
-      appBar: AppBar(title: const Text('PEŁNY RAPORT - dzisiaj')),
+    return AppScaffold(
+      title: 'PEŁNY RAPORT - dzisiaj',
+      centreTitle: true,
+      showBackOnWeb: true,
       body: !_adminLoaded
           ? const Center(child: CircularProgressIndicator())
           : StreamBuilder<DocumentSnapshot<Map<String, dynamic>>>(

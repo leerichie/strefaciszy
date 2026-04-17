@@ -299,6 +299,8 @@ class _ProjectEditorScreenState extends State<ProjectEditorScreen> {
               text: m['text'] as String,
               userName: m['userName'] as String,
               createdAt: (m['createdAt'] as Timestamp).toDate(),
+              todayManualCard: m['todayManualCard'] == true,
+              todayCardTitle: (m['todayCardTitle'] as String?)?.trim(),
             ),
           )
           .toList();
@@ -450,6 +452,10 @@ class _ProjectEditorScreenState extends State<ProjectEditorScreen> {
                   'text': n.text,
                   'userName': n.userName,
                   'createdAt': Timestamp.fromDate(n.createdAt),
+                  if (n.todayManualCard) 'todayManualCard': true,
+                  if (n.todayManualCard &&
+                      (n.todayCardTitle ?? '').trim().isNotEmpty)
+                    'todayCardTitle': n.todayCardTitle!.trim(),
                 },
               )
               .toList(),
@@ -899,6 +905,10 @@ class _ProjectEditorScreenState extends State<ProjectEditorScreen> {
             'text': note.text,
             'userName': note.userName,
             'createdAt': Timestamp.fromDate(note.createdAt),
+            if (note.todayManualCard) 'todayManualCard': true,
+            if (note.todayManualCard &&
+                (note.todayCardTitle ?? '').trim().isNotEmpty)
+              'todayCardTitle': note.todayCardTitle!.trim(),
           },
         )
         .toList();
@@ -1519,6 +1529,10 @@ class _ProjectEditorScreenState extends State<ProjectEditorScreen> {
                           'text': old.text,
                           'userName': old.userName,
                           'createdAt': Timestamp.fromDate(old.createdAt),
+                          if (old.todayManualCard) 'todayManualCard': true,
+                          if (old.todayManualCard &&
+                              (old.todayCardTitle ?? '').trim().isNotEmpty)
+                            'todayCardTitle': old.todayCardTitle!.trim(),
                         };
 
                         final authUser = FirebaseAuth.instance.currentUser!;
@@ -1541,6 +1555,8 @@ class _ProjectEditorScreenState extends State<ProjectEditorScreen> {
                             text: trimmed,
                             userName: userName,
                             createdAt: now,
+                            todayManualCard: old.todayManualCard,
+                            todayCardTitle: old.todayCardTitle,
                           );
                         });
 
@@ -1548,6 +1564,10 @@ class _ProjectEditorScreenState extends State<ProjectEditorScreen> {
                           'text': trimmed,
                           'userName': userName,
                           'createdAt': Timestamp.fromDate(now),
+                          if (old.todayManualCard) 'todayManualCard': true,
+                          if (old.todayManualCard &&
+                              (old.todayCardTitle ?? '').trim().isNotEmpty)
+                            'todayCardTitle': old.todayCardTitle!.trim(),
                         };
 
                         // project notes
@@ -1592,6 +1612,10 @@ class _ProjectEditorScreenState extends State<ProjectEditorScreen> {
                           'text': note.text,
                           'userName': note.userName,
                           'createdAt': Timestamp.fromDate(note.createdAt),
+                          if (note.todayManualCard) 'todayManualCard': true,
+                          if (note.todayManualCard &&
+                              (note.todayCardTitle ?? '').trim().isNotEmpty)
+                            'todayCardTitle': note.todayCardTitle!.trim(),
                         };
 
                         await projRef.update({
