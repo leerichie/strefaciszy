@@ -848,7 +848,7 @@ class _RWDocumentsScreenState extends State<RWDocumentsScreen> {
                       ).format(ts);
                       final user = (m['userName'] ?? '').toString();
                       final action = (m['action'] ?? '').toString().trim();
-                      final text = (m['text'] ?? '').toString();
+                      final text = _formatReportNoteText(m);
                       final actionPart = action.isNotEmpty ? ': $action' : '';
                       return '• [$tsStr] $user$actionPart: $text';
                     }(),
@@ -878,6 +878,28 @@ class _RWDocumentsScreenState extends State<RWDocumentsScreen> {
         ],
       ),
     );
+  }
+
+  String _formatReportNoteText(Map<String, dynamic> m) {
+    var textRaw = (m['text'] ?? '').toString().trim();
+
+    textRaw = textRaw
+        .replaceFirst(RegExp(r'^Raporty\/Zmiany:\s*', caseSensitive: false), '')
+        .replaceFirst(
+          RegExp(r'^Koordynacja\/Zakupy:\s*', caseSensitive: false),
+          '',
+        )
+        .replaceFirst(RegExp(r'^TODO\s*', caseSensitive: false), '')
+        .trim();
+
+    final isManualCard = m['todayManualCard'] == true;
+    final titleRaw = (m['todayCardTitle'] ?? '').toString().trim();
+
+    if (isManualCard && titleRaw.isNotEmpty) {
+      return '$titleRaw: $textRaw';
+    }
+
+    return textRaw;
   }
 
   Future<void> _fetchUserName(String uid) async {
@@ -954,7 +976,7 @@ class _RWDocumentsScreenState extends State<RWDocumentsScreen> {
               : '';
           final user = (m['userName'] ?? '').toString();
           final action = (m['action'] ?? '').toString().trim();
-          final text = (m['text'] ?? '').toString();
+          final text = _formatReportNoteText(m);
           final actionPart = action.isNotEmpty ? ': $action' : '';
           return <String>[
             '[$date] $user$actionPart: $text',
@@ -1087,7 +1109,7 @@ class _RWDocumentsScreenState extends State<RWDocumentsScreen> {
       final tsStr = DateFormat('dd.MM.yyyy HH:mm', 'pl_PL').format(ts);
       final user = (m['userName'] ?? '').toString();
       final action = (m['action'] ?? '').toString().trim();
-      final text = (m['text'] ?? '').toString();
+      final text = _formatReportNoteText(m);
       final actionPart = action.isNotEmpty ? ': $action' : '';
 
       final cell = sheet.getRangeByName('A$row');

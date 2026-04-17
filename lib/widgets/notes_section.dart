@@ -14,12 +14,16 @@ class Note {
   final String userName;
   final DateTime createdAt;
   final bool previewOnly;
+  final bool todayManualCard;
+  final String? todayCardTitle;
 
   Note({
     required this.text,
     required this.userName,
     required this.createdAt,
     this.previewOnly = false,
+    this.todayManualCard = false,
+    this.todayCardTitle,
   });
 }
 
