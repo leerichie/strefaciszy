@@ -2,6 +2,9 @@
 
 import 'dart:async';
 
+import 'package:flutter/gestures.dart';
+import 'package:url_launcher/url_launcher.dart';
+
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
@@ -56,6 +59,7 @@ class _ProjectCurrentTabsState extends State<ProjectCurrentTabs> {
   final Map<String, TextEditingController> _entryCtrls = {};
   final Map<String, Timer?> _entryDebounce = {};
   final Map<String, FocusNode> _entryFocus = {};
+  final Map<String, bool> _editingEntry = {};
 
   final Map<String, String?> _pendingTaskColorByField = {};
   bool _isAdmin = false;
@@ -910,6 +914,13 @@ class _ProjectCurrentTabsState extends State<ProjectCurrentTabs> {
         }
       }
     }
+
+    final entryId = (oldEntry['id'] ?? '').toString();
+    if (mounted && entryId.isNotEmpty) {
+      setState(() {
+        _editingEntry[entryId] = false;
+      });
+    }
   }
 
   Future<DocumentReference<Map<String, dynamic>>?> _todayRwRef() async {
@@ -1335,6 +1346,86 @@ class _ProjectCurrentTabsState extends State<ProjectCurrentTabs> {
     );
   }
 
+  Future<void> _openUrl(String rawUrl) async {
+    final trimmed = rawUrl.trim();
+    if (trimmed.isEmpty) return;
+
+    final normalized =
+        trimmed.startsWith('http://') || trimmed.startsWith('https://')
+        ? trimmed
+        : 'https://$trimmed';
+
+    final uri = Uri.tryParse(normalized);
+    if (uri == null || !uri.hasScheme || uri.host.isEmpty) return;
+
+    await launchUrl(uri, mode: LaunchMode.externalApplication);
+  }
+
+  List<_TextPart> _splitTextParts(String text) {
+    final regex = RegExp(
+      r'((https?:\/\/[^\s]+)|(www\.[^\s]+)|(([a-zA-Z0-9-]+\.)+[a-zA-Z]{2,}(\/[^\s]*)?))',
+      caseSensitive: false,
+    );
+
+    final parts = <_TextPart>[];
+    int start = 0;
+
+    for (final match in regex.allMatches(text)) {
+      if (match.start > start) {
+        parts.add(_TextPart(text.substring(start, match.start), false));
+      }
+
+      final matchedText = match.group(0) ?? '';
+      parts.add(_TextPart(matchedText, true));
+      start = match.end;
+    }
+
+    if (start < text.length) {
+      parts.add(_TextPart(text.substring(start), false));
+    }
+
+    if (parts.isEmpty) {
+      parts.add(_TextPart(text, false));
+    }
+
+    return parts;
+  }
+
+  Widget _buildTapToEditLinkText({
+    required String id,
+    required String text,
+    required TextStyle style,
+    required VoidCallback onEditTap,
+  }) {
+    final parts = _splitTextParts(text);
+
+    return RichText(
+      text: TextSpan(
+        children: parts.map((part) {
+          if (part.isLink) {
+            return TextSpan(
+              text: part.text,
+              style: style.copyWith(
+                color: Colors.blue,
+                decoration: TextDecoration.underline,
+              ),
+              recognizer: TapGestureRecognizer()
+                ..onTap = () {
+                  _openUrl(part.text);
+                },
+            );
+          }
+
+          return TextSpan(
+            text: part.text,
+            style: style,
+            recognizer: TapGestureRecognizer()..onTap = onEditTap,
+          );
+        }).toList(),
+      ),
+    );
+  }
+
   Widget _compactLogEditor({
     required String field,
     required String hint,
@@ -1544,6 +1635,7 @@ class _ProjectCurrentTabsState extends State<ProjectCurrentTabs> {
                   () => TextEditingController(),
                 );
                 final focus = _entryFocus.putIfAbsent(id, () => FocusNode());
+                final isEditing = _editingEntry[id] == true;
 
                 if (!focus.hasFocus && ctrl.text != text) {
                   ctrl.text = text;
@@ -1641,7 +1733,7 @@ class _ProjectCurrentTabsState extends State<ProjectCurrentTabs> {
                             ),
                             const SizedBox(width: 6),
                             Expanded(
-                              child: (canEdit && !widget.readOnly)
+                              child: (canEdit && !widget.readOnly && isEditing)
                                   ? TextField(
                                       controller: ctrl,
                                       focusNode: focus,
@@ -1664,19 +1756,29 @@ class _ProjectCurrentTabsState extends State<ProjectCurrentTabs> {
                                         newText: v,
                                       ),
                                     )
-                                  : SelectableText(
-                                      text,
+                                  : _buildTapToEditLinkText(
+                                      id: id,
+                                      text: text,
                                       style: TextStyle(
                                         fontSize: 13,
                                         height: 1.2,
                                         color: taskColor,
                                       ),
+                                      onEditTap: () {
+                                        if (!canEdit || widget.readOnly) return;
+                                        setState(() {
+                                          _editingEntry[id] = true;
+                                        });
+                                        Future.microtask(
+                                          () => focus.requestFocus(),
+                                        );
+                                      },
                                     ),
                             ),
                           ],
                         )
                       else
-                        (canEdit && !widget.readOnly)
+                        (canEdit && !widget.readOnly && isEditing)
                             ? TextField(
                                 controller: ctrl,
                                 focusNode: focus,
@@ -1698,12 +1800,21 @@ class _ProjectCurrentTabsState extends State<ProjectCurrentTabs> {
                                   newText: v,
                                 ),
                               )
-                            : SelectableText(
-                                text,
+                            : _buildTapToEditLinkText(
+                                id: id,
+                                text: text,
                                 style: const TextStyle(
                                   fontSize: 13,
                                   height: 1.2,
+                                  color: Colors.black,
                                 ),
+                                onEditTap: () {
+                                  if (!canEdit || widget.readOnly) return;
+                                  setState(() {
+                                    _editingEntry[id] = true;
+                                  });
+                                  Future.microtask(() => focus.requestFocus());
+                                },
                               ),
                     ],
                   ),
@@ -1808,4 +1919,11 @@ class _ProjectCurrentTabsState extends State<ProjectCurrentTabs> {
       ),
     );
   }
+}
+
+class _TextPart {
+  final String text;
+  final bool isLink;
+
+  _TextPart(this.text, this.isLink);
 }

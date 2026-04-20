@@ -420,6 +420,8 @@ class _MyDayScreenState extends State<MyDayScreen> {
     String? selectedProjectName = data?['projectName'] as String?;
     String? selectedCustomerId = data?['customerId'] as String?;
 
+    bool isSaving = false;
+
     TimeOfDay? parseTime(String raw) {
       final s = raw.trim();
       if (s.isEmpty) return null;
@@ -488,6 +490,15 @@ class _MyDayScreenState extends State<MyDayScreen> {
       final t = parseTime(raw);
       if (t == null) return null;
       return t.hour * 60 + t.minute;
+    }
+
+    String buildSlotDocId({
+      required String userId,
+      required String dayKey,
+      required int startMinutes,
+      required int endMinutes,
+    }) {
+      return '${userId}_${dayKey}_${startMinutes}_$endMinutes';
     }
 
     await showDialog<void>(
@@ -584,145 +595,237 @@ class _MyDayScreenState extends State<MyDayScreen> {
                   child: const Text('Anuluj'),
                 ),
                 ElevatedButton(
-                  onPressed: () async {
-                    final startTime = startCtrl.text.trim();
-                    final endTime = endCtrl.text.trim();
-                    final description = descCtrl.text.trim();
+                  onPressed: isSaving
+                      ? null
+                      : () async {
+                          setLocalState(() {
+                            isSaving = true;
+                          });
 
-                    final startMinutes = toMinutes(startTime);
-                    final endMinutes = toMinutes(endTime);
+                          try {
+                            final startTime = startCtrl.text.trim();
+                            final endTime = endCtrl.text.trim();
+                            final description = descCtrl.text.trim();
 
-                    if (startMinutes == null || endMinutes == null) {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(
-                          content: Text(
-                            'Ustaw prawidlłowo czas start i koniec',
-                          ),
-                        ),
-                      );
-                      return;
-                    }
+                            final startMinutes = toMinutes(startTime);
+                            final endMinutes = toMinutes(endTime);
 
-                    if (endMinutes <= startMinutes) {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(
-                          content: Text(
-                            'Data zakończenie musi być później niż czas rozpoczęcia',
-                          ),
-                        ),
-                      );
-                      return;
-                    }
+                            if (startMinutes == null || endMinutes == null) {
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                const SnackBar(
+                                  content: Text(
+                                    'Ustaw prawidłowo czas start i koniec',
+                                  ),
+                                ),
+                              );
+                              return;
+                            }
 
-                    if ((selectedProjectId == null ||
-                            selectedProjectId!.isEmpty) &&
-                        description.isEmpty) {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(
-                          content: Text('Wybierz projekt lub dodaj opis'),
-                        ),
-                      );
-                      return;
-                    }
+                            if (endMinutes <= startMinutes) {
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                const SnackBar(
+                                  content: Text(
+                                    'Data zakończenie musi być później niż czas rozpoczęcia',
+                                  ),
+                                ),
+                              );
+                              return;
+                            }
 
-                    final existingEntries = await FirebaseFirestore.instance
-                        .collection('work_day_logs')
-                        .where('userId', isEqualTo: user.uid)
-                        .where('dayKey', isEqualTo: _dayKey(_selectedDay))
-                        .get();
+                            if ((selectedProjectId == null ||
+                                    selectedProjectId!.isEmpty) &&
+                                description.isEmpty) {
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                const SnackBar(
+                                  content: Text(
+                                    'Wybierz projekt lub dodaj opis',
+                                  ),
+                                ),
+                              );
+                              return;
+                            }
 
-                    bool hasConflict = false;
+                            final dayKey = _dayKey(_selectedDay);
 
-                    for (final existingDoc in existingEntries.docs) {
-                      if (doc != null && existingDoc.id == doc.id) {
-                        continue;
-                      }
+                            final existingEntries = await FirebaseFirestore
+                                .instance
+                                .collection('work_day_logs')
+                                .where('userId', isEqualTo: user.uid)
+                                .where('dayKey', isEqualTo: dayKey)
+                                .get();
 
-                      final existingData = existingDoc.data();
-                      final existingStart =
-                          (existingData['startMinutes'] as num?)?.toInt();
-                      final existingEnd = (existingData['endMinutes'] as num?)
-                          ?.toInt();
+                            bool hasConflict = false;
 
-                      if (existingStart == null || existingEnd == null) {
-                        continue;
-                      }
+                            for (final existingDoc in existingEntries.docs) {
+                              if (doc != null && existingDoc.id == doc.id) {
+                                continue;
+                              }
 
-                      if (_timesOverlap(
-                        startA: startMinutes,
-                        endA: endMinutes,
-                        startB: existingStart,
-                        endB: existingEnd,
-                      )) {
-                        hasConflict = true;
-                        break;
-                      }
-                    }
+                              final existingData = existingDoc.data();
+                              final existingStart =
+                                  (existingData['startMinutes'] as num?)
+                                      ?.toInt();
+                              final existingEnd =
+                                  (existingData['endMinutes'] as num?)?.toInt();
 
-                    if (hasConflict) {
-                      await showDialog<void>(
-                        context: dialogContext,
-                        builder: (conflictDialogContext) => AlertDialog(
-                          title: const Text(
-                            'Istnieje wpis o tej godzinie.\nWybierz inny czas! 🤪',
-                          ),
-                          // content: const Text(
-                          //   'Istnieje wpis o tej godzinie. Wybierz inny czas!',
-                          // ),
-                          actions: [
-                            TextButton(
-                              onPressed: () =>
-                                  Navigator.pop(conflictDialogContext),
-                              child: const Text('OK'),
-                            ),
-                          ],
-                        ),
-                      );
-                      return;
-                    }
+                              if (existingStart == null ||
+                                  existingEnd == null) {
+                                continue;
+                              }
 
-                    final userName = await _readUserName(user);
-                    final durationMinutes = endMinutes - startMinutes;
+                              if (_timesOverlap(
+                                startA: startMinutes,
+                                endA: endMinutes,
+                                startB: existingStart,
+                                endB: existingEnd,
+                              )) {
+                                hasConflict = true;
+                                break;
+                              }
+                            }
 
-                    final payload = <String, dynamic>{
-                      'userId': user.uid,
-                      'userName': userName,
-                      'userEmail': user.email,
-                      'dayKey': _dayKey(_selectedDay),
-                      'workDate': Timestamp.fromDate(
-                        DateTime(
-                          _selectedDay.year,
-                          _selectedDay.month,
-                          _selectedDay.day,
-                        ),
-                      ),
-                      'startTime': startTime,
-                      'endTime': endTime,
-                      'startMinutes': startMinutes,
-                      'endMinutes': endMinutes,
-                      'durationMinutes': durationMinutes,
-                      'projectId': selectedProjectId,
-                      'projectName': selectedProjectName,
-                      'customerId': selectedCustomerId,
-                      'description': description,
-                      'updatedAt': FieldValue.serverTimestamp(),
-                    };
+                            if (hasConflict) {
+                              await showDialog<void>(
+                                context: dialogContext,
+                                builder: (conflictDialogContext) => AlertDialog(
+                                  title: const Text(
+                                    'Istnieje wpis o tej godzinie.\nWybierz inny czas! 🤪',
+                                  ),
+                                  actions: [
+                                    TextButton(
+                                      onPressed: () =>
+                                          Navigator.pop(conflictDialogContext),
+                                      child: const Text('OK'),
+                                    ),
+                                  ],
+                                ),
+                              );
+                              return;
+                            }
 
-                    final col = FirebaseFirestore.instance.collection(
-                      'work_day_logs',
-                    );
+                            final userName = await _readUserName(user);
+                            final durationMinutes = endMinutes - startMinutes;
 
-                    if (doc == null) {
-                      payload['createdAt'] = FieldValue.serverTimestamp();
-                      await col.add(payload);
-                    } else {
-                      await doc.reference.update(payload);
-                    }
+                            final payload = <String, dynamic>{
+                              'userId': user.uid,
+                              'userName': userName,
+                              'userEmail': user.email,
+                              'dayKey': dayKey,
+                              'workDate': Timestamp.fromDate(
+                                DateTime(
+                                  _selectedDay.year,
+                                  _selectedDay.month,
+                                  _selectedDay.day,
+                                ),
+                              ),
+                              'startTime': startTime,
+                              'endTime': endTime,
+                              'startMinutes': startMinutes,
+                              'endMinutes': endMinutes,
+                              'durationMinutes': durationMinutes,
+                              'projectId': selectedProjectId,
+                              'projectName': selectedProjectName,
+                              'customerId': selectedCustomerId,
+                              'description': description,
+                              'updatedAt': FieldValue.serverTimestamp(),
+                            };
 
-                    if (!mounted) return;
-                    Navigator.pop(dialogContext);
-                  },
-                  child: const Text('Zapisz'),
+                            final col = FirebaseFirestore.instance.collection(
+                              'work_day_logs',
+                            );
+
+                            final newDocId = buildSlotDocId(
+                              userId: user.uid,
+                              dayKey: dayKey,
+                              startMinutes: startMinutes,
+                              endMinutes: endMinutes,
+                            );
+
+                            if (doc == null) {
+                              final targetRef = col.doc(newDocId);
+                              final targetSnap = await targetRef.get();
+
+                              if (targetSnap.exists) {
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  const SnackBar(
+                                    content: Text(
+                                      'Taki wpis już istnieje o tej godzinie',
+                                    ),
+                                  ),
+                                );
+                                return;
+                              }
+
+                              payload['createdAt'] =
+                                  FieldValue.serverTimestamp();
+                              await targetRef.set(payload);
+                            } else {
+                              final oldData = doc.data() ?? {};
+                              final oldStart = (oldData['startMinutes'] as num?)
+                                  ?.toInt();
+                              final oldEnd = (oldData['endMinutes'] as num?)
+                                  ?.toInt();
+                              final oldDayKey =
+                                  (oldData['dayKey'] as String?) ?? dayKey;
+
+                              final oldDocId = buildSlotDocId(
+                                userId: user.uid,
+                                dayKey: oldDayKey,
+                                startMinutes: oldStart ?? startMinutes,
+                                endMinutes: oldEnd ?? endMinutes,
+                              );
+
+                              final slotChanged =
+                                  oldDocId != newDocId || doc.id != newDocId;
+
+                              if (!slotChanged) {
+                                await doc.reference.update(payload);
+                              } else {
+                                final targetRef = col.doc(newDocId);
+                                final targetSnap = await targetRef.get();
+
+                                if (targetSnap.exists) {
+                                  ScaffoldMessenger.of(context).showSnackBar(
+                                    const SnackBar(
+                                      content: Text(
+                                        'Taki wpis już istnieje o tej godzinie',
+                                      ),
+                                    ),
+                                  );
+                                  return;
+                                }
+
+                                final batch = FirebaseFirestore.instance
+                                    .batch();
+
+                                payload['createdAt'] =
+                                    oldData['createdAt'] ??
+                                    FieldValue.serverTimestamp();
+
+                                batch.set(targetRef, payload);
+                                batch.delete(doc.reference);
+
+                                await batch.commit();
+                              }
+                            }
+
+                            if (!mounted) return;
+                            Navigator.pop(dialogContext);
+                          } finally {
+                            if (mounted) {
+                              setLocalState(() {
+                                isSaving = false;
+                              });
+                            }
+                          }
+                        },
+                  child: isSaving
+                      ? const SizedBox(
+                          width: 18,
+                          height: 18,
+                          child: CircularProgressIndicator(strokeWidth: 2),
+                        )
+                      : const Text('Zapisz'),
                 ),
               ],
             );

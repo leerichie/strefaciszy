@@ -704,11 +704,6 @@ exports.downloadDailyRwReportHttp = functions.https.onRequest(async (req, res) =
         const items    = Array.isArray(dData.items) ? dData.items : [];
         const notesRaw = Array.isArray(dData.notesList) ? dData.notesList : [];
 
-        if (items.length === 0 && notesRaw.length === 0) {
-          console.log("[RW download] skipping empty doc", dData.id || "(no id)");
-          continue;
-        }
-
         const dateStr  = polish.format(createdAt);
         const type     = dData.type || "RW";
         const customer = dData.customerName || "";
@@ -727,6 +722,15 @@ exports.downloadDailyRwReportHttp = functions.https.onRequest(async (req, res) =
             dayEndUtc,
           });
           projectTasksCache.set(cacheKey, doneTasks);
+        }
+
+        if (
+          items.length === 0 &&
+          notesRaw.length === 0 &&
+          doneTasks.length === 0
+        ) {
+          console.log("[RW] skipping truly empty doc", dData.id || "(no id)");
+          continue;
         }
 
         const notesList = [...notesRaw];
@@ -1013,11 +1017,6 @@ exports.sendDailyRwReportHttp = functions.https.onRequest(async (req, res) => {
           const items    = Array.isArray(dData.items) ? dData.items : [];
           const notesRaw = Array.isArray(dData.notesList) ? dData.notesList : [];
 
-          if (items.length === 0 && notesRaw.length === 0) {
-            console.log("[RW] skipping empty doc", dData.id || "(no id)");
-            continue;
-          }
-
           const dateStr  = polish.format(createdAt);
           const type     = dData.type || "RW";
           const customer = dData.customerName || "";
@@ -1036,6 +1035,15 @@ exports.sendDailyRwReportHttp = functions.https.onRequest(async (req, res) => {
               dayEndUtc,
             });
             projectTasksCache.set(cacheKey, doneTasks);
+          }
+
+          if (
+            items.length === 0 &&
+            notesRaw.length === 0 &&
+            doneTasks.length === 0
+          ) {
+            console.log("[RW] skipping truly empty doc", dData.id || "(no id)");
+            continue;
           }
 
           const notesList = [...notesRaw];
@@ -1328,11 +1336,6 @@ exports.sendDailyRwReportScheduled = onSchedule(
             const items    = Array.isArray(dData.items) ? dData.items : [];
             const notesRaw = Array.isArray(dData.notesList) ? dData.notesList : [];
 
-            if (items.length === 0 && notesRaw.length === 0) {
-              console.log("[RW scheduled] skipping empty doc", dData.id || "(no id)");
-              continue;
-            }
-
             const dateStr  = polish.format(createdAt);
             const type     = dData.type || "RW";
             const customer = dData.customerName || "";
@@ -1351,6 +1354,15 @@ exports.sendDailyRwReportScheduled = onSchedule(
                 dayEndUtc,
               });
               projectTasksCache.set(cacheKey, doneTasks);
+            }
+
+            if (
+              items.length === 0 &&
+              notesRaw.length === 0 &&
+              doneTasks.length === 0
+            ) {
+              console.log("[RW] skipping truly empty doc", dData.id || "(no id)");
+              continue;
             }
 
             const notesList = [...notesRaw];
