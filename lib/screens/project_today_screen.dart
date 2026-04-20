@@ -5,6 +5,9 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:strefa_ciszy/widgets/app_scaffold.dart';
 
+import 'package:flutter/gestures.dart';
+import 'package:url_launcher/url_launcher.dart';
+
 class ProjectTodayScreen extends StatefulWidget {
   final DocumentReference<Map<String, dynamic>> projRef;
   final bool readOnly;
@@ -32,6 +35,8 @@ class _ProjectTodayScreenState extends State<ProjectTodayScreen> {
 
   bool _resolvedIsAdmin = false;
   bool _adminLoaded = false;
+
+  bool _showFullHistory = false;
 
   @override
   void initState() {
@@ -153,6 +158,33 @@ class _ProjectTodayScreenState extends State<ProjectTodayScreen> {
       if (item is! Map) continue;
 
       final m = Map<String, dynamic>.from(item);
+      final when = _entryMoment(m);
+      if (when == null) continue;
+      if (!_isToday(when)) continue;
+
+      out.add(m);
+    }
+
+    return out;
+  }
+
+  List<Map<String, dynamic>> _readTodayDoneTodoEntries(
+    Map<String, dynamic> data,
+    String field,
+  ) {
+    final raw = (data[field] as List?) ?? const [];
+    final out = <Map<String, dynamic>>[];
+
+    for (final item in raw) {
+      if (item is! Map) continue;
+
+      final m = Map<String, dynamic>.from(item);
+
+      final isTask = m['isTask'] == true;
+      final done = m['done'] == true;
+
+      if (!isTask || !done) continue;
+
       final when = _entryMoment(m);
       if (when == null) continue;
       if (!_isToday(when)) continue;
@@ -444,228 +476,296 @@ class _ProjectTodayScreenState extends State<ProjectTodayScreen> {
       showBackOnWeb: true,
       body: !_adminLoaded
           ? const Center(child: CircularProgressIndicator())
-          : StreamBuilder<DocumentSnapshot<Map<String, dynamic>>>(
-              stream: widget.projRef.snapshots(),
-              builder: (context, snap) {
-                if (!snap.hasData || !snap.data!.exists) {
-                  return const Center(child: CircularProgressIndicator());
-                }
+          : Column(
+              children: [
+                // Padding(
+                //   padding: const EdgeInsets.fromLTRB(12, 0, 12, 0),
+                //   child: Text(
+                //     _showFullHistory
+                //         ? 'Pokazuje wszystkie wpisy z dzis.'
+                //         : 'Pokazuje tylko dane wysyłane w raporcie dzis.',
+                //     style: const TextStyle(fontSize: 14, color: Colors.black54),
+                //   ),
+                // ),
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(12, 0, 12, 0),
+                  child: Row(
+                    children: [
+                      Expanded(
+                        child: Text(
+                          _showFullHistory
+                              ? 'Pokazuje wszystkie wpisy z dzis.'
+                              : 'Pokazuje tylko dane wysyłane w raporcie dzis.',
+                          style: const TextStyle(
+                            fontSize: 14,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                      ),
 
-                final data = snap.data!.data() ?? <String, dynamic>{};
+                      Switch(
+                        value: _showFullHistory,
+                        onChanged: (value) {
+                          setState(() {
+                            _showFullHistory = value;
+                          });
+                        },
+                      ),
+                    ],
+                  ),
+                ),
 
-                final installer = _readTodayEntries(data, kInstallerField)
-                    .map(
-                      (e) => {
-                        'type': 'installer',
-                        'field': kInstallerField,
-                        'entry': e,
-                      },
-                    )
-                    .toList();
+                Expanded(
+                  child: StreamBuilder<DocumentSnapshot<Map<String, dynamic>>>(
+                    stream: widget.projRef.snapshots(),
+                    builder: (context, snap) {
+                      if (!snap.hasData || !snap.data!.exists) {
+                        return const Center(child: CircularProgressIndicator());
+                      }
 
-                final coordination = _readTodayEntries(data, kCoordinationField)
-                    .map(
-                      (e) => {
-                        'type': 'coordination',
-                        'field': kCoordinationField,
-                        'entry': e,
-                      },
-                    )
-                    .toList();
+                      final data = snap.data!.data() ?? <String, dynamic>{};
 
-                final todo = _readTodayEntries(data, kChangesNotesField)
-                    .map(
-                      (e) => {
-                        'type': 'todo',
-                        'field': kChangesNotesField,
-                        'entry': e,
-                      },
-                    )
-                    .toList();
+                      final installer =
+                          (_showFullHistory
+                                  ? _readTodayEntries(data, kInstallerField)
+                                  : <Map<String, dynamic>>[])
+                              .map(
+                                (e) => {
+                                  'type': 'installer',
+                                  'field': kInstallerField,
+                                  'entry': e,
+                                },
+                              )
+                              .toList();
 
-                final rawNotes = (data['notesList'] as List?) ?? const [];
-                final notes = <Map<String, dynamic>>[];
+                      final coordination =
+                          (_showFullHistory
+                                  ? _readTodayEntries(data, kCoordinationField)
+                                  : <Map<String, dynamic>>[])
+                              .map(
+                                (e) => {
+                                  'type': 'coordination',
+                                  'field': kCoordinationField,
+                                  'entry': e,
+                                },
+                              )
+                              .toList();
 
-                for (int i = 0; i < rawNotes.length; i++) {
-                  final item = rawNotes[i];
-                  if (item is! Map) continue;
+                      final todo =
+                          (_showFullHistory
+                                  ? _readTodayEntries(data, kChangesNotesField)
+                                  : _readTodayDoneTodoEntries(
+                                      data,
+                                      kChangesNotesField,
+                                    ))
+                              .map(
+                                (e) => {
+                                  'type': 'todo',
+                                  'field': kChangesNotesField,
+                                  'entry': e,
+                                },
+                              )
+                              .toList();
 
-                  final m = Map<String, dynamic>.from(item);
-                  final ts = m['createdAt'];
-                  if (ts is! Timestamp) continue;
+                      final rawNotes = (data['notesList'] as List?) ?? const [];
+                      final notes = <Map<String, dynamic>>[];
 
-                  final dt = ts.toDate().toLocal();
-                  if (!_isToday(dt)) continue;
+                      for (int i = 0; i < rawNotes.length; i++) {
+                        final item = rawNotes[i];
+                        if (item is! Map) continue;
 
-                  notes.add({'type': 'note', 'noteIndex': i, 'entry': m});
-                }
+                        final m = Map<String, dynamic>.from(item);
+                        final ts = m['createdAt'];
+                        if (ts is! Timestamp) continue;
 
-                final all = <Map<String, dynamic>>[
-                  ...installer,
-                  ...coordination,
-                  ...todo,
-                  ...notes,
-                ];
+                        final dt = ts.toDate().toLocal();
+                        if (!_isToday(dt)) continue;
 
-                DateTime sortMoment(Map<String, dynamic> row) {
-                  final entry = Map<String, dynamic>.from(row['entry'] as Map);
-                  if (row['type'] == 'note') {
-                    return (entry['createdAt'] as Timestamp).toDate().toLocal();
-                  }
-                  return _entryMoment(entry) ??
-                      DateTime.fromMillisecondsSinceEpoch(0);
-                }
+                        notes.add({'type': 'note', 'noteIndex': i, 'entry': m});
+                      }
 
-                all.sort((a, b) => sortMoment(b).compareTo(sortMoment(a)));
+                      final all = <Map<String, dynamic>>[
+                        ...installer,
+                        ...coordination,
+                        ...todo,
+                        ...notes,
+                      ];
 
-                if (all.isEmpty) {
-                  return const Center(child: Text('Jeszcze pusto...'));
-                }
+                      DateTime sortMoment(Map<String, dynamic> row) {
+                        final entry = Map<String, dynamic>.from(
+                          row['entry'] as Map,
+                        );
+                        if (row['type'] == 'note') {
+                          return (entry['createdAt'] as Timestamp)
+                              .toDate()
+                              .toLocal();
+                        }
+                        return _entryMoment(entry) ??
+                            DateTime.fromMillisecondsSinceEpoch(0);
+                      }
 
-                return ListView.separated(
-                  padding: const EdgeInsets.fromLTRB(10, 8, 10, 10),
-                  itemCount: all.length,
-                  separatorBuilder: (_, __) => const SizedBox(height: 4),
-                  itemBuilder: (context, i) {
-                    final row = all[i];
-                    final type = row['type'] as String;
-                    final entry = Map<String, dynamic>.from(
-                      row['entry'] as Map,
-                    );
+                      all.sort(
+                        (a, b) => sortMoment(b).compareTo(sortMoment(a)),
+                      );
 
-                    if (type == 'note') {
-                      final text = (entry['text'] ?? '').toString();
-                      final userName = (entry['userName'] ?? '').toString();
-                      final createdAt = (entry['createdAt'] as Timestamp)
-                          .toDate()
-                          .toLocal();
-                      final isManualCard = entry['todayManualCard'] == true;
-                      final manualTitle = (entry['todayCardTitle'] ?? 'NOTE')
-                          .toString();
+                      if (all.isEmpty) {
+                        return const Center(child: Text('Jeszcze pusto...'));
+                      }
 
-                      return _TodayNoteCard(
-                        title: isManualCard ? manualTitle : 'NOTE',
-                        header: '${_fmt(createdAt)} • $userName',
-                        text: text,
-                        readOnly: !canEditTodayScreen,
-                        canDelete: canEditTodayScreen,
-                        titleEditable: isManualCard && canEditTodayScreen,
-                        onTitleChanged: isManualCard
-                            ? (value) async {
-                                await _updateManualCardTitle(
+                      return ListView.separated(
+                        padding: const EdgeInsets.fromLTRB(10, 8, 10, 10),
+                        itemCount: all.length,
+                        separatorBuilder: (_, __) => const SizedBox(height: 4),
+                        itemBuilder: (context, i) {
+                          final row = all[i];
+                          final type = row['type'] as String;
+                          final entry = Map<String, dynamic>.from(
+                            row['entry'] as Map,
+                          );
+
+                          if (type == 'note') {
+                            final text = (entry['text'] ?? '').toString();
+                            final userName = (entry['userName'] ?? '')
+                                .toString();
+                            final createdAt = (entry['createdAt'] as Timestamp)
+                                .toDate()
+                                .toLocal();
+                            final isManualCard =
+                                entry['todayManualCard'] == true;
+                            final manualTitle =
+                                (entry['todayCardTitle'] ?? 'NOTE').toString();
+
+                            return _TodayNoteCard(
+                              title: isManualCard ? manualTitle : 'NOTE',
+                              header: '${_fmt(createdAt)} • $userName',
+                              text: text,
+                              readOnly: !canEditTodayScreen,
+                              canDelete: canEditTodayScreen,
+                              titleEditable: isManualCard && canEditTodayScreen,
+                              onTitleChanged: isManualCard
+                                  ? (value) async {
+                                      await _updateManualCardTitle(
+                                        oldText: text,
+                                        oldUserName: userName,
+                                        oldCreatedAt: createdAt,
+                                        oldTitle: manualTitle,
+                                        newTitle: value,
+                                      );
+                                    }
+                                  : null,
+                              onChanged: (value) async {
+                                await _updateNoteInline(
                                   oldText: text,
                                   oldUserName: userName,
                                   oldCreatedAt: createdAt,
-                                  oldTitle: manualTitle,
-                                  newTitle: value,
+                                  newText: value,
+                                  oldTitle: isManualCard ? manualTitle : null,
+                                  isManualCard: isManualCard,
                                 );
-                              }
-                            : null,
-                        onChanged: (value) async {
-                          await _updateNoteInline(
-                            oldText: text,
-                            oldUserName: userName,
-                            oldCreatedAt: createdAt,
-                            newText: value,
-                            oldTitle: isManualCard ? manualTitle : null,
-                            isManualCard: isManualCard,
-                          );
-                        },
-                        onDelete: () async {
-                          final ok = await _confirmDeleteDialog();
-                          if (!ok) return;
+                              },
+                              onDelete: () async {
+                                final ok = await _confirmDeleteDialog();
+                                if (!ok) return;
 
-                          await _deleteNote(
+                                await _deleteNote(
+                                  text: text,
+                                  userName: userName,
+                                  createdAt: createdAt,
+                                  isManualCard: isManualCard,
+                                  manualTitle: isManualCard
+                                      ? manualTitle
+                                      : null,
+                                );
+                              },
+                            );
+                          }
+
+                          final field = row['field'] as String;
+                          final text = (entry['text'] ?? '').toString();
+                          final isTask = entry['isTask'] == true;
+                          final done = entry['done'] == true;
+
+                          final createdAt = (entry['createdAt'] as Timestamp?)
+                              ?.toDate()
+                              .toLocal();
+                          final createdByName =
+                              (entry['createdByName'] as String?) ?? '';
+
+                          final updatedAt = (entry[kUpdatedAt] as Timestamp?)
+                              ?.toDate()
+                              .toLocal();
+                          final updatedByName =
+                              (entry[kUpdatedByName] as String?) ?? '';
+
+                          final headerTime = updatedAt ?? createdAt;
+                          final headerName =
+                              (updatedAt != null
+                                      ? updatedByName
+                                      : createdByName)
+                                  .trim();
+
+                          final header = headerTime == null
+                              ? '—'
+                              : '${_fmt(headerTime)}'
+                                    '${headerName.isNotEmpty ? ' • $headerName' : ''}'
+                                    '${updatedAt != null ? ' (edyt.)' : ''}';
+
+                          final label = field == kInstallerField
+                              ? 'INSTALATOR'
+                              : field == kCoordinationField
+                              ? 'KOORDYNACJA'
+                              : 'TODO';
+
+                          final colorStr = (entry['color'] ?? 'black')
+                              .toString();
+                          final textColor = colorStr == 'red'
+                              ? Colors.red
+                              : colorStr == 'blue'
+                              ? Colors.blue
+                              : Colors.black;
+
+                          return _TodayEntryCard(
+                            label: label,
+                            header: header,
                             text: text,
-                            userName: userName,
-                            createdAt: createdAt,
-                            isManualCard: isManualCard,
-                            manualTitle: isManualCard ? manualTitle : null,
+                            isTask: isTask,
+                            done: done,
+                            readOnly: !canEditTodayScreen,
+                            textColor: textColor,
+                            onChanged: (value) async {
+                              await _updateProjectEntry(
+                                field: field,
+                                oldEntry: entry,
+                                newText: value,
+                              );
+                            },
+                            onToggleDone: isTask
+                                ? (value) async {
+                                    await _toggleTaskDone(
+                                      field: field,
+                                      oldEntry: entry,
+                                      done: value,
+                                    );
+                                  }
+                                : null,
+                            onDelete: canEditTodayScreen
+                                ? () async {
+                                    final ok = await _confirmDeleteDialog();
+                                    if (!ok) return;
+
+                                    await _deleteProjectEntry(
+                                      field: field,
+                                      entry: entry,
+                                    );
+                                  }
+                                : null,
                           );
                         },
                       );
-                    }
-
-                    final field = row['field'] as String;
-                    final text = (entry['text'] ?? '').toString();
-                    final isTask = entry['isTask'] == true;
-                    final done = entry['done'] == true;
-
-                    final createdAt = (entry['createdAt'] as Timestamp?)
-                        ?.toDate()
-                        .toLocal();
-                    final createdByName =
-                        (entry['createdByName'] as String?) ?? '';
-
-                    final updatedAt = (entry[kUpdatedAt] as Timestamp?)
-                        ?.toDate()
-                        .toLocal();
-                    final updatedByName =
-                        (entry[kUpdatedByName] as String?) ?? '';
-
-                    final headerTime = updatedAt ?? createdAt;
-                    final headerName =
-                        (updatedAt != null ? updatedByName : createdByName)
-                            .trim();
-
-                    final header = headerTime == null
-                        ? '—'
-                        : '${_fmt(headerTime)}'
-                              '${headerName.isNotEmpty ? ' • $headerName' : ''}'
-                              '${updatedAt != null ? ' (edyt.)' : ''}';
-
-                    final label = field == kInstallerField
-                        ? 'INSTALATOR'
-                        : field == kCoordinationField
-                        ? 'KOORDYNACJA'
-                        : 'TODO';
-
-                    final colorStr = (entry['color'] ?? 'black').toString();
-                    final textColor = colorStr == 'red'
-                        ? Colors.red
-                        : colorStr == 'blue'
-                        ? Colors.blue
-                        : Colors.black;
-
-                    return _TodayEntryCard(
-                      label: label,
-                      header: header,
-                      text: text,
-                      isTask: isTask,
-                      done: done,
-                      readOnly: !canEditTodayScreen,
-                      textColor: textColor,
-                      onChanged: (value) async {
-                        await _updateProjectEntry(
-                          field: field,
-                          oldEntry: entry,
-                          newText: value,
-                        );
-                      },
-                      onToggleDone: isTask
-                          ? (value) async {
-                              await _toggleTaskDone(
-                                field: field,
-                                oldEntry: entry,
-                                done: value,
-                              );
-                            }
-                          : null,
-                      onDelete: canEditTodayScreen
-                          ? () async {
-                              final ok = await _confirmDeleteDialog();
-                              if (!ok) return;
-
-                              await _deleteProjectEntry(
-                                field: field,
-                                entry: entry,
-                              );
-                            }
-                          : null,
-                    );
-                  },
-                );
-              },
+                    },
+                  ),
+                ),
+              ],
             ),
       floatingActionButton: canEditTodayScreen
           ? FloatingActionButton(
@@ -677,6 +777,94 @@ class _ProjectTodayScreenState extends State<ProjectTodayScreen> {
       floatingActionButtonLocation: FloatingActionButtonLocation.centerFloat,
     );
   }
+}
+
+class _TextPart {
+  final String text;
+  final bool isLink;
+
+  _TextPart(this.text, this.isLink);
+}
+
+Future<void> _openUrl(String rawUrl) async {
+  final trimmed = rawUrl.trim();
+  if (trimmed.isEmpty) return;
+
+  final normalized =
+      trimmed.startsWith('http://') || trimmed.startsWith('https://')
+      ? trimmed
+      : 'https://$trimmed';
+
+  final uri = Uri.tryParse(normalized);
+  if (uri == null || !uri.hasScheme || uri.host.isEmpty) return;
+
+  await launchUrl(uri, mode: LaunchMode.externalApplication);
+}
+
+List<_TextPart> _splitTextParts(String text) {
+  final regex = RegExp(
+    r'((https?:\/\/[^\s]+)|(www\.[^\s]+)|(([a-zA-Z0-9-]+\.)+[a-zA-Z]{2,}(\/[^\s]*)?))',
+    caseSensitive: false,
+  );
+
+  final parts = <_TextPart>[];
+  int start = 0;
+
+  for (final match in regex.allMatches(text)) {
+    if (match.start > start) {
+      parts.add(_TextPart(text.substring(start, match.start), false));
+    }
+
+    final matchedText = match.group(0) ?? '';
+    parts.add(_TextPart(matchedText, true));
+    start = match.end;
+  }
+
+  if (start < text.length) {
+    parts.add(_TextPart(text.substring(start), false));
+  }
+
+  if (parts.isEmpty) {
+    parts.add(_TextPart(text, false));
+  }
+
+  return parts;
+}
+
+Widget _buildTapToEditLinkText({
+  required String text,
+  required TextStyle style,
+  required VoidCallback? onEditTap,
+}) {
+  final parts = _splitTextParts(text);
+
+  return RichText(
+    text: TextSpan(
+      children: parts.map((part) {
+        if (part.isLink) {
+          return TextSpan(
+            text: part.text,
+            style: style.copyWith(
+              color: Colors.blue,
+              decoration: TextDecoration.underline,
+            ),
+            recognizer: TapGestureRecognizer()
+              ..onTap = () {
+                _openUrl(part.text);
+              },
+          );
+        }
+
+        return TextSpan(
+          text: part.text,
+          style: style,
+          recognizer: onEditTap == null
+              ? null
+              : (TapGestureRecognizer()..onTap = onEditTap),
+        );
+      }).toList(),
+    ),
+  );
 }
 
 class _TodayNoteCard extends StatefulWidget {
@@ -711,6 +899,7 @@ class _TodayNoteCardState extends State<_TodayNoteCard> {
   late final TextEditingController _ctrl;
   late final FocusNode _titleFocus;
   late final FocusNode _focus;
+  bool _isEditingText = false;
 
   @override
   void initState() {
@@ -795,12 +984,8 @@ class _TodayNoteCardState extends State<_TodayNoteCard> {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Expanded(
-                  child: widget.readOnly
-                      ? Text(
-                          widget.text,
-                          style: const TextStyle(fontSize: 13, height: 1.1),
-                        )
-                      : TextField(
+                  child: (!widget.readOnly && _isEditingText)
+                      ? TextField(
                           controller: _ctrl,
                           focusNode: _focus,
                           minLines: 1,
@@ -814,7 +999,28 @@ class _TodayNoteCardState extends State<_TodayNoteCard> {
                           style: const TextStyle(fontSize: 13, height: 1.1),
                           onSubmitted: (v) async {
                             await widget.onChanged(v);
+                            if (mounted) {
+                              setState(() {
+                                _isEditingText = false;
+                              });
+                            }
                           },
+                        )
+                      : _buildTapToEditLinkText(
+                          text: widget.text,
+                          style: const TextStyle(
+                            fontSize: 13,
+                            height: 1.1,
+                            color: Colors.black,
+                          ),
+                          onEditTap: widget.readOnly
+                              ? null
+                              : () {
+                                  setState(() {
+                                    _isEditingText = true;
+                                  });
+                                  Future.microtask(() => _focus.requestFocus());
+                                },
                         ),
                 ),
                 if (widget.canDelete && !widget.readOnly)
@@ -879,6 +1085,7 @@ class _TodayEntryCard extends StatefulWidget {
 class _TodayEntryCardState extends State<_TodayEntryCard> {
   late final TextEditingController _ctrl;
   late final FocusNode _focus;
+  bool _isEditingText = false;
 
   @override
   void initState() {
@@ -956,16 +1163,8 @@ class _TodayEntryCardState extends State<_TodayEntryCard> {
                     ),
                   ),
                 Expanded(
-                  child: widget.readOnly
-                      ? Text(
-                          widget.text,
-                          style: TextStyle(
-                            fontSize: 13,
-                            color: widget.textColor,
-                            height: 1.1,
-                          ),
-                        )
-                      : TextField(
+                  child: (!widget.readOnly && _isEditingText)
+                      ? TextField(
                           controller: _ctrl,
                           focusNode: _focus,
                           minLines: 1,
@@ -983,7 +1182,28 @@ class _TodayEntryCardState extends State<_TodayEntryCard> {
                           ),
                           onSubmitted: (v) async {
                             await widget.onChanged(v);
+                            if (mounted) {
+                              setState(() {
+                                _isEditingText = false;
+                              });
+                            }
                           },
+                        )
+                      : _buildTapToEditLinkText(
+                          text: widget.text,
+                          style: TextStyle(
+                            fontSize: 13,
+                            color: widget.textColor,
+                            height: 1.1,
+                          ),
+                          onEditTap: widget.readOnly
+                              ? null
+                              : () {
+                                  setState(() {
+                                    _isEditingText = true;
+                                  });
+                                  Future.microtask(() => _focus.requestFocus());
+                                },
                         ),
                 ),
                 if (widget.onDelete != null && !widget.readOnly)
