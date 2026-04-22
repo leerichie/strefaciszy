@@ -18,8 +18,14 @@ class AppUpdateService {
       final currentVersion = packageInfo.version;
       final currentBuild = int.tryParse(packageInfo.buildNumber) ?? 0;
 
-      final response = await http.get(Uri.parse(_versionsUrl));
+      final uri = Uri.parse(
+        '$_versionsUrl?t=${DateTime.now().millisecondsSinceEpoch}',
+      );
 
+      final response = await http.get(
+        uri,
+        headers: {'Cache-Control': 'no-cache'},
+      );
       if (response.statusCode != 200) return;
 
       final Map<String, dynamic> jsonData =

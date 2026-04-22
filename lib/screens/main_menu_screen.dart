@@ -27,14 +27,20 @@ class MainMenuScreen extends StatefulWidget {
   _MainMenuScreenState createState() => _MainMenuScreenState();
 }
 
-class _MainMenuScreenState extends State<MainMenuScreen> {
+class _MainMenuScreenState extends State<MainMenuScreen>
+    with WidgetsBindingObserver {
   String get role => widget.role;
   bool get isAdmin => role == 'admin';
   String _version = '';
+  DateTime? _lastUpdateCheckAt;
+  bool _updateCheckRunning = false;
 
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _runUpdateCheck();
+    });
     _loadVersion();
 
     WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -72,6 +78,40 @@ class _MainMenuScreenState extends State<MainMenuScreen> {
         ),
       ),
     );
+  }
+
+  Future<void> _runUpdateCheck() async {
+    if (!mounted || _updateCheckRunning) return;
+
+    final now = DateTime.now();
+
+    // stops repeated checks every few seconds
+    if (_lastUpdateCheckAt != null &&
+        now.difference(_lastUpdateCheckAt!) < const Duration(minutes: 5)) {
+      return;
+    }
+
+    _updateCheckRunning = true;
+    _lastUpdateCheckAt = now;
+
+    try {
+      await AppUpdateService.checkForUpdate(context);
+    } finally {
+      _updateCheckRunning = false;
+    }
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) {
+      _runUpdateCheck();
+    }
+  }
+
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    super.dispose();
   }
 
   Future<void> _openTestFlight(BuildContext context) async {
