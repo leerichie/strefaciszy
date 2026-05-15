@@ -209,7 +209,7 @@ class _ProjectContactsScreenState extends State<ProjectContactsScreen> {
       scheme: 'mailto',
       path: '',
       queryParameters: {
-        'to': emails.join(','),
+        'to': emails.join(';'),
         // optional:
         // 'subject': '...',
         // 'body': '...',

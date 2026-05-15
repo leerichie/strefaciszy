@@ -1,6 +1,8 @@
 // lib/service/app_update_service.dart
 
 import 'dart:convert';
+import 'package:web/web.dart' as web;
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'package:package_info_plus/package_info_plus.dart';
@@ -13,6 +15,68 @@ class AppUpdateService {
   static const String _appKey = 'strefaciszy';
 
   static Future<void> checkForUpdate(BuildContext context) async {
+    if (kIsWeb) {
+      final packageInfo = await PackageInfo.fromPlatform();
+      final currentVersion = packageInfo.version;
+      final currentBuild = int.tryParse(packageInfo.buildNumber) ?? 0;
+
+      final uri = Uri.parse(
+        '$_versionsUrl?t=${DateTime.now().millisecondsSinceEpoch}',
+      );
+
+      final response = await http.get(
+        uri,
+        headers: {'Cache-Control': 'no-cache'},
+      );
+
+      if (response.statusCode != 200) return;
+
+      final Map<String, dynamic> jsonData =
+          jsonDecode(response.body) as Map<String, dynamic>;
+
+      final appData = jsonData[_appKey];
+      if (appData == null || appData is! Map<String, dynamic>) return;
+
+      final latestVersion = (appData['latestVersion'] ?? '').toString();
+
+      final latestBuild = appData['latestBuild'] is int
+          ? appData['latestBuild'] as int
+          : int.tryParse(appData['latestBuild'].toString()) ?? 0;
+
+      final hasUpdate =
+          latestBuild > currentBuild ||
+          (latestBuild == currentBuild && latestVersion != currentVersion);
+
+      if (!hasUpdate) return;
+      if (!context.mounted) return;
+
+      await showDialog(
+        context: context,
+        barrierDismissible: false,
+        builder: (_) => AlertDialog(
+          title: const Text('Dostępna aktualizacja.'),
+          content: const Text(
+            'Jeśli przycisk Refresh nie działa można odswieżyć stronę naciskając: CTRL + SHIFT + R',
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(),
+              child: const Text('Olać to'),
+            ),
+            ElevatedButton(
+              onPressed: () {
+                Navigator.of(context).pop();
+
+                web.window.location.reload();
+              },
+              child: const Text('Refresh'),
+            ),
+          ],
+        ),
+      );
+
+      return;
+    }
     try {
       final packageInfo = await PackageInfo.fromPlatform();
       final currentVersion = packageInfo.version;
