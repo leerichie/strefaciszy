@@ -23,6 +23,9 @@ android/.idea/
 # android/app/google-services.json        
 android/app/*.keystore
 android/local.properties
+*.jks
+android/key.properties
+
 
 # ==== iOS ====
 ios/Pods/
