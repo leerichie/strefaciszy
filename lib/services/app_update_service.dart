@@ -1,11 +1,12 @@
 // lib/service/app_update_service.dart
 
 import 'dart:convert';
-import 'package:web/web.dart' as web;
 import 'package:flutter/foundation.dart';
+import 'web_reload_stub.dart' if (dart.library.html) 'web_reload_web.dart';
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'package:package_info_plus/package_info_plus.dart';
+import 'package:strefa_ciszy/services/event_log_service.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 class AppUpdateService {
@@ -67,7 +68,7 @@ class AppUpdateService {
               onPressed: () {
                 Navigator.of(context).pop();
 
-                web.window.location.reload();
+                reloadWindow();
               },
               child: const Text('Refresh'),
             ),
@@ -143,11 +144,21 @@ class AppUpdateService {
           ),
           actions: [
             TextButton(
-              onPressed: () => Navigator.of(context).pop(),
+              onPressed: () {
+                EventLogService.appUpdateIgnored(
+                  currentVersion: '$currentVersion ($currentBuild)',
+                  latestVersion: '$latestVersion ($latestBuild)',
+                );
+                Navigator.of(context).pop();
+              },
               child: const Text('Ignore'),
             ),
             ElevatedButton(
               onPressed: () async {
+                EventLogService.appUpdateAccepted(
+                  currentVersion: '$currentVersion ($currentBuild)',
+                  latestVersion: '$latestVersion ($latestBuild)',
+                );
                 Navigator.of(context).pop();
                 final uri = Uri.parse(downloadPage);
                 await launchUrl(uri, mode: LaunchMode.externalApplication);

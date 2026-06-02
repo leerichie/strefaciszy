@@ -15,6 +15,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'package:intl/intl.dart';
+import 'package:strefa_ciszy/services/event_log_service.dart';
 import 'package:strefa_ciszy/widgets/app_scaffold.dart';
 
 class ReportsDailyScreen extends StatefulWidget {
@@ -60,6 +61,12 @@ class _ReportsDailyScreenState extends State<ReportsDailyScreen> {
   String? _devStatus;
 
   bool _isDownloading = false;
+
+  @override
+  void initState() {
+    super.initState();
+    EventLogService.reportViewed(reportType: 'daily_rw');
+  }
 
   @override
   void dispose() {

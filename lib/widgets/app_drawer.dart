@@ -4,6 +4,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:strefa_ciszy/screens/admin_event_logs_screen.dart';
 import 'package:strefa_ciszy/screens/archives_screen.dart';
 import 'package:strefa_ciszy/screens/chat_list_screen.dart';
 import 'package:strefa_ciszy/screens/contact_detail_screen.dart';
@@ -683,6 +684,25 @@ class _AppDrawerState extends State<AppDrawer> {
                       onTap: () => _openPage(context, const ArchivesScreen()),
                     ),
                   ),
+
+                  if (AdminEventLogsScreen.isAllowed()) ...[
+                    const Divider(color: Colors.white24),
+                    ListTile(
+                      leading: const Icon(
+                        Icons.manage_search,
+                        color: Colors.amberAccent,
+                      ),
+                      title: Text('Logi Zdarzeń', style: menuTitles),
+                      subtitle: const Text(
+                        'DEV — podgląd aktywności',
+                        style: TextStyle(color: Colors.white38, fontSize: 11),
+                      ),
+                      onTap: () => _openPage(
+                        context,
+                        const AdminEventLogsScreen(),
+                      ),
+                    ),
+                  ],
                 ],
               ),
             ),

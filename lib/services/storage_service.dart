@@ -7,6 +7,7 @@ import 'package:firebase_storage/firebase_storage.dart';
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:image_picker/image_picker.dart';
 import 'package:path/path.dart' as p;
+import 'package:strefa_ciszy/services/event_log_service.dart';
 
 class StorageService {
   final ImagePicker _picker = ImagePicker();
@@ -53,6 +54,7 @@ class StorageService {
       folder: 'project_images/$projectId',
       idSegment: null,
       file: file,
+      projectId: projectId,
     );
   }
 
@@ -75,6 +77,7 @@ class StorageService {
     required String folder,
     String? idSegment,
     required XFile file,
+    String? projectId,
   }) async {
     final ext = p.extension(file.name);
 
@@ -92,7 +95,13 @@ class StorageService {
       await ref.putFile(ioFile);
     }
 
-    return ref.getDownloadURL();
+    final url = await ref.getDownloadURL();
+    EventLogService.fileUploaded(
+      context: folder.split('/').first,
+      fileName: file.name,
+      projectId: projectId,
+    );
+    return url;
   }
 
   Future<String> uploadProjectImage(String projectId, XFile file) {
@@ -100,6 +109,7 @@ class StorageService {
       folder: 'project_images/$projectId',
       idSegment: null,
       file: file,
+      projectId: projectId,
     );
   }
 

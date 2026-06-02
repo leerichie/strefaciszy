@@ -2,6 +2,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 import 'package:strefa_ciszy/screens/main_menu_screen.dart';
+import 'package:strefa_ciszy/services/event_log_service.dart';
 
 class LoginScreen extends StatefulWidget {
   static const String routeName = '/login';
@@ -67,6 +68,7 @@ class _LoginScreenState extends State<LoginScreen> {
       );
 
       await cred.user!.getIdToken(true);
+      EventLogService.loginSuccess(cred.user!);
 
       if (!mounted) return;
 
@@ -76,6 +78,7 @@ class _LoginScreenState extends State<LoginScreen> {
       );
     } on FirebaseAuthException catch (e) {
       final friendly = _friendlyMessageForCode(e.code);
+      EventLogService.loginFailed(_emailCtrl.text.trim(), e.code);
       setState(() => _error = friendly);
     } catch (_) {
       setState(() => _error = 'Mega error. Spróbuj znowu...');

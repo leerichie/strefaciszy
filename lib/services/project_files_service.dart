@@ -4,6 +4,7 @@ import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_storage/firebase_storage.dart';
 import 'package:flutter/foundation.dart';
 import 'package:path/path.dart' as p;
+import 'package:strefa_ciszy/services/event_log_service.dart';
 
 class ProjectFilesService {
   static String? _guessContentType(String name) {
@@ -98,6 +99,14 @@ class ProjectFilesService {
 
     await docRef.update({'files': FieldValue.arrayUnion(newFiles)});
 
+    for (final file in newFiles) {
+      EventLogService.fileUploaded(
+        context: tabBucket,
+        fileName: file['name'] ?? '',
+        projectId: projectId,
+      );
+    }
+
     return newFiles;
   }
 
@@ -153,6 +162,14 @@ class ProjectFilesService {
 
     await docRef.update({'files': FieldValue.arrayUnion(newFiles)});
 
+    for (final file in newFiles) {
+      EventLogService.fileUploaded(
+        context: tabBucket,
+        fileName: file['name'] ?? '',
+        projectId: projectId,
+      );
+    }
+
     return newFiles;
   }
 
@@ -184,5 +201,11 @@ class ProjectFilesService {
         {'url': url, 'name': name, 'bucket': bucket},
       ]),
     });
+
+    EventLogService.fileDeleted(
+      context: bucket,
+      fileName: name,
+      projectId: projectId,
+    );
   }
 }

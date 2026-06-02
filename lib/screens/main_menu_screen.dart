@@ -2,6 +2,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:package_info_plus/package_info_plus.dart';
+import 'package:strefa_ciszy/screens/admin_event_logs_screen.dart';
 import 'package:strefa_ciszy/screens/approval_screen.dart';
 import 'package:strefa_ciszy/screens/archives_screen.dart';
 import 'package:strefa_ciszy/screens/chat_list_screen.dart';
@@ -184,6 +185,19 @@ class _MainMenuScreenState extends State<MainMenuScreen>
               MaterialPageRoute(builder: (_) => const ManageUsersScreen()),
             ),
           ),
+        ],
+
+        if (AdminEventLogsScreen.isAllowed()) ...[
+          ListTile(
+            visualDensity: const VisualDensity(vertical: -4),
+            leading: const Icon(Icons.manage_search, color: Colors.amber),
+            title: const Text('LOGS'),
+            // subtitle: const Text('dev only'),
+            onTap: () => Navigator.of(context).push(
+              MaterialPageRoute(builder: (_) => const AdminEventLogsScreen()),
+            ),
+          ),
+          const Divider(),
         ],
 
         if (canSeeReportsRW) ...[

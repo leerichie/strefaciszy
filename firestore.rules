@@ -136,18 +136,36 @@ service cloud.firestore {
     match /audit_logs/{logId} {
       allow create: if request.auth != null;
       allow read:   if request.auth != null;
+      allow delete: if request.auth != null
+        && (request.auth.token.admin == true
+            || request.auth.token.email == 'leerichie@wp.pl');
     }
     
     match /work_day_logs/{docId} {
       allow read: if request.auth != null
-        && resource.data.userId == request.auth.uid;
+        && (resource.data.userId == request.auth.uid
+            || request.auth.token.admin == true
+            || request.auth.token.email == 'leerichie@wp.pl');
 
       allow create: if request.auth != null
         && request.resource.data.userId == request.auth.uid;
 
-      allow update, delete: if request.auth != null
+      allow update: if request.auth != null
         && resource.data.userId == request.auth.uid
         && request.resource.data.userId == resource.data.userId;
+
+      allow delete: if request.auth != null
+        && resource.data.userId == request.auth.uid;
+    }
+
+    match /event_logs/{logId} {
+      allow create: if request.auth != null;
+      allow read: if request.auth != null
+        && (request.auth.token.admin == true
+            || request.auth.token.email == 'leerichie@wp.pl');
+      allow delete: if request.auth != null
+        && (request.auth.token.admin == true
+            || request.auth.token.email == 'leerichie@wp.pl');
     }
 
     match /users/{userId} {

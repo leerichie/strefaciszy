@@ -1,6 +1,7 @@
 // services/chat_service.dart
 
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:strefa_ciszy/services/event_log_service.dart';
 
 class ChatService {
   ChatService._();
@@ -60,6 +61,12 @@ class ChatService {
     }
 
     await batch.commit();
+
+    EventLogService.chatMessageSent(
+      chatId: chatId,
+      chatTitle: (chatData['title'] as String?) ?? chatId,
+      hasAttachment: attachments.isNotEmpty,
+    );
   }
 
   Future<void> joinGlobalChat(String uid) async {

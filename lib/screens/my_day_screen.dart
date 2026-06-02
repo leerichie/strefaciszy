@@ -4,6 +4,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
+import 'package:strefa_ciszy/services/event_log_service.dart';
 import 'package:strefa_ciszy/widgets/app_scaffold.dart';
 import 'package:table_calendar/table_calendar.dart';
 
@@ -15,10 +16,14 @@ class MyDayScreen extends StatefulWidget {
 }
 
 class _MyDayScreenState extends State<MyDayScreen> {
+  static const String _devEmail = 'leerichie@wp.pl';
+
   DateTime _selectedDay = DateTime.now();
 
   DateTime _focusedDay = DateTime.now();
   CalendarFormat _calendarFormat = CalendarFormat.week;
+
+  String? _selectedUserId;
 
   List<Map<String, String>> _projectsCache = [];
   bool _projectsLoading = false;
@@ -83,6 +88,111 @@ class _MyDayScreenState extends State<MyDayScreen> {
   bool _isToday(DateTime d) {
     final now = DateTime.now();
     return d.year == now.year && d.month == now.month && d.day == now.day;
+  }
+
+  bool _isDevUser(User? user) {
+    final email = (user?.email ?? '').toLowerCase().trim();
+    return email == _devEmail;
+  }
+
+  String _userLabel(Map<String, dynamic> data, String fallbackId) {
+    final name = (data['name'] as String?)?.trim() ?? '';
+    if (name.isNotEmpty) return name;
+
+    final username = (data['username'] as String?)?.trim() ?? '';
+    if (username.isNotEmpty) return username;
+
+    final email = (data['email'] as String?)?.trim() ?? '';
+    if (email.isNotEmpty) return email;
+
+    return fallbackId;
+  }
+
+  Widget _buildUserSelector({
+    required User currentUser,
+    required String selectedUserId,
+  }) {
+    if (!_isDevUser(currentUser)) return const SizedBox.shrink();
+
+    return StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
+      stream: FirebaseFirestore.instance.collection('users').snapshots(),
+      builder: (context, snap) {
+        final users =
+            snap.data?.docs
+                .map(
+                  (doc) => {
+                    'id': doc.id,
+                    'label': _userLabel(doc.data(), doc.id),
+                    'email': ((doc.data()['email'] as String?) ?? '').trim(),
+                  },
+                )
+                .toList() ??
+            <Map<String, String>>[];
+
+        final currentLabel =
+            (currentUser.displayName?.trim().isNotEmpty ?? false)
+            ? currentUser.displayName!.trim()
+            : (currentUser.email ?? currentUser.uid);
+
+        if (!users.any((u) => u['id'] == currentUser.uid)) {
+          users.add({
+            'id': currentUser.uid,
+            'label': currentLabel,
+            'email': currentUser.email ?? '',
+          });
+        }
+
+        if (!users.any((u) => u['id'] == selectedUserId)) {
+          users.add({
+            'id': selectedUserId,
+            'label': selectedUserId,
+            'email': '',
+          });
+        }
+
+        users.sort((a, b) {
+          final al = (a['label'] ?? '').toLowerCase();
+          final bl = (b['label'] ?? '').toLowerCase();
+          return al.compareTo(bl);
+        });
+
+        return Padding(
+          padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
+          child: DropdownButtonFormField<String>(
+            initialValue: selectedUserId,
+            isExpanded: true,
+            decoration: const InputDecoration(
+              labelText: 'Pokaż dzień użytkownika',
+              prefixIcon: Icon(Icons.people_alt_outlined),
+              border: OutlineInputBorder(),
+              isDense: true,
+            ),
+            items: users.map((u) {
+              final id = u['id'] ?? '';
+              final label = u['label'] ?? id;
+              final email = u['email'] ?? '';
+
+              return DropdownMenuItem<String>(
+                value: id,
+                child: Text(
+                  email.isNotEmpty && email != label
+                      ? '$label · $email'
+                      : label,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+              );
+            }).toList(),
+            onChanged: (value) {
+              if (value == null || value.isEmpty) return;
+              setState(() {
+                _selectedUserId = value == currentUser.uid ? null : value;
+              });
+            },
+          ),
+        );
+      },
+    );
   }
 
   Future<String> _readUserName(User user) async {
@@ -759,6 +869,13 @@ class _MyDayScreenState extends State<MyDayScreen> {
                               payload['createdAt'] =
                                   FieldValue.serverTimestamp();
                               await targetRef.set(payload);
+                              EventLogService.workDayEntryCreated(
+                                dayKey: dayKey,
+                                startTime: startTime,
+                                endTime: endTime,
+                                projectName: selectedProjectName,
+                                description: description,
+                              );
                             } else {
                               final oldData = doc.data() ?? {};
                               final oldStart = (oldData['startMinutes'] as num?)
@@ -780,6 +897,13 @@ class _MyDayScreenState extends State<MyDayScreen> {
 
                               if (!slotChanged) {
                                 await doc.reference.update(payload);
+                                EventLogService.workDayEntryUpdated(
+                                  dayKey: dayKey,
+                                  startTime: startTime,
+                                  endTime: endTime,
+                                  projectName: selectedProjectName,
+                                  description: description,
+                                );
                               } else {
                                 final targetRef = col.doc(newDocId);
                                 final targetSnap = await targetRef.get();
@@ -806,6 +930,13 @@ class _MyDayScreenState extends State<MyDayScreen> {
                                 batch.delete(doc.reference);
 
                                 await batch.commit();
+                                EventLogService.workDayEntryUpdated(
+                                  dayKey: dayKey,
+                                  startTime: startTime,
+                                  endTime: endTime,
+                                  projectName: selectedProjectName,
+                                  description: description,
+                                );
                               }
                             }
 
@@ -855,7 +986,14 @@ class _MyDayScreenState extends State<MyDayScreen> {
     );
 
     if (ok != true) return;
+    final data = doc.data() ?? {};
     await doc.reference.delete();
+    EventLogService.workDayEntryDeleted(
+      dayKey: (data['dayKey'] as String?) ?? '',
+      startTime: (data['startTime'] as String?) ?? '',
+      endTime: (data['endTime'] as String?) ?? '',
+      projectName: data['projectName'] as String?,
+    );
   }
 
   String _hoursLabel(int totalMinutes) {
@@ -878,9 +1016,15 @@ class _MyDayScreenState extends State<MyDayScreen> {
       return const Scaffold(body: Center(child: Text('No signed-in user')));
     }
 
+    final currentUser = user!;
+    final selectedUserId = _isDevUser(currentUser)
+        ? (_selectedUserId ?? uid)
+        : uid;
+    final isViewingOwnDay = selectedUserId == uid;
+
     final query = FirebaseFirestore.instance
         .collection('work_day_logs')
-        .where('userId', isEqualTo: uid)
+        .where('userId', isEqualTo: selectedUserId)
         .where('dayKey', isEqualTo: _dayKey(_selectedDay))
         .orderBy('startMinutes');
 
@@ -892,7 +1036,7 @@ class _MyDayScreenState extends State<MyDayScreen> {
 
     final monthQuery = FirebaseFirestore.instance
         .collection('work_day_logs')
-        .where('userId', isEqualTo: uid)
+        .where('userId', isEqualTo: selectedUserId)
         .where(
           'workDate',
           isGreaterThanOrEqualTo: Timestamp.fromDate(monthStart),
@@ -904,6 +1048,10 @@ class _MyDayScreenState extends State<MyDayScreen> {
       body: SafeArea(
         child: Column(
           children: [
+            _buildUserSelector(
+              currentUser: currentUser,
+              selectedUserId: selectedUserId,
+            ),
             StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
               stream: monthQuery.snapshots(),
               builder: (context, monthSnap) {
@@ -1013,7 +1161,10 @@ class _MyDayScreenState extends State<MyDayScreen> {
                           ),
                           const SizedBox(width: 8),
                           ElevatedButton.icon(
-                            onPressed: (_projectsLoading || !isTodaySelected)
+                            onPressed:
+                                (_projectsLoading ||
+                                    !isTodaySelected ||
+                                    !isViewingOwnDay)
                                 ? null
                                 : () async {
                                     if (!_projectsLoaded) {
@@ -1032,7 +1183,11 @@ class _MyDayScreenState extends State<MyDayScreen> {
                                   )
                                 : const Icon(Icons.add),
                             label: Text(
-                              _projectsLoading ? 'Ładowanie...' : 'Dodaj',
+                              _projectsLoading
+                                  ? 'Ładowanie...'
+                                  : isViewingOwnDay
+                                  ? 'Dodaj'
+                                  : 'Podgląd',
                             ),
                           ),
                         ],
@@ -1117,27 +1272,29 @@ class _MyDayScreenState extends State<MyDayScreen> {
                                     ? null
                                     : Text(subtitleParts.join('\n')),
                                 isThreeLine: subtitleParts.length > 1,
-                                trailing: PopupMenuButton<String>(
-                                  onSelected: (value) {
-                                    if (value == 'edit') {
-                                      _showEntryDialog(doc: doc);
-                                    } else if (value == 'delete') {
-                                      _deleteEntry(doc);
-                                    }
-                                  },
-                                  itemBuilder: (_) => [
-                                    if (isTodaySelected)
-                                      const PopupMenuItem(
-                                        value: 'edit',
-                                        child: Text('Edytuj'),
-                                      ),
-                                    if (isTodaySelected)
-                                      const PopupMenuItem(
-                                        value: 'delete',
-                                        child: Text('Usuń'),
-                                      ),
-                                  ],
-                                ),
+                                trailing: isViewingOwnDay
+                                    ? PopupMenuButton<String>(
+                                        onSelected: (value) {
+                                          if (value == 'edit') {
+                                            _showEntryDialog(doc: doc);
+                                          } else if (value == 'delete') {
+                                            _deleteEntry(doc);
+                                          }
+                                        },
+                                        itemBuilder: (_) => [
+                                          if (isTodaySelected)
+                                            const PopupMenuItem(
+                                              value: 'edit',
+                                              child: Text('Edytuj'),
+                                            ),
+                                          if (isTodaySelected)
+                                            const PopupMenuItem(
+                                              value: 'delete',
+                                              child: Text('Usuń'),
+                                            ),
+                                        ],
+                                      )
+                                    : const Icon(Icons.visibility_outlined),
                               ),
                             );
                           },
