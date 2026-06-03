@@ -8,7 +8,7 @@ class AppScaffold extends StatefulWidget {
   final String title;
   final Widget body;
   final List<Widget>? actions;
-  final FloatingActionButton? floatingActionButton;
+  final Widget? floatingActionButton;
   final FloatingActionButtonLocation? floatingActionButtonLocation;
   final PreferredSizeWidget? bottom;
   final bool showBackOnMobile;
@@ -18,6 +18,7 @@ class AppScaffold extends StatefulWidget {
   final Widget? titleWidget;
   final bool showPersistentDrawerOnWeb;
   final bool showBackOnWeb;
+  final Widget? appBarFlexibleSpace;
 
   const AppScaffold({
     super.key,
@@ -34,6 +35,7 @@ class AppScaffold extends StatefulWidget {
     this.titleWidget,
     this.showPersistentDrawerOnWeb = true,
     this.showBackOnWeb = false,
+    this.appBarFlexibleSpace,
   });
 
   @override
@@ -68,6 +70,7 @@ class _AppScaffoldState extends State<AppScaffold> {
                   automaticallyImplyLeading: false,
                   actions: widget.actions,
                   bottom: widget.bottom,
+                  flexibleSpace: widget.appBarFlexibleSpace,
                 ),
                 body: widget.body,
                 floatingActionButton: widget.floatingActionButton,
@@ -106,6 +109,7 @@ class _AppScaffoldState extends State<AppScaffold> {
         automaticallyImplyLeading: false,
         actions: widget.actions,
         bottom: widget.bottom,
+        flexibleSpace: widget.appBarFlexibleSpace,
       ),
       body: GestureDetector(
         behavior: HitTestBehavior.translucent,

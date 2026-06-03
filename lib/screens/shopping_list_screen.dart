@@ -8,6 +8,18 @@ import 'package:strefa_ciszy/screens/project_editor_screen.dart';
 import 'package:strefa_ciszy/screens/scan_screen.dart';
 import 'package:strefa_ciszy/widgets/app_scaffold.dart';
 
+class _AppPalette {
+  static const bodyFont = 'Bose (Regular)';
+  static const headlineFont = 'Bose-Headline (Bold)';
+  static const surface = Colors.white;
+  static const bg = Color(0xFFF4F6F7);
+  static const line = Color(0xFFD4DCE0);
+  static const text = Color(0xFF1E2B2F);
+  static const muted = Color(0xFF607176);
+  static const brand = Color(0xFF2574A9);
+  static const danger = Color(0xFFE04747);
+}
+
 class ShoppingListScreen extends StatefulWidget {
   const ShoppingListScreen({super.key});
 
@@ -41,6 +53,9 @@ class _ShoppingListScreenState extends State<ShoppingListScreen>
     final res = await showDialog<_SortMode>(
       context: context,
       builder: (ctx) => SimpleDialog(
+        backgroundColor: _AppPalette.surface,
+        surfaceTintColor: Colors.transparent,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
         title: const Text('Sortowanie'),
         children: [
           RadioGroup<_SortMode>(
@@ -287,12 +302,19 @@ class _ShoppingListScreenState extends State<ShoppingListScreen>
           children: [
             Material(
               color: Colors.transparent,
-              child: TabBar(
-                controller: tabCtrl,
-                tabs: const [
-                  Tab(text: 'Zapotrzebowanie'),
-                  Tab(text: 'Historia zakupów'),
-                ],
+              child: Theme(
+                data: Theme.of(context).copyWith(
+                  colorScheme: Theme.of(context).colorScheme.copyWith(
+                    primary: _AppPalette.brand,
+                  ),
+                ),
+                child: TabBar(
+                  controller: tabCtrl,
+                  tabs: const [
+                    Tab(text: 'Zapotrzebowanie'),
+                    Tab(text: 'Historia zakupów'),
+                  ],
+                ),
               ),
             ),
 
@@ -307,13 +329,22 @@ class _ShoppingListScreenState extends State<ShoppingListScreen>
                       onSubmitted: (_) => addItem(),
                       decoration: InputDecoration(
                         hintText: 'Wpisz nazwa lub skanuj…',
-                        border: const OutlineInputBorder(),
                         isDense: true,
                         suffixIcon: IconButton(
                           tooltip: 'Skanuj',
                           icon: const Icon(Icons.qr_code_scanner),
                           onPressed: scanAndAdd,
                         ),
+                        enabledBorder: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(8),
+                          borderSide: const BorderSide(color: _AppPalette.line),
+                        ),
+                        focusedBorder: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(8),
+                          borderSide: const BorderSide(color: _AppPalette.brand, width: 1.5),
+                        ),
+                        labelStyle: const TextStyle(fontFamily: _AppPalette.bodyFont, color: _AppPalette.muted),
+                        hintStyle: const TextStyle(fontFamily: _AppPalette.bodyFont, color: _AppPalette.muted),
                       ),
                     ),
                   ),
@@ -404,7 +435,7 @@ class _ItemsListState extends State<_ItemsList> {
       stream: widget.stream,
       builder: (ctx, snap) {
         if (snap.connectionState == ConnectionState.waiting) {
-          return const Center(child: CircularProgressIndicator());
+          return const Center(child: CircularProgressIndicator(color: _AppPalette.brand));
         }
 
         var docs = snap.data?.docs ?? const [];
@@ -477,7 +508,7 @@ class _ItemsListState extends State<_ItemsList> {
             }
 
             final cardColor = projectId.isEmpty
-                ? Colors.grey.shade100
+                ? _AppPalette.bg
                 : bgForProject(projectId);
 
             final bought = (data['bought'] == true);
@@ -526,7 +557,7 @@ class _ItemsListState extends State<_ItemsList> {
                           style: const TextStyle(
                             fontSize: 11,
                             fontWeight: FontWeight.w600,
-                            color: Colors.black54,
+                            color: _AppPalette.muted,
                             height: 1.0,
                           ),
                         ),
@@ -536,7 +567,7 @@ class _ItemsListState extends State<_ItemsList> {
                             style: TextStyle(
                               fontSize: 11,
                               fontWeight: FontWeight.w600,
-                              color: Colors.black54,
+                              color: _AppPalette.muted,
                               height: 1.0,
                             ),
                           ),
@@ -559,7 +590,7 @@ class _ItemsListState extends State<_ItemsList> {
                               style: const TextStyle(
                                 fontSize: 11,
                                 fontWeight: FontWeight.w700,
-                                color: Colors.blue,
+                                color: _AppPalette.brand,
                                 decoration: TextDecoration.underline,
                                 height: 1.0,
                               ),
@@ -576,6 +607,21 @@ class _ItemsListState extends State<_ItemsList> {
                           await showDialog<void>(
                             context: context,
                             builder: (ctx) => AlertDialog(
+                              backgroundColor: _AppPalette.surface,
+                              surfaceTintColor: Colors.transparent,
+                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                              titleTextStyle: const TextStyle(
+                                fontFamily: _AppPalette.headlineFont,
+                                fontWeight: FontWeight.w800,
+                                color: _AppPalette.text,
+                                fontSize: 17,
+                                letterSpacing: 0,
+                              ),
+                              contentTextStyle: const TextStyle(
+                                fontFamily: _AppPalette.bodyFont,
+                                color: _AppPalette.muted,
+                                fontSize: 14,
+                              ),
                               title: const Text('Pełna nazwa'),
                               content: SingleChildScrollView(
                                 child: Text(
@@ -589,6 +635,7 @@ class _ItemsListState extends State<_ItemsList> {
                               ),
                               actions: [
                                 TextButton(
+                                  style: TextButton.styleFrom(foregroundColor: _AppPalette.muted),
                                   onPressed: () => Navigator.pop(ctx),
                                   child: const Text('Zamknij'),
                                 ),
@@ -651,6 +698,21 @@ class _ItemsListState extends State<_ItemsList> {
                             final confirm = await showDialog<bool>(
                               context: context,
                               builder: (ctx) => AlertDialog(
+                                backgroundColor: _AppPalette.surface,
+                                surfaceTintColor: Colors.transparent,
+                                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                                titleTextStyle: const TextStyle(
+                                  fontFamily: _AppPalette.headlineFont,
+                                  fontWeight: FontWeight.w800,
+                                  color: _AppPalette.text,
+                                  fontSize: 17,
+                                  letterSpacing: 0,
+                                ),
+                                contentTextStyle: const TextStyle(
+                                  fontFamily: _AppPalette.bodyFont,
+                                  color: _AppPalette.muted,
+                                  fontSize: 14,
+                                ),
                                 title: const Text('Na pewno usunąć?'),
                                 content: Column(
                                   mainAxisSize: MainAxisSize.min,
@@ -665,10 +727,16 @@ class _ItemsListState extends State<_ItemsList> {
                                 ),
                                 actions: [
                                   TextButton(
+                                    style: TextButton.styleFrom(foregroundColor: _AppPalette.muted),
                                     onPressed: () => Navigator.pop(ctx, false),
                                     child: const Text('Anuluj'),
                                   ),
                                   ElevatedButton(
+                                    style: ElevatedButton.styleFrom(
+                                      backgroundColor: _AppPalette.danger,
+                                      foregroundColor: Colors.white,
+                                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                                    ),
                                     onPressed: () => Navigator.pop(ctx, true),
                                     child: const Text('Skasuj'),
                                   ),
@@ -684,7 +752,7 @@ class _ItemsListState extends State<_ItemsList> {
                             tooltip: 'Usuń (przytrzymaj)',
                             icon: const Icon(
                               Icons.delete_outline,
-                              color: Colors.red,
+                              color: _AppPalette.danger,
                             ),
                             onPressed: () {
                               ScaffoldMessenger.of(

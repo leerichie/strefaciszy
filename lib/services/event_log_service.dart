@@ -169,6 +169,68 @@ class EventLogService {
     );
   }
 
+  static Future<void> workDayEntryBlocked({
+    required String reason,
+    required String dayKey,
+    String? startTime,
+    String? endTime,
+    String? projectName,
+    String? description,
+  }) async {
+    await _write(
+      eventType: 'WORKDAY_ENTRY_BLOCKED',
+      category: 'workday',
+      summary: 'Work day entry blocked before save',
+      details: {
+        'reason': reason,
+        'day': dayKey,
+        if (startTime != null && startTime.isNotEmpty) 'startTime': startTime,
+        if (endTime != null && endTime.isNotEmpty) 'endTime': endTime,
+        if (startTime != null &&
+            startTime.isNotEmpty &&
+            endTime != null &&
+            endTime.isNotEmpty)
+          'time': '$startTime – $endTime',
+        if (projectName != null && projectName.isNotEmpty)
+          'project': projectName,
+        if (description != null && description.isNotEmpty) 'note': description,
+      },
+      severity: 'warning',
+    );
+  }
+
+  static Future<void> workDayEntrySaveFailed({
+    required String operation,
+    required String dayKey,
+    String? startTime,
+    String? endTime,
+    String? projectName,
+    String? description,
+    required Object error,
+  }) async {
+    await _write(
+      eventType: 'WORKDAY_ENTRY_SAVE_FAILED',
+      category: 'workday',
+      summary: 'Work day entry save failed',
+      details: {
+        'operation': operation,
+        'day': dayKey,
+        if (startTime != null && startTime.isNotEmpty) 'startTime': startTime,
+        if (endTime != null && endTime.isNotEmpty) 'endTime': endTime,
+        if (startTime != null &&
+            startTime.isNotEmpty &&
+            endTime != null &&
+            endTime.isNotEmpty)
+          'time': '$startTime – $endTime',
+        if (projectName != null && projectName.isNotEmpty)
+          'project': projectName,
+        if (description != null && description.isNotEmpty) 'note': description,
+        'error': error.toString(),
+      },
+      severity: 'error',
+    );
+  }
+
   static Future<void> workDayEntryUpdated({
     required String dayKey,
     required String startTime,
@@ -208,6 +270,28 @@ class EventLogService {
           'project': projectName,
       },
       severity: 'warning',
+    );
+  }
+
+  static Future<void> workDayEntryDeleteFailed({
+    required String dayKey,
+    required String startTime,
+    required String endTime,
+    String? projectName,
+    required Object error,
+  }) async {
+    await _write(
+      eventType: 'WORKDAY_ENTRY_DELETE_FAILED',
+      category: 'workday',
+      summary: 'Work day entry delete failed',
+      details: {
+        'day': dayKey,
+        'time': '$startTime – $endTime',
+        if (projectName != null && projectName.isNotEmpty)
+          'project': projectName,
+        'error': error.toString(),
+      },
+      severity: 'error',
     );
   }
 

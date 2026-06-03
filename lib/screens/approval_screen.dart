@@ -5,6 +5,18 @@ import 'package:intl/intl.dart';
 import 'package:strefa_ciszy/services/admin_api.dart';
 import 'package:strefa_ciszy/services/api_service.dart';
 
+class _AppPalette {
+  static const bodyFont = 'Bose (Regular)';
+  static const headlineFont = 'Bose-Headline (Bold)';
+  static const surface = Colors.white;
+  static const bg = Color(0xFFF4F6F7);
+  static const line = Color(0xFFD4DCE0);
+  static const text = Color(0xFF1E2B2F);
+  static const muted = Color(0xFF607176);
+  static const brand = Color(0xFF2574A9);
+  static const danger = Color(0xFFE04747);
+}
+
 class ApprovalScreen extends StatefulWidget {
   const ApprovalScreen({super.key});
 
@@ -49,7 +61,8 @@ class _ApprovalScreenState extends State<ApprovalScreen> {
       builder: (context, allowSnap) {
         if (allowSnap.connectionState == ConnectionState.waiting) {
           return const Scaffold(
-            body: Center(child: CircularProgressIndicator()),
+            backgroundColor: _AppPalette.surface,
+            body: Center(child: CircularProgressIndicator(color: _AppPalette.brand)),
           );
         }
 
@@ -61,7 +74,21 @@ class _ApprovalScreenState extends State<ApprovalScreen> {
 
         if (!allowed) {
           return Scaffold(
-            appBar: AppBar(title: const Text('Potwierdzenia')),
+            backgroundColor: _AppPalette.surface,
+            appBar: AppBar(
+              backgroundColor: _AppPalette.surface,
+              foregroundColor: _AppPalette.text,
+              surfaceTintColor: Colors.transparent,
+              elevation: 0,
+              titleTextStyle: const TextStyle(
+                fontFamily: _AppPalette.headlineFont,
+                fontWeight: FontWeight.w800,
+                color: _AppPalette.text,
+                fontSize: 17,
+                letterSpacing: 0,
+              ),
+              title: const Text('Potwierdzenia'),
+            ),
 
             body: const Center(
               child: Text('Brak uprawnień (firestore.console).'),
@@ -70,7 +97,19 @@ class _ApprovalScreenState extends State<ApprovalScreen> {
         }
 
         return Scaffold(
+          backgroundColor: _AppPalette.surface,
           appBar: AppBar(
+            backgroundColor: _AppPalette.surface,
+            foregroundColor: _AppPalette.text,
+            surfaceTintColor: Colors.transparent,
+            elevation: 0,
+            titleTextStyle: const TextStyle(
+              fontFamily: _AppPalette.headlineFont,
+              fontWeight: FontWeight.w800,
+              color: _AppPalette.text,
+              fontSize: 17,
+              letterSpacing: 0,
+            ),
             title: const Text('Projekty do zatwierdzenie (WF-MAG sync)'),
             actions: [
               IconButton(
@@ -113,7 +152,7 @@ class _ApprovalScreenState extends State<ApprovalScreen> {
             stream: _projectsStream(),
             builder: (ctx, snap) {
               if (snap.connectionState == ConnectionState.waiting) {
-                return const Center(child: CircularProgressIndicator());
+                return const Center(child: CircularProgressIndicator(color: _AppPalette.brand));
               }
               if (snap.hasError) {
                 return Center(child: Text('Błąd: ${snap.error}'));
@@ -183,6 +222,8 @@ class _ApprovalScreenState extends State<ApprovalScreen> {
           ),
           floatingActionButton: FloatingActionButton.extended(
             heroTag: 'fab-reset',
+            backgroundColor: _AppPalette.brand,
+            foregroundColor: Colors.white,
             icon: const Icon(Icons.lock_open),
             label: const Text('Reset rezerwacji'),
             onPressed: () {
@@ -354,21 +395,51 @@ class _ProjectCardState extends State<_ProjectCard> {
     final enteredInvoice = await showDialog<String?>(
       context: context,
       builder: (_) => AlertDialog(
+        backgroundColor: _AppPalette.surface,
+        surfaceTintColor: Colors.transparent,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        titleTextStyle: const TextStyle(
+          fontFamily: _AppPalette.headlineFont,
+          fontWeight: FontWeight.w800,
+          color: _AppPalette.text,
+          fontSize: 17,
+          letterSpacing: 0,
+        ),
+        contentTextStyle: const TextStyle(
+          fontFamily: _AppPalette.bodyFont,
+          color: _AppPalette.muted,
+          fontSize: 14,
+        ),
         title: const Text('Twoj numer faktury'),
         content: TextField(
           controller: ctrl,
           autofocus: true,
-          decoration: const InputDecoration(
+          decoration: InputDecoration(
             hintText: 'Moze byc pusty nazwa',
-            border: OutlineInputBorder(),
+            enabledBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(8),
+              borderSide: const BorderSide(color: _AppPalette.line),
+            ),
+            focusedBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(8),
+              borderSide: const BorderSide(color: _AppPalette.brand, width: 1.5),
+            ),
+            labelStyle: const TextStyle(fontFamily: _AppPalette.bodyFont, color: _AppPalette.muted),
+            hintStyle: const TextStyle(fontFamily: _AppPalette.bodyFont, color: _AppPalette.muted),
           ),
         ),
         actions: [
           TextButton(
+            style: TextButton.styleFrom(foregroundColor: _AppPalette.muted),
             onPressed: () => Navigator.pop(context, null),
             child: const Text('Pomiń'),
           ),
-          FilledButton(
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(
+              backgroundColor: _AppPalette.brand,
+              foregroundColor: Colors.white,
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+            ),
             onPressed: () => Navigator.pop(context, ctrl.text.trim()),
             child: const Text('OK'),
           ),
@@ -381,6 +452,21 @@ class _ProjectCardState extends State<_ProjectCard> {
       context: context,
       builder: (_) {
         return AlertDialog(
+          backgroundColor: _AppPalette.surface,
+          surfaceTintColor: Colors.transparent,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+          titleTextStyle: const TextStyle(
+            fontFamily: _AppPalette.headlineFont,
+            fontWeight: FontWeight.w800,
+            color: _AppPalette.text,
+            fontSize: 17,
+            letterSpacing: 0,
+          ),
+          contentTextStyle: const TextStyle(
+            fontFamily: _AppPalette.bodyFont,
+            color: _AppPalette.muted,
+            fontSize: 14,
+          ),
           title: const Text('Oznaczyć jako fakturowany?'),
           content: SizedBox(
             width: double.maxFinite,
@@ -418,10 +504,16 @@ class _ProjectCardState extends State<_ProjectCard> {
           ),
           actions: [
             TextButton(
+              style: TextButton.styleFrom(foregroundColor: _AppPalette.muted),
               onPressed: () => Navigator.pop(context, false),
               child: const Text('Anuluj'),
             ),
-            FilledButton(
+            ElevatedButton(
+              style: ElevatedButton.styleFrom(
+                backgroundColor: _AppPalette.brand,
+                foregroundColor: Colors.white,
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+              ),
               onPressed: () => Navigator.pop(context, true),
               child: const Text('Oznacz'),
             ),
@@ -478,8 +570,10 @@ class _ProjectCardState extends State<_ProjectCard> {
   @override
   Widget build(BuildContext context) {
     return Card(
+      color: _AppPalette.surface,
+      surfaceTintColor: Colors.transparent,
+      elevation: 1,
       margin: const EdgeInsets.symmetric(vertical: 6),
-      elevation: 2,
       child: ExpansionTile(
         tilePadding: const EdgeInsets.symmetric(horizontal: 12),
         title: FutureBuilder<String>(
@@ -488,7 +582,11 @@ class _ProjectCardState extends State<_ProjectCard> {
             final custName = nameSnap.data ?? 'Klient…';
             return Text(
               '$custName  •  ${widget.title}',
-              style: const TextStyle(fontWeight: FontWeight.w600),
+              style: const TextStyle(
+                fontFamily: _AppPalette.bodyFont,
+                fontWeight: FontWeight.w600,
+                color: _AppPalette.text,
+              ),
             );
           },
         ),
@@ -496,6 +594,7 @@ class _ProjectCardState extends State<_ProjectCard> {
           widget.lastRwDate != null
               ? 'Ostatnia zmiana: ${DateFormat('dd.MM.yyyy HH:mm', 'pl_PL').format(widget.lastRwDate!.toLocal())}'
               : 'Ostatnia zmiana: —',
+          style: const TextStyle(fontFamily: _AppPalette.bodyFont, color: _AppPalette.muted),
         ),
         children: [
           Padding(
@@ -503,7 +602,7 @@ class _ProjectCardState extends State<_ProjectCard> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                const Divider(),
+                const Divider(color: _AppPalette.line, thickness: 1),
                 for (int i = 0; i < _items.length; i++)
                   _SelectableItemRow(
                     item: _items[i],
@@ -520,17 +619,24 @@ class _ProjectCardState extends State<_ProjectCard> {
                   alignment: WrapAlignment.spaceBetween,
                   children: [
                     TextButton.icon(
+                      style: TextButton.styleFrom(foregroundColor: _AppPalette.brand),
                       icon: const Icon(Icons.select_all),
                       label: const Text('Zaznacz wszystko'),
                       onPressed: _selectAll,
                     ),
                     TextButton.icon(
+                      style: TextButton.styleFrom(foregroundColor: _AppPalette.brand),
                       icon: const Icon(Icons.clear),
                       label: const Text('Wyczyść'),
                       onPressed: _clearSelection,
                     ),
 
                     ElevatedButton.icon(
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: _AppPalette.brand,
+                        foregroundColor: Colors.white,
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                      ),
                       icon: const Icon(Icons.receipt_long),
                       label: const Text('Gotowy do fakturowanie?'),
                       onPressed: _canInvoice ? _invoiceSelected : null,
@@ -543,9 +649,7 @@ class _ProjectCardState extends State<_ProjectCard> {
                   children: [
                     SelectableText(
                       'ID: ${widget.projectId}',
-                      style: Theme.of(
-                        context,
-                      ).textTheme.bodySmall?.copyWith(color: Colors.grey[600]),
+                      style: Theme.of(context).textTheme.bodySmall?.copyWith(color: _AppPalette.muted),
                     ),
                     const SizedBox(width: 4),
                   ],
@@ -607,6 +711,12 @@ class _SelectableItemRow extends StatelessWidget {
                 spacing: 6,
                 children: [
                   Chip(
+                    backgroundColor: _AppPalette.bg,
+                    labelStyle: const TextStyle(
+                      fontFamily: _AppPalette.bodyFont,
+                      color: _AppPalette.text,
+                      fontSize: 12,
+                    ),
                     label: Text(
                       'Fakturowano: $invoicedQty $unit'
                       '${invoiceTag.isNotEmpty ? ' • $invoiceTag' : ''}',
@@ -799,14 +909,26 @@ class _QuickReservationResetSheetState
             children: [
               Text(
                 'Szybka cofanie rezerwacji',
-                style: Theme.of(context).textTheme.titleLarge,
+                style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                  fontFamily: _AppPalette.headlineFont,
+                  color: _AppPalette.text,
+                ),
               ),
               const SizedBox(height: 12),
               TextField(
                 controller: _projectCtrl,
-                decoration: const InputDecoration(
+                decoration: InputDecoration(
                   labelText: 'projectId',
-                  border: OutlineInputBorder(),
+                  enabledBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(8),
+                    borderSide: const BorderSide(color: _AppPalette.line),
+                  ),
+                  focusedBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(8),
+                    borderSide: const BorderSide(color: _AppPalette.brand, width: 1.5),
+                  ),
+                  labelStyle: const TextStyle(fontFamily: _AppPalette.bodyFont, color: _AppPalette.muted),
+                  hintStyle: const TextStyle(fontFamily: _AppPalette.bodyFont, color: _AppPalette.muted),
                 ),
               ),
               const SizedBox(height: 12),
@@ -824,9 +946,18 @@ class _QuickReservationResetSheetState
                   return TextField(
                     controller: ctrl,
                     focusNode: focus,
-                    decoration: const InputDecoration(
+                    decoration: InputDecoration(
                       labelText: 'Szukaj po nazwie',
-                      border: OutlineInputBorder(),
+                      enabledBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(8),
+                        borderSide: const BorderSide(color: _AppPalette.line),
+                      ),
+                      focusedBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(8),
+                        borderSide: const BorderSide(color: _AppPalette.brand, width: 1.5),
+                      ),
+                      labelStyle: const TextStyle(fontFamily: _AppPalette.bodyFont, color: _AppPalette.muted),
+                      hintStyle: const TextStyle(fontFamily: _AppPalette.bodyFont, color: _AppPalette.muted),
                     ),
                   );
                 },
@@ -835,9 +966,18 @@ class _QuickReservationResetSheetState
 
               TextField(
                 controller: _itemCtrl,
-                decoration: const InputDecoration(
+                decoration: InputDecoration(
                   labelText: 'WAPRO id_artykulu:',
-                  border: OutlineInputBorder(),
+                  enabledBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(8),
+                    borderSide: const BorderSide(color: _AppPalette.line),
+                  ),
+                  focusedBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(8),
+                    borderSide: const BorderSide(color: _AppPalette.brand, width: 1.5),
+                  ),
+                  labelStyle: const TextStyle(fontFamily: _AppPalette.bodyFont, color: _AppPalette.muted),
+                  hintStyle: const TextStyle(fontFamily: _AppPalette.bodyFont, color: _AppPalette.muted),
                 ),
                 keyboardType: TextInputType.number,
               ),
@@ -847,6 +987,10 @@ class _QuickReservationResetSheetState
                 children: [
                   Expanded(
                     child: OutlinedButton.icon(
+                      style: OutlinedButton.styleFrom(
+                        foregroundColor: _AppPalette.brand,
+                        side: const BorderSide(color: _AppPalette.brand),
+                      ),
                       icon: const Icon(Icons.search),
                       label: const Text('Podejrzyj'),
                       onPressed: _busy ? null : _probeState,
@@ -854,7 +998,12 @@ class _QuickReservationResetSheetState
                   ),
                   const SizedBox(width: 12),
                   Expanded(
-                    child: FilledButton.icon(
+                    child: ElevatedButton.icon(
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: _AppPalette.brand,
+                        foregroundColor: Colors.white,
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                      ),
                       icon: const Icon(Icons.lock_open),
                       label: const Text('Cofnij / Reset'),
                       onPressed: _busy ? null : _resetToZero,
@@ -863,19 +1012,19 @@ class _QuickReservationResetSheetState
                 ],
               ),
               const SizedBox(height: 8),
-              if (_busy) const LinearProgressIndicator(),
+              if (_busy) const LinearProgressIndicator(color: _AppPalette.brand),
               if (_error.isNotEmpty)
                 Padding(
                   padding: const EdgeInsets.only(top: 8),
                   child: Text(
                     _error,
-                    style: TextStyle(
-                      color: Theme.of(context).colorScheme.error,
+                    style: const TextStyle(
+                      color: _AppPalette.danger,
                     ),
                   ),
                 ),
               if (_prod != null || _probe != null) ...[
-                const Divider(height: 24),
+                const Divider(height: 24, color: _AppPalette.line, thickness: 1),
                 _kv('Nazwa', name),
                 _kv('Stan (ilość dostępna)', '$qty $unit'),
                 _kv('Zarezerwowane (łącznie)', '$reservedTotal $unit'),

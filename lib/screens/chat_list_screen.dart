@@ -9,6 +9,49 @@ import 'package:strefa_ciszy/screens/chat_thread_screen.dart';
 import 'package:strefa_ciszy/services/chat_service.dart';
 import 'package:strefa_ciszy/widgets/app_scaffold.dart';
 
+class _AvChatPalette {
+  static const headlineFont = 'Bose-Headline (Bold)';
+  static const bodyFont = 'Bose (Regular)';
+  static const graphite = Color(0xFF263238);
+  static const control = Color(0xFF202124);
+  static const controlAlt = Color(0xFF4A5156);
+  static const headerStart = Color(0xFFFFFFFF);
+  static const headerMid = Color(0xFFE9ECEF);
+  static const headerEnd = Color(0xFFA9C6D8);
+  static const panel = Color(0xFFF4F6F7);
+  static const panelAlt = Color(0xFFE8EEF1);
+  static const surface = Colors.white;
+  static const line = Color(0xFFD4DCE0);
+  static const text = Color(0xFF1E2B2F);
+  static const muted = Color(0xFF607176);
+  static const bubbleTop = Color(0xFF2574A9);
+  static const cyan = Color(0xFF0097A7);
+  static const cyanDark = Color(0xFF006D78);
+  static const amber = Color(0xFFFFD200);
+  static const danger = Color(0xFFE04747);
+}
+
+class _ChatHeaderGradient extends StatelessWidget {
+  const _ChatHeaderGradient();
+
+  @override
+  Widget build(BuildContext context) {
+    return const DecoratedBox(
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          colors: [
+            _AvChatPalette.headerStart,
+            _AvChatPalette.headerMid,
+            _AvChatPalette.headerEnd,
+          ],
+          begin: Alignment.centerLeft,
+          end: Alignment.centerRight,
+        ),
+      ),
+    );
+  }
+}
+
 class ChatListScreen extends StatefulWidget {
   const ChatListScreen({super.key});
 
@@ -78,18 +121,158 @@ class _ChatListScreenState extends State<ChatListScreen> {
     final unread = _readUnreadCount(c, uid);
     if (unread <= 0) return null;
 
+    return _UnreadBadge(count: unread);
+  }
+
+  String _two(int n) => n.toString().padLeft(2, '0');
+
+  String _formatChatTime(DateTime? dt) {
+    if (dt == null || dt.year <= 1970) return '';
+    final now = DateTime.now();
+    final today = DateTime(now.year, now.month, now.day);
+    final d = DateTime(dt.year, dt.month, dt.day);
+    final diffDays = today.difference(d).inDays;
+    if (diffDays == 0) return '${_two(dt.hour)}:${_two(dt.minute)}';
+    if (diffDays == 1) return 'wczoraj';
+    return '${_two(dt.day)}.${_two(dt.month)}';
+  }
+
+  Widget _chatAvatar({required IconData icon, required List<Color> colors}) {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+      width: 46,
+      height: 46,
       decoration: BoxDecoration(
-        color: Colors.red,
-        borderRadius: BorderRadius.circular(999),
+        shape: BoxShape.circle,
+        gradient: LinearGradient(
+          colors: colors,
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: colors.last.withValues(alpha: 0.18),
+            blurRadius: 12,
+            offset: const Offset(0, 4),
+          ),
+        ],
       ),
-      child: Text(
-        unread > 99 ? '99+' : unread.toString(),
-        style: const TextStyle(
-          color: Colors.white,
-          fontSize: 12,
-          fontWeight: FontWeight.bold,
+      child: Icon(icon, color: Colors.white, size: 24),
+    );
+  }
+
+  Widget _chatTile({
+    required Widget title,
+    required String subtitle,
+    required Widget leading,
+    required VoidCallback onTap,
+    Widget? trailing,
+    Widget? adminAction,
+    String timeLabel = '',
+  }) {
+    final meta = <Widget>[
+      if (timeLabel.isNotEmpty)
+        Text(
+          timeLabel,
+          style: const TextStyle(fontSize: 12, color: _AvChatPalette.muted),
+        ),
+      if (trailing != null) trailing,
+      if (adminAction != null) adminAction,
+    ];
+
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 8),
+      child: Material(
+        color: _AvChatPalette.surface,
+        borderRadius: BorderRadius.circular(16),
+        clipBehavior: Clip.antiAlias,
+        child: InkWell(
+          onTap: onTap,
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+            child: Row(
+              children: [
+                leading,
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      DefaultTextStyle(
+                        style: const TextStyle(
+                          color: _AvChatPalette.text,
+                          fontSize: 15,
+                          fontFamily: _AvChatPalette.headlineFont,
+                          fontWeight: FontWeight.w800,
+                          letterSpacing: 0,
+                        ),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        child: title,
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        subtitle,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(
+                          color: _AvChatPalette.muted,
+                          fontSize: 13,
+                          fontFamily: _AvChatPalette.bodyFont,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                if (meta.isNotEmpty) ...[
+                  const SizedBox(width: 10),
+                  Column(
+                    mainAxisSize: MainAxisSize.min,
+                    crossAxisAlignment: CrossAxisAlignment.end,
+                    children: [
+                      for (final item in meta) ...[
+                        item,
+                        if (item != meta.last) const SizedBox(height: 6),
+                      ],
+                    ],
+                  ),
+                ],
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _gradientCircleAction({
+    required String tooltip,
+    required Icon icon,
+    required VoidCallback onPressed,
+    required double size,
+  }) {
+    return Tooltip(
+      message: tooltip,
+      child: Material(
+        color: Colors.transparent,
+        shape: const CircleBorder(),
+        clipBehavior: Clip.antiAlias,
+        child: Ink(
+          width: size,
+          height: size,
+          decoration: const BoxDecoration(
+            shape: BoxShape.circle,
+            gradient: LinearGradient(
+              colors: [_AvChatPalette.control, _AvChatPalette.controlAlt],
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+            ),
+          ),
+          child: InkWell(
+            onTap: onPressed,
+            child: Center(
+              child: Icon(icon.icon, size: icon.size, color: Colors.white),
+            ),
+          ),
         ),
       ),
     );
@@ -104,20 +287,36 @@ class _ChatListScreenState extends State<ChatListScreen> {
     final action = await showModalBottomSheet<String>(
       context: context,
       showDragHandle: true,
+      backgroundColor: _AvChatPalette.surface,
       builder: (_) {
         return SafeArea(
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              const ListTile(title: Text('Zacznij nowy czat')),
+              const Padding(
+                padding: EdgeInsets.fromLTRB(16, 4, 16, 8),
+                child: Align(
+                  alignment: Alignment.centerLeft,
+                  child: Text(
+                    'ZACZNIJ NOWY CZAT',
+                    style: TextStyle(
+                      fontFamily: _AvChatPalette.headlineFont,
+                      fontWeight: FontWeight.w800,
+                      fontSize: 12,
+                      letterSpacing: 1.2,
+                      color: _AvChatPalette.muted,
+                    ),
+                  ),
+                ),
+              ),
               ListTile(
-                leading: const Icon(Icons.person_add_alt_1),
-                title: const Text('Prywatna'),
+                leading: const Icon(Icons.person_add_alt_1, color: _AvChatPalette.bubbleTop),
+                title: const Text('Prywatna', style: TextStyle(fontFamily: _AvChatPalette.bodyFont, color: _AvChatPalette.text)),
                 onTap: () => Navigator.pop(context, 'dm'),
               ),
               ListTile(
-                leading: const Icon(Icons.group_add),
-                title: const Text('Grupa'),
+                leading: const Icon(Icons.group_add, color: _AvChatPalette.bubbleTop),
+                title: const Text('Grupa', style: TextStyle(fontFamily: _AvChatPalette.bodyFont, color: _AvChatPalette.text)),
                 onTap: () => Navigator.pop(context, 'group'),
               ),
               const SizedBox(height: 8),
@@ -140,15 +339,36 @@ class _ChatListScreenState extends State<ChatListScreen> {
     final res = await showDialog<bool>(
       context: context,
       builder: (_) => AlertDialog(
+        backgroundColor: _AvChatPalette.surface,
+        surfaceTintColor: Colors.transparent,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        titleTextStyle: const TextStyle(
+          fontFamily: _AvChatPalette.headlineFont,
+          fontWeight: FontWeight.w800,
+          color: _AvChatPalette.text,
+          fontSize: 17,
+          letterSpacing: 0,
+        ),
+        contentTextStyle: const TextStyle(
+          fontFamily: _AvChatPalette.bodyFont,
+          color: _AvChatPalette.muted,
+          fontSize: 14,
+        ),
         title: const Text('Skasować czat?'),
         content: Text('Na pewno usunąć: "$title"?'),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context, false),
+            style: TextButton.styleFrom(foregroundColor: _AvChatPalette.muted),
             child: const Text('Anuluj'),
           ),
           ElevatedButton(
             onPressed: () => Navigator.pop(context, true),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: _AvChatPalette.danger,
+              foregroundColor: Colors.white,
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+            ),
             child: const Text('Usuń'),
           ),
         ],
@@ -212,23 +432,48 @@ class _ChatListScreenState extends State<ChatListScreen> {
     final res = await showDialog<String>(
       context: context,
       builder: (_) => AlertDialog(
+        backgroundColor: _AvChatPalette.surface,
+        surfaceTintColor: Colors.transparent,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        titleTextStyle: const TextStyle(
+          fontFamily: _AvChatPalette.headlineFont,
+          fontWeight: FontWeight.w800,
+          color: _AvChatPalette.text,
+          fontSize: 17,
+          letterSpacing: 0,
+        ),
         title: const Text('Nazwa grupy'),
         content: TextField(
           controller: c,
           autofocus: true,
-          decoration: const InputDecoration(
+          style: const TextStyle(fontFamily: _AvChatPalette.bodyFont, color: _AvChatPalette.text),
+          decoration: InputDecoration(
             hintText: 'Np. Zebranie / Klient / Projekty',
-            border: OutlineInputBorder(),
+            hintStyle: const TextStyle(fontFamily: _AvChatPalette.bodyFont, color: _AvChatPalette.muted),
+            border: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(8),
+              borderSide: const BorderSide(color: _AvChatPalette.line),
+            ),
+            focusedBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(8),
+              borderSide: const BorderSide(color: _AvChatPalette.bubbleTop, width: 1.5),
+            ),
             isDense: true,
           ),
         ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context),
+            style: TextButton.styleFrom(foregroundColor: _AvChatPalette.muted),
             child: const Text('Anuluj'),
           ),
           ElevatedButton(
             onPressed: () => Navigator.pop(context, c.text.trim()),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: _AvChatPalette.bubbleTop,
+              foregroundColor: Colors.white,
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+            ),
             child: const Text('Utwórz'),
           ),
         ],
@@ -275,21 +520,7 @@ class _ChatListScreenState extends State<ChatListScreen> {
 
         if (unread <= 0) return const SizedBox.shrink();
 
-        return Container(
-          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-          decoration: BoxDecoration(
-            color: Colors.red,
-            borderRadius: BorderRadius.circular(999),
-          ),
-          child: Text(
-            unread > 99 ? '99+' : unread.toString(),
-            style: const TextStyle(
-              color: Colors.white,
-              fontSize: 12,
-              fontWeight: FontWeight.bold,
-            ),
-          ),
-        );
+        return _UnreadBadge(count: unread);
       },
     );
   }
@@ -298,152 +529,234 @@ class _ChatListScreenState extends State<ChatListScreen> {
   Widget build(BuildContext context) {
     final uid = FirebaseAuth.instance.currentUser?.uid;
 
-    print('FAB gate: uid=$uid adminChecked=$_adminChecked isAdmin=$_isAdmin');
+    return Theme(
+      data: Theme.of(context).copyWith(
+        appBarTheme: const AppBarTheme(
+          backgroundColor: Colors.transparent,
+          foregroundColor: _AvChatPalette.text,
+          surfaceTintColor: Colors.transparent,
+          elevation: 0,
+          titleTextStyle: TextStyle(
+            color: _AvChatPalette.text,
+            fontSize: 19,
+            fontFamily: _AvChatPalette.headlineFont,
+            fontWeight: FontWeight.w800,
+            letterSpacing: 0,
+          ),
+        ),
+        colorScheme: Theme.of(context).colorScheme.copyWith(
+          primary: _AvChatPalette.cyan,
+          secondary: _AvChatPalette.cyanDark,
+        ),
+      ),
+      child: AppScaffold(
+        floatingActionButton: (uid == null || !_adminChecked || !_isAdmin)
+            ? null
+            : _gradientCircleAction(
+                tooltip: 'Nowy czat',
+                onPressed: () => _showCreateMenu(myUid: uid, isAdmin: true),
+                icon: const Icon(Icons.add, size: 26),
+                size: 56,
+              ),
 
-    return AppScaffold(
-      floatingActionButton: (uid == null || !_adminChecked || !_isAdmin)
-          ? null
-          : FloatingActionButton(
-              onPressed: () => _showCreateMenu(myUid: uid, isAdmin: true),
-              child: const Icon(Icons.add),
+        title: 'Chat',
+        titleWidget: const Text('CHAT'),
+        centreTitle: true,
+        showBackOnMobile: true,
+        showBackOnWeb: true,
+        showPersistentDrawerOnWeb: true,
+        appBarFlexibleSpace: const _ChatHeaderGradient(),
+
+        body: SafeArea(
+          child: DecoratedBox(
+            decoration: const BoxDecoration(
+              gradient: LinearGradient(
+                colors: [_AvChatPalette.panel, _AvChatPalette.panelAlt],
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+              ),
             ),
-
-      title: 'Chat',
-      showBackOnMobile: true,
-      showBackOnWeb: true,
-      showPersistentDrawerOnWeb: true,
-
-      body: SafeArea(
-        child: Padding(
-          padding: const EdgeInsets.all(12),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              // const Text(
-              //   'Chat',
-              //   style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
-              // ),
-              // const SizedBox(height: 12),
-              Card(
-                child: ListTile(
-                  leading: Image.asset(
-                    'assets/favicon/Icon-512.png',
-                    width: 24,
-                    height: 24,
-                    fit: BoxFit.contain,
-                  ),
-                  title: const Text('Strefa Ciszy'),
-                  subtitle: const Text('ogolne chat'),
-                  trailing: uid == null ? null : _globalUnreadBadge(uid),
-                  onTap: () => Navigator.of(context).push(
-                    MaterialPageRoute(
-                      builder: (_) => const ChatThreadScreen(
-                        chatId: ChatService.globalChatId,
+            child: Padding(
+              padding: const EdgeInsets.all(12),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  // const Text(
+                  //   'Chat',
+                  //   style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+                  // ),
+                  // const SizedBox(height: 12),
+                  _chatTile(
+                    leading: Container(
+                      width: 46,
+                      height: 46,
+                      padding: const EdgeInsets.all(9),
+                      decoration: const BoxDecoration(
+                        shape: BoxShape.circle,
+                        gradient: LinearGradient(
+                          colors: [
+                            _AvChatPalette.graphite,
+                            _AvChatPalette.cyanDark,
+                          ],
+                          begin: Alignment.topLeft,
+                          end: Alignment.bottomRight,
+                        ),
+                      ),
+                      child: Image.asset(
+                        'assets/favicon/Icon-512.png',
+                        fit: BoxFit.contain,
+                      ),
+                    ),
+                    title: const Text('Strefa Ciszy'),
+                    subtitle: 'Czat ogólny',
+                    trailing: uid == null ? null : _globalUnreadBadge(uid),
+                    onTap: () => Navigator.of(context).push(
+                      MaterialPageRoute(
+                        builder: (_) => const ChatThreadScreen(
+                          chatId: ChatService.globalChatId,
+                        ),
                       ),
                     ),
                   ),
-                ),
-              ),
 
-              const SizedBox(height: 8),
+                  const SizedBox(height: 8),
 
-              Expanded(
-                child: uid == null
-                    ? const Center(child: Text('Nie jesteś zalogowany.'))
-                    : StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
-                        stream: ChatService.instance.watchChatsForUser(uid),
-                        builder: (ctx, snap) {
-                          if (snap.connectionState == ConnectionState.waiting) {
-                            return const Center(
-                              child: CircularProgressIndicator(),
-                            );
-                          }
-                          final docs = snap.data?.docs ?? [];
+                  Expanded(
+                    child: uid == null
+                        ? const Center(child: Text('Nie jesteś zalogowany.'))
+                        : StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
+                            stream: ChatService.instance.watchChatsForUser(uid),
+                            builder: (ctx, snap) {
+                              if (snap.connectionState ==
+                                  ConnectionState.waiting) {
+                                return const Center(
+                                  child: CircularProgressIndicator(),
+                                );
+                              }
+                              final docs = snap.data?.docs ?? [];
 
-                          final chats = docs
-                              .where((d) => d.id != ChatService.globalChatId)
-                              .map((d) => Chat.fromDoc(d))
-                              .toList();
+                              final chats = docs
+                                  .where(
+                                    (d) => d.id != ChatService.globalChatId,
+                                  )
+                                  .map((d) => Chat.fromDoc(d))
+                                  .toList();
 
-                          return ListView.builder(
-                            itemCount: chats.length,
-                            itemBuilder: (_, i) {
-                              final c = chats[i];
-                              final title = c.title?.trim().isNotEmpty == true
-                                  ? c.title!.trim()
-                                  : (c.type == 'dm'
-                                        ? 'Wiadomość prywatna'
-                                        : 'Grupa');
+                              return ListView.builder(
+                                itemCount: chats.length,
+                                itemBuilder: (_, i) {
+                                  final c = chats[i];
+                                  final title =
+                                      c.title?.trim().isNotEmpty == true
+                                      ? c.title!.trim()
+                                      : (c.type == 'dm'
+                                            ? 'Wiadomość prywatna'
+                                            : 'Grupa');
 
-                              return Card(
-                                child: ListTile(
-                                  leading: Icon(
-                                    c.type == 'dm' ? Icons.person : Icons.group,
-                                  ),
-                                  title: c.type == 'dm'
-                                      ? _dmTitle(uid, c)
-                                      : Text(title),
-                                  subtitle: Text(
-                                    c.lastMessageText?.trim().isNotEmpty == true
-                                        ? c.lastMessageText!.trim()
-                                        : '—',
-                                    maxLines: 1,
-                                    overflow: TextOverflow.ellipsis,
-                                  ),
-                                  trailing: Row(
-                                    mainAxisSize: MainAxisSize.min,
-                                    children: [
-                                      if (_buildUnreadBadge(c) != null)
-                                        _buildUnreadBadge(c)!,
+                                  final unreadBadge = _buildUnreadBadge(c);
+                                  final lastText =
+                                      c.lastMessageText?.trim().isNotEmpty ==
+                                          true
+                                      ? c.lastMessageText!.trim()
+                                      : 'Brak wiadomości';
 
-                                      if (_isAdmin &&
-                                          c.id != ChatService.globalChatId)
-                                        IconButton(
-                                          tooltip: 'Usuń czat',
-                                          icon: const Icon(
-                                            Icons.delete_outline,
-                                          ),
-                                          onPressed: () async {
-                                            final ok = await _confirmDeleteChat(
-                                              title,
-                                            );
-                                            if (!ok) return;
-
-                                            try {
-                                              await ChatService.instance
-                                                  .deleteChat(c.id);
-                                            } catch (e) {
-                                              if (!mounted) return;
-                                              ScaffoldMessenger.of(
-                                                context,
-                                              ).showSnackBar(
-                                                SnackBar(
-                                                  content: Text(
-                                                    'Błąd usuwania: $e',
-                                                  ),
-                                                ),
-                                              );
-                                            }
-                                          },
-                                        ),
-                                    ],
-                                  ),
-
-                                  onTap: () => Navigator.of(context).push(
-                                    MaterialPageRoute(
-                                      builder: (_) =>
-                                          ChatThreadScreen(chatId: c.id),
+                                  return _chatTile(
+                                    leading: _chatAvatar(
+                                      icon: c.type == 'dm'
+                                          ? Icons.person_rounded
+                                          : Icons.groups_rounded,
+                                      colors: c.type == 'dm'
+                                          ? const [
+                                              _AvChatPalette.graphite,
+                                              _AvChatPalette.cyanDark,
+                                            ]
+                                          : const [
+                                              _AvChatPalette.graphite,
+                                              _AvChatPalette.amber,
+                                            ],
                                     ),
-                                  ),
-                                ),
+                                    title: c.type == 'dm'
+                                        ? _dmTitle(uid, c)
+                                        : Text(title),
+                                    subtitle: lastText,
+                                    timeLabel: _formatChatTime(c.lastMessageAt),
+                                    trailing: unreadBadge,
+                                    adminAction:
+                                        _isAdmin &&
+                                            c.id != ChatService.globalChatId
+                                        ? _gradientCircleAction(
+                                            tooltip: 'Usuń czat',
+                                            icon: const Icon(
+                                              Icons.delete_outline,
+                                              size: 18,
+                                            ),
+                                            size: 34,
+                                            onPressed: () async {
+                                              final messenger =
+                                                  ScaffoldMessenger.of(context);
+                                              final ok =
+                                                  await _confirmDeleteChat(
+                                                    title,
+                                                  );
+                                              if (!ok) return;
+
+                                              try {
+                                                await ChatService.instance
+                                                    .deleteChat(c.id);
+                                              } catch (e) {
+                                                if (!mounted) return;
+                                                messenger.showSnackBar(
+                                                  SnackBar(
+                                                    content: Text(
+                                                      'Błąd usuwania: $e',
+                                                    ),
+                                                  ),
+                                                );
+                                              }
+                                            },
+                                          )
+                                        : null,
+                                    onTap: () => Navigator.of(context).push(
+                                      MaterialPageRoute(
+                                        builder: (_) =>
+                                            ChatThreadScreen(chatId: c.id),
+                                      ),
+                                    ),
+                                  );
+                                },
                               );
                             },
-                          );
-                        },
-                      ),
+                          ),
+                  ),
+                ],
               ),
-            ],
+            ),
           ),
+        ),
+      ),
+    );
+  }
+}
+
+class _UnreadBadge extends StatelessWidget {
+  final int count;
+
+  const _UnreadBadge({required this.count});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+      decoration: BoxDecoration(
+        color: _AvChatPalette.danger,
+        borderRadius: BorderRadius.circular(999),
+      ),
+      child: Text(
+        count > 99 ? '99+' : count.toString(),
+        style: const TextStyle(
+          color: Colors.white,
+          fontSize: 12,
+          fontWeight: FontWeight.bold,
         ),
       ),
     );
@@ -484,19 +797,35 @@ class _GroupMembersPickerSheetState extends State<_GroupMembersPickerSheet> {
                   children: [
                     const Text(
                       'Wybierz osoby do grupy',
-                      style: TextStyle(fontWeight: FontWeight.w600),
+                      style: TextStyle(
+                        fontFamily: _AvChatPalette.headlineFont,
+                        fontWeight: FontWeight.w800,
+                        color: _AvChatPalette.text,
+                        fontSize: 15,
+                        letterSpacing: 0,
+                      ),
                     ),
                     const Spacer(),
                     IconButton(
-                      icon: const Icon(Icons.close),
+                      icon: const Icon(Icons.close, color: _AvChatPalette.muted),
                       onPressed: () => Navigator.pop(context),
                     ),
                   ],
                 ),
                 TextField(
-                  decoration: const InputDecoration(
+                  style: const TextStyle(fontFamily: _AvChatPalette.bodyFont, color: _AvChatPalette.text),
+                  decoration: InputDecoration(
                     hintText: 'Szukaj...',
-                    border: OutlineInputBorder(),
+                    hintStyle: const TextStyle(fontFamily: _AvChatPalette.bodyFont, color: _AvChatPalette.muted),
+                    prefixIcon: const Icon(Icons.search, color: _AvChatPalette.muted, size: 20),
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(8),
+                      borderSide: const BorderSide(color: _AvChatPalette.line),
+                    ),
+                    focusedBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(8),
+                      borderSide: const BorderSide(color: _AvChatPalette.bubbleTop, width: 1.5),
+                    ),
                     isDense: true,
                   ),
                   onChanged: (v) => setState(() => _q = v.trim().toLowerCase()),
@@ -555,6 +884,7 @@ class _GroupMembersPickerSheetState extends State<_GroupMembersPickerSheet> {
 
                           return CheckboxListTile(
                             value: checked,
+                            activeColor: _AvChatPalette.bubbleTop,
                             onChanged: (v) {
                               setState(() {
                                 if (v == true) {
@@ -564,7 +894,13 @@ class _GroupMembersPickerSheetState extends State<_GroupMembersPickerSheet> {
                                 }
                               });
                             },
-                            title: Text(full),
+                            title: Text(
+                              full,
+                              style: const TextStyle(
+                                fontFamily: _AvChatPalette.bodyFont,
+                                color: _AvChatPalette.text,
+                              ),
+                            ),
                             controlAffinity: ListTileControlAffinity.leading,
                           );
                         },
@@ -578,6 +914,12 @@ class _GroupMembersPickerSheetState extends State<_GroupMembersPickerSheet> {
                   child: ElevatedButton.icon(
                     icon: const Icon(Icons.check),
                     label: Text('Dodaj (${_selected.length})'),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: _AvChatPalette.bubbleTop,
+                      foregroundColor: Colors.white,
+                      disabledBackgroundColor: _AvChatPalette.line,
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                    ),
                     onPressed: _selected.isEmpty
                         ? null
                         : () => Navigator.pop(context, _selected.toList()),

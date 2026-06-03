@@ -20,6 +20,16 @@ import 'customer_list_screen.dart';
 import 'manage_users_screen.dart';
 import 'scan_screen.dart';
 
+class _MenuPalette {
+  static const bodyFont = 'Bose (Regular)';
+  static const surface = Colors.white;
+  static const line = Color(0xFFD4DCE0);
+  static const text = Color(0xFF1E2B2F);
+  static const muted = Color(0xFF607176);
+  static const brand = Color(0xFF2574A9);
+  static const danger = Color(0xFFE04747);
+}
+
 class MainMenuScreen extends StatefulWidget {
   final String role;
   const MainMenuScreen({super.key, required this.role});
@@ -48,7 +58,6 @@ class _MainMenuScreenState extends State<MainMenuScreen>
       AppUpdateService.checkForUpdate(context);
     });
   }
-  // manual access to reports screen
 
   bool get _isReportsUser {
     final email = FirebaseAuth.instance.currentUser?.email?.toLowerCase() ?? '';
@@ -86,7 +95,6 @@ class _MainMenuScreenState extends State<MainMenuScreen>
 
     final now = DateTime.now();
 
-    // stops repeated checks every few seconds
     if (_lastUpdateCheckAt != null &&
         now.difference(_lastUpdateCheckAt!) < const Duration(minutes: 5)) {
       return;
@@ -166,261 +174,302 @@ class _MainMenuScreenState extends State<MainMenuScreen>
     }
   }
 
+  static const _titleStyle = TextStyle(
+    fontFamily: _MenuPalette.bodyFont,
+    color: _MenuPalette.text,
+    fontSize: 17,
+    fontWeight: FontWeight.w600,
+  );
+
+  static const _subtitleStyle = TextStyle(
+    fontFamily: _MenuPalette.bodyFont,
+    color: _MenuPalette.muted,
+    fontSize: 13,
+  );
+
+  static const _divider = Divider(
+    height: 1,
+    thickness: 1,
+    color: _MenuPalette.line,
+  );
+
   @override
   Widget build(BuildContext context) {
     final uid = FirebaseAuth.instance.currentUser?.uid;
 
-    final body = ListView(
-      padding: const EdgeInsets.all(16),
-      children: [
-        // Image.asset('assets/images/strefa_ciszy_logo.png', width: 200),
-        // const SizedBox(height: 24),
-        // Divider(),
-        if (isAdmin) ...[
-          ListTile(
-            visualDensity: const VisualDensity(vertical: -4),
-            leading: const Icon(Icons.admin_panel_settings),
-            title: const Text('Użytkownicy'),
-            onTap: () => Navigator.of(context).push(
-              MaterialPageRoute(builder: (_) => const ManageUsersScreen()),
+    final body = LayoutBuilder(
+      builder: (context, constraints) {
+        final fabClearance =
+            MediaQuery.of(context).padding.bottom +
+            kFloatingActionButtonMargin +
+            56.0;
+
+        return SingleChildScrollView(
+          padding: EdgeInsets.fromLTRB(16, 8, 16, fabClearance),
+          child: ConstrainedBox(
+            // minHeight fills the screen; if items exceed it the list scrolls
+            constraints: BoxConstraints(
+              minHeight: constraints.maxHeight - fabClearance - 8,
             ),
-          ),
-        ],
-
-        if (AdminEventLogsScreen.isAllowed()) ...[
-          ListTile(
-            visualDensity: const VisualDensity(vertical: -4),
-            leading: const Icon(Icons.manage_search, color: Colors.amber),
-            title: const Text('LOGS'),
-            // subtitle: const Text('dev only'),
-            onTap: () => Navigator.of(context).push(
-              MaterialPageRoute(builder: (_) => const AdminEventLogsScreen()),
-            ),
-          ),
-          const Divider(),
-        ],
-
-        if (canSeeReportsRW) ...[
-          ListTile(
-            visualDensity: const VisualDensity(vertical: -4),
-            leading: const Icon(Icons.summarize_outlined),
-            title: const Text('Raporty RW'),
-            subtitle: const Text('Wygenerować raport za dowolny dzień'),
-            onTap: () {
-              Navigator.of(context).push(
-                MaterialPageRoute(builder: (_) => const ReportsDailyScreen()),
-              );
-            },
-          ),
-          Divider(),
-        ],
-
-        ListTile(
-          leading: const Icon(Icons.calendar_today_outlined),
-          title: const Text('Mój Dzień'),
-          // subtitle: const Text('Logi o dzień pracy'),
-          onTap: () {
-            Navigator.of(
-              context,
-            ).push(MaterialPageRoute(builder: (_) => const MyDayScreen()));
-          },
-        ),
-        Divider(),
-
-        if (isAdmin) ...[
-          ListTile(
-            visualDensity: const VisualDensity(vertical: -4),
-
-            leading: const Icon(Icons.archive),
-            title: const Text('Archive'),
-            onTap: () {
-              Navigator.of(
-                context,
-              ).push(MaterialPageRoute(builder: (_) => const ArchivesScreen()));
-            },
-          ),
-          const Divider(),
-        ],
-
-        ListTile(
-          leading: const Icon(Icons.inventory_2),
-          title: const Text('Magazyn'),
-          onTap: () {
-            Navigator.of(context).push(
-              MaterialPageRoute(
-                builder: (_) => InventoryListScreen(isAdmin: isAdmin),
-              ),
-            );
-          },
-        ),
-
-        ListTile(
-          leading: const Icon(Icons.people_alt_outlined),
-          title: const Text('Klienci'),
-          onTap: () {
-            Navigator.of(context).push(
-              MaterialPageRoute(
-                builder: (_) => CustomerListScreen(isAdmin: isAdmin),
-              ),
-            );
-          },
-        ),
-
-        ListTile(
-          leading: const Icon(Icons.contact_phone_outlined),
-          title: const Text('Kontakty'),
-          onTap: () {
-            Navigator.of(context).push(
-              MaterialPageRoute(
-                builder: (_) => ContactsListScreen(isAdmin: isAdmin),
-              ),
-            );
-          },
-        ),
-
-        ListTile(
-          leading: const Icon(Icons.work_outline),
-          title: const Text("Projekty"),
-          onTap: () {
-            Navigator.of(context).push(
-              MaterialPageRoute(
-                builder: (_) => const ProjectsListScreen(isAdmin: true),
-              ),
-            );
-          },
-        ),
-
-        uid == null
-            ? ListTile(
-                leading: const Icon(Icons.chat),
-                title: const Text("Chat"),
-                onTap: () {
-                  Navigator.of(context).push(
-                    MaterialPageRoute(builder: (_) => const ChatListScreen()),
-                  );
-                },
-              )
-            : StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
-                stream: FirebaseFirestore.instance
-                    .collection('chats')
-                    .where('members', arrayContains: uid)
-                    .snapshots(),
-                builder: (ctx, snap) {
-                  final docs = snap.data?.docs ?? const [];
-
-                  int total = 0;
-                  for (final d in docs) {
-                    final data = d.data();
-                    final v = data['unread_$uid'];
-                    if (v is int) {
-                      total += v;
-                    } else if (v is num) {
-                      total += v.toInt();
-                    }
-                  }
-
-                  Widget badge() {
-                    if (total <= 0) return const SizedBox.shrink();
-                    return Container(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 8,
-                        vertical: 3,
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+              mainAxisSize: MainAxisSize.max,
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                if (isAdmin)
+                  ListTile(
+                    leading: const Icon(
+                      Icons.admin_panel_settings,
+                      color: _MenuPalette.brand,
+                    ),
+                    title: const Text('Użytkownicy', style: _titleStyle),
+                    onTap: () => Navigator.of(context).push(
+                      MaterialPageRoute(
+                        builder: (_) => const ManageUsersScreen(),
                       ),
-                      decoration: BoxDecoration(
-                        color: Colors.red,
-                        borderRadius: BorderRadius.circular(999),
+                    ),
+                  ),
+
+                if (AdminEventLogsScreen.isAllowed()) ...[
+                  ListTile(
+                    leading: const Icon(
+                      Icons.manage_search,
+                      color: Colors.amber,
+                    ),
+                    title: const Text('LOGS', style: _titleStyle),
+                    onTap: () => Navigator.of(context).push(
+                      MaterialPageRoute(
+                        builder: (_) => const AdminEventLogsScreen(),
                       ),
-                      child: Text(
-                        total > 99 ? '99+' : '$total',
-                        style: const TextStyle(
-                          color: Colors.white,
-                          fontSize: 12,
-                          fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                  _divider,
+                ],
+
+                if (canSeeReportsRW) ...[
+                  ListTile(
+                    leading: const Icon(
+                      Icons.summarize_outlined,
+                      color: _MenuPalette.brand,
+                    ),
+                    title: const Text('Raporty RW', style: _titleStyle),
+                    // subtitle: const Text(
+                    //   'Wygenerować raport za dowolny dzień',
+                    //   style: _subtitleStyle,
+                    // ),
+                    onTap: () => Navigator.of(context).push(
+                      MaterialPageRoute(
+                        builder: (_) => const ReportsDailyScreen(),
+                      ),
+                    ),
+                  ),
+                  _divider,
+                ],
+
+                ListTile(
+                  leading: const Icon(
+                    Icons.calendar_today_outlined,
+                    color: _MenuPalette.brand,
+                  ),
+                  title: const Text('Mój Dzień', style: _titleStyle),
+                  onTap: () => Navigator.of(context).push(
+                    MaterialPageRoute(builder: (_) => const MyDayScreen()),
+                  ),
+                ),
+
+                if (isAdmin) ...[
+                  _divider,
+                  ListTile(
+                    leading: const Icon(
+                      Icons.archive,
+                      color: _MenuPalette.brand,
+                    ),
+                    title: const Text('Archive', style: _titleStyle),
+                    onTap: () => Navigator.of(context).push(
+                      MaterialPageRoute(builder: (_) => const ArchivesScreen()),
+                    ),
+                  ),
+                ],
+
+                _divider,
+
+                ListTile(
+                  leading: const Icon(
+                    Icons.inventory_2,
+                    color: _MenuPalette.brand,
+                  ),
+                  title: const Text('Magazyn', style: _titleStyle),
+                  onTap: () => Navigator.of(context).push(
+                    MaterialPageRoute(
+                      builder: (_) => InventoryListScreen(isAdmin: isAdmin),
+                    ),
+                  ),
+                ),
+
+                ListTile(
+                  leading: const Icon(
+                    Icons.people_alt_outlined,
+                    color: _MenuPalette.brand,
+                  ),
+                  title: const Text('Klienci', style: _titleStyle),
+                  onTap: () => Navigator.of(context).push(
+                    MaterialPageRoute(
+                      builder: (_) => CustomerListScreen(isAdmin: isAdmin),
+                    ),
+                  ),
+                ),
+
+                ListTile(
+                  leading: const Icon(
+                    Icons.contact_phone_outlined,
+                    color: _MenuPalette.brand,
+                  ),
+                  title: const Text('Kontakty', style: _titleStyle),
+                  onTap: () => Navigator.of(context).push(
+                    MaterialPageRoute(
+                      builder: (_) => ContactsListScreen(isAdmin: isAdmin),
+                    ),
+                  ),
+                ),
+
+                ListTile(
+                  leading: const Icon(
+                    Icons.work_outline,
+                    color: _MenuPalette.brand,
+                  ),
+                  title: const Text('Projekty', style: _titleStyle),
+                  onTap: () => Navigator.of(context).push(
+                    MaterialPageRoute(
+                      builder: (_) => const ProjectsListScreen(isAdmin: true),
+                    ),
+                  ),
+                ),
+
+                uid == null
+                    ? ListTile(
+                        leading: const Icon(
+                          Icons.chat,
+                          color: _MenuPalette.brand,
                         ),
-                      ),
-                    );
-                  }
-
-                  return ListTile(
-                    leading: const Icon(Icons.chat),
-                    title: const Text("Chat"),
-                    trailing: badge(),
-                    onTap: () {
-                      Navigator.of(context).push(
-                        MaterialPageRoute(
-                          builder: (_) => const ChatListScreen(),
+                        title: const Text('Chat', style: _titleStyle),
+                        onTap: () => Navigator.of(context).push(
+                          MaterialPageRoute(
+                            builder: (_) => const ChatListScreen(),
+                          ),
                         ),
+                      )
+                    : StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
+                        stream: FirebaseFirestore.instance
+                            .collection('chats')
+                            .where('members', arrayContains: uid)
+                            .snapshots(),
+                        builder: (ctx, snap) {
+                          final docs = snap.data?.docs ?? const [];
+                          int total = 0;
+                          for (final d in docs) {
+                            final v = d.data()['unread_$uid'];
+                            if (v is int) {
+                              total += v;
+                            } else if (v is num) {
+                              total += v.toInt();
+                            }
+                          }
+                          Widget badge() {
+                            if (total <= 0) return const SizedBox.shrink();
+                            return Container(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 8,
+                                vertical: 3,
+                              ),
+                              decoration: BoxDecoration(
+                                color: _MenuPalette.danger,
+                                borderRadius: BorderRadius.circular(999),
+                              ),
+                              child: Text(
+                                total > 99 ? '99+' : '$total',
+                                style: const TextStyle(
+                                  color: Colors.white,
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.bold,
+                                ),
+                              ),
+                            );
+                          }
+
+                          return ListTile(
+                            leading: const Icon(
+                              Icons.chat,
+                              color: _MenuPalette.brand,
+                            ),
+                            title: const Text('Chat', style: _titleStyle),
+                            trailing: badge(),
+                            onTap: () => Navigator.of(context).push(
+                              MaterialPageRoute(
+                                builder: (_) => const ChatListScreen(),
+                              ),
+                            ),
+                          );
+                        },
+                      ),
+
+                ListTile(
+                  leading: const Icon(
+                    Icons.shopping_cart_outlined,
+                    color: _MenuPalette.brand,
+                  ),
+                  title: const Text('Zakupy', style: _titleStyle),
+                  onTap: () => Navigator.of(context).push(
+                    MaterialPageRoute(
+                      builder: (_) => const ShoppingListScreen(),
+                    ),
+                  ),
+                ),
+
+                if (isAdmin)
+                  StreamBuilder<bool>(
+                    stream: _isApproverStream(),
+                    builder: (context, snap) {
+                      final allowed = snap.data ?? false;
+                      if (!allowed) return const SizedBox.shrink();
+                      return Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          _divider,
+                          ListTile(
+                            leading: const Icon(
+                              Icons.verified_user,
+                              color: _MenuPalette.brand,
+                            ),
+                            title: const Text(
+                              'Fakturowanie (Wf-Mag)',
+                              style: _titleStyle,
+                            ),
+                            // subtitle: const Text(
+                            //   'zatwierdzenie towar do fakturowanie',
+                            //   style: _subtitleStyle,
+                            // ),
+                            onTap: () => Navigator.of(context).push(
+                              MaterialPageRoute(
+                                builder: (_) => const ApprovalScreen(),
+                              ),
+                            ),
+                          ),
+                        ],
                       );
                     },
-                  );
-                },
-              ),
-        ListTile(
-          leading: const Icon(Icons.shopping_cart_outlined),
-          title: const Text('Zakupy'),
-          onTap: () {
-            Navigator.of(context).push(
-              MaterialPageRoute(builder: (_) => const ShoppingListScreen()),
-            );
-          },
-        ),
-
-        const Divider(),
-
-        StreamBuilder<bool>(
-          stream: _isApproverStream(),
-          builder: (context, snap) {
-            final allowed = snap.data ?? false;
-            if (!allowed) return const SizedBox.shrink();
-            return Column(
-              children: [
-                ListTile(
-                  visualDensity: const VisualDensity(vertical: -4),
-
-                  leading: const Icon(Icons.verified_user),
-                  title: const Text('Fakturowanie (Wf-Mag)'),
-                  subtitle: const Text('zatwierdzenie towar do fakturowanie'),
-                  onTap: () {
-                    Navigator.of(context).push(
-                      MaterialPageRoute(builder: (_) => const ApprovalScreen()),
-                    );
-                  },
-                ),
-                const Divider(),
+                  ),
               ],
-            );
-          },
-        ),
-
-        ListTile(
-          leading: const Icon(Icons.download_rounded),
-          title: const Text('Tapnij aby pobrac:'),
-          // subtitle: const Text('Android APK / iOS TestFlight'),
-          trailing: Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              _storeIconButton(
-                assetPath: 'assets/images/android_logo.png',
-                tooltip: 'Pobierz APK (Android)',
-                onTap: () => _downloadApp(context),
-                size: 44,
-              ),
-              const SizedBox(width: 10),
-              _storeIconButton(
-                assetPath: 'assets/images/apple_ios_logo.png',
-                tooltip: 'Otwórz TestFlight (iOS)',
-                onTap: () => _openTestFlight(context),
-                size: 80,
-              ),
-            ],
+            ),
           ),
-        ),
-      ],
+        );
+      },
     );
 
     return AppScaffold(
       floatingActionButton: FloatingActionButton(
         tooltip: 'Skanuj',
+        backgroundColor: _MenuPalette.brand,
+        foregroundColor: _MenuPalette.surface,
         onPressed: () => Navigator.of(context).push(
           MaterialPageRoute(
             builder: (_) => const ScanScreen(purpose: ScanPurpose.search),
@@ -431,7 +480,6 @@ class _MainMenuScreenState extends State<MainMenuScreen>
       floatingActionButtonLocation: FloatingActionButtonLocation.centerFloat,
 
       title: '',
-      // titleWidget: Text(_version, style: const TextStyle(fontSize: 15)),
       titleWidget: LayoutBuilder(
         builder: (context, constraints) {
           final maxWidth = constraints.maxWidth;
@@ -445,14 +493,17 @@ class _MainMenuScreenState extends State<MainMenuScreen>
           return Stack(
             alignment: Alignment.center,
             children: [
-              // LEFT: version
               Align(
                 alignment: Alignment.centerLeft,
                 child: Padding(
                   padding: const EdgeInsets.only(left: 4),
                   child: Text(
                     _version,
-                    style: const TextStyle(fontSize: 13),
+                    style: const TextStyle(
+                      fontFamily: _MenuPalette.bodyFont,
+                      fontSize: 13,
+                      color: _MenuPalette.muted,
+                    ),
                     overflow: TextOverflow.ellipsis,
                   ),
                 ),
@@ -472,7 +523,6 @@ class _MainMenuScreenState extends State<MainMenuScreen>
                 ),
               ),
 
-              // RIGHT spacer (matches logout button width)
               const Align(
                 alignment: Alignment.centerRight,
                 child: SizedBox(width: 48),
@@ -483,14 +533,15 @@ class _MainMenuScreenState extends State<MainMenuScreen>
       ),
       showBackOnMobile: false,
       showPersistentDrawerOnWeb: false,
-      backgroundColor: Colors.white,
+      backgroundColor: _MenuPalette.surface,
 
       body: Stack(
         children: [
           body,
+          // dev logo — bottom-right, respects safe area
           Positioned(
-            bottom: 80,
-            right: 20,
+            bottom: MediaQuery.of(context).padding.bottom + 12,
+            right: 12,
             child: GestureDetector(
               onTap: () async {
                 final url = Uri.parse('https://ashleyrichards.tech');
@@ -500,8 +551,58 @@ class _MainMenuScreenState extends State<MainMenuScreen>
               },
               child: Image.asset(
                 'assets/images/dev_logo_PILL.png',
-                width: 80,
+                width: 64,
                 fit: BoxFit.contain,
+              ),
+            ),
+          ),
+          // download icons — right edge, vertically centred
+          Positioned(
+            right: 0,
+            top: 0,
+            bottom: 0,
+            child: IgnorePointer(
+              ignoring: false,
+              child: Align(
+                alignment: Alignment.center,
+                child: Container(
+                  decoration: BoxDecoration(
+                    color: _MenuPalette.surface.withValues(alpha: 0.92),
+                    borderRadius: const BorderRadius.only(
+                      topLeft: Radius.circular(12),
+                      bottomLeft: Radius.circular(12),
+                    ),
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.black.withValues(alpha: 0.07),
+                        blurRadius: 10,
+                        offset: const Offset(-2, 0),
+                      ),
+                    ],
+                  ),
+                  padding: const EdgeInsets.symmetric(
+                    vertical: 10,
+                    horizontal: 4,
+                  ),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      _storeIconButton(
+                        assetPath: 'assets/images/android_logo.png',
+                        tooltip: 'Pobierz APK (Android)',
+                        onTap: () => _downloadApp(context),
+                        size: 36,
+                      ),
+                      const SizedBox(height: 4),
+                      _storeIconButton(
+                        assetPath: 'assets/images/apple_ios_logo.png',
+                        tooltip: 'Otwórz TestFlight (iOS)',
+                        onTap: () => _openTestFlight(context),
+                        size: 36,
+                      ),
+                    ],
+                  ),
+                ),
               ),
             ),
           ),

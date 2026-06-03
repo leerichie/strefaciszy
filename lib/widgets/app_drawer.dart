@@ -692,15 +692,9 @@ class _AppDrawerState extends State<AppDrawer> {
                         Icons.manage_search,
                         color: Colors.amberAccent,
                       ),
-                      title: Text('Logi Zdarzeń', style: menuTitles),
-                      subtitle: const Text(
-                        'DEV — podgląd aktywności',
-                        style: TextStyle(color: Colors.white38, fontSize: 11),
-                      ),
-                      onTap: () => _openPage(
-                        context,
-                        const AdminEventLogsScreen(),
-                      ),
+                      title: Text('Logs', style: menuTitles),
+                      onTap: () =>
+                          _openPage(context, const AdminEventLogsScreen()),
                     ),
                   ],
                 ],

@@ -17,6 +17,49 @@ import 'package:strefa_ciszy/services/storage_service.dart';
 import 'package:strefa_ciszy/widgets/app_scaffold.dart';
 import 'package:url_launcher/url_launcher.dart';
 
+class _AvChatPalette {
+  static const headlineFont = 'Bose-Headline (Bold)';
+  static const bodyFont = 'Bose (Regular)';
+  static const ink = Color(0xFF101820);
+  static const control = Color(0xFF202124);
+  static const controlAlt = Color(0xFF4A5156);
+  static const headerStart = Color(0xFFFFFFFF);
+  static const headerMid = Color(0xFFE9ECEF);
+  static const headerEnd = Color(0xFFA9C6D8);
+  static const panel = Color(0xFFF4F6F7);
+  static const panelAlt = Color(0xFFE8EEF1);
+  static const surface = Colors.white;
+  static const line = Color(0xFFD4DCE0);
+  static const text = Color(0xFF1E2B2F);
+  static const muted = Color(0xFF607176);
+  static const bubbleTop = Color(0xFF2574A9);
+  static const bubbleBottom = Color(0xFF1E5D88);
+  static const cyan = Color(0xFF0097A7);
+  static const cyanDark = Color(0xFF006D78);
+  static const danger = Color(0xFFE04747);
+}
+
+class _ChatHeaderGradient extends StatelessWidget {
+  const _ChatHeaderGradient();
+
+  @override
+  Widget build(BuildContext context) {
+    return const DecoratedBox(
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          colors: [
+            _AvChatPalette.headerStart,
+            _AvChatPalette.headerMid,
+            _AvChatPalette.headerEnd,
+          ],
+          begin: Alignment.centerLeft,
+          end: Alignment.centerRight,
+        ),
+      ),
+    );
+  }
+}
+
 class ChatThreadScreen extends StatefulWidget {
   final String chatId;
 
@@ -33,12 +76,18 @@ class _ChatThreadScreenState extends State<ChatThreadScreen> {
   final List<Map<String, dynamic>> _pendingMentions = [];
   final ScrollController _scroll = ScrollController();
   final GlobalKey _composerKey = GlobalKey();
+  int _lastMessageCount = 0;
+  String? _lastMessageId;
+  bool _didInitialMessageScroll = false;
 
   OverlayEntry? _mentionOverlay;
   OverlayEntry? _tagOverlay;
 
   TextSpan _buildMessageTextSpan(ChatMessage m, {required bool mine}) {
-    final baseStyle = TextStyle(color: mine ? Colors.white : Colors.black87);
+    final baseStyle = TextStyle(
+      color: mine ? Colors.white : _AvChatPalette.text,
+      fontFamily: _AvChatPalette.bodyFont,
+    );
 
     final mentionStyle = baseStyle.copyWith(
       decoration: TextDecoration.underline,
@@ -512,14 +561,38 @@ class _ChatThreadScreenState extends State<ChatThreadScreen> {
     Overlay.of(context).insert(_mentionOverlay!);
   }
 
-  void _scrollToBottom() {
+  void _scrollToBottom({bool jump = false}) {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!_scroll.hasClients) return;
+      final target = _scroll.position.maxScrollExtent;
+      if (jump) {
+        _scroll.jumpTo(target);
+        return;
+      }
       _scroll.animateTo(
-        _scroll.position.maxScrollExtent,
-        duration: const Duration(milliseconds: 200),
-        curve: Curves.easeOut,
+        target,
+        duration: const Duration(milliseconds: 220),
+        curve: Curves.easeOutCubic,
       );
+    });
+  }
+
+  void _scheduleMessageScroll(List<ChatMessage> msgs) {
+    final newestId = msgs.isEmpty ? null : msgs.last.id;
+    final changed =
+        newestId != _lastMessageId || msgs.length != _lastMessageCount;
+    if (!changed) return;
+
+    final jump = !_didInitialMessageScroll;
+    _lastMessageId = newestId;
+    _lastMessageCount = msgs.length;
+    _didInitialMessageScroll = true;
+
+    _scrollToBottom(jump: jump);
+
+    Future.delayed(const Duration(milliseconds: 140), () {
+      if (!mounted) return;
+      _scrollToBottom(jump: jump);
     });
   }
 
@@ -556,25 +629,43 @@ class _ChatThreadScreenState extends State<ChatThreadScreen> {
     final choice = await showModalBottomSheet<String>(
       context: context,
       showDragHandle: true,
+      backgroundColor: _AvChatPalette.surface,
       builder: (ctx) => SafeArea(
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
+            const Padding(
+              padding: EdgeInsets.fromLTRB(16, 4, 16, 8),
+              child: Align(
+                alignment: Alignment.centerLeft,
+                child: Text(
+                  'DODAJ ZAŁĄCZNIK',
+                  style: TextStyle(
+                    fontFamily: _AvChatPalette.headlineFont,
+                    fontWeight: FontWeight.w800,
+                    fontSize: 12,
+                    letterSpacing: 1.2,
+                    color: _AvChatPalette.muted,
+                  ),
+                ),
+              ),
+            ),
             ListTile(
-              leading: const Icon(Icons.photo_camera),
-              title: const Text('Zrób fota'),
+              leading: const Icon(Icons.photo_camera, color: _AvChatPalette.bubbleTop),
+              title: const Text('Zrób fota', style: TextStyle(fontFamily: _AvChatPalette.bodyFont, color: _AvChatPalette.text)),
               onTap: () => Navigator.pop(ctx, 'camera'),
             ),
             ListTile(
-              leading: const Icon(Icons.photo_library),
-              title: const Text('Wybierz z galerii'),
+              leading: const Icon(Icons.photo_library, color: _AvChatPalette.bubbleTop),
+              title: const Text('Wybierz z galerii', style: TextStyle(fontFamily: _AvChatPalette.bodyFont, color: _AvChatPalette.text)),
               onTap: () => Navigator.pop(ctx, 'gallery'),
             ),
             ListTile(
-              leading: const Icon(Icons.attach_file),
-              title: const Text('Dodaj plik'),
+              leading: const Icon(Icons.attach_file, color: _AvChatPalette.bubbleTop),
+              title: const Text('Dodaj plik', style: TextStyle(fontFamily: _AvChatPalette.bodyFont, color: _AvChatPalette.text)),
               onTap: () => Navigator.pop(ctx, 'file'),
             ),
+            const SizedBox(height: 8),
           ],
         ),
       ),
@@ -595,11 +686,17 @@ class _ChatThreadScreenState extends State<ChatThreadScreen> {
     showDialog(
       context: context,
       builder: (_) => Dialog(
+        backgroundColor: _AvChatPalette.surface,
+        surfaceTintColor: Colors.transparent,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
         insetPadding: const EdgeInsets.all(12),
-        child: InteractiveViewer(
-          minScale: 1,
-          maxScale: 5,
-          child: Image.network(url, fit: BoxFit.contain),
+        child: ClipRRect(
+          borderRadius: BorderRadius.circular(16),
+          child: InteractiveViewer(
+            minScale: 1,
+            maxScale: 5,
+            child: Image.network(url, fit: BoxFit.contain),
+          ),
         ),
       ),
     );
@@ -682,15 +779,36 @@ class _ChatThreadScreenState extends State<ChatThreadScreen> {
     final confirm = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
+        backgroundColor: _AvChatPalette.surface,
+        surfaceTintColor: Colors.transparent,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        titleTextStyle: const TextStyle(
+          fontFamily: _AvChatPalette.headlineFont,
+          fontWeight: FontWeight.w800,
+          color: _AvChatPalette.text,
+          fontSize: 17,
+          letterSpacing: 0,
+        ),
+        contentTextStyle: const TextStyle(
+          fontFamily: _AvChatPalette.bodyFont,
+          color: _AvChatPalette.muted,
+          fontSize: 14,
+        ),
         title: const Text('Usuń wiadomość?'),
         content: const Text('Ta operacja jest nieodwracalna.'),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(ctx, false),
+            style: TextButton.styleFrom(foregroundColor: _AvChatPalette.muted),
             child: const Text('Anuluj'),
           ),
           ElevatedButton(
             onPressed: () => Navigator.pop(ctx, true),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: _AvChatPalette.danger,
+              foregroundColor: Colors.white,
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+            ),
             child: const Text('Usuń'),
           ),
         ],
@@ -741,6 +859,9 @@ class _ChatThreadScreenState extends State<ChatThreadScreen> {
     if (oldWidget.chatId != widget.chatId) {
       PresenceService.instance.clearActiveChat(oldWidget.chatId);
       PresenceService.instance.setActiveChat(widget.chatId);
+      _lastMessageCount = 0;
+      _lastMessageId = null;
+      _didInitialMessageScroll = false;
 
       _markAsRead();
     }
@@ -830,128 +951,153 @@ class _ChatThreadScreenState extends State<ChatThreadScreen> {
     final uid = FirebaseAuth.instance.currentUser?.uid;
     final isGlobal = widget.chatId == ChatService.globalChatId;
 
-    return AppScaffold(
-      title: isGlobal ? 'Ogólny' : 'Chat',
-      showBackOnMobile: true,
-      showBackOnWeb: true,
-      showPersistentDrawerOnWeb: true,
-
-      bottomNavigationBar: KeyedSubtree(
-        key: _composerKey,
-        child: _ChatComposerBar(
-          controller: _controller,
-          focusNode: _focusNode,
-          onSend: _send,
-          onAttach: _openAttachMenu,
-          onTap: _scrollToBottom,
-          onChanged: (v) {
-            if (_mentionOverlay != null) _refreshMentionOverlay();
-            if (_tagOverlay != null) _refreshTagOverlay();
-
-            final sel = _controller.selection;
-            final cursor = sel.baseOffset;
-            if (cursor < 1 || cursor > v.length) return;
-
-            final last = v[cursor - 1];
-
-            if (last == '@') {
-              final beforeAt = cursor - 2;
-              final okBoundary = beforeAt < 0 || v[beforeAt].trim().isEmpty;
-              if (!okBoundary) return;
-              _openMentionPicker();
-              return;
-            }
-
-            if (last == '#') {
-              final beforeHash = cursor - 2;
-              final okBoundary = beforeHash < 0 || v[beforeHash].trim().isEmpty;
-              if (!okBoundary) return;
-              _openTagPicker();
-              return;
-            }
-          },
+    return Theme(
+      data: Theme.of(context).copyWith(
+        appBarTheme: const AppBarTheme(
+          backgroundColor: Colors.transparent,
+          foregroundColor: _AvChatPalette.text,
+          surfaceTintColor: Colors.transparent,
+          elevation: 0,
+          titleTextStyle: TextStyle(
+            color: _AvChatPalette.text,
+            fontSize: 19,
+            fontFamily: _AvChatPalette.headlineFont,
+            fontWeight: FontWeight.w800,
+            letterSpacing: 0,
+          ),
+        ),
+        colorScheme: Theme.of(context).colorScheme.copyWith(
+          primary: _AvChatPalette.cyan,
+          secondary: _AvChatPalette.cyanDark,
         ),
       ),
+      child: AppScaffold(
+        title: isGlobal ? 'Ogólny' : 'Chat',
+        titleWidget: Text(isGlobal ? 'OGÓLNY' : 'CHAT'),
+        centreTitle: true,
+        showBackOnMobile: true,
+        showBackOnWeb: true,
+        showPersistentDrawerOnWeb: true,
+        appBarFlexibleSpace: const _ChatHeaderGradient(),
 
-      body: SafeArea(
-        bottom: false,
-        child: Padding(
-          padding: const EdgeInsets.all(12),
+        bottomNavigationBar: KeyedSubtree(
+          key: _composerKey,
+          child: _ChatComposerBar(
+            controller: _controller,
+            focusNode: _focusNode,
+            onSend: _send,
+            onAttach: _openAttachMenu,
+            onTap: _scrollToBottom,
+            onChanged: (v) {
+              if (_mentionOverlay != null) _refreshMentionOverlay();
+              if (_tagOverlay != null) _refreshTagOverlay();
 
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.center,
-            children: [
-              Expanded(
-                child: uid == null
-                    ? const Center(child: Text('Nie jesteś zalogowany.'))
-                    : StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
-                        stream: ChatService.instance.watchMessages(
-                          widget.chatId,
-                        ),
-                        builder: (ctx, snap) {
-                          if (snap.connectionState == ConnectionState.waiting) {
-                            return const Center(
-                              child: CircularProgressIndicator(),
-                            );
-                          }
+              final sel = _controller.selection;
+              final cursor = sel.baseOffset;
+              if (cursor < 1 || cursor > v.length) return;
 
-                          final docs = snap.data?.docs ?? [];
-                          if (docs.isEmpty) {
-                            return const Center(
-                              child: Text('Brak wiadomości.'),
-                            );
-                          }
+              final last = v[cursor - 1];
 
-                          final msgs = docs
-                              .map((d) => ChatMessage.fromDoc(d))
-                              .toList();
+              if (last == '@') {
+                final beforeAt = cursor - 2;
+                final okBoundary = beforeAt < 0 || v[beforeAt].trim().isEmpty;
+                if (!okBoundary) return;
+                _openMentionPicker();
+                return;
+              }
 
-                          WidgetsBinding.instance.addPostFrameCallback((_) {
-                            if (!_scroll.hasClients) return;
-                            _scroll.jumpTo(_scroll.position.maxScrollExtent);
-                          });
+              if (last == '#') {
+                final beforeHash = cursor - 2;
+                final okBoundary =
+                    beforeHash < 0 || v[beforeHash].trim().isEmpty;
+                if (!okBoundary) return;
+                _openTagPicker();
+                return;
+              }
+            },
+          ),
+        ),
 
-                          return ListView.builder(
-                            controller: _scroll,
-                            padding: const EdgeInsets.only(bottom: 12),
+        body: SafeArea(
+          bottom: false,
+          child: DecoratedBox(
+            decoration: const BoxDecoration(
+              gradient: LinearGradient(
+                colors: [_AvChatPalette.panel, _AvChatPalette.panelAlt],
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+              ),
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.center,
+              children: [
+                Expanded(
+                  child: uid == null
+                      ? const Center(child: Text('Nie jesteś zalogowany.'))
+                      : StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
+                          stream: ChatService.instance.watchMessages(
+                            widget.chatId,
+                          ),
+                          builder: (ctx, snap) {
+                            if (snap.connectionState ==
+                                ConnectionState.waiting) {
+                              return const Center(
+                                child: CircularProgressIndicator(),
+                              );
+                            }
 
-                            itemCount: msgs.length,
-                            itemBuilder: (_, i) {
-                              final m = msgs[i];
-                              final mine = m.senderId == uid;
+                            final docs = snap.data?.docs ?? [];
+                            if (docs.isEmpty) {
+                              return const Center(
+                                child: Text('Brak wiadomości.'),
+                              );
+                            }
 
-                              final prev = i > 0 ? msgs[i - 1] : null;
-                              final next = i < msgs.length - 1
-                                  ? msgs[i + 1]
-                                  : null;
+                            final msgs = docs
+                                .map((d) => ChatMessage.fromDoc(d))
+                                .toList();
 
-                              final showDateDivider =
-                                  prev == null ||
-                                  !_isSameDay(prev.createdAt, m.createdAt);
+                            _scheduleMessageScroll(msgs);
 
-                              final showSenderName =
-                                  !mine &&
-                                  (prev == null ||
-                                      prev.senderId != m.senderId ||
-                                      showDateDivider);
+                            return ListView.builder(
+                              controller: _scroll,
+                              padding: const EdgeInsets.fromLTRB(
+                                12,
+                                12,
+                                12,
+                                18,
+                              ),
 
-                              final showTime =
-                                  next == null || next.senderId != m.senderId;
-                              final timeLabel = _fmtTime(m.createdAt);
+                              itemCount: msgs.length,
+                              itemBuilder: (_, i) {
+                                final m = msgs[i];
+                                final mine = m.senderId == uid;
 
-                              return Align(
-                                alignment: mine
-                                    ? Alignment.centerRight
-                                    : Alignment.centerLeft,
-                                child: Column(
-                                  crossAxisAlignment: mine
-                                      ? CrossAxisAlignment.end
-                                      : CrossAxisAlignment.start,
+                                final prev = i > 0 ? msgs[i - 1] : null;
+                                final next = i < msgs.length - 1
+                                    ? msgs[i + 1]
+                                    : null;
+
+                                final showDateDivider =
+                                    prev == null ||
+                                    !_isSameDay(prev.createdAt, m.createdAt);
+
+                                final showSenderName =
+                                    !mine &&
+                                    (prev == null ||
+                                        prev.senderId != m.senderId ||
+                                        showDateDivider);
+
+                                final showTime =
+                                    next == null || next.senderId != m.senderId;
+                                final timeLabel = _fmtTime(m.createdAt);
+
+                                return Column(
                                   children: [
                                     if (showDateDivider)
                                       Padding(
                                         padding: const EdgeInsets.symmetric(
-                                          vertical: 10,
+                                          vertical: 12,
                                         ),
                                         child: Center(
                                           child: Container(
@@ -960,241 +1106,382 @@ class _ChatThreadScreenState extends State<ChatThreadScreen> {
                                               vertical: 6,
                                             ),
                                             decoration: BoxDecoration(
-                                              color: Colors.black12,
+                                              color: _AvChatPalette.surface
+                                                  .withValues(alpha: 0.78),
                                               borderRadius:
                                                   BorderRadius.circular(999),
+                                              border: Border.all(
+                                                color: _AvChatPalette.ink
+                                                    .withValues(alpha: 0.06),
+                                              ),
                                             ),
                                             child: Text(
                                               _fmtDateLabel(m.createdAt),
                                               style: const TextStyle(
                                                 fontSize: 12,
-                                                fontWeight: FontWeight.w600,
-                                                color: Colors.black54,
+                                                fontWeight: FontWeight.w700,
+                                                color: _AvChatPalette.muted,
                                               ),
                                             ),
                                           ),
                                         ),
                                       ),
+                                    Align(
+                                      alignment: mine
+                                          ? Alignment.centerRight
+                                          : Alignment.centerLeft,
+                                      child: Column(
+                                        crossAxisAlignment: mine
+                                            ? CrossAxisAlignment.end
+                                            : CrossAxisAlignment.start,
+                                        children: [
+                                          if (showSenderName)
+                                            FutureBuilder<String>(
+                                              future: _getUserName(m.senderId),
+                                              builder: (_, snap) {
+                                                if (!snap.hasData) {
+                                                  return const SizedBox(
+                                                    height: 12,
+                                                  );
+                                                }
+                                                return Padding(
+                                                  padding:
+                                                      const EdgeInsets.only(
+                                                        left: 8,
+                                                        bottom: 3,
+                                                      ),
+                                                  child: Text(
+                                                    snap.data!,
+                                                    style: const TextStyle(
+                                                      fontSize: 12,
+                                                      fontWeight:
+                                                          FontWeight.w700,
+                                                      color:
+                                                          _AvChatPalette.muted,
+                                                    ),
+                                                  ),
+                                                );
+                                              },
+                                            ),
 
-                                    if (showSenderName)
-                                      FutureBuilder<String>(
-                                        future: _getUserName(m.senderId),
-                                        builder: (_, snap) {
-                                          if (!snap.hasData) {
-                                            return const SizedBox(height: 12);
-                                          }
-                                          return Padding(
-                                            padding: const EdgeInsets.only(
-                                              left: 6,
-                                              bottom: 2,
-                                            ),
-                                            child: Text(
-                                              snap.data!,
-                                              style: const TextStyle(
-                                                fontSize: 12,
-                                                fontWeight: FontWeight.w600,
-                                                color: Colors.black54,
-                                              ),
-                                            ),
-                                          );
-                                        },
-                                      ),
+                                          Row(
+                                            mainAxisSize: MainAxisSize.max,
+                                            mainAxisAlignment: mine
+                                                ? MainAxisAlignment.end
+                                                : MainAxisAlignment.start,
+                                            crossAxisAlignment:
+                                                CrossAxisAlignment.end,
+                                            children: [
+                                              Flexible(
+                                                child: Stack(
+                                                  clipBehavior: Clip.none,
+                                                  children: [
+                                                    Container(
+                                                      constraints:
+                                                          const BoxConstraints(
+                                                            maxWidth: 540,
+                                                          ),
+                                                      margin:
+                                                          const EdgeInsets.symmetric(
+                                                            vertical: 3,
+                                                          ),
+                                                      padding:
+                                                          const EdgeInsets.symmetric(
+                                                            vertical: 10,
+                                                            horizontal: 13,
+                                                          ),
+                                                      decoration: BoxDecoration(
+                                                        color: mine
+                                                            ? null
+                                                            : _AvChatPalette
+                                                                  .surface,
+                                                        gradient: mine
+                                                            ? const LinearGradient(
+                                                                colors: [
+                                                                  _AvChatPalette
+                                                                      .bubbleTop,
+                                                                  _AvChatPalette
+                                                                      .bubbleBottom,
+                                                                ],
+                                                                begin: Alignment
+                                                                    .topCenter,
+                                                                end: Alignment
+                                                                    .bottomCenter,
+                                                              )
+                                                            : null,
+                                                        borderRadius: BorderRadius.only(
+                                                          topLeft:
+                                                              const Radius.circular(
+                                                                18,
+                                                              ),
+                                                          topRight:
+                                                              const Radius.circular(
+                                                                18,
+                                                              ),
+                                                          bottomLeft:
+                                                              Radius.circular(
+                                                                mine ? 18 : 5,
+                                                              ),
+                                                          bottomRight:
+                                                              Radius.circular(
+                                                                mine ? 5 : 18,
+                                                              ),
+                                                        ),
+                                                        border: mine
+                                                            ? null
+                                                            : Border.all(
+                                                                color:
+                                                                    const Color(
+                                                                      0xFFD6DFE3,
+                                                                    ),
+                                                              ),
+                                                        boxShadow: [
+                                                          BoxShadow(
+                                                            color: Colors.black
+                                                                .withValues(
+                                                                  alpha: 0.06,
+                                                                ),
+                                                            blurRadius: 10,
+                                                            offset:
+                                                                const Offset(
+                                                                  0,
+                                                                  3,
+                                                                ),
+                                                          ),
+                                                        ],
+                                                      ),
+                                                      child: SelectionArea(
+                                                        child: Column(
+                                                          crossAxisAlignment:
+                                                              CrossAxisAlignment
+                                                                  .start,
+                                                          children: [
+                                                            if (m.text
+                                                                .trim()
+                                                                .isNotEmpty)
+                                                              SelectableText.rich(
+                                                                _buildMessageTextSpan(
+                                                                  m,
+                                                                  mine: mine,
+                                                                ),
+                                                              ),
 
-                                    Row(
-                                      mainAxisSize: MainAxisSize.max,
-                                      mainAxisAlignment: mine
-                                          ? MainAxisAlignment.end
-                                          : MainAxisAlignment.start,
+                                                            if (m
+                                                                .attachments
+                                                                .isNotEmpty) ...[
+                                                              if (m.text
+                                                                  .trim()
+                                                                  .isNotEmpty)
+                                                                const SizedBox(
+                                                                  height: 8,
+                                                                ),
+                                                              ...m.attachments.map((
+                                                                a,
+                                                              ) {
+                                                                final type =
+                                                                    (a['type'] ??
+                                                                            '')
+                                                                        .toString();
+                                                                final url =
+                                                                    (a['url'] ??
+                                                                            '')
+                                                                        .toString();
+                                                                final name =
+                                                                    (a['name'] ??
+                                                                            'plik')
+                                                                        .toString();
 
-                                      crossAxisAlignment:
-                                          CrossAxisAlignment.start,
-                                      children: [
-                                        if (mine) ...[
-                                          IconButton(
-                                            tooltip: 'Usuń',
-                                            icon: const Icon(
-                                              Icons.delete_outline,
-                                              size: 25,
-                                            ),
-                                            color: Colors.red,
-                                            padding: EdgeInsets.zero,
-                                            constraints: const BoxConstraints(
-                                              minWidth: 28,
-                                              minHeight: 28,
-                                            ),
-                                            onPressed: () => _deleteMessage(m),
-                                          ),
-                                          const SizedBox(width: 6),
-                                        ],
+                                                                if (url
+                                                                    .isEmpty) {
+                                                                  return const SizedBox.shrink();
+                                                                }
 
-                                        Flexible(
-                                          child: Container(
-                                            constraints: const BoxConstraints(
-                                              maxWidth: 520,
-                                            ),
-                                            margin: const EdgeInsets.symmetric(
-                                              vertical: 2,
-                                            ),
-                                            padding: const EdgeInsets.symmetric(
-                                              vertical: 10,
-                                              horizontal: 12,
-                                            ),
-                                            decoration: BoxDecoration(
-                                              color: mine
-                                                  ? Colors.blueGrey.shade700
-                                                  : Colors.grey.shade200,
-                                              borderRadius:
-                                                  BorderRadius.circular(12),
-                                            ),
-                                            child: SelectionArea(
-                                              child: Column(
-                                                crossAxisAlignment:
-                                                    CrossAxisAlignment.start,
-                                                children: [
-                                                  if (m.text.trim().isNotEmpty)
-                                                    SelectableText.rich(
-                                                      _buildMessageTextSpan(
-                                                        m,
-                                                        mine: mine,
+                                                                if (type ==
+                                                                    'image') {
+                                                                  return Padding(
+                                                                    padding:
+                                                                        const EdgeInsets.only(
+                                                                          bottom:
+                                                                              8,
+                                                                        ),
+                                                                    child: GestureDetector(
+                                                                      onTap: () =>
+                                                                          _openImageViewer(
+                                                                            url,
+                                                                          ),
+                                                                      child: ClipRRect(
+                                                                        borderRadius:
+                                                                            BorderRadius.circular(
+                                                                              12,
+                                                                            ),
+                                                                        child: Image.network(
+                                                                          url,
+                                                                          height:
+                                                                              180,
+                                                                          fit: BoxFit
+                                                                              .cover,
+                                                                        ),
+                                                                      ),
+                                                                    ),
+                                                                  );
+                                                                }
+
+                                                                if (type ==
+                                                                    'file') {
+                                                                  return Padding(
+                                                                    padding:
+                                                                        const EdgeInsets.only(
+                                                                          bottom:
+                                                                              8,
+                                                                        ),
+                                                                    child: InkWell(
+                                                                      onTap: () =>
+                                                                          _openUrl(
+                                                                            url,
+                                                                          ),
+                                                                      borderRadius:
+                                                                          BorderRadius.circular(
+                                                                            12,
+                                                                          ),
+                                                                      child: Container(
+                                                                        padding:
+                                                                            const EdgeInsets.all(
+                                                                              10,
+                                                                            ),
+                                                                        decoration: BoxDecoration(
+                                                                          color:
+                                                                              mine
+                                                                              ? Colors.white.withValues(
+                                                                                  alpha: 0.16,
+                                                                                )
+                                                                              : const Color(
+                                                                                  0xFFEFF3F5,
+                                                                                ),
+                                                                          borderRadius: BorderRadius.circular(
+                                                                            12,
+                                                                          ),
+                                                                        ),
+                                                                        child: Row(
+                                                                          mainAxisSize:
+                                                                              MainAxisSize.min,
+                                                                          children: [
+                                                                            Icon(
+                                                                              Icons.insert_drive_file,
+                                                                              size: 20,
+                                                                              color: mine
+                                                                                  ? Colors.white
+                                                                                  : _AvChatPalette.muted,
+                                                                            ),
+                                                                            const SizedBox(
+                                                                              width: 8,
+                                                                            ),
+                                                                            Flexible(
+                                                                              child: Text(
+                                                                                name,
+                                                                                overflow: TextOverflow.ellipsis,
+                                                                                style: TextStyle(
+                                                                                  color: mine
+                                                                                      ? Colors.white
+                                                                                      : _AvChatPalette.text,
+                                                                                ),
+                                                                              ),
+                                                                            ),
+                                                                          ],
+                                                                        ),
+                                                                      ),
+                                                                    ),
+                                                                  );
+                                                                }
+
+                                                                return const SizedBox.shrink();
+                                                              }),
+                                                            ],
+                                                          ],
+                                                        ),
                                                       ),
                                                     ),
-
-                                                  if (m
-                                                      .attachments
-                                                      .isNotEmpty) ...[
-                                                    if (m.text
-                                                        .trim()
-                                                        .isNotEmpty)
-                                                      const SizedBox(height: 8),
-                                                    ...m.attachments.map((a) {
-                                                      final type =
-                                                          (a['type'] ?? '')
-                                                              .toString();
-                                                      final url =
-                                                          (a['url'] ?? '')
-                                                              .toString();
-                                                      final name =
-                                                          (a['name'] ?? 'plik')
-                                                              .toString();
-
-                                                      if (url.isEmpty) {
-                                                        return const SizedBox.shrink();
-                                                      }
-
-                                                      if (type == 'image') {
-                                                        return Padding(
-                                                          padding:
-                                                              const EdgeInsets.only(
-                                                                bottom: 8,
-                                                              ),
-                                                          child: GestureDetector(
-                                                            onTap: () =>
-                                                                _openImageViewer(
-                                                                  url,
-                                                                ),
-                                                            child: ClipRRect(
-                                                              borderRadius:
-                                                                  BorderRadius.circular(
-                                                                    10,
-                                                                  ),
-                                                              child:
-                                                                  Image.network(
-                                                                    url,
-                                                                    height: 160,
-                                                                    fit: BoxFit
-                                                                        .cover,
-                                                                  ),
+                                                    if (mine)
+                                                      Positioned(
+                                                        top: -15,
+                                                        right: -15,
+                                                        child: Material(
+                                                          color: Colors
+                                                              .transparent,
+                                                          shape:
+                                                              const CircleBorder(),
+                                                          child: IconButton(
+                                                            tooltip: 'Usuń',
+                                                            icon: const Icon(
+                                                              Icons.close,
+                                                              size: 16,
                                                             ),
-                                                          ),
-                                                        );
-                                                      }
-
-                                                      if (type == 'file') {
-                                                        return Padding(
-                                                          padding:
-                                                              const EdgeInsets.only(
-                                                                bottom: 8,
-                                                              ),
-                                                          child: InkWell(
-                                                            onTap: () =>
-                                                                _openUrl(url),
-                                                            child: Container(
+                                                            color: Colors.white,
+                                                            style: IconButton.styleFrom(
+                                                              backgroundColor:
+                                                                  _AvChatPalette
+                                                                      .ink
+                                                                      .withValues(
+                                                                        alpha:
+                                                                            0.72,
+                                                                      ),
+                                                              hoverColor:
+                                                                  _AvChatPalette
+                                                                      .danger,
+                                                              minimumSize:
+                                                                  const Size(
+                                                                    18,
+                                                                    18,
+                                                                  ),
+                                                              fixedSize:
+                                                                  const Size(
+                                                                    18,
+                                                                    18,
+                                                                  ),
                                                               padding:
-                                                                  const EdgeInsets.all(
-                                                                    10,
-                                                                  ),
-                                                              decoration:
-                                                                  BoxDecoration(
-                                                                    color: Colors
-                                                                        .black12,
-                                                                    borderRadius:
-                                                                        BorderRadius.circular(
-                                                                          8,
-                                                                        ),
-                                                                  ),
-                                                              child: Row(
-                                                                mainAxisSize:
-                                                                    MainAxisSize
-                                                                        .min,
-                                                                children: [
-                                                                  const Icon(
-                                                                    Icons
-                                                                        .insert_drive_file,
-                                                                    size: 20,
-                                                                  ),
-                                                                  const SizedBox(
-                                                                    width: 8,
-                                                                  ),
-                                                                  Flexible(
-                                                                    child: Text(
-                                                                      name,
-                                                                      overflow:
-                                                                          TextOverflow
-                                                                              .ellipsis,
-                                                                    ),
-                                                                  ),
-                                                                ],
-                                                              ),
+                                                                  EdgeInsets
+                                                                      .zero,
                                                             ),
+                                                            onPressed: () =>
+                                                                _deleteMessage(
+                                                                  m,
+                                                                ),
                                                           ),
-                                                        );
-                                                      }
-
-                                                      return const SizedBox.shrink();
-                                                    }),
+                                                        ),
+                                                      ),
                                                   ],
-                                                ],
+                                                ),
+                                              ),
+                                            ],
+                                          ),
+
+                                          if (showTime && timeLabel.isNotEmpty)
+                                            Padding(
+                                              padding: const EdgeInsets.only(
+                                                top: 2,
+                                                left: 8,
+                                                right: 8,
+                                                bottom: 2,
+                                              ),
+                                              child: Text(
+                                                timeLabel,
+                                                style: const TextStyle(
+                                                  fontSize: 11,
+                                                  color: _AvChatPalette.muted,
+                                                ),
                                               ),
                                             ),
-                                          ),
-                                        ),
-                                      ],
-                                    ),
-
-                                    if (showTime && timeLabel.isNotEmpty)
-                                      Padding(
-                                        padding: const EdgeInsets.only(
-                                          top: 2,
-                                          left: 6,
-                                          right: 6,
-                                        ),
-                                        child: Text(
-                                          timeLabel,
-                                          style: const TextStyle(
-                                            fontSize: 11,
-                                            color: Colors.black45,
-                                          ),
-                                        ),
+                                        ],
                                       ),
+                                    ),
                                   ],
-                                ),
-                              );
-                            },
-                          );
-                        },
-                      ),
-              ),
-            ],
+                                );
+                              },
+                            );
+                          },
+                        ),
+                ),
+              ],
+            ),
           ),
         ),
       ),
@@ -1232,48 +1519,137 @@ class _ChatComposerBar extends StatelessWidget {
       left: false,
       right: false,
       bottom: applySafeArea,
-      child: AnimatedPadding(
-        duration: const Duration(milliseconds: 150),
-        curve: Curves.easeOut,
-        padding: EdgeInsets.only(
-          left: 12,
-          right: 12,
-          top: 8,
-          bottom: bottomInset,
-        ),
-        child: Material(
-          color: Colors.transparent,
-          child: Row(
-            children: [
-              Expanded(
-                child: TextField(
-                  controller: controller,
-                  focusNode: focusNode,
-                  onTap: onTap,
-                  textInputAction: TextInputAction.send,
-                  onSubmitted: (_) => onSend(),
-                  decoration: const InputDecoration(
-                    hintText: 'Pisz coś...',
-                    border: OutlineInputBorder(),
-                    isDense: true,
+      child: DecoratedBox(
+        decoration: const BoxDecoration(color: _AvChatPalette.surface),
+        child: AnimatedPadding(
+          duration: const Duration(milliseconds: 150),
+          curve: Curves.easeOut,
+          padding: EdgeInsets.only(
+            left: 12,
+            right: 12,
+            top: 10,
+            bottom: bottomInset + 10,
+          ),
+          child: Material(
+            color: Colors.transparent,
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.end,
+              children: [
+                Expanded(
+                  child: Container(
+                    decoration: BoxDecoration(
+                      color: _AvChatPalette.surface,
+                      borderRadius: BorderRadius.circular(26),
+                      border: Border.all(color: _AvChatPalette.line),
+                      boxShadow: [
+                        BoxShadow(
+                          color: _AvChatPalette.ink.withValues(alpha: 0.08),
+                          blurRadius: 16,
+                          offset: const Offset(0, 4),
+                        ),
+                      ],
+                    ),
+                    clipBehavior: Clip.antiAlias,
+                    child: Row(
+                      crossAxisAlignment: CrossAxisAlignment.end,
+                      children: [
+                        Padding(
+                          padding: const EdgeInsets.fromLTRB(6, 5, 5, 5),
+                          child: _GradientCircleIconButton(
+                            tooltip: 'Dodaj',
+                            onPressed: onAttach,
+                            icon: const Icon(Icons.add, size: 20),
+                            size: 36,
+                          ),
+                        ),
+                        Expanded(
+                          child: TextField(
+                            controller: controller,
+                            focusNode: focusNode,
+                            onTap: onTap,
+                            minLines: 1,
+                            maxLines: 5,
+                            textInputAction: TextInputAction.send,
+                            onSubmitted: (_) => onSend(),
+                            decoration: const InputDecoration(
+                              hintText: 'Napisz wiadomość...',
+                              border: InputBorder.none,
+                              isDense: true,
+                              contentPadding: EdgeInsets.symmetric(
+                                vertical: 13,
+                              ),
+                              hintStyle: TextStyle(
+                                fontFamily: _AvChatPalette.bodyFont,
+                              ),
+                            ),
+                            style: const TextStyle(
+                              fontFamily: _AvChatPalette.bodyFont,
+                            ),
+                            onChanged: onChanged,
+                          ),
+                        ),
+                        const SizedBox(width: 6),
+                      ],
+                    ),
                   ),
-                  onChanged: onChanged,
                 ),
-              ),
-              const SizedBox(width: 8),
-              SizedBox(
-                height: 44,
-                child: IconButton(
-                  icon: const Icon(Icons.send, color: Colors.blueGrey),
-                  onPressed: onSend,
+                const SizedBox(width: 8),
+                SizedBox(
+                  width: 46,
+                  height: 46,
+                  child: _GradientCircleIconButton(
+                    tooltip: 'Wyślij',
+                    icon: const Icon(Icons.send_rounded, size: 20),
+                    onPressed: onSend,
+                    size: 46,
+                  ),
                 ),
-              ),
-              IconButton(
-                tooltip: 'Dodaj',
-                onPressed: onAttach,
-                icon: const Icon(Icons.add_circle_outline),
-              ),
-            ],
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _GradientCircleIconButton extends StatelessWidget {
+  final String tooltip;
+  final Icon icon;
+  final VoidCallback onPressed;
+  final double size;
+
+  const _GradientCircleIconButton({
+    required this.tooltip,
+    required this.icon,
+    required this.onPressed,
+    required this.size,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Tooltip(
+      message: tooltip,
+      child: Material(
+        color: Colors.transparent,
+        shape: const CircleBorder(),
+        clipBehavior: Clip.antiAlias,
+        child: Ink(
+          width: size,
+          height: size,
+          decoration: const BoxDecoration(
+            shape: BoxShape.circle,
+            gradient: LinearGradient(
+              colors: [_AvChatPalette.control, _AvChatPalette.controlAlt],
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+            ),
+          ),
+          child: InkWell(
+            onTap: onPressed,
+            child: Center(
+              child: Icon(icon.icon, size: icon.size, color: Colors.white),
+            ),
           ),
         ),
       ),

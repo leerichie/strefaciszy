@@ -12,6 +12,18 @@ import 'package:strefa_ciszy/utils/search_utils.dart';
 import 'package:strefa_ciszy/widgets/app_scaffold.dart';
 import 'package:strefa_ciszy/widgets/inventory_sort_button.dart';
 
+class _AppPalette {
+  static const bodyFont = 'Bose (Regular)';
+  static const headlineFont = 'Bose-Headline (Bold)';
+  static const surface = Colors.white;
+  static const bg = Color(0xFFF4F6F7);
+  static const line = Color(0xFFD4DCE0);
+  static const text = Color(0xFF1E2B2F);
+  static const muted = Color(0xFF607176);
+  static const brand = Color(0xFF2574A9);
+  static const danger = Color(0xFFE04747);
+}
+
 class InventoryListScreen extends StatefulWidget {
   final bool isAdmin;
   final String? initialSearch;
@@ -73,6 +85,8 @@ class _InventoryListScreenState extends State<InventoryListScreen> {
 
     return AppScaffold(
       floatingActionButton: FloatingActionButton(
+        backgroundColor: _AppPalette.brand,
+        foregroundColor: Colors.white,
         tooltip: 'Skanuj',
         onPressed: () => Navigator.of(
           context,
@@ -96,10 +110,17 @@ class _InventoryListScreenState extends State<InventoryListScreen> {
                   decoration: InputDecoration(
                     hintText: 'Wyszukaj…',
                     prefixIcon: const Icon(Icons.search),
-                    border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(8),
-                    ),
                     isDense: true,
+                    enabledBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(8),
+                      borderSide: const BorderSide(color: _AppPalette.line),
+                    ),
+                    focusedBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(8),
+                      borderSide: const BorderSide(color: _AppPalette.brand, width: 1.5),
+                    ),
+                    labelStyle: const TextStyle(fontFamily: _AppPalette.bodyFont, color: _AppPalette.muted),
+                    hintStyle: const TextStyle(fontFamily: _AppPalette.bodyFont, color: _AppPalette.muted),
                   ),
                   onChanged: (v) => setState(() => _search = v.trim()),
                   textInputAction: TextInputAction.search,
@@ -175,7 +196,7 @@ class _InventoryListScreenState extends State<InventoryListScreen> {
                 ),
                 builder: (ctx, snap) {
                   if (snap.connectionState == ConnectionState.waiting) {
-                    return const Center(child: CircularProgressIndicator());
+                    return const Center(child: CircularProgressIndicator(color: _AppPalette.brand));
                   }
                   if (snap.hasError) {
                     return Center(child: Text('Error: ${snap.error}'));
@@ -292,7 +313,7 @@ class _InventoryListScreenState extends State<InventoryListScreen> {
                         keyboardDismissBehavior:
                             ScrollViewKeyboardDismissBehavior.onDrag,
                         itemCount: sorted.length,
-                        separatorBuilder: (_, __) => const Divider(height: 1),
+                        separatorBuilder: (_, __) => const Divider(height: 1, color: _AppPalette.line, thickness: 1),
                         itemBuilder: (ctx, i) {
                           final item = sorted[i];
 
@@ -310,9 +331,9 @@ class _InventoryListScreenState extends State<InventoryListScreen> {
                                 ),
                                 Text(
                                   'WAPRO id_artykulu: ${item.id}',
-                                  style: TextStyle(
+                                  style: const TextStyle(
                                     fontSize: 11,
-                                    color: Colors.grey[600],
+                                    color: _AppPalette.muted,
                                     height: 1.2,
                                   ),
                                   maxLines: 1,
@@ -325,9 +346,9 @@ class _InventoryListScreenState extends State<InventoryListScreen> {
                                   item.category.isNotEmpty
                                       ? item.category
                                       : item.description,
-                                  style: TextStyle(
+                                  style: const TextStyle(
                                     fontSize: 13,
-                                    color: Colors.grey[700],
+                                    color: _AppPalette.muted,
                                     fontStyle: FontStyle.italic,
                                   ),
                                 ),
@@ -355,11 +376,11 @@ class _InventoryListScreenState extends State<InventoryListScreen> {
                                         item.imageUrl!,
                                         fit: BoxFit.cover,
                                         errorBuilder: (_, __, ___) => Container(
-                                          color: Colors.grey[200],
+                                          color: _AppPalette.bg,
                                           child: const Icon(
                                             Icons.broken_image,
                                             size: 24,
-                                            color: Colors.grey,
+                                            color: _AppPalette.line,
                                           ),
                                         ),
                                       ),

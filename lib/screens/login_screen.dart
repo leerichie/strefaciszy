@@ -4,6 +4,19 @@ import 'package:package_info_plus/package_info_plus.dart';
 import 'package:strefa_ciszy/screens/main_menu_screen.dart';
 import 'package:strefa_ciszy/services/event_log_service.dart';
 
+class _LoginPalette {
+  static const bodyFont = 'Bose (Regular)';
+  static const headlineFont = 'Bose-Headline (Bold)';
+  static const bg = Color(0xFFF4F6F7);
+  static const bgEnd = Color(0xFFE8EEF1);
+  static const surface = Colors.white;
+  static const line = Color(0xFFD4DCE0);
+  static const text = Color(0xFF1E2B2F);
+  static const muted = Color(0xFF607176);
+  static const brand = Color(0xFF2574A9);
+  static const danger = Color(0xFFE04747);
+}
+
 class LoginScreen extends StatefulWidget {
   static const String routeName = '/login';
 
@@ -72,7 +85,6 @@ class _LoginScreenState extends State<LoginScreen> {
 
       if (!mounted) return;
 
-      // currently hardcoded role; replace with real role resolution if available
       Navigator.of(context).pushReplacement(
         MaterialPageRoute(builder: (_) => MainMenuScreen(role: 'admin')),
       );
@@ -90,51 +102,71 @@ class _LoginScreenState extends State<LoginScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      body: SafeArea(
-        child: LayoutBuilder(
-          builder: (context, constraints) {
-            final bool isWide = constraints.maxWidth >= 700;
+      backgroundColor: _LoginPalette.bg,
+      body: DecoratedBox(
+        decoration: const BoxDecoration(
+          gradient: LinearGradient(
+            colors: [_LoginPalette.bg, _LoginPalette.bgEnd],
+            begin: Alignment.topCenter,
+            end: Alignment.bottomCenter,
+          ),
+        ),
+        child: SafeArea(
+          child: LayoutBuilder(
+            builder: (context, constraints) {
+              final bool isWide = constraints.maxWidth >= 700;
 
-            return Stack(
-              children: [
-                Center(
-                  child: SingleChildScrollView(
-                    child: ConstrainedBox(
-                      constraints: BoxConstraints(
-                        maxWidth: isWide ? 420 : double.infinity,
+              return Stack(
+                children: [
+                  Center(
+                    child: SingleChildScrollView(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 24,
+                        vertical: 32,
                       ),
-                      child: _LoginCard(
-                        emailCtrl: _emailCtrl,
-                        passCtrl: _passCtrl,
-                        error: _error,
-                        isLoading: _isLoading,
-                        onSignIn: _signIn,
+                      child: ConstrainedBox(
+                        constraints: BoxConstraints(
+                          maxWidth: isWide ? 420 : double.infinity,
+                        ),
+                        child: _LoginCard(
+                          emailCtrl: _emailCtrl,
+                          passCtrl: _passCtrl,
+                          error: _error,
+                          isLoading: _isLoading,
+                          onSignIn: _signIn,
+                        ),
                       ),
                     ),
                   ),
-                ),
 
-                Positioned(
-                  bottom: 8,
-                  left: 12,
-                  child: Text(
-                    _version.isNotEmpty ? _version : 'v.?_?',
-                    style: const TextStyle(fontSize: 12, color: Colors.black54),
+                  Positioned(
+                    bottom: 12,
+                    left: 14,
+                    child: Text(
+                      _version.isNotEmpty ? _version : '',
+                      style: const TextStyle(
+                        fontFamily: _LoginPalette.bodyFont,
+                        fontSize: 11,
+                        color: _LoginPalette.muted,
+                      ),
+                    ),
                   ),
-                ),
 
-                Positioned(
-                  bottom: 8,
-                  right: 12,
-                  child: Image.asset(
-                    'assets/images/dev_logo_PILL.png',
-                    width: 80,
-                    fit: BoxFit.contain,
+                  Positioned(
+                    bottom: 8,
+                    right: 12,
+                    child: Image.asset(
+                      'assets/images/dev_logo_PILL.png',
+                      width: 72,
+                      fit: BoxFit.contain,
+                      color: _LoginPalette.bgEnd,
+                      colorBlendMode: BlendMode.multiply,
+                    ),
                   ),
-                ),
-              ],
-            );
-          },
+                ],
+              );
+            },
+          ),
         ),
       ),
     );
@@ -156,62 +188,151 @@ class _LoginCard extends StatelessWidget {
     required this.onSignIn,
   });
 
+  static InputDecoration _fieldDecoration(String label) => InputDecoration(
+    labelText: label,
+    labelStyle: const TextStyle(
+      fontFamily: _LoginPalette.bodyFont,
+      color: _LoginPalette.muted,
+      fontSize: 14,
+    ),
+    floatingLabelStyle: const TextStyle(
+      fontFamily: _LoginPalette.bodyFont,
+      color: _LoginPalette.brand,
+      fontSize: 13,
+    ),
+    enabledBorder: OutlineInputBorder(
+      borderRadius: BorderRadius.circular(10),
+      borderSide: const BorderSide(color: _LoginPalette.line),
+    ),
+    focusedBorder: OutlineInputBorder(
+      borderRadius: BorderRadius.circular(10),
+      borderSide: const BorderSide(color: _LoginPalette.brand, width: 1.5),
+    ),
+    errorBorder: OutlineInputBorder(
+      borderRadius: BorderRadius.circular(10),
+      borderSide: const BorderSide(color: _LoginPalette.danger),
+    ),
+    focusedErrorBorder: OutlineInputBorder(
+      borderRadius: BorderRadius.circular(10),
+      borderSide: const BorderSide(color: _LoginPalette.danger, width: 1.5),
+    ),
+    contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+    filled: true,
+    fillColor: _LoginPalette.surface,
+  );
+
   @override
   Widget build(BuildContext context) {
-    return Card(
-      elevation: 4,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
-      child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 40),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            const SizedBox(height: 8),
-            Image.asset('assets/images/strefa_ciszy_logo.png', width: 200),
-            const SizedBox(height: 8),
-            const Text(
+    return Container(
+      decoration: BoxDecoration(
+        color: _LoginPalette.surface,
+        borderRadius: BorderRadius.circular(20),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.08),
+            blurRadius: 24,
+            offset: const Offset(0, 8),
+          ),
+        ],
+      ),
+      padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 40),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Center(
+            child: Image.asset(
+              'assets/images/strefa_ciszy_logo.png',
+              width: 190,
+              fit: BoxFit.contain,
+            ),
+          ),
+          const SizedBox(height: 8),
+          const Center(
+            child: Text(
               '_Inventory',
-              style: TextStyle(fontSize: 16, fontWeight: FontWeight.w500),
+              style: TextStyle(
+                fontFamily: _LoginPalette.bodyFont,
+                fontSize: 14,
+                color: _LoginPalette.muted,
+                letterSpacing: 0.5,
+              ),
             ),
-            const SizedBox(height: 32),
-            TextField(
-              controller: emailCtrl,
-              decoration: const InputDecoration(labelText: 'Email'),
-              keyboardType: TextInputType.emailAddress,
-              textInputAction: TextInputAction.next,
+          ),
+          const SizedBox(height: 36),
+
+          TextField(
+            controller: emailCtrl,
+            decoration: _fieldDecoration('Email'),
+            keyboardType: TextInputType.emailAddress,
+            textInputAction: TextInputAction.next,
+            style: const TextStyle(
+              fontFamily: _LoginPalette.bodyFont,
+              color: _LoginPalette.text,
             ),
-            const SizedBox(height: 16),
-            TextField(
-              controller: passCtrl,
-              decoration: const InputDecoration(labelText: 'Hasło'),
-              obscureText: true,
-              textInputAction: TextInputAction.done,
-              onSubmitted: (_) {
-                if (!isLoading) onSignIn();
-              },
+          ),
+          const SizedBox(height: 16),
+          TextField(
+            controller: passCtrl,
+            decoration: _fieldDecoration('Hasło'),
+            obscureText: true,
+            textInputAction: TextInputAction.done,
+            style: const TextStyle(
+              fontFamily: _LoginPalette.bodyFont,
+              color: _LoginPalette.text,
             ),
-            const SizedBox(height: 32),
-            ElevatedButton(
+            onSubmitted: (_) {
+              if (!isLoading) onSignIn();
+            },
+          ),
+
+          if (error != null) ...[
+            const SizedBox(height: 14),
+            Text(
+              error!,
+              textAlign: TextAlign.center,
+              style: const TextStyle(
+                fontFamily: _LoginPalette.bodyFont,
+                color: _LoginPalette.danger,
+                fontSize: 13,
+              ),
+            ),
+          ],
+
+          const SizedBox(height: 28),
+
+          SizedBox(
+            height: 50,
+            child: ElevatedButton(
               onPressed: isLoading ? null : onSignIn,
               style: ElevatedButton.styleFrom(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 32,
-                  vertical: 14,
-                ),
+                backgroundColor: _LoginPalette.brand,
+                foregroundColor: _LoginPalette.surface,
+                disabledBackgroundColor: _LoginPalette.line,
+                elevation: 0,
                 shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(24),
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                textStyle: const TextStyle(
+                  fontFamily: _LoginPalette.headlineFont,
+                  fontSize: 15,
+                  fontWeight: FontWeight.w800,
+                  letterSpacing: 0.5,
                 ),
               ),
               child: isLoading
                   ? const SizedBox(
-                      width: 24,
-                      height: 24,
-                      child: CircularProgressIndicator(strokeWidth: 2),
+                      width: 22,
+                      height: 22,
+                      child: CircularProgressIndicator(
+                        strokeWidth: 2,
+                        color: Colors.white,
+                      ),
                     )
                   : const Text('Zaloguj się'),
             ),
-          ],
-        ),
+          ),
+        ],
       ),
     );
   }

@@ -4,9 +4,20 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
-import 'package:strefa_ciszy/services/event_log_service.dart';
 import 'package:strefa_ciszy/widgets/app_scaffold.dart';
 import 'package:table_calendar/table_calendar.dart';
+
+class _AppPalette {
+  static const bodyFont = 'Bose (Regular)';
+  static const headlineFont = 'Bose-Headline (Bold)';
+  static const surface = Colors.white;
+  static const bg = Color(0xFFF4F6F7);
+  static const line = Color(0xFFD4DCE0);
+  static const text = Color(0xFF1E2B2F);
+  static const muted = Color(0xFF607176);
+  static const brand = Color(0xFF2574A9);
+  static const danger = Color(0xFFE04747);
+}
 
 class MyDayScreen extends StatefulWidget {
   const MyDayScreen({super.key});
@@ -16,14 +27,10 @@ class MyDayScreen extends StatefulWidget {
 }
 
 class _MyDayScreenState extends State<MyDayScreen> {
-  static const String _devEmail = 'leerichie@wp.pl';
-
   DateTime _selectedDay = DateTime.now();
 
   DateTime _focusedDay = DateTime.now();
   CalendarFormat _calendarFormat = CalendarFormat.week;
-
-  String? _selectedUserId;
 
   List<Map<String, String>> _projectsCache = [];
   bool _projectsLoading = false;
@@ -88,111 +95,6 @@ class _MyDayScreenState extends State<MyDayScreen> {
   bool _isToday(DateTime d) {
     final now = DateTime.now();
     return d.year == now.year && d.month == now.month && d.day == now.day;
-  }
-
-  bool _isDevUser(User? user) {
-    final email = (user?.email ?? '').toLowerCase().trim();
-    return email == _devEmail;
-  }
-
-  String _userLabel(Map<String, dynamic> data, String fallbackId) {
-    final name = (data['name'] as String?)?.trim() ?? '';
-    if (name.isNotEmpty) return name;
-
-    final username = (data['username'] as String?)?.trim() ?? '';
-    if (username.isNotEmpty) return username;
-
-    final email = (data['email'] as String?)?.trim() ?? '';
-    if (email.isNotEmpty) return email;
-
-    return fallbackId;
-  }
-
-  Widget _buildUserSelector({
-    required User currentUser,
-    required String selectedUserId,
-  }) {
-    if (!_isDevUser(currentUser)) return const SizedBox.shrink();
-
-    return StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
-      stream: FirebaseFirestore.instance.collection('users').snapshots(),
-      builder: (context, snap) {
-        final users =
-            snap.data?.docs
-                .map(
-                  (doc) => {
-                    'id': doc.id,
-                    'label': _userLabel(doc.data(), doc.id),
-                    'email': ((doc.data()['email'] as String?) ?? '').trim(),
-                  },
-                )
-                .toList() ??
-            <Map<String, String>>[];
-
-        final currentLabel =
-            (currentUser.displayName?.trim().isNotEmpty ?? false)
-            ? currentUser.displayName!.trim()
-            : (currentUser.email ?? currentUser.uid);
-
-        if (!users.any((u) => u['id'] == currentUser.uid)) {
-          users.add({
-            'id': currentUser.uid,
-            'label': currentLabel,
-            'email': currentUser.email ?? '',
-          });
-        }
-
-        if (!users.any((u) => u['id'] == selectedUserId)) {
-          users.add({
-            'id': selectedUserId,
-            'label': selectedUserId,
-            'email': '',
-          });
-        }
-
-        users.sort((a, b) {
-          final al = (a['label'] ?? '').toLowerCase();
-          final bl = (b['label'] ?? '').toLowerCase();
-          return al.compareTo(bl);
-        });
-
-        return Padding(
-          padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
-          child: DropdownButtonFormField<String>(
-            initialValue: selectedUserId,
-            isExpanded: true,
-            decoration: const InputDecoration(
-              labelText: 'Pokaż dzień użytkownika',
-              prefixIcon: Icon(Icons.people_alt_outlined),
-              border: OutlineInputBorder(),
-              isDense: true,
-            ),
-            items: users.map((u) {
-              final id = u['id'] ?? '';
-              final label = u['label'] ?? id;
-              final email = u['email'] ?? '';
-
-              return DropdownMenuItem<String>(
-                value: id,
-                child: Text(
-                  email.isNotEmpty && email != label
-                      ? '$label · $email'
-                      : label,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                ),
-              );
-            }).toList(),
-            onChanged: (value) {
-              if (value == null || value.isEmpty) return;
-              setState(() {
-                _selectedUserId = value == currentUser.uid ? null : value;
-              });
-            },
-          ),
-        );
-      },
-    );
   }
 
   Future<String> _readUserName(User user) async {
@@ -350,9 +252,19 @@ class _MyDayScreenState extends State<MyDayScreen> {
                             TextField(
                               controller: searchCtrl,
                               autofocus: true,
-                              decoration: const InputDecoration(
+                              decoration: InputDecoration(
                                 hintText: 'Szukaj projektu...',
-                                prefixIcon: Icon(Icons.search),
+                                prefixIcon: const Icon(Icons.search),
+                                enabledBorder: OutlineInputBorder(
+                                  borderRadius: BorderRadius.circular(8),
+                                  borderSide: const BorderSide(color: _AppPalette.line),
+                                ),
+                                focusedBorder: OutlineInputBorder(
+                                  borderRadius: BorderRadius.circular(8),
+                                  borderSide: const BorderSide(color: _AppPalette.brand, width: 1.5),
+                                ),
+                                labelStyle: const TextStyle(fontFamily: _AppPalette.bodyFont, color: _AppPalette.muted),
+                                hintStyle: const TextStyle(fontFamily: _AppPalette.bodyFont, color: _AppPalette.muted),
                               ),
                               onChanged: applyFilter,
                             ),
@@ -373,7 +285,7 @@ class _MyDayScreenState extends State<MyDayScreen> {
                                               .onDrag,
                                       itemCount: filtered.length + 1,
                                       separatorBuilder: (_, __) =>
-                                          const Divider(height: 1),
+                                          const Divider(height: 1, color: _AppPalette.line, thickness: 1),
                                       itemBuilder: (context, index) {
                                         if (index == 0) {
                                           return ListTile(
@@ -401,6 +313,7 @@ class _MyDayScreenState extends State<MyDayScreen> {
                                             projectName,
                                             maxLines: 2,
                                             overflow: TextOverflow.ellipsis,
+                                            style: const TextStyle(fontFamily: _AppPalette.bodyFont, color: _AppPalette.text),
                                           ),
                                           subtitle: customerName.isEmpty
                                               ? null
@@ -409,6 +322,7 @@ class _MyDayScreenState extends State<MyDayScreen> {
                                                   maxLines: 2,
                                                   overflow:
                                                       TextOverflow.ellipsis,
+                                                  style: const TextStyle(fontFamily: _AppPalette.bodyFont, color: _AppPalette.muted),
                                                 ),
                                           onTap: () {
                                             Navigator.pop(dialogContext, p);
@@ -421,6 +335,7 @@ class _MyDayScreenState extends State<MyDayScreen> {
                             Align(
                               alignment: Alignment.centerRight,
                               child: TextButton(
+                                style: TextButton.styleFrom(foregroundColor: _AppPalette.muted),
                                 onPressed: () {
                                   Navigator.pop(dialogContext);
                                 },
@@ -530,8 +445,6 @@ class _MyDayScreenState extends State<MyDayScreen> {
     String? selectedProjectName = data?['projectName'] as String?;
     String? selectedCustomerId = data?['customerId'] as String?;
 
-    bool isSaving = false;
-
     TimeOfDay? parseTime(String raw) {
       final s = raw.trim();
       if (s.isEmpty) return null;
@@ -602,21 +515,27 @@ class _MyDayScreenState extends State<MyDayScreen> {
       return t.hour * 60 + t.minute;
     }
 
-    String buildSlotDocId({
-      required String userId,
-      required String dayKey,
-      required int startMinutes,
-      required int endMinutes,
-    }) {
-      return '${userId}_${dayKey}_${startMinutes}_$endMinutes';
-    }
-
     await showDialog<void>(
       context: context,
       builder: (dialogContext) {
         return StatefulBuilder(
           builder: (context, setLocalState) {
             return AlertDialog(
+              backgroundColor: _AppPalette.surface,
+              surfaceTintColor: Colors.transparent,
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+              titleTextStyle: const TextStyle(
+                fontFamily: _AppPalette.headlineFont,
+                fontWeight: FontWeight.w800,
+                color: _AppPalette.text,
+                fontSize: 17,
+                letterSpacing: 0,
+              ),
+              contentTextStyle: const TextStyle(
+                fontFamily: _AppPalette.bodyFont,
+                color: _AppPalette.muted,
+                fontSize: 14,
+              ),
               title: Text(
                 doc == null ? 'Dodaj wpis o pracy' : 'Edytuj wpis o pracy',
               ),
@@ -630,9 +549,19 @@ class _MyDayScreenState extends State<MyDayScreen> {
                           child: TextFormField(
                             controller: startCtrl,
                             readOnly: true,
-                            decoration: const InputDecoration(
+                            decoration: InputDecoration(
                               labelText: 'Czas start',
-                              suffixIcon: Icon(Icons.access_time),
+                              suffixIcon: const Icon(Icons.access_time),
+                              enabledBorder: OutlineInputBorder(
+                                borderRadius: BorderRadius.circular(8),
+                                borderSide: const BorderSide(color: _AppPalette.line),
+                              ),
+                              focusedBorder: OutlineInputBorder(
+                                borderRadius: BorderRadius.circular(8),
+                                borderSide: const BorderSide(color: _AppPalette.brand, width: 1.5),
+                              ),
+                              labelStyle: const TextStyle(fontFamily: _AppPalette.bodyFont, color: _AppPalette.muted),
+                              hintStyle: const TextStyle(fontFamily: _AppPalette.bodyFont, color: _AppPalette.muted),
                             ),
                             onTap: () => pickStart(setLocalState),
                           ),
@@ -642,9 +571,19 @@ class _MyDayScreenState extends State<MyDayScreen> {
                           child: TextFormField(
                             controller: endCtrl,
                             readOnly: true,
-                            decoration: const InputDecoration(
+                            decoration: InputDecoration(
                               labelText: 'Czas koniec',
-                              suffixIcon: Icon(Icons.access_time),
+                              suffixIcon: const Icon(Icons.access_time),
+                              enabledBorder: OutlineInputBorder(
+                                borderRadius: BorderRadius.circular(8),
+                                borderSide: const BorderSide(color: _AppPalette.line),
+                              ),
+                              focusedBorder: OutlineInputBorder(
+                                borderRadius: BorderRadius.circular(8),
+                                borderSide: const BorderSide(color: _AppPalette.brand, width: 1.5),
+                              ),
+                              labelStyle: const TextStyle(fontFamily: _AppPalette.bodyFont, color: _AppPalette.muted),
+                              hintStyle: const TextStyle(fontFamily: _AppPalette.bodyFont, color: _AppPalette.muted),
                             ),
                             onTap: () => pickEnd(setLocalState),
                           ),
@@ -668,9 +607,19 @@ class _MyDayScreenState extends State<MyDayScreen> {
                         });
                       },
                       child: InputDecorator(
-                        decoration: const InputDecoration(
+                        decoration: InputDecoration(
                           labelText: 'Projekt',
-                          suffixIcon: Icon(Icons.arrow_drop_down),
+                          suffixIcon: const Icon(Icons.arrow_drop_down),
+                          enabledBorder: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(8),
+                            borderSide: const BorderSide(color: _AppPalette.line),
+                          ),
+                          focusedBorder: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(8),
+                            borderSide: const BorderSide(color: _AppPalette.brand, width: 1.5),
+                          ),
+                          labelStyle: const TextStyle(fontFamily: _AppPalette.bodyFont, color: _AppPalette.muted),
+                          hintStyle: const TextStyle(fontFamily: _AppPalette.bodyFont, color: _AppPalette.muted),
                         ),
                         child: Text(
                           (selectedProjectName != null &&
@@ -682,7 +631,7 @@ class _MyDayScreenState extends State<MyDayScreen> {
                                 (selectedProjectName != null &&
                                     selectedProjectName!.trim().isNotEmpty)
                                 ? null
-                                : Colors.grey[700],
+                                : _AppPalette.muted,
                           ),
                         ),
                       ),
@@ -691,9 +640,19 @@ class _MyDayScreenState extends State<MyDayScreen> {
                     TextFormField(
                       controller: descCtrl,
                       maxLines: 3,
-                      decoration: const InputDecoration(
+                      decoration: InputDecoration(
                         labelText: 'Opis',
                         hintText: 'Co było robiony?',
+                        enabledBorder: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(8),
+                          borderSide: const BorderSide(color: _AppPalette.line),
+                        ),
+                        focusedBorder: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(8),
+                          borderSide: const BorderSide(color: _AppPalette.brand, width: 1.5),
+                        ),
+                        labelStyle: const TextStyle(fontFamily: _AppPalette.bodyFont, color: _AppPalette.muted),
+                        hintStyle: const TextStyle(fontFamily: _AppPalette.bodyFont, color: _AppPalette.muted),
                       ),
                     ),
                   ],
@@ -701,262 +660,154 @@ class _MyDayScreenState extends State<MyDayScreen> {
               ),
               actions: [
                 TextButton(
+                  style: TextButton.styleFrom(foregroundColor: _AppPalette.muted),
                   onPressed: () => Navigator.pop(dialogContext),
                   child: const Text('Anuluj'),
                 ),
                 ElevatedButton(
-                  onPressed: isSaving
-                      ? null
-                      : () async {
-                          setLocalState(() {
-                            isSaving = true;
-                          });
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: _AppPalette.brand,
+                    foregroundColor: Colors.white,
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                  ),
+                  onPressed: () async {
+                    final startTime = startCtrl.text.trim();
+                    final endTime = endCtrl.text.trim();
+                    final description = descCtrl.text.trim();
 
-                          try {
-                            final startTime = startCtrl.text.trim();
-                            final endTime = endCtrl.text.trim();
-                            final description = descCtrl.text.trim();
+                    final startMinutes = toMinutes(startTime);
+                    final endMinutes = toMinutes(endTime);
 
-                            final startMinutes = toMinutes(startTime);
-                            final endMinutes = toMinutes(endTime);
+                    if (startMinutes == null || endMinutes == null) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(
+                          content: Text(
+                            'Ustaw prawidlłowo czas start i koniec',
+                          ),
+                        ),
+                      );
+                      return;
+                    }
 
-                            if (startMinutes == null || endMinutes == null) {
-                              ScaffoldMessenger.of(context).showSnackBar(
-                                const SnackBar(
-                                  content: Text(
-                                    'Ustaw prawidłowo czas start i koniec',
-                                  ),
-                                ),
-                              );
-                              return;
-                            }
+                    if (endMinutes <= startMinutes) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(
+                          content: Text(
+                            'Data zakończenie musi być później niż czas rozpoczęcia',
+                          ),
+                        ),
+                      );
+                      return;
+                    }
 
-                            if (endMinutes <= startMinutes) {
-                              ScaffoldMessenger.of(context).showSnackBar(
-                                const SnackBar(
-                                  content: Text(
-                                    'Data zakończenie musi być później niż czas rozpoczęcia',
-                                  ),
-                                ),
-                              );
-                              return;
-                            }
+                    if ((selectedProjectId == null ||
+                            selectedProjectId!.isEmpty) &&
+                        description.isEmpty) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(
+                          content: Text('Wybierz projekt lub dodaj opis'),
+                        ),
+                      );
+                      return;
+                    }
 
-                            if ((selectedProjectId == null ||
-                                    selectedProjectId!.isEmpty) &&
-                                description.isEmpty) {
-                              ScaffoldMessenger.of(context).showSnackBar(
-                                const SnackBar(
-                                  content: Text(
-                                    'Wybierz projekt lub dodaj opis',
-                                  ),
-                                ),
-                              );
-                              return;
-                            }
+                    final existingEntries = await FirebaseFirestore.instance
+                        .collection('work_day_logs')
+                        .where('userId', isEqualTo: user.uid)
+                        .where('dayKey', isEqualTo: _dayKey(_selectedDay))
+                        .get();
 
-                            final dayKey = _dayKey(_selectedDay);
+                    bool hasConflict = false;
 
-                            final existingEntries = await FirebaseFirestore
-                                .instance
-                                .collection('work_day_logs')
-                                .where('userId', isEqualTo: user.uid)
-                                .where('dayKey', isEqualTo: dayKey)
-                                .get();
+                    for (final existingDoc in existingEntries.docs) {
+                      if (doc != null && existingDoc.id == doc.id) {
+                        continue;
+                      }
 
-                            bool hasConflict = false;
+                      final existingData = existingDoc.data();
+                      final existingStart =
+                          (existingData['startMinutes'] as num?)?.toInt();
+                      final existingEnd = (existingData['endMinutes'] as num?)
+                          ?.toInt();
 
-                            for (final existingDoc in existingEntries.docs) {
-                              if (doc != null && existingDoc.id == doc.id) {
-                                continue;
-                              }
+                      if (existingStart == null || existingEnd == null)
+                        continue;
 
-                              final existingData = existingDoc.data();
-                              final existingStart =
-                                  (existingData['startMinutes'] as num?)
-                                      ?.toInt();
-                              final existingEnd =
-                                  (existingData['endMinutes'] as num?)?.toInt();
+                      if (_timesOverlap(
+                        startA: startMinutes,
+                        endA: endMinutes,
+                        startB: existingStart,
+                        endB: existingEnd,
+                      )) {
+                        hasConflict = true;
+                        break;
+                      }
+                    }
 
-                              if (existingStart == null ||
-                                  existingEnd == null) {
-                                continue;
-                              }
+                    if (hasConflict) {
+                      await showDialog<void>(
+                        context: dialogContext,
+                        builder: (conflictDialogContext) => AlertDialog(
+                          title: const Text(
+                            'Istnieje wpis o tej godzinie.\nWybierz inny czas! 🤪',
+                          ),
+                          // content: const Text(
+                          //   'Istnieje wpis o tej godzinie. Wybierz inny czas!',
+                          // ),
+                          actions: [
+                            TextButton(
+                              onPressed: () =>
+                                  Navigator.pop(conflictDialogContext),
+                              child: const Text('OK'),
+                            ),
+                          ],
+                        ),
+                      );
+                      return;
+                    }
 
-                              if (_timesOverlap(
-                                startA: startMinutes,
-                                endA: endMinutes,
-                                startB: existingStart,
-                                endB: existingEnd,
-                              )) {
-                                hasConflict = true;
-                                break;
-                              }
-                            }
+                    final userName = await _readUserName(user);
+                    final durationMinutes = endMinutes - startMinutes;
 
-                            if (hasConflict) {
-                              await showDialog<void>(
-                                context: dialogContext,
-                                builder: (conflictDialogContext) => AlertDialog(
-                                  title: const Text(
-                                    'Istnieje wpis o tej godzinie.\nWybierz inny czas! 🤪',
-                                  ),
-                                  actions: [
-                                    TextButton(
-                                      onPressed: () =>
-                                          Navigator.pop(conflictDialogContext),
-                                      child: const Text('OK'),
-                                    ),
-                                  ],
-                                ),
-                              );
-                              return;
-                            }
+                    final payload = <String, dynamic>{
+                      'userId': user.uid,
+                      'userName': userName,
+                      'userEmail': user.email,
+                      'dayKey': _dayKey(_selectedDay),
+                      'workDate': Timestamp.fromDate(
+                        DateTime(
+                          _selectedDay.year,
+                          _selectedDay.month,
+                          _selectedDay.day,
+                        ),
+                      ),
+                      'startTime': startTime,
+                      'endTime': endTime,
+                      'startMinutes': startMinutes,
+                      'endMinutes': endMinutes,
+                      'durationMinutes': durationMinutes,
+                      'projectId': selectedProjectId,
+                      'projectName': selectedProjectName,
+                      'customerId': selectedCustomerId,
+                      'description': description,
+                      'updatedAt': FieldValue.serverTimestamp(),
+                    };
 
-                            final userName = await _readUserName(user);
-                            final durationMinutes = endMinutes - startMinutes;
+                    final col = FirebaseFirestore.instance.collection(
+                      'work_day_logs',
+                    );
 
-                            final payload = <String, dynamic>{
-                              'userId': user.uid,
-                              'userName': userName,
-                              'userEmail': user.email,
-                              'dayKey': dayKey,
-                              'workDate': Timestamp.fromDate(
-                                DateTime(
-                                  _selectedDay.year,
-                                  _selectedDay.month,
-                                  _selectedDay.day,
-                                ),
-                              ),
-                              'startTime': startTime,
-                              'endTime': endTime,
-                              'startMinutes': startMinutes,
-                              'endMinutes': endMinutes,
-                              'durationMinutes': durationMinutes,
-                              'projectId': selectedProjectId,
-                              'projectName': selectedProjectName,
-                              'customerId': selectedCustomerId,
-                              'description': description,
-                              'updatedAt': FieldValue.serverTimestamp(),
-                            };
+                    if (doc == null) {
+                      payload['createdAt'] = FieldValue.serverTimestamp();
+                      await col.add(payload);
+                    } else {
+                      await doc.reference.update(payload);
+                    }
 
-                            final col = FirebaseFirestore.instance.collection(
-                              'work_day_logs',
-                            );
-
-                            final newDocId = buildSlotDocId(
-                              userId: user.uid,
-                              dayKey: dayKey,
-                              startMinutes: startMinutes,
-                              endMinutes: endMinutes,
-                            );
-
-                            if (doc == null) {
-                              final targetRef = col.doc(newDocId);
-                              final targetSnap = await targetRef.get();
-
-                              if (targetSnap.exists) {
-                                ScaffoldMessenger.of(context).showSnackBar(
-                                  const SnackBar(
-                                    content: Text(
-                                      'Taki wpis już istnieje o tej godzinie',
-                                    ),
-                                  ),
-                                );
-                                return;
-                              }
-
-                              payload['createdAt'] =
-                                  FieldValue.serverTimestamp();
-                              await targetRef.set(payload);
-                              EventLogService.workDayEntryCreated(
-                                dayKey: dayKey,
-                                startTime: startTime,
-                                endTime: endTime,
-                                projectName: selectedProjectName,
-                                description: description,
-                              );
-                            } else {
-                              final oldData = doc.data() ?? {};
-                              final oldStart = (oldData['startMinutes'] as num?)
-                                  ?.toInt();
-                              final oldEnd = (oldData['endMinutes'] as num?)
-                                  ?.toInt();
-                              final oldDayKey =
-                                  (oldData['dayKey'] as String?) ?? dayKey;
-
-                              final oldDocId = buildSlotDocId(
-                                userId: user.uid,
-                                dayKey: oldDayKey,
-                                startMinutes: oldStart ?? startMinutes,
-                                endMinutes: oldEnd ?? endMinutes,
-                              );
-
-                              final slotChanged =
-                                  oldDocId != newDocId || doc.id != newDocId;
-
-                              if (!slotChanged) {
-                                await doc.reference.update(payload);
-                                EventLogService.workDayEntryUpdated(
-                                  dayKey: dayKey,
-                                  startTime: startTime,
-                                  endTime: endTime,
-                                  projectName: selectedProjectName,
-                                  description: description,
-                                );
-                              } else {
-                                final targetRef = col.doc(newDocId);
-                                final targetSnap = await targetRef.get();
-
-                                if (targetSnap.exists) {
-                                  ScaffoldMessenger.of(context).showSnackBar(
-                                    const SnackBar(
-                                      content: Text(
-                                        'Taki wpis już istnieje o tej godzinie',
-                                      ),
-                                    ),
-                                  );
-                                  return;
-                                }
-
-                                final batch = FirebaseFirestore.instance
-                                    .batch();
-
-                                payload['createdAt'] =
-                                    oldData['createdAt'] ??
-                                    FieldValue.serverTimestamp();
-
-                                batch.set(targetRef, payload);
-                                batch.delete(doc.reference);
-
-                                await batch.commit();
-                                EventLogService.workDayEntryUpdated(
-                                  dayKey: dayKey,
-                                  startTime: startTime,
-                                  endTime: endTime,
-                                  projectName: selectedProjectName,
-                                  description: description,
-                                );
-                              }
-                            }
-
-                            if (!mounted) return;
-                            Navigator.pop(dialogContext);
-                          } finally {
-                            if (mounted) {
-                              setLocalState(() {
-                                isSaving = false;
-                              });
-                            }
-                          }
-                        },
-                  child: isSaving
-                      ? const SizedBox(
-                          width: 18,
-                          height: 18,
-                          child: CircularProgressIndicator(strokeWidth: 2),
-                        )
-                      : const Text('Zapisz'),
+                    if (!mounted) return;
+                    Navigator.pop(dialogContext);
+                  },
+                  child: const Text('Zapisz'),
                 ),
               ],
             );
@@ -970,14 +821,35 @@ class _MyDayScreenState extends State<MyDayScreen> {
     final ok = await showDialog<bool>(
       context: context,
       builder: (_) => AlertDialog(
+        backgroundColor: _AppPalette.surface,
+        surfaceTintColor: Colors.transparent,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        titleTextStyle: const TextStyle(
+          fontFamily: _AppPalette.headlineFont,
+          fontWeight: FontWeight.w800,
+          color: _AppPalette.text,
+          fontSize: 17,
+          letterSpacing: 0,
+        ),
+        contentTextStyle: const TextStyle(
+          fontFamily: _AppPalette.bodyFont,
+          color: _AppPalette.muted,
+          fontSize: 14,
+        ),
         title: const Text('Usuń wpis?'),
         content: const Text('Wpis zostanie usunięty?.'),
         actions: [
           TextButton(
+            style: TextButton.styleFrom(foregroundColor: _AppPalette.muted),
             onPressed: () => Navigator.pop(context, false),
             child: const Text('Anuluj'),
           ),
           ElevatedButton(
+            style: ElevatedButton.styleFrom(
+              backgroundColor: _AppPalette.danger,
+              foregroundColor: Colors.white,
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+            ),
             onPressed: () => Navigator.pop(context, true),
             child: const Text('Usuń'),
           ),
@@ -986,14 +858,7 @@ class _MyDayScreenState extends State<MyDayScreen> {
     );
 
     if (ok != true) return;
-    final data = doc.data() ?? {};
     await doc.reference.delete();
-    EventLogService.workDayEntryDeleted(
-      dayKey: (data['dayKey'] as String?) ?? '',
-      startTime: (data['startTime'] as String?) ?? '',
-      endTime: (data['endTime'] as String?) ?? '',
-      projectName: data['projectName'] as String?,
-    );
   }
 
   String _hoursLabel(int totalMinutes) {
@@ -1016,15 +881,9 @@ class _MyDayScreenState extends State<MyDayScreen> {
       return const Scaffold(body: Center(child: Text('No signed-in user')));
     }
 
-    final currentUser = user!;
-    final selectedUserId = _isDevUser(currentUser)
-        ? (_selectedUserId ?? uid)
-        : uid;
-    final isViewingOwnDay = selectedUserId == uid;
-
     final query = FirebaseFirestore.instance
         .collection('work_day_logs')
-        .where('userId', isEqualTo: selectedUserId)
+        .where('userId', isEqualTo: uid)
         .where('dayKey', isEqualTo: _dayKey(_selectedDay))
         .orderBy('startMinutes');
 
@@ -1036,7 +895,7 @@ class _MyDayScreenState extends State<MyDayScreen> {
 
     final monthQuery = FirebaseFirestore.instance
         .collection('work_day_logs')
-        .where('userId', isEqualTo: selectedUserId)
+        .where('userId', isEqualTo: uid)
         .where(
           'workDate',
           isGreaterThanOrEqualTo: Timestamp.fromDate(monthStart),
@@ -1048,10 +907,6 @@ class _MyDayScreenState extends State<MyDayScreen> {
       body: SafeArea(
         child: Column(
           children: [
-            _buildUserSelector(
-              currentUser: currentUser,
-              selectedUserId: selectedUserId,
-            ),
             StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
               stream: monthQuery.snapshots(),
               builder: (context, monthSnap) {
@@ -1067,6 +922,9 @@ class _MyDayScreenState extends State<MyDayScreen> {
                   child: Column(
                     children: [
                       Card(
+                        color: _AppPalette.surface,
+                        surfaceTintColor: Colors.transparent,
+                        elevation: 1,
                         child: Padding(
                           padding: const EdgeInsets.all(8),
                           child: TableCalendar<dynamic>(
@@ -1127,17 +985,13 @@ class _MyDayScreenState extends State<MyDayScreen> {
                                       vertical: 2,
                                     ),
                                     decoration: BoxDecoration(
-                                      color: Theme.of(
-                                        context,
-                                      ).colorScheme.primary,
+                                      color: _AppPalette.brand,
                                       borderRadius: BorderRadius.circular(10),
                                     ),
                                     child: Text(
                                       '$count',
-                                      style: TextStyle(
-                                        color: Theme.of(
-                                          context,
-                                        ).colorScheme.onPrimary,
+                                      style: const TextStyle(
+                                        color: Colors.white,
                                         fontSize: 11,
                                         fontWeight: FontWeight.w700,
                                       ),
@@ -1161,10 +1015,12 @@ class _MyDayScreenState extends State<MyDayScreen> {
                           ),
                           const SizedBox(width: 8),
                           ElevatedButton.icon(
-                            onPressed:
-                                (_projectsLoading ||
-                                    !isTodaySelected ||
-                                    !isViewingOwnDay)
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: _AppPalette.brand,
+                              foregroundColor: Colors.white,
+                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                            ),
+                            onPressed: (_projectsLoading || !isTodaySelected)
                                 ? null
                                 : () async {
                                     if (!_projectsLoaded) {
@@ -1179,15 +1035,12 @@ class _MyDayScreenState extends State<MyDayScreen> {
                                     height: 16,
                                     child: CircularProgressIndicator(
                                       strokeWidth: 2,
+                                      color: Colors.white,
                                     ),
                                   )
                                 : const Icon(Icons.add),
                             label: Text(
-                              _projectsLoading
-                                  ? 'Ładowanie...'
-                                  : isViewingOwnDay
-                                  ? 'Dodaj'
-                                  : 'Podgląd',
+                              _projectsLoading ? 'Ładowanie...' : 'Dodaj',
                             ),
                           ),
                         ],
@@ -1202,7 +1055,7 @@ class _MyDayScreenState extends State<MyDayScreen> {
                 stream: query.snapshots(),
                 builder: (context, snap) {
                   if (snap.connectionState == ConnectionState.waiting) {
-                    return const Center(child: CircularProgressIndicator());
+                    return const Center(child: CircularProgressIndicator(color: _AppPalette.brand));
                   }
 
                   final docs = snap.data?.docs ?? const [];
@@ -1228,6 +1081,9 @@ class _MyDayScreenState extends State<MyDayScreen> {
                         Padding(
                           padding: const EdgeInsets.all(16),
                           child: Card(
+                            color: _AppPalette.surface,
+                            surfaceTintColor: Colors.transparent,
+                            elevation: 1,
                             child: ListTile(
                               leading: const Icon(Icons.schedule),
                               title: const Text('Suma godzin'),
@@ -1266,35 +1122,36 @@ class _MyDayScreenState extends State<MyDayScreen> {
                             ];
 
                             return Card(
+                              color: _AppPalette.surface,
+                              surfaceTintColor: Colors.transparent,
+                              elevation: 1,
                               child: ListTile(
                                 title: Text('$startTime - $endTime'),
                                 subtitle: subtitleParts.isEmpty
                                     ? null
                                     : Text(subtitleParts.join('\n')),
                                 isThreeLine: subtitleParts.length > 1,
-                                trailing: isViewingOwnDay
-                                    ? PopupMenuButton<String>(
-                                        onSelected: (value) {
-                                          if (value == 'edit') {
-                                            _showEntryDialog(doc: doc);
-                                          } else if (value == 'delete') {
-                                            _deleteEntry(doc);
-                                          }
-                                        },
-                                        itemBuilder: (_) => [
-                                          if (isTodaySelected)
-                                            const PopupMenuItem(
-                                              value: 'edit',
-                                              child: Text('Edytuj'),
-                                            ),
-                                          if (isTodaySelected)
-                                            const PopupMenuItem(
-                                              value: 'delete',
-                                              child: Text('Usuń'),
-                                            ),
-                                        ],
-                                      )
-                                    : const Icon(Icons.visibility_outlined),
+                                trailing: PopupMenuButton<String>(
+                                  onSelected: (value) {
+                                    if (value == 'edit') {
+                                      _showEntryDialog(doc: doc);
+                                    } else if (value == 'delete') {
+                                      _deleteEntry(doc);
+                                    }
+                                  },
+                                  itemBuilder: (_) => [
+                                    if (isTodaySelected)
+                                      const PopupMenuItem(
+                                        value: 'edit',
+                                        child: Text('Edytuj'),
+                                      ),
+                                    if (isTodaySelected)
+                                      const PopupMenuItem(
+                                        value: 'delete',
+                                        child: Text('Usuń'),
+                                      ),
+                                  ],
+                                ),
                               ),
                             );
                           },

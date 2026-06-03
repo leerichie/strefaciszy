@@ -10,6 +10,18 @@ import 'package:strefa_ciszy/utils/keyboard_utils.dart';
 import 'package:strefa_ciszy/widgets/app_scaffold.dart';
 import 'package:url_launcher/url_launcher.dart';
 
+class _AppPalette {
+  static const bodyFont = 'Bose (Regular)';
+  static const headlineFont = 'Bose-Headline (Bold)';
+  static const surface = Colors.white;
+  static const bg = Color(0xFFF4F6F7);
+  static const line = Color(0xFFD4DCE0);
+  static const text = Color(0xFF1E2B2F);
+  static const muted = Color(0xFF607176);
+  static const brand = Color(0xFF2574A9);
+  static const danger = Color(0xFFE04747);
+}
+
 class ArchivesScreen extends StatefulWidget {
   const ArchivesScreen({super.key});
 
@@ -98,11 +110,20 @@ class _ArchivesScreenState extends State<ArchivesScreen> {
                   Expanded(
                     child: TextField(
                       controller: _searchCtrl,
-                      decoration: const InputDecoration(
+                      decoration: InputDecoration(
                         labelText: 'Szukaj (klient / projekt)...',
-                        prefixIcon: Icon(Icons.search),
-                        border: OutlineInputBorder(),
+                        prefixIcon: const Icon(Icons.search),
                         isDense: true,
+                        enabledBorder: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(8),
+                          borderSide: const BorderSide(color: _AppPalette.line),
+                        ),
+                        focusedBorder: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(8),
+                          borderSide: const BorderSide(color: _AppPalette.brand, width: 1.5),
+                        ),
+                        labelStyle: const TextStyle(fontFamily: _AppPalette.bodyFont, color: _AppPalette.muted),
+                        hintStyle: const TextStyle(fontFamily: _AppPalette.bodyFont, color: _AppPalette.muted),
                       ),
                       onChanged: (v) => setState(() => _filter = v.trim()),
                       onSubmitted: (_) => FocusScope.of(context).unfocus(),
@@ -111,6 +132,7 @@ class _ArchivesScreenState extends State<ArchivesScreen> {
                   ),
                   const SizedBox(width: 8),
                   TextButton.icon(
+                    style: TextButton.styleFrom(foregroundColor: _AppPalette.brand),
                     icon: const Icon(Icons.refresh),
                     label: const Text('Resetuj'),
                     onPressed: () {
@@ -123,7 +145,7 @@ class _ArchivesScreenState extends State<ArchivesScreen> {
               ),
             ),
           ),
-          const Divider(height: 1),
+          const Divider(height: 1, color: _AppPalette.line, thickness: 1),
           Expanded(
             child: StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
               stream: _stream,
@@ -132,7 +154,7 @@ class _ArchivesScreenState extends State<ArchivesScreen> {
                   return Center(child: Text('Błąd: ${snap.error}'));
                 }
                 if (!snap.hasData) {
-                  return const Center(child: CircularProgressIndicator());
+                  return const Center(child: CircularProgressIndicator(color: _AppPalette.brand));
                 }
 
                 final docs = snap.data!.docs
@@ -160,7 +182,7 @@ class _ArchivesScreenState extends State<ArchivesScreen> {
 
                 return ListView.separated(
                   itemCount: filtered.length,
-                  separatorBuilder: (_, __) => const Divider(height: 1),
+                  separatorBuilder: (_, __) => const Divider(height: 1, color: _AppPalette.line, thickness: 1),
                   itemBuilder: (ctx, i) {
                     final doc = filtered[i];
                     final m = doc.data();
@@ -192,8 +214,11 @@ class _ArchivesScreenState extends State<ArchivesScreen> {
                               '$customerName\n$projectName',
                               maxLines: 2,
                               minFontSize: 10,
-                              style: Theme.of(context).textTheme.bodyMedium
-                                  ?.copyWith(fontWeight: FontWeight.w600),
+                              style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                                fontFamily: _AppPalette.bodyFont,
+                                color: _AppPalette.text,
+                                fontWeight: FontWeight.w600,
+                              ),
                             ),
                           ),
                         ],
@@ -204,14 +229,17 @@ class _ArchivesScreenState extends State<ArchivesScreen> {
                           when,
                           maxLines: 2,
                           overflow: TextOverflow.ellipsis,
-                          style: Theme.of(context).textTheme.bodySmall,
+                          style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                            fontFamily: _AppPalette.bodyFont,
+                            color: _AppPalette.muted,
+                          ),
                         ),
                       ),
 
                       trailing: IconButton(
                         icon: Icon(
                           Icons.download,
-                          color: canDownload ? Colors.blue : Colors.grey,
+                          color: canDownload ? _AppPalette.brand : _AppPalette.line,
                         ),
                         tooltip: canDownload
                             ? 'Pobierz / Otwieraj'
