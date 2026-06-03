@@ -1,9 +1,12 @@
 // screens/my_day_screen.dart
 
+import 'dart:async';
+
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
+import 'package:strefa_ciszy/services/event_log_service.dart';
 import 'package:strefa_ciszy/widgets/app_scaffold.dart';
 import 'package:table_calendar/table_calendar.dart';
 
@@ -26,15 +29,19 @@ class MyDayScreen extends StatefulWidget {
   State<MyDayScreen> createState() => _MyDayScreenState();
 }
 
-class _MyDayScreenState extends State<MyDayScreen> {
+class _MyDayScreenState extends State<MyDayScreen> with WidgetsBindingObserver {
   DateTime _selectedDay = DateTime.now();
 
   DateTime _focusedDay = DateTime.now();
   CalendarFormat _calendarFormat = CalendarFormat.week;
+  DateTime _currentLocalDay = DateTime.now();
+  Timer? _dayRolloverTimer;
 
   List<Map<String, String>> _projectsCache = [];
   bool _projectsLoading = false;
   bool _projectsLoaded = false;
+  bool _initialLoadingDialogVisible = false;
+  Timer? _initialLoadingDialogTimer;
 
   bool _timesOverlap({
     required int startA,
@@ -48,7 +55,28 @@ class _MyDayScreenState extends State<MyDayScreen> {
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
+    _currentLocalDay = _dateOnly(DateTime.now());
+    _selectedDay = _currentLocalDay;
+    _focusedDay = _currentLocalDay;
+    _scheduleDayRolloverCheck();
+    _scheduleInitialLoadingDialog();
     _ensureProjectsLoaded();
+  }
+
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    _dayRolloverTimer?.cancel();
+    _initialLoadingDialogTimer?.cancel();
+    super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) {
+      _handlePossibleDayRollover(showMessage: true);
+    }
   }
 
   String _dayKey(DateTime d) {
@@ -95,6 +123,98 @@ class _MyDayScreenState extends State<MyDayScreen> {
   bool _isToday(DateTime d) {
     final now = DateTime.now();
     return d.year == now.year && d.month == now.month && d.day == now.day;
+  }
+
+  void _scheduleDayRolloverCheck() {
+    _dayRolloverTimer?.cancel();
+
+    final now = DateTime.now();
+    final tomorrow = DateTime(now.year, now.month, now.day + 1);
+    final delay = tomorrow.difference(now) + const Duration(seconds: 2);
+
+    _dayRolloverTimer = Timer(delay, () {
+      _handlePossibleDayRollover(showMessage: true);
+    });
+  }
+
+  void _handlePossibleDayRollover({required bool showMessage}) {
+    final today = _dateOnly(DateTime.now());
+    final previousDay = _currentLocalDay;
+    _currentLocalDay = today;
+    _scheduleDayRolloverCheck();
+
+    if (isSameDay(previousDay, today)) return;
+    if (!mounted) return;
+
+    final wasShowingCurrentDay = isSameDay(_selectedDay, previousDay);
+    if (!wasShowingCurrentDay) return;
+
+    setState(() {
+      _selectedDay = today;
+      _focusedDay = today;
+    });
+
+    if (showMessage && mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Nowy dzień - odświeżono widok Mój Dzień.'),
+        ),
+      );
+    }
+  }
+
+  void _scheduleInitialLoadingDialog() {
+    _initialLoadingDialogTimer?.cancel();
+    _initialLoadingDialogTimer = Timer(const Duration(milliseconds: 350), () {
+      if (!mounted || !_projectsLoading || _projectsLoaded) return;
+      _showInitialLoadingDialog();
+    });
+  }
+
+  void _showInitialLoadingDialog() {
+    if (_initialLoadingDialogVisible) return;
+
+    _initialLoadingDialogVisible = true;
+    showDialog<void>(
+      context: context,
+      barrierDismissible: false,
+      builder: (_) => AlertDialog(
+        backgroundColor: _AppPalette.surface,
+        surfaceTintColor: Colors.transparent,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+        content: const Row(
+          children: [
+            SizedBox(
+              width: 22,
+              height: 22,
+              child: CircularProgressIndicator(
+                strokeWidth: 2.5,
+                color: _AppPalette.brand,
+              ),
+            ),
+            SizedBox(width: 16),
+            Expanded(
+              child: Text(
+                'Czekaj chwile, synchronizuję wpisy...',
+                style: TextStyle(
+                  fontFamily: _AppPalette.bodyFont,
+                  color: _AppPalette.text,
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    ).whenComplete(() {
+      _initialLoadingDialogVisible = false;
+    });
+  }
+
+  void _dismissInitialLoadingDialog() {
+    _initialLoadingDialogTimer?.cancel();
+    if (!_initialLoadingDialogVisible || !mounted) return;
+
+    Navigator.of(context, rootNavigator: true).pop();
   }
 
   Future<String> _readUserName(User user) async {
@@ -177,12 +297,14 @@ class _MyDayScreenState extends State<MyDayScreen> {
         _projectsLoaded = true;
         _projectsLoading = false;
       });
+      _dismissInitialLoadingDialog();
     } catch (e) {
       if (!mounted) return;
 
       setState(() {
         _projectsLoading = false;
       });
+      _dismissInitialLoadingDialog();
 
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text('Nie udało się szukać projektów: $e')),
@@ -257,14 +379,25 @@ class _MyDayScreenState extends State<MyDayScreen> {
                                 prefixIcon: const Icon(Icons.search),
                                 enabledBorder: OutlineInputBorder(
                                   borderRadius: BorderRadius.circular(8),
-                                  borderSide: const BorderSide(color: _AppPalette.line),
+                                  borderSide: const BorderSide(
+                                    color: _AppPalette.line,
+                                  ),
                                 ),
                                 focusedBorder: OutlineInputBorder(
                                   borderRadius: BorderRadius.circular(8),
-                                  borderSide: const BorderSide(color: _AppPalette.brand, width: 1.5),
+                                  borderSide: const BorderSide(
+                                    color: _AppPalette.brand,
+                                    width: 1.5,
+                                  ),
                                 ),
-                                labelStyle: const TextStyle(fontFamily: _AppPalette.bodyFont, color: _AppPalette.muted),
-                                hintStyle: const TextStyle(fontFamily: _AppPalette.bodyFont, color: _AppPalette.muted),
+                                labelStyle: const TextStyle(
+                                  fontFamily: _AppPalette.bodyFont,
+                                  color: _AppPalette.muted,
+                                ),
+                                hintStyle: const TextStyle(
+                                  fontFamily: _AppPalette.bodyFont,
+                                  color: _AppPalette.muted,
+                                ),
                               ),
                               onChanged: applyFilter,
                             ),
@@ -285,7 +418,11 @@ class _MyDayScreenState extends State<MyDayScreen> {
                                               .onDrag,
                                       itemCount: filtered.length + 1,
                                       separatorBuilder: (_, __) =>
-                                          const Divider(height: 1, color: _AppPalette.line, thickness: 1),
+                                          const Divider(
+                                            height: 1,
+                                            color: _AppPalette.line,
+                                            thickness: 1,
+                                          ),
                                       itemBuilder: (context, index) {
                                         if (index == 0) {
                                           return ListTile(
@@ -313,7 +450,10 @@ class _MyDayScreenState extends State<MyDayScreen> {
                                             projectName,
                                             maxLines: 2,
                                             overflow: TextOverflow.ellipsis,
-                                            style: const TextStyle(fontFamily: _AppPalette.bodyFont, color: _AppPalette.text),
+                                            style: const TextStyle(
+                                              fontFamily: _AppPalette.bodyFont,
+                                              color: _AppPalette.text,
+                                            ),
                                           ),
                                           subtitle: customerName.isEmpty
                                               ? null
@@ -322,7 +462,11 @@ class _MyDayScreenState extends State<MyDayScreen> {
                                                   maxLines: 2,
                                                   overflow:
                                                       TextOverflow.ellipsis,
-                                                  style: const TextStyle(fontFamily: _AppPalette.bodyFont, color: _AppPalette.muted),
+                                                  style: const TextStyle(
+                                                    fontFamily:
+                                                        _AppPalette.bodyFont,
+                                                    color: _AppPalette.muted,
+                                                  ),
                                                 ),
                                           onTap: () {
                                             Navigator.pop(dialogContext, p);
@@ -335,7 +479,9 @@ class _MyDayScreenState extends State<MyDayScreen> {
                             Align(
                               alignment: Alignment.centerRight,
                               child: TextButton(
-                                style: TextButton.styleFrom(foregroundColor: _AppPalette.muted),
+                                style: TextButton.styleFrom(
+                                  foregroundColor: _AppPalette.muted,
+                                ),
                                 onPressed: () {
                                   Navigator.pop(dialogContext);
                                 },
@@ -523,7 +669,9 @@ class _MyDayScreenState extends State<MyDayScreen> {
             return AlertDialog(
               backgroundColor: _AppPalette.surface,
               surfaceTintColor: Colors.transparent,
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(16),
+              ),
               titleTextStyle: const TextStyle(
                 fontFamily: _AppPalette.headlineFont,
                 fontWeight: FontWeight.w800,
@@ -554,14 +702,25 @@ class _MyDayScreenState extends State<MyDayScreen> {
                               suffixIcon: const Icon(Icons.access_time),
                               enabledBorder: OutlineInputBorder(
                                 borderRadius: BorderRadius.circular(8),
-                                borderSide: const BorderSide(color: _AppPalette.line),
+                                borderSide: const BorderSide(
+                                  color: _AppPalette.line,
+                                ),
                               ),
                               focusedBorder: OutlineInputBorder(
                                 borderRadius: BorderRadius.circular(8),
-                                borderSide: const BorderSide(color: _AppPalette.brand, width: 1.5),
+                                borderSide: const BorderSide(
+                                  color: _AppPalette.brand,
+                                  width: 1.5,
+                                ),
                               ),
-                              labelStyle: const TextStyle(fontFamily: _AppPalette.bodyFont, color: _AppPalette.muted),
-                              hintStyle: const TextStyle(fontFamily: _AppPalette.bodyFont, color: _AppPalette.muted),
+                              labelStyle: const TextStyle(
+                                fontFamily: _AppPalette.bodyFont,
+                                color: _AppPalette.muted,
+                              ),
+                              hintStyle: const TextStyle(
+                                fontFamily: _AppPalette.bodyFont,
+                                color: _AppPalette.muted,
+                              ),
                             ),
                             onTap: () => pickStart(setLocalState),
                           ),
@@ -576,14 +735,25 @@ class _MyDayScreenState extends State<MyDayScreen> {
                               suffixIcon: const Icon(Icons.access_time),
                               enabledBorder: OutlineInputBorder(
                                 borderRadius: BorderRadius.circular(8),
-                                borderSide: const BorderSide(color: _AppPalette.line),
+                                borderSide: const BorderSide(
+                                  color: _AppPalette.line,
+                                ),
                               ),
                               focusedBorder: OutlineInputBorder(
                                 borderRadius: BorderRadius.circular(8),
-                                borderSide: const BorderSide(color: _AppPalette.brand, width: 1.5),
+                                borderSide: const BorderSide(
+                                  color: _AppPalette.brand,
+                                  width: 1.5,
+                                ),
                               ),
-                              labelStyle: const TextStyle(fontFamily: _AppPalette.bodyFont, color: _AppPalette.muted),
-                              hintStyle: const TextStyle(fontFamily: _AppPalette.bodyFont, color: _AppPalette.muted),
+                              labelStyle: const TextStyle(
+                                fontFamily: _AppPalette.bodyFont,
+                                color: _AppPalette.muted,
+                              ),
+                              hintStyle: const TextStyle(
+                                fontFamily: _AppPalette.bodyFont,
+                                color: _AppPalette.muted,
+                              ),
                             ),
                             onTap: () => pickEnd(setLocalState),
                           ),
@@ -612,14 +782,25 @@ class _MyDayScreenState extends State<MyDayScreen> {
                           suffixIcon: const Icon(Icons.arrow_drop_down),
                           enabledBorder: OutlineInputBorder(
                             borderRadius: BorderRadius.circular(8),
-                            borderSide: const BorderSide(color: _AppPalette.line),
+                            borderSide: const BorderSide(
+                              color: _AppPalette.line,
+                            ),
                           ),
                           focusedBorder: OutlineInputBorder(
                             borderRadius: BorderRadius.circular(8),
-                            borderSide: const BorderSide(color: _AppPalette.brand, width: 1.5),
+                            borderSide: const BorderSide(
+                              color: _AppPalette.brand,
+                              width: 1.5,
+                            ),
                           ),
-                          labelStyle: const TextStyle(fontFamily: _AppPalette.bodyFont, color: _AppPalette.muted),
-                          hintStyle: const TextStyle(fontFamily: _AppPalette.bodyFont, color: _AppPalette.muted),
+                          labelStyle: const TextStyle(
+                            fontFamily: _AppPalette.bodyFont,
+                            color: _AppPalette.muted,
+                          ),
+                          hintStyle: const TextStyle(
+                            fontFamily: _AppPalette.bodyFont,
+                            color: _AppPalette.muted,
+                          ),
                         ),
                         child: Text(
                           (selectedProjectName != null &&
@@ -649,10 +830,19 @@ class _MyDayScreenState extends State<MyDayScreen> {
                         ),
                         focusedBorder: OutlineInputBorder(
                           borderRadius: BorderRadius.circular(8),
-                          borderSide: const BorderSide(color: _AppPalette.brand, width: 1.5),
+                          borderSide: const BorderSide(
+                            color: _AppPalette.brand,
+                            width: 1.5,
+                          ),
                         ),
-                        labelStyle: const TextStyle(fontFamily: _AppPalette.bodyFont, color: _AppPalette.muted),
-                        hintStyle: const TextStyle(fontFamily: _AppPalette.bodyFont, color: _AppPalette.muted),
+                        labelStyle: const TextStyle(
+                          fontFamily: _AppPalette.bodyFont,
+                          color: _AppPalette.muted,
+                        ),
+                        hintStyle: const TextStyle(
+                          fontFamily: _AppPalette.bodyFont,
+                          color: _AppPalette.muted,
+                        ),
                       ),
                     ),
                   ],
@@ -660,7 +850,9 @@ class _MyDayScreenState extends State<MyDayScreen> {
               ),
               actions: [
                 TextButton(
-                  style: TextButton.styleFrom(foregroundColor: _AppPalette.muted),
+                  style: TextButton.styleFrom(
+                    foregroundColor: _AppPalette.muted,
+                  ),
                   onPressed: () => Navigator.pop(dialogContext),
                   child: const Text('Anuluj'),
                 ),
@@ -668,7 +860,9 @@ class _MyDayScreenState extends State<MyDayScreen> {
                   style: ElevatedButton.styleFrom(
                     backgroundColor: _AppPalette.brand,
                     foregroundColor: Colors.white,
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(8),
+                    ),
                   ),
                   onPressed: () async {
                     final startTime = startCtrl.text.trim();
@@ -711,101 +905,134 @@ class _MyDayScreenState extends State<MyDayScreen> {
                       return;
                     }
 
-                    final existingEntries = await FirebaseFirestore.instance
-                        .collection('work_day_logs')
-                        .where('userId', isEqualTo: user.uid)
-                        .where('dayKey', isEqualTo: _dayKey(_selectedDay))
-                        .get();
+                    try {
+                      final existingEntries = await FirebaseFirestore.instance
+                          .collection('work_day_logs')
+                          .where('userId', isEqualTo: user.uid)
+                          .where('dayKey', isEqualTo: _dayKey(_selectedDay))
+                          .get();
 
-                    bool hasConflict = false;
+                      bool hasConflict = false;
 
-                    for (final existingDoc in existingEntries.docs) {
-                      if (doc != null && existingDoc.id == doc.id) {
-                        continue;
+                      for (final existingDoc in existingEntries.docs) {
+                        if (doc != null && existingDoc.id == doc.id) {
+                          continue;
+                        }
+
+                        final existingData = existingDoc.data();
+                        final existingStart =
+                            (existingData['startMinutes'] as num?)?.toInt();
+                        final existingEnd = (existingData['endMinutes'] as num?)
+                            ?.toInt();
+
+                        if (existingStart == null || existingEnd == null) {
+                          continue;
+                        }
+
+                        if (_timesOverlap(
+                          startA: startMinutes,
+                          endA: endMinutes,
+                          startB: existingStart,
+                          endB: existingEnd,
+                        )) {
+                          hasConflict = true;
+                          break;
+                        }
                       }
 
-                      final existingData = existingDoc.data();
-                      final existingStart =
-                          (existingData['startMinutes'] as num?)?.toInt();
-                      final existingEnd = (existingData['endMinutes'] as num?)
-                          ?.toInt();
-
-                      if (existingStart == null || existingEnd == null)
-                        continue;
-
-                      if (_timesOverlap(
-                        startA: startMinutes,
-                        endA: endMinutes,
-                        startB: existingStart,
-                        endB: existingEnd,
-                      )) {
-                        hasConflict = true;
-                        break;
-                      }
-                    }
-
-                    if (hasConflict) {
-                      await showDialog<void>(
-                        context: dialogContext,
-                        builder: (conflictDialogContext) => AlertDialog(
-                          title: const Text(
-                            'Istnieje wpis o tej godzinie.\nWybierz inny czas! 🤪',
-                          ),
-                          // content: const Text(
-                          //   'Istnieje wpis o tej godzinie. Wybierz inny czas!',
-                          // ),
-                          actions: [
-                            TextButton(
-                              onPressed: () =>
-                                  Navigator.pop(conflictDialogContext),
-                              child: const Text('OK'),
+                      if (hasConflict) {
+                        await showDialog<void>(
+                          context: dialogContext,
+                          builder: (conflictDialogContext) => AlertDialog(
+                            title: const Text(
+                              'Istnieje wpis o tej godzinie.\nWybierz inny czas! 🤪',
                             ),
-                          ],
+                            // content: const Text(
+                            //   'Istnieje wpis o tej godzinie. Wybierz inny czas!',
+                            // ),
+                            actions: [
+                              TextButton(
+                                onPressed: () =>
+                                    Navigator.pop(conflictDialogContext),
+                                child: const Text('OK'),
+                              ),
+                            ],
+                          ),
+                        );
+                        return;
+                      }
+
+                      final userName = await _readUserName(user);
+                      final durationMinutes = endMinutes - startMinutes;
+
+                      final payload = <String, dynamic>{
+                        'userId': user.uid,
+                        'userName': userName,
+                        'userEmail': user.email,
+                        'dayKey': _dayKey(_selectedDay),
+                        'workDate': Timestamp.fromDate(
+                          DateTime(
+                            _selectedDay.year,
+                            _selectedDay.month,
+                            _selectedDay.day,
+                          ),
+                        ),
+                        'startTime': startTime,
+                        'endTime': endTime,
+                        'startMinutes': startMinutes,
+                        'endMinutes': endMinutes,
+                        'durationMinutes': durationMinutes,
+                        'projectId': selectedProjectId,
+                        'projectName': selectedProjectName,
+                        'customerId': selectedCustomerId,
+                        'description': description,
+                        'updatedAt': FieldValue.serverTimestamp(),
+                      };
+
+                      final col = FirebaseFirestore.instance.collection(
+                        'work_day_logs',
+                      );
+
+                      if (doc == null) {
+                        payload['createdAt'] = FieldValue.serverTimestamp();
+                        await col.add(payload);
+                        await EventLogService.workDayEntryCreated(
+                          dayKey: _dayKey(_selectedDay),
+                          startTime: startTime,
+                          endTime: endTime,
+                          projectName: selectedProjectName,
+                          description: description,
+                        );
+                      } else {
+                        await doc.reference.update(payload);
+                        await EventLogService.workDayEntryUpdated(
+                          dayKey: _dayKey(_selectedDay),
+                          startTime: startTime,
+                          endTime: endTime,
+                          projectName: selectedProjectName,
+                          description: description,
+                        );
+                      }
+
+                      if (!mounted) return;
+                      Navigator.pop(dialogContext);
+                    } catch (e) {
+                      await EventLogService.workDayEntrySaveFailed(
+                        operation: doc == null ? 'create' : 'update',
+                        dayKey: _dayKey(_selectedDay),
+                        startTime: startTime,
+                        endTime: endTime,
+                        projectName: selectedProjectName,
+                        description: description,
+                        error: e,
+                      );
+                      if (!mounted) return;
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(
+                          content: Text('Nie udało się zapisać wpisu: $e'),
                         ),
                       );
-                      return;
                     }
-
-                    final userName = await _readUserName(user);
-                    final durationMinutes = endMinutes - startMinutes;
-
-                    final payload = <String, dynamic>{
-                      'userId': user.uid,
-                      'userName': userName,
-                      'userEmail': user.email,
-                      'dayKey': _dayKey(_selectedDay),
-                      'workDate': Timestamp.fromDate(
-                        DateTime(
-                          _selectedDay.year,
-                          _selectedDay.month,
-                          _selectedDay.day,
-                        ),
-                      ),
-                      'startTime': startTime,
-                      'endTime': endTime,
-                      'startMinutes': startMinutes,
-                      'endMinutes': endMinutes,
-                      'durationMinutes': durationMinutes,
-                      'projectId': selectedProjectId,
-                      'projectName': selectedProjectName,
-                      'customerId': selectedCustomerId,
-                      'description': description,
-                      'updatedAt': FieldValue.serverTimestamp(),
-                    };
-
-                    final col = FirebaseFirestore.instance.collection(
-                      'work_day_logs',
-                    );
-
-                    if (doc == null) {
-                      payload['createdAt'] = FieldValue.serverTimestamp();
-                      await col.add(payload);
-                    } else {
-                      await doc.reference.update(payload);
-                    }
-
-                    if (!mounted) return;
-                    Navigator.pop(dialogContext);
                   },
                   child: const Text('Zapisz'),
                 ),
@@ -848,7 +1075,9 @@ class _MyDayScreenState extends State<MyDayScreen> {
             style: ElevatedButton.styleFrom(
               backgroundColor: _AppPalette.danger,
               foregroundColor: Colors.white,
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(8),
+              ),
             ),
             onPressed: () => Navigator.pop(context, true),
             child: const Text('Usuń'),
@@ -858,7 +1087,34 @@ class _MyDayScreenState extends State<MyDayScreen> {
     );
 
     if (ok != true) return;
-    await doc.reference.delete();
+
+    final data = doc.data();
+    final dayKey = (data?['dayKey'] as String?) ?? '';
+    final startTime = (data?['startTime'] as String?) ?? '';
+    final endTime = (data?['endTime'] as String?) ?? '';
+    final projectName = data?['projectName'] as String?;
+
+    try {
+      await doc.reference.delete();
+      await EventLogService.workDayEntryDeleted(
+        dayKey: dayKey,
+        startTime: startTime,
+        endTime: endTime,
+        projectName: projectName,
+      );
+    } catch (e) {
+      await EventLogService.workDayEntryDeleteFailed(
+        dayKey: dayKey,
+        startTime: startTime,
+        endTime: endTime,
+        projectName: projectName,
+        error: e,
+      );
+      if (!mounted) return;
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('Nie udało się usunąć wpisu: $e')));
+    }
   }
 
   String _hoursLabel(int totalMinutes) {
@@ -1018,7 +1274,9 @@ class _MyDayScreenState extends State<MyDayScreen> {
                             style: ElevatedButton.styleFrom(
                               backgroundColor: _AppPalette.brand,
                               foregroundColor: Colors.white,
-                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(8),
+                              ),
                             ),
                             onPressed: (_projectsLoading || !isTodaySelected)
                                 ? null
@@ -1040,7 +1298,7 @@ class _MyDayScreenState extends State<MyDayScreen> {
                                   )
                                 : const Icon(Icons.add),
                             label: Text(
-                              _projectsLoading ? 'Ładowanie...' : 'Dodaj',
+                              _projectsLoading ? 'Prepping...' : 'Dodaj',
                             ),
                           ),
                         ],
@@ -1055,7 +1313,11 @@ class _MyDayScreenState extends State<MyDayScreen> {
                 stream: query.snapshots(),
                 builder: (context, snap) {
                   if (snap.connectionState == ConnectionState.waiting) {
-                    return const Center(child: CircularProgressIndicator(color: _AppPalette.brand));
+                    return const Center(
+                      child: CircularProgressIndicator(
+                        color: _AppPalette.brand,
+                      ),
+                    );
                   }
 
                   final docs = snap.data?.docs ?? const [];

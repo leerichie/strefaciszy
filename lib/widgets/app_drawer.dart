@@ -44,10 +44,12 @@ class _AppDrawerState extends State<AppDrawer> {
   final _clientsController = ExpansibleController();
   final _contactsController = ExpansibleController();
   final _projectsController = ExpansibleController();
+  Future<String?>? _devIdentityFuture;
 
   @override
   void initState() {
     super.initState();
+    _devIdentityFuture = _loadDevIdentityLabel();
     _cleanupFavorites();
   }
 
@@ -248,6 +250,105 @@ class _AppDrawerState extends State<AppDrawer> {
     );
   }
 
+  Future<bool> _isCurrentUserAdmin() async {
+    final user = FirebaseAuth.instance.currentUser;
+    if (user == null) return false;
+
+    final token = await user.getIdTokenResult(true);
+    if (token.claims?['admin'] == true) return true;
+
+    try {
+      final snap = await FirebaseFirestore.instance
+          .collection('users')
+          .doc(user.uid)
+          .get();
+      final data = snap.data() ?? {};
+      final role = (data['role'] ?? '').toString().toLowerCase();
+      return data['isAdmin'] == true || role == 'admin';
+    } catch (_) {
+      return false;
+    }
+  }
+
+  Future<void> _openHome(BuildContext context) async {
+    final isAdmin = await _isCurrentUserAdmin();
+    if (!mounted) return;
+    _openPage(context, MainMenuScreen(role: isAdmin ? 'admin' : 'user'));
+  }
+
+  Future<String?> _loadDevIdentityLabel() async {
+    final user = FirebaseAuth.instance.currentUser;
+    return user?.email;
+  }
+
+  Widget _devIdentityLabel() {
+    return FutureBuilder<String?>(
+      future: _devIdentityFuture,
+      builder: (context, snap) {
+        final label = snap.data;
+        if (label == null || label.isEmpty) return const SizedBox.shrink();
+
+        return Padding(
+          padding: const EdgeInsets.fromLTRB(16, 8, 16, 4),
+          child: Row(
+            children: [
+              const Icon(
+                Icons.account_circle_outlined,
+                color: Colors.white70,
+                size: 18,
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Text(
+                  label,
+                  style: const TextStyle(color: Colors.white70, fontSize: 12),
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
+  Widget _drawerFooter() {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.end,
+        children: [
+          IconButton.filled(
+            icon: const Icon(Icons.logout_rounded, size: 18),
+            tooltip: 'Logout',
+            onPressed: _signOut,
+            style: IconButton.styleFrom(
+              backgroundColor: Colors.amberAccent,
+              foregroundColor: Colors.black,
+              fixedSize: const Size(34, 34),
+              minimumSize: const Size(34, 34),
+              padding: EdgeInsets.zero,
+            ),
+          ),
+          const Spacer(),
+          GestureDetector(
+            onTap: () async {
+              final url = Uri.parse('https://ashleyrichards.tech');
+              if (await canLaunchUrl(url)) {
+                await launchUrl(url, mode: LaunchMode.externalApplication);
+              }
+            },
+            child: Image.asset(
+              'assets/images/dev_logo.png',
+              width: 82,
+              fit: BoxFit.contain,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final user = FirebaseAuth.instance.currentUser;
@@ -287,8 +388,7 @@ class _AppDrawerState extends State<AppDrawer> {
                   ListTile(
                     leading: const Icon(Icons.home, color: Colors.white),
                     title: Text('Home', style: menuTitles),
-                    onTap: () =>
-                        _openPage(context, const MainMenuScreen(role: 'admin')),
+                    onTap: () => _openHome(context),
                   ),
 
                   // — Ulubione projekt
@@ -700,33 +800,8 @@ class _AppDrawerState extends State<AppDrawer> {
                 ],
               ),
             ),
-            IconButton(
-              icon: const Icon(Icons.logout),
-              tooltip: 'Logout',
-              onPressed: _signOut,
-            ),
-            Padding(
-              padding: const EdgeInsets.only(right: 16, bottom: 16),
-              child: Align(
-                alignment: Alignment.bottomRight,
-                child: GestureDetector(
-                  onTap: () async {
-                    final url = Uri.parse('https://ashleyrichards.tech');
-                    if (await canLaunchUrl(url)) {
-                      await launchUrl(
-                        url,
-                        mode: LaunchMode.externalApplication,
-                      );
-                    }
-                  },
-                  child: Image.asset(
-                    'assets/images/dev_logo.png',
-                    width: 80,
-                    fit: BoxFit.contain,
-                  ),
-                ),
-              ),
-            ),
+            _devIdentityLabel(),
+            _drawerFooter(),
           ],
         ),
       ),

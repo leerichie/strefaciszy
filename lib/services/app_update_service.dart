@@ -14,6 +14,60 @@ class AppUpdateService {
       'https://ashleyrichards.tech/download/app_versions.json';
 
   static const String _appKey = 'strefaciszy';
+  static const String _fallbackAndroidDownloadUrl =
+      'https://strefa-ciszy.web.app/app-release.apk';
+
+  static String _downloadUrlForPlatform(Map<String, dynamic> appData) {
+    final legacyDownloadPage = (appData['downloadPage'] ?? '').toString();
+    final androidDownloadPage = (appData['androidDownloadPage'] ?? '')
+        .toString();
+    final iosDownloadPage = (appData['iosDownloadPage'] ?? '').toString();
+
+    final platformUrl = defaultTargetPlatform == TargetPlatform.iOS
+        ? iosDownloadPage
+        : androidDownloadPage;
+
+    final url = platformUrl.trim().isNotEmpty
+        ? platformUrl.trim()
+        : legacyDownloadPage.trim();
+
+    if (url.isEmpty || url == '#') {
+      return defaultTargetPlatform == TargetPlatform.iOS
+          ? ''
+          : _fallbackAndroidDownloadUrl;
+    }
+
+    return url;
+  }
+
+  static Future<void> _openDownloadUrl(
+    BuildContext context,
+    String downloadUrl,
+  ) async {
+    if (downloadUrl.trim().isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Brak linku do pobrania aktualizacji.')),
+      );
+      return;
+    }
+
+    final uri = Uri.tryParse(downloadUrl.trim());
+    if (uri == null || !uri.hasScheme) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Nieprawidłowy link aktualizacji: $downloadUrl'),
+        ),
+      );
+      return;
+    }
+
+    final opened = await launchUrl(uri, mode: LaunchMode.externalApplication);
+    if (opened || !context.mounted) return;
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text('Nie udało się otworzyć: $downloadUrl')),
+    );
+  }
 
   static Future<void> checkForUpdate(BuildContext context) async {
     if (kIsWeb) {
@@ -104,7 +158,7 @@ class AppUpdateService {
           ? appData['latestBuild'] as int
           : int.tryParse(appData['latestBuild'].toString()) ?? 0;
       final updatedAt = (appData['updatedAt'] ?? '').toString();
-      final downloadPage = (appData['downloadPage'] ?? '').toString();
+      final downloadPage = _downloadUrlForPlatform(appData);
       final notes = (appData['notes'] is List)
           ? List<String>.from(appData['notes'])
           : <String>[];
@@ -160,8 +214,8 @@ class AppUpdateService {
                   latestVersion: '$latestVersion ($latestBuild)',
                 );
                 Navigator.of(context).pop();
-                final uri = Uri.parse(downloadPage);
-                await launchUrl(uri, mode: LaunchMode.externalApplication);
+                if (!context.mounted) return;
+                await _openDownloadUrl(context, downloadPage);
               },
               child: const Text('Download'),
             ),

@@ -532,7 +532,7 @@ class _MainMenuScreenState extends State<MainMenuScreen>
         },
       ),
       showBackOnMobile: false,
-      showPersistentDrawerOnWeb: false,
+      showPersistentDrawerOnWeb: true,
       backgroundColor: _MenuPalette.surface,
 
       body: Stack(

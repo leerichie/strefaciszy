@@ -2,6 +2,7 @@
 
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:strefa_ciszy/utils/keyboard_utils.dart';
 import 'package:strefa_ciszy/widgets/app_scaffold.dart';
 
@@ -29,6 +30,7 @@ class ManageUsersScreen extends StatefulWidget {
 class _ManageUsersScreenState extends State<ManageUsersScreen> {
   final UserFunctions _svc = UserFunctions();
   late Future<List<Map<String, dynamic>>> _usersFuture;
+  bool _isAdmin = false;
 
   @override
   void initState() {
@@ -38,12 +40,39 @@ class _ManageUsersScreenState extends State<ManageUsersScreen> {
 
   Future<List<Map<String, dynamic>>> _loadUsers() async {
     final user = FirebaseAuth.instance.currentUser!;
-    await user.reload();
-    final idToken = await user.getIdTokenResult(true);
-    print(
-      '🔥 refreshed claims – amIAdmin = ${idToken.claims?['admin'] == true}',
-    );
-    return _svc.listUsers();
+    final idToken = await user.getIdTokenResult();
+    var isAdmin = idToken.claims?['admin'] == true;
+
+    if (!isAdmin) {
+      final snap = await FirebaseFirestore.instance
+          .collection('users')
+          .doc(user.uid)
+          .get();
+      final data = snap.data() ?? {};
+      final role = (data['role'] ?? '').toString().toLowerCase();
+      isAdmin = data['isAdmin'] == true || role == 'admin';
+    }
+
+    if (mounted) {
+      setState(() => _isAdmin = isAdmin);
+    }
+
+    if (!isAdmin) {
+      throw Exception('Admin only');
+    }
+
+    final users = await _svc.listUsers();
+    users.sort((a, b) {
+      final an = ((a['name'] as String?) ?? '').toLowerCase();
+      final bn = ((b['name'] as String?) ?? '').toLowerCase();
+      if (an != bn) return an.compareTo(bn);
+
+      final ae = ((a['email'] as String?) ?? '').toLowerCase();
+      final be = ((b['email'] as String?) ?? '').toLowerCase();
+      return ae.compareTo(be);
+    });
+
+    return users;
   }
 
   void _reload() {
@@ -211,7 +240,6 @@ class _ManageUsersScreenState extends State<ManageUsersScreen> {
               Navigator.pop(ctx);
               try {
                 await _svc.createUser(name, email.trim(), pwd, role);
-                await FirebaseAuth.instance.currentUser!.getIdTokenResult(true);
                 _reload();
               } catch (e) {
                 ScaffoldMessenger.of(context).showSnackBar(
@@ -392,14 +420,18 @@ class _ManageUsersScreenState extends State<ManageUsersScreen> {
             onPressed: () async {
               Navigator.pop(ctx);
               try {
+                final currentUser = FirebaseAuth.instance.currentUser;
+                final roleChanged = role != user['role'];
                 await _svc.updateUserDetails(
                   uid: user['uid'],
                   name: name != user['name'] ? name : null,
                   email: email != user['email'] ? email : null,
                   password: password.isNotEmpty ? password : null,
-                  role: role != user['role'] ? role : null,
+                  role: roleChanged ? role : null,
                 );
-                await FirebaseAuth.instance.currentUser!.getIdTokenResult(true);
+                if (roleChanged && currentUser?.uid == user['uid']) {
+                  await currentUser!.getIdTokenResult(true);
+                }
                 _reload();
               } catch (e) {
                 ScaffoldMessenger.of(context).showSnackBar(
@@ -443,7 +475,7 @@ class _ManageUsersScreenState extends State<ManageUsersScreen> {
           backgroundColor: _AppPalette.brand,
           foregroundColor: Colors.white,
           tooltip: 'Dodaj pracownika',
-          onPressed: _showAddDialog,
+          onPressed: _isAdmin ? _showAddDialog : null,
           child: const Icon(Icons.person_add_alt),
         ),
         floatingActionButtonLocation: FloatingActionButtonLocation.centerFloat,
