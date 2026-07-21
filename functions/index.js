@@ -69,6 +69,136 @@ async function verifyAdminOrReportSender(req, res) {
 
   return decoded.uid;
 }
+
+async function verifySignedIn(req, res) {
+  const auth = req.header('Authorization') || '';
+  const match = auth.match(/^Bearer (.+)$/);
+  if (!match) {
+    res.status(401).json({error: 'Unauthenticated', message: 'Zaloguj się ponownie.'});
+    return null;
+  }
+
+  try {
+    return await admin.auth().verifyIdToken(match[1]);
+  } catch (e) {
+    res.status(401).json({error: 'Invalid token', message: 'Sesja wygasła. Zaloguj się ponownie.'});
+    return null;
+  }
+}
+
+function _sendWorkDayError(res, status, error, message) {
+  return res.status(status).json({error, message});
+}
+
+function _parseTimeToMinutes(raw) {
+  if (typeof raw !== 'string') return null;
+  const match = raw.trim().match(/^([01]\d|2[0-3]):([0-5]\d)$/);
+  if (!match) return null;
+  return Number(match[1]) * 60 + Number(match[2]);
+}
+
+function _minutesToTime(minutes) {
+  const h = Math.floor(minutes / 60).toString().padStart(2, '0');
+  const m = (minutes % 60).toString().padStart(2, '0');
+  return `${h}:${m}`;
+}
+
+function _warsawTodayKey() {
+  const parts = new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'Europe/Warsaw',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  }).formatToParts(new Date());
+
+  const values = Object.fromEntries(parts.map((part) => [part.type, part.value]));
+  return `${values.year}-${values.month}-${values.day}`;
+}
+
+function _dateFromDayKey(dayKey) {
+  const match = typeof dayKey === 'string' && dayKey.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  if (!match) return null;
+  return new Date(Date.UTC(Number(match[1]), Number(match[2]) - 1, Number(match[3]), 0, 0, 0));
+}
+
+function _workDayDocId(uid, dayKey, startMinutes, endMinutes) {
+  return `${uid}_${dayKey}_${startMinutes}_${endMinutes}`;
+}
+
+function _workDayEntryOverlaps({startA, endA, startB, endB}) {
+  return startA < endB && endA > startB;
+}
+
+async function _readWorkDayUserName(db, decoded) {
+  const display = (decoded.name || '').toString().trim();
+  if (display) return display;
+
+  try {
+    const snap = await db.collection('users').doc(decoded.uid).get();
+    const name = ((snap.data() || {}).name || '').toString().trim();
+    if (name) return name;
+  } catch (e) {
+    console.error('[WORK DAY] failed reading user name', e);
+  }
+
+  return (decoded.email || decoded.uid).toString();
+}
+
+function _normalizeWorkDayPayload({body, decoded, userName}) {
+  const dayKey = (body.dayKey || '').toString().trim();
+  const startTime = (body.startTime || '').toString().trim();
+  const endTime = (body.endTime || '').toString().trim();
+  const startMinutes = _parseTimeToMinutes(startTime);
+  const endMinutes = _parseTimeToMinutes(endTime);
+  const projectId = (body.projectId || '').toString().trim();
+  const projectName = (body.projectName || '').toString().trim();
+  const customerId = (body.customerId || '').toString().trim();
+  const description = (body.description || '').toString().trim();
+
+  if (!_dateFromDayKey(dayKey)) {
+    return {error: 'invalid-day', message: 'Nieprawidłowa data wpisu.'};
+  }
+
+  if (dayKey !== _warsawTodayKey()) {
+    return {error: 'not-today', message: 'Można zapisywać tylko dzisiejszy dzień.'};
+  }
+
+  if (startMinutes == null || endMinutes == null) {
+    return {error: 'invalid-time', message: 'Ustaw prawidłowo czas start i koniec.'};
+  }
+
+  if (endMinutes <= startMinutes) {
+    return {error: 'invalid-range', message: 'Czas zakończenia musi być później niż rozpoczęcia.'};
+  }
+
+  if (!projectId && !projectName && !description) {
+    return {error: 'missing-work', message: 'Wybierz projekt lub dodaj opis.'};
+  }
+
+  return {
+    data: {
+      userId: decoded.uid,
+      userName,
+      userEmail: decoded.email || '',
+      dayKey,
+      workDate: admin.firestore.Timestamp.fromDate(_dateFromDayKey(dayKey)),
+      startTime: _minutesToTime(startMinutes),
+      endTime: _minutesToTime(endMinutes),
+      startMinutes,
+      endMinutes,
+      durationMinutes: endMinutes - startMinutes,
+      projectId: projectId || null,
+      projectName: projectName || null,
+      customerId: customerId || null,
+      description,
+      clientAppVersion: (body.clientAppVersion || '').toString(),
+      clientBuildNumber: (body.clientBuildNumber || '').toString(),
+      clientPlatform: (body.clientPlatform || '').toString(),
+      requestId: (body.requestId || '').toString(),
+      updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+    },
+  };
+}
 // daily report
 // const smtpHost = process.env.SMTP_HOST || null;
 // const smtpUser = process.env.SMTP_USER || null;
@@ -264,6 +394,229 @@ exports.updateUserDetailsHttp = functions.https.onRequest(async (req, res) => {
   }
 });
 
+exports.createWorkDayEntryHttp = functions.https.onRequest(async (req, res) => {
+  if (req.method === 'OPTIONS') {
+    return res.status(204).set(corsHeaders).send('');
+  }
+  res.set(corsHeaders);
+
+  if (req.method !== 'POST') {
+    return _sendWorkDayError(res, 405, 'method-not-allowed', 'Nieprawidłowa metoda.');
+  }
+
+  const decoded = await verifySignedIn(req, res);
+  if (!decoded) return;
+
+  const db = admin.firestore();
+  const userName = await _readWorkDayUserName(db, decoded);
+  const normalized = _normalizeWorkDayPayload({body: req.body || {}, decoded, userName});
+  if (normalized.error) {
+    return _sendWorkDayError(res, 400, normalized.error, normalized.message);
+  }
+
+  const payload = normalized.data;
+  const docId = _workDayDocId(decoded.uid, payload.dayKey, payload.startMinutes, payload.endMinutes);
+  const docRef = db.collection('work_day_logs').doc(docId);
+
+  try {
+    await db.runTransaction(async (tx) => {
+      const existing = await tx.get(docRef);
+      if (existing.exists) {
+        throw Object.assign(new Error('duplicate'), {
+          status: 409,
+          code: 'duplicate',
+          message: 'Ten wpis już istnieje.',
+        });
+      }
+
+      const daySnap = await tx.get(
+          db.collection('work_day_logs')
+              .where('userId', '==', decoded.uid)
+              .where('dayKey', '==', payload.dayKey),
+      );
+
+      for (const doc of daySnap.docs) {
+        const d = doc.data() || {};
+        const existingStart = Number(d.startMinutes);
+        const existingEnd = Number(d.endMinutes);
+
+        if (!Number.isFinite(existingStart) || !Number.isFinite(existingEnd)) continue;
+
+        if (_workDayEntryOverlaps({
+          startA: payload.startMinutes,
+          endA: payload.endMinutes,
+          startB: existingStart,
+          endB: existingEnd,
+        })) {
+          throw Object.assign(new Error('overlap'), {
+            status: 409,
+            code: 'overlap',
+            message: 'Istnieje wpis o tej godzinie. Wybierz inny czas.',
+          });
+        }
+      }
+
+      tx.set(docRef, {
+        ...payload,
+        createdAt: admin.firestore.FieldValue.serverTimestamp(),
+      });
+    });
+
+    return res.json({ok: true, id: docId});
+  } catch (e) {
+    console.error('createWorkDayEntryHttp error', e);
+    return _sendWorkDayError(res, e.status || 500, e.code || 'internal', e.message || 'Nie udało się zapisać wpisu.');
+  }
+});
+
+exports.updateWorkDayEntryHttp = functions.https.onRequest(async (req, res) => {
+  if (req.method === 'OPTIONS') {
+    return res.status(204).set(corsHeaders).send('');
+  }
+  res.set(corsHeaders);
+
+  if (req.method !== 'POST') {
+    return _sendWorkDayError(res, 405, 'method-not-allowed', 'Nieprawidłowa metoda.');
+  }
+
+  const decoded = await verifySignedIn(req, res);
+  if (!decoded) return;
+
+  const oldDocId = ((req.body && req.body.docId) || '').toString().trim();
+  if (!oldDocId) {
+    return _sendWorkDayError(res, 400, 'missing-doc-id', 'Brakuje ID wpisu.');
+  }
+
+  const db = admin.firestore();
+  const userName = await _readWorkDayUserName(db, decoded);
+  const normalized = _normalizeWorkDayPayload({body: req.body || {}, decoded, userName});
+  if (normalized.error) {
+    return _sendWorkDayError(res, 400, normalized.error, normalized.message);
+  }
+
+  const payload = normalized.data;
+  const oldRef = db.collection('work_day_logs').doc(oldDocId);
+  const newDocId = _workDayDocId(decoded.uid, payload.dayKey, payload.startMinutes, payload.endMinutes);
+  const newRef = db.collection('work_day_logs').doc(newDocId);
+
+  try {
+    await db.runTransaction(async (tx) => {
+      const oldSnap = await tx.get(oldRef);
+      if (!oldSnap.exists) {
+        throw Object.assign(new Error('Nie znaleziono wpisu.'), {
+          status: 404,
+          code: 'not-found',
+        });
+      }
+
+      const oldData = oldSnap.data() || {};
+      if (oldData.userId !== decoded.uid) {
+        throw Object.assign(new Error('Nie możesz edytować tego wpisu.'), {
+          status: 403,
+          code: 'forbidden',
+        });
+      }
+
+      if (newDocId !== oldDocId) {
+        const newSnap = await tx.get(newRef);
+        if (newSnap.exists) {
+          throw Object.assign(new Error('Ten wpis już istnieje.'), {
+            status: 409,
+            code: 'duplicate',
+          });
+        }
+      }
+
+      const daySnap = await tx.get(
+          db.collection('work_day_logs')
+              .where('userId', '==', decoded.uid)
+              .where('dayKey', '==', payload.dayKey),
+      );
+
+      for (const doc of daySnap.docs) {
+        if (doc.id === oldDocId) continue;
+
+        const d = doc.data() || {};
+        const existingStart = Number(d.startMinutes);
+        const existingEnd = Number(d.endMinutes);
+
+        if (!Number.isFinite(existingStart) || !Number.isFinite(existingEnd)) continue;
+
+        if (_workDayEntryOverlaps({
+          startA: payload.startMinutes,
+          endA: payload.endMinutes,
+          startB: existingStart,
+          endB: existingEnd,
+        })) {
+          throw Object.assign(new Error('Istnieje wpis o tej godzinie. Wybierz inny czas.'), {
+            status: 409,
+            code: 'overlap',
+          });
+        }
+      }
+
+      if (newDocId === oldDocId) {
+        tx.update(oldRef, payload);
+      } else {
+        tx.set(newRef, {
+          ...payload,
+          createdAt: oldData.createdAt || admin.firestore.FieldValue.serverTimestamp(),
+        });
+        tx.delete(oldRef);
+      }
+    });
+
+    return res.json({ok: true, id: newDocId});
+  } catch (e) {
+    console.error('updateWorkDayEntryHttp error', e);
+    return _sendWorkDayError(res, e.status || 500, e.code || 'internal', e.message || 'Nie udało się zapisać wpisu.');
+  }
+});
+
+exports.deleteWorkDayEntryHttp = functions.https.onRequest(async (req, res) => {
+  if (req.method === 'OPTIONS') {
+    return res.status(204).set(corsHeaders).send('');
+  }
+  res.set(corsHeaders);
+
+  if (req.method !== 'POST') {
+    return _sendWorkDayError(res, 405, 'method-not-allowed', 'Nieprawidłowa metoda.');
+  }
+
+  const decoded = await verifySignedIn(req, res);
+  if (!decoded) return;
+
+  const docId = ((req.body && req.body.docId) || '').toString().trim();
+  if (!docId) {
+    return _sendWorkDayError(res, 400, 'missing-doc-id', 'Brakuje ID wpisu.');
+  }
+
+  const db = admin.firestore();
+  const ref = db.collection('work_day_logs').doc(docId);
+
+  try {
+    await db.runTransaction(async (tx) => {
+      const snap = await tx.get(ref);
+      if (!snap.exists) return;
+
+      const data = snap.data() || {};
+      if (data.userId !== decoded.uid) {
+        throw Object.assign(new Error('Nie możesz usunąć tego wpisu.'), {
+          status: 403,
+          code: 'forbidden',
+        });
+      }
+
+      tx.delete(ref);
+    });
+
+    return res.json({ok: true});
+  } catch (e) {
+    console.error('deleteWorkDayEntryHttp error', e);
+    return _sendWorkDayError(res, e.status || 500, e.code || 'internal', e.message || 'Nie udało się usunąć wpisu.');
+  }
+});
+
 exports.backfillProjects = onDocumentWritten('contacts/{contactId}', async (event) => {
   const before = event.data.before.data() || {};
   const after = event.data.after.data() || {};
@@ -404,6 +757,121 @@ function _formatMinutesAsHoursPl(totalMinutes) {
   return `${hours},${minutes.toString().padStart(2, '0')}`;
 }
 
+function _workDayDocCreatedMillis(doc) {
+  const data = doc.data() || {};
+  const createdAt = _asDate(data.createdAt) || _asDate(data.updatedAt);
+  if (createdAt) return createdAt.getTime();
+  if (doc.createTime && typeof doc.createTime.toMillis === 'function') {
+    return doc.createTime.toMillis();
+  }
+  return Number.MAX_SAFE_INTEGER;
+}
+
+exports.dedupeWorkDayLogOnCreate = onDocumentCreated('work_day_logs/{logId}', async (event) => {
+  const snap = event.data;
+  if (!snap) return;
+
+  const created = snap.data() || {};
+  const userKey = (created.userId || created.userEmail || '').toString();
+  const dayKey = (created.dayKey || '').toString();
+  const startMinutes = created.startMinutes;
+  const endMinutes = created.endMinutes;
+
+  if (!userKey || !dayKey || startMinutes == null || endMinutes == null) {
+    return;
+  }
+
+  const db = admin.firestore();
+  const dupesSnap = await db.collection('work_day_logs')
+      .where('userId', '==', created.userId || '')
+      .where('dayKey', '==', dayKey)
+      .where('startMinutes', '==', startMinutes)
+      .where('endMinutes', '==', endMinutes)
+      .get();
+
+  if (dupesSnap.size <= 1) return;
+
+  const docs = dupesSnap.docs.sort((a, b) => {
+    const byCreated = _workDayDocCreatedMillis(a) - _workDayDocCreatedMillis(b);
+    if (byCreated !== 0) return byCreated;
+    return a.id.localeCompare(b.id);
+  });
+
+  const keep = docs[0];
+  const batch = db.batch();
+
+  for (const doc of docs.slice(1)) {
+    batch.delete(doc.ref);
+  }
+
+  await batch.commit();
+  console.log('[WORK DAY DEDUPE] kept', keep.id, 'deleted', docs.length - 1, 'for', userKey, dayKey, startMinutes, endMinutes);
+});
+
+async function _dedupeRecentWorkDayLogs({daysBack = 14} = {}) {
+  const db = admin.firestore();
+  const cutoff = new Date();
+  cutoff.setUTCDate(cutoff.getUTCDate() - daysBack);
+  const cutoffKey = cutoff.toISOString().slice(0, 10);
+
+  const snap = await db.collection('work_day_logs')
+      .where('dayKey', '>=', cutoffKey)
+      .get();
+
+  const groups = new Map();
+  for (const doc of snap.docs) {
+    const d = doc.data() || {};
+    const userKey = (d.userId || d.userEmail || '').toString();
+    const dayKey = (d.dayKey || '').toString();
+    const start = d.startMinutes != null ? d.startMinutes : (d.startTime != null ? d.startTime : '');
+    const end = d.endMinutes != null ? d.endMinutes : (d.endTime != null ? d.endTime : '');
+
+    if (!userKey || !dayKey || start === '' || end === '') continue;
+
+    const key = `${userKey}|${dayKey}|${start}|${end}`;
+    if (!groups.has(key)) groups.set(key, []);
+    groups.get(key).push(doc);
+  }
+
+  let deleted = 0;
+  let batch = db.batch();
+  let batchSize = 0;
+
+  for (const docs of groups.values()) {
+    if (docs.length <= 1) continue;
+
+    docs.sort((a, b) => {
+      const byCreated = _workDayDocCreatedMillis(a) - _workDayDocCreatedMillis(b);
+      if (byCreated !== 0) return byCreated;
+      return a.id.localeCompare(b.id);
+    });
+
+    for (const doc of docs.slice(1)) {
+      batch.delete(doc.ref);
+      deleted++;
+      batchSize++;
+
+      if (batchSize >= 450) {
+        await batch.commit();
+        batch = db.batch();
+        batchSize = 0;
+      }
+    }
+  }
+
+  if (batchSize > 0) await batch.commit();
+
+  return {scanned: snap.size, deleted};
+}
+
+exports.dedupeRecentWorkDayLogsScheduled = onSchedule({
+  schedule: 'every 6 hours',
+  timeZone: 'Europe/Warsaw',
+}, async () => {
+  const result = await _dedupeRecentWorkDayLogs({daysBack: 21});
+  console.log('[WORK DAY SCHEDULED DEDUPE]', result);
+});
+
 async function _appendWorkDaySheet({workbook, db, dayKey}) {
   const snap = await db.collection('work_day_logs').where('dayKey', '==', dayKey).get();
 
@@ -415,12 +883,15 @@ async function _appendWorkDaySheet({workbook, db, dayKey}) {
 
   const dateLabel = _formatDayKeyPl(dayKey);
 
-  const rows = snap.docs.map((doc) => {
+  const rawRows = snap.docs.map((doc) => {
     const d = doc.data() || {};
     const fullName = (d.userName || '').toString().trim();
     const split = _splitUserName(fullName);
+    const createdAt = _asDate(d.createdAt) || _asDate(d.updatedAt) || new Date(8640000000000000);
 
     return {
+      docId: doc.id,
+      userId: (d.userId || d.userEmail || '').toString(),
       userName: fullName,
       firstName: split.firstName,
       lastName: split.lastName,
@@ -432,8 +903,21 @@ async function _appendWorkDaySheet({workbook, db, dayKey}) {
       durationMinutes: Number(d.durationMinutes || 0),
       projectName: (d.projectName || '').toString(),
       description: (d.description || '').toString(),
+      createdAt,
     };
   });
+
+  const dedupedRowsByKey = new Map();
+  for (const row of rawRows) {
+    const key = `${row.userId}|${dayKey}|${row.startMinutes}|${row.endMinutes}`;
+    const existing = dedupedRowsByKey.get(key);
+
+    if (!existing || row.createdAt < existing.createdAt) {
+      dedupedRowsByKey.set(key, row);
+    }
+  }
+
+  const rows = Array.from(dedupedRowsByKey.values());
 
   rows.sort((a, b) => {
     const byUser = a.userName.localeCompare(b.userName, 'pl');
@@ -512,7 +996,16 @@ async function _appendWorkDaySheet({workbook, db, dayKey}) {
 async function _countWorkDayLogsForDay({db, dayKey}) {
   const snap = await db.collection('work_day_logs').where('dayKey', '==', dayKey).get();
 
-  return snap.size;
+  const unique = new Set();
+  snap.forEach((doc) => {
+    const d = doc.data() || {};
+    const userId = (d.userId || d.userEmail || '').toString();
+    const start = d.startMinutes != null ? d.startMinutes : (d.startTime != null ? d.startTime : '');
+    const end = d.endMinutes != null ? d.endMinutes : (d.endTime != null ? d.endTime : '');
+    unique.add(`${userId}|${dayKey}|${start}|${end}`);
+  });
+
+  return unique.size;
 }
 
 async function _getDoneTasksForDayFromProject({projectRef, dayStartUtc, dayEndUtc}) {
@@ -1511,6 +2004,11 @@ async function getUserTokens(uid) {
   return snap.docs.map((d) => d.id).filter(Boolean);
 }
 
+async function getAllChatUserIds() {
+  const snap = await admin.firestore().collection('users').get();
+  return snap.docs.map((d) => d.id).filter(Boolean);
+}
+
 function uniq(arr) {
   return [...new Set(arr)];
 }
@@ -1525,6 +2023,25 @@ function extractMentionUids(msg) {
     return uniq(uids);
   }
   return [];
+}
+
+function hasBroadcastMention(msg) {
+  const broadcastTokens = ['all', 'here', 'sc', 'chat'];
+  const m = msg.mentions;
+
+  if (Array.isArray(m)) {
+    const hasStructuredBroadcast = m.some((x) => {
+      if (!x) return false;
+      const type = (x.type || '').toString().toLowerCase().trim();
+      const token = (x.token || '').toString().toLowerCase().trim();
+      return type === 'broadcast' && broadcastTokens.includes(token);
+    });
+
+    if (hasStructuredBroadcast) return true;
+  }
+
+  const text = (msg.text || '').toString().toLowerCase();
+  return /(^|\s)@(all|here|sc|chat)(?=\s|$|[,.!?;:])/i.test(text);
 }
 
 exports.pushOnChatMessageCreate = onDocumentCreated(
@@ -1553,8 +2070,13 @@ exports.pushOnChatMessageCreate = onDocumentCreated(
       if (type === 'dm') {
         recipients = members.filter((uid) => uid && uid !== senderId);
       } else {
-        const mentioned = extractMentionUids(msg);
-        recipients = mentioned.filter((uid) => uid && uid !== senderId);
+        if (hasBroadcastMention(msg)) {
+          const source = chatId === 'global' ? await getAllChatUserIds() : members;
+          recipients = source.filter((uid) => uid && uid !== senderId);
+        } else {
+          const mentioned = extractMentionUids(msg);
+          recipients = mentioned.filter((uid) => uid && uid !== senderId);
+        }
       }
 
       recipients = uniq(recipients);
@@ -1587,11 +2109,13 @@ exports.pushOnChatMessageCreate = onDocumentCreated(
         },
         apns: {
           headers: {
-            'apns-thread-id': String(chatId), // groups iOS
+            'apns-priority': '10',
+            'apns-push-type': 'alert',
           },
           payload: {
             aps: {
-              sound: 'default',
+              "sound": 'default',
+              'thread-id': String(chatId), // groups iOS
             },
           },
         },
@@ -1622,6 +2146,11 @@ exports.pushOnChatMessageCreate = onDocumentCreated(
       resp.responses.forEach((r, i) => {
         if (!r.success) {
           const code = r.error && r.error.code ? String(r.error.code) : '';
+          console.error('[PUSH] token delivery failed', {
+            tokenSuffix: String(tokens[i] || '').slice(-8),
+            code,
+            message: r.error && r.error.message ? String(r.error.message) : '',
+          });
           if (
             code.includes('registration-token-not-registered') ||
           code.includes('invalid-argument')

@@ -1,5 +1,7 @@
 // main.dart
 
+import 'dart:ui' show PlatformDispatcher;
+
 import 'package:firebase_app_check/firebase_app_check.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_core/firebase_core.dart';
@@ -9,6 +11,7 @@ import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:strefa_ciszy/offline/offline_api.dart';
 import 'package:strefa_ciszy/services/admin_api.dart';
 import 'package:strefa_ciszy/services/api_service.dart';
+import 'package:strefa_ciszy/services/event_log_service.dart';
 import 'package:strefa_ciszy/services/push_router.dart';
 import 'package:strefa_ciszy/services/push_service.dart';
 
@@ -26,6 +29,23 @@ void main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
   await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
+
+  FlutterError.onError = (details) {
+    FlutterError.presentError(details);
+    EventLogService.unhandledError(
+      context: 'FlutterError',
+      error: details.exception,
+      stackTrace: details.stack,
+    );
+  };
+  PlatformDispatcher.instance.onError = (error, stack) {
+    EventLogService.unhandledError(
+      context: 'PlatformDispatcher',
+      error: error,
+      stackTrace: stack,
+    );
+    return true;
+  };
 
   if (!kReleaseMode) {
     _syncOrchestrator = await SyncOrchestrator.create();
@@ -129,8 +149,15 @@ class StrefaCiszyApp extends StatelessWidget {
   }
 }
 
-class AuthGate extends StatelessWidget {
+class AuthGate extends StatefulWidget {
   const AuthGate({super.key});
+
+  @override
+  State<AuthGate> createState() => _AuthGateState();
+}
+
+class _AuthGateState extends State<AuthGate> {
+  User? _lastUser;
 
   @override
   Widget build(BuildContext context) {
@@ -143,9 +170,23 @@ class AuthGate extends StatelessWidget {
           );
         }
         if (!authSnap.hasData) {
+          final previousUser = _lastUser;
+          if (previousUser != null) {
+            if (EventLogService.manualSignOutInProgress) {
+              EventLogService.manualSignOutInProgress = false;
+            } else {
+              EventLogService.authUnexpectedSignOut(
+                uid: previousUser.uid,
+                email: previousUser.email,
+              );
+            }
+          }
+          _lastUser = null;
           return const LoginScreen();
         }
         final user = authSnap.data!;
+        _lastUser = user;
+        EventLogService.flushPendingEvents();
 
         // PUSH
         WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -158,6 +199,13 @@ class AuthGate extends StatelessWidget {
             if (tokenSnap.connectionState != ConnectionState.done) {
               return const Scaffold(
                 body: Center(child: CircularProgressIndicator()),
+              );
+            }
+            if (tokenSnap.hasError) {
+              EventLogService.authTokenRefreshFailed(
+                uid: user.uid,
+                email: user.email,
+                error: tokenSnap.error!,
               );
             }
             final claims = tokenSnap.data?.claims ?? {};

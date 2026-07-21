@@ -70,6 +70,33 @@ class ChatThreadScreen extends StatefulWidget {
 }
 
 class _ChatThreadScreenState extends State<ChatThreadScreen> {
+  static const List<Map<String, dynamic>> _broadcastMentions = [
+    {
+      'type': 'broadcast',
+      'token': 'all',
+      'label': 'Wszyscy',
+      'icon': Icons.campaign,
+    },
+    {
+      'type': 'broadcast',
+      'token': 'here',
+      'label': 'Wszyscy tutaj',
+      'icon': Icons.notifications_active,
+    },
+    {
+      'type': 'broadcast',
+      'token': 'sc',
+      'label': 'Strefa Ciszy',
+      'icon': Icons.groups,
+    },
+    {
+      'type': 'broadcast',
+      'token': 'chat',
+      'label': 'Ten chat',
+      'icon': Icons.forum,
+    },
+  ];
+
   final _controller = TextEditingController();
   final _focusNode = FocusNode();
   final StorageService _storage = StorageService();
@@ -118,6 +145,10 @@ class _ChatThreadScreenState extends State<ChatThreadScreen> {
       final type = (map['type'] ?? '').toString().trim();
       final label = (map['label'] ?? map['display'] ?? '').toString().trim();
       final token = (map['token'] ?? '').toString().trim();
+
+      if (type == 'broadcast' && token.isNotEmpty) {
+        tokenToMention['@$token'] = map;
+      }
 
       if (type == 'client' || type == 'project') {
         final key = token.isNotEmpty
@@ -211,6 +242,10 @@ class _ChatThreadScreenState extends State<ChatThreadScreen> {
               if (type == 'user') {
                 final uid = (data['uid'] ?? '').toString();
                 if (uid.isNotEmpty) _openDmFor(uid);
+                return;
+              }
+
+              if (type == 'broadcast') {
                 return;
               }
 
@@ -515,7 +550,52 @@ class _ChatThreadScreenState extends State<ChatThreadScreen> {
                   compact: true,
                   showSearch: false,
                   query: q,
+                  specialMentions: _broadcastMentions,
                   onPick: (picked) {
+                    final type = (picked['type'] ?? '').toString().trim();
+                    if (type == 'broadcast') {
+                      final token = (picked['token'] ?? '').toString().trim();
+                      final label = (picked['label'] ?? '').toString().trim();
+                      if (token.isEmpty || label.isEmpty) return;
+
+                      final value = _controller.value;
+                      final text = value.text;
+                      final sel = value.selection;
+                      final cursor = sel.baseOffset >= 0
+                          ? sel.baseOffset
+                          : text.length;
+                      final uptoCursor = text.substring(0, cursor);
+                      final at = uptoCursor.lastIndexOf('@');
+                      if (at == -1) return;
+
+                      if (at > 0 && uptoCursor[at - 1].trim().isNotEmpty) {
+                        return;
+                      }
+
+                      final insert = '@$token ';
+                      final newText = text.replaceRange(at, cursor, insert);
+                      final newCursorPos = at + insert.length;
+
+                      _controller.value = value.copyWith(
+                        text: newText,
+                        selection: TextSelection.collapsed(
+                          offset: newCursorPos,
+                        ),
+                        composing: TextRange.empty,
+                      );
+
+                      _pendingMentions.add({
+                        'type': 'broadcast',
+                        'token': token,
+                        'label': label,
+                      });
+
+                      _closeMentionOverlay();
+                      _focusNode.requestFocus();
+                      _scrollToBottom();
+                      return;
+                    }
+
                     final uid = (picked['uid'] ?? '').toString();
                     final display = (picked['display'] ?? '').toString().trim();
                     if (uid.isEmpty || display.isEmpty) return;
@@ -651,18 +731,45 @@ class _ChatThreadScreenState extends State<ChatThreadScreen> {
               ),
             ),
             ListTile(
-              leading: const Icon(Icons.photo_camera, color: _AvChatPalette.bubbleTop),
-              title: const Text('Zrób fota', style: TextStyle(fontFamily: _AvChatPalette.bodyFont, color: _AvChatPalette.text)),
+              leading: const Icon(
+                Icons.photo_camera,
+                color: _AvChatPalette.bubbleTop,
+              ),
+              title: const Text(
+                'Zrób fota',
+                style: TextStyle(
+                  fontFamily: _AvChatPalette.bodyFont,
+                  color: _AvChatPalette.text,
+                ),
+              ),
               onTap: () => Navigator.pop(ctx, 'camera'),
             ),
             ListTile(
-              leading: const Icon(Icons.photo_library, color: _AvChatPalette.bubbleTop),
-              title: const Text('Wybierz z galerii', style: TextStyle(fontFamily: _AvChatPalette.bodyFont, color: _AvChatPalette.text)),
+              leading: const Icon(
+                Icons.photo_library,
+                color: _AvChatPalette.bubbleTop,
+              ),
+              title: const Text(
+                'Wybierz z galerii',
+                style: TextStyle(
+                  fontFamily: _AvChatPalette.bodyFont,
+                  color: _AvChatPalette.text,
+                ),
+              ),
               onTap: () => Navigator.pop(ctx, 'gallery'),
             ),
             ListTile(
-              leading: const Icon(Icons.attach_file, color: _AvChatPalette.bubbleTop),
-              title: const Text('Dodaj plik', style: TextStyle(fontFamily: _AvChatPalette.bodyFont, color: _AvChatPalette.text)),
+              leading: const Icon(
+                Icons.attach_file,
+                color: _AvChatPalette.bubbleTop,
+              ),
+              title: const Text(
+                'Dodaj plik',
+                style: TextStyle(
+                  fontFamily: _AvChatPalette.bodyFont,
+                  color: _AvChatPalette.text,
+                ),
+              ),
               onTap: () => Navigator.pop(ctx, 'file'),
             ),
             const SizedBox(height: 8),
@@ -807,7 +914,9 @@ class _ChatThreadScreenState extends State<ChatThreadScreen> {
             style: ElevatedButton.styleFrom(
               backgroundColor: _AvChatPalette.danger,
               foregroundColor: Colors.white,
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(8),
+              ),
             ),
             child: const Text('Usuń'),
           ),

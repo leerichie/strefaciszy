@@ -2,16 +2,53 @@
 // Writes system/app events to the top-level `event_logs` collection.
 // Business-level audit actions stay in `audit_logs` via AuditService.
 
+import 'dart:convert';
+
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/foundation.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 class EventLogService {
   EventLogService._();
 
   static const _col = 'event_logs';
+  static const _pendingKey = 'pending_event_logs_v1';
+
+  // Set to true by the manual "Wyloguj" button handlers right before calling
+  // FirebaseAuth signOut(), so AuthGate can tell a deliberate logout apart
+  // from the app silently dropping the session on its own.
+  static bool manualSignOutInProgress = false;
 
   // ── Internal writer ─────────────────────────────────────────────────────────
+
+  static Future<void> _writeRaw({
+    required String eventType,
+    required String category,
+    required String summary,
+    String? userId,
+    String? userEmail,
+    String? userName,
+    Map<String, dynamic>? details,
+    String severity = 'info', // info | warning | error
+  }) async {
+    final currentUser = FirebaseAuth.instance.currentUser;
+    await FirebaseFirestore.instance.collection(_col).add({
+      'eventType': eventType,
+      'category': category,
+      'summary': summary,
+      'userId': userId ?? currentUser?.uid ?? 'unknown',
+      'userEmail': userEmail ?? currentUser?.email ?? '',
+      'userName':
+          userName ??
+          currentUser?.displayName ??
+          currentUser?.email ??
+          'Unknown',
+      'details': details ?? {},
+      'severity': severity,
+      'timestamp': FieldValue.serverTimestamp(),
+    });
+  }
 
   static Future<void> _write({
     required String eventType,
@@ -24,25 +61,102 @@ class EventLogService {
     String severity = 'info', // info | warning | error
   }) async {
     try {
-      final currentUser = FirebaseAuth.instance.currentUser;
-      await FirebaseFirestore.instance.collection(_col).add({
-        'eventType': eventType,
-        'category': category,
-        'summary': summary,
-        'userId': userId ?? currentUser?.uid ?? 'unknown',
-        'userEmail': userEmail ?? currentUser?.email ?? '',
-        'userName':
-            userName ??
-            currentUser?.displayName ??
-            currentUser?.email ??
-            'Unknown',
-        'details': details ?? {},
-        'severity': severity,
-        'timestamp': FieldValue.serverTimestamp(),
-      });
+      await _writeRaw(
+        eventType: eventType,
+        category: category,
+        summary: summary,
+        userId: userId,
+        userEmail: userEmail,
+        userName: userName,
+        details: details,
+        severity: severity,
+      );
     } catch (e) {
       debugPrint('Event log write failed ($eventType): $e');
       // Never let logging crash the app
+    }
+  }
+
+  /// Like [_write], but if Firestore rejects the write (e.g. because the
+  /// user's session just dropped and `request.auth` is now null), the event
+  /// is buffered on-device and retried via [flushPendingEvents] next time
+  /// the app has a signed-in user.
+  static Future<void> _writeOrBuffer({
+    required String eventType,
+    required String category,
+    required String summary,
+    String? userId,
+    String? userEmail,
+    String? userName,
+    Map<String, dynamic>? details,
+    String severity = 'info',
+  }) async {
+    try {
+      await _writeRaw(
+        eventType: eventType,
+        category: category,
+        summary: summary,
+        userId: userId,
+        userEmail: userEmail,
+        userName: userName,
+        details: details,
+        severity: severity,
+      );
+    } catch (e) {
+      debugPrint('Event log write failed, buffering ($eventType): $e');
+      await _bufferLocally({
+        'eventType': eventType,
+        'category': category,
+        'summary': summary,
+        'userId': userId,
+        'userEmail': userEmail,
+        'userName': userName,
+        'details': details ?? {},
+        'severity': severity,
+      });
+    }
+  }
+
+  static Future<void> _bufferLocally(Map<String, dynamic> payload) async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final list = prefs.getStringList(_pendingKey) ?? [];
+      list.add(jsonEncode(payload));
+      await prefs.setStringList(_pendingKey, list);
+    } catch (e) {
+      debugPrint('Failed to buffer event log locally: $e');
+    }
+  }
+
+  /// Call once a signed-in user is confirmed (e.g. from AuthGate) to flush
+  /// any events that couldn't reach Firestore at the moment they happened.
+  static Future<void> flushPendingEvents() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final pending = prefs.getStringList(_pendingKey);
+      if (pending == null || pending.isEmpty) return;
+
+      final stillPending = <String>[];
+      for (final raw in pending) {
+        try {
+          final map = jsonDecode(raw) as Map<String, dynamic>;
+          await _writeRaw(
+            eventType: map['eventType'] as String,
+            category: map['category'] as String,
+            summary: map['summary'] as String,
+            userId: map['userId'] as String?,
+            userEmail: map['userEmail'] as String?,
+            userName: map['userName'] as String?,
+            details: (map['details'] as Map?)?.cast<String, dynamic>(),
+            severity: map['severity'] as String? ?? 'info',
+          );
+        } catch (e) {
+          stillPending.add(raw);
+        }
+      }
+      await prefs.setStringList(_pendingKey, stillPending);
+    } catch (e) {
+      debugPrint('Failed to flush pending event logs: $e');
     }
   }
 
@@ -84,6 +198,65 @@ class EventLogService {
       userName: email,
       details: {'email': email, 'errorCode': errorCode},
       severity: 'warning',
+    );
+  }
+
+  /// Fired when authStateChanges() drops to null for a user who was
+  /// previously signed in, and no manual "Wyloguj" button triggered it.
+  static Future<void> authUnexpectedSignOut({
+    required String uid,
+    String? email,
+  }) async {
+    await _writeOrBuffer(
+      eventType: 'AUTH_UNEXPECTED_SIGNOUT',
+      category: 'auth',
+      summary: 'User signed out without tapping logout',
+      userId: uid,
+      userEmail: email ?? '',
+      userName: email ?? uid,
+      details: {if (email != null) 'email': email},
+      severity: 'error',
+    );
+  }
+
+  /// Fired when the forced ID-token refresh on app launch/auth-state-change
+  /// throws, right before the app falls back to non-admin claims.
+  static Future<void> authTokenRefreshFailed({
+    required String uid,
+    String? email,
+    required Object error,
+  }) async {
+    await _writeOrBuffer(
+      eventType: 'AUTH_TOKEN_REFRESH_FAILED',
+      category: 'auth',
+      summary: 'Token refresh failed',
+      userId: uid,
+      userEmail: email ?? '',
+      userName: email ?? uid,
+      details: {if (email != null) 'email': email, 'error': error.toString()},
+      severity: 'error',
+    );
+  }
+
+  /// Fired from global FlutterError/PlatformDispatcher handlers so
+  /// unhandled exceptions (e.g. a Firestore permission-denied that would
+  /// otherwise just show a blank/broken screen) show up here too.
+  static Future<void> unhandledError({
+    required String context,
+    required Object error,
+    StackTrace? stackTrace,
+  }) async {
+    await _writeOrBuffer(
+      eventType: 'UNHANDLED_ERROR',
+      category: 'error',
+      summary: 'Unhandled app error',
+      details: {
+        'context': context,
+        'error': error.toString(),
+        if (stackTrace != null)
+          'stack': stackTrace.toString().split('\n').take(6).join(' | '),
+      },
+      severity: 'error',
     );
   }
 

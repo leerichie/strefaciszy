@@ -8,6 +8,7 @@ class UserPickerSheet extends StatefulWidget {
   final bool compact;
   final bool showSearch;
   final String query;
+  final List<Map<String, dynamic>> specialMentions;
   final ValueChanged<Map<String, dynamic>>? onPick;
 
   const UserPickerSheet({
@@ -15,6 +16,7 @@ class UserPickerSheet extends StatefulWidget {
     this.compact = false,
     this.showSearch = true,
     this.query = '',
+    this.specialMentions = const [],
     this.onPick,
   });
 
@@ -90,6 +92,19 @@ class _UserPickerSheetState extends State<UserPickerSheet> {
                   }
 
                   final docs = snap.data?.docs ?? [];
+                  final q = widget.showSearch
+                      ? _q
+                      : widget.query.trim().toLowerCase();
+                  final specialItems = widget.specialMentions.where((item) {
+                    if (q.isEmpty) return true;
+                    final token = (item['token'] ?? '')
+                        .toString()
+                        .toLowerCase();
+                    final label = (item['label'] ?? '')
+                        .toString()
+                        .toLowerCase();
+                    return token.contains(q) || label.contains(q);
+                  }).toList();
                   final items =
                       docs
                           .map((d) {
@@ -106,9 +121,6 @@ class _UserPickerSheetState extends State<UserPickerSheet> {
                           })
                           .where((u) => (u['uid'] as String) != myUid)
                           .where((u) {
-                            final q = widget.showSearch
-                                ? _q
-                                : widget.query.trim().toLowerCase();
                             if (q.isEmpty) return true;
 
                             final full = (u['full'] as String).toLowerCase();
@@ -122,14 +134,36 @@ class _UserPickerSheetState extends State<UserPickerSheet> {
                           ),
                         );
 
-                  if (items.isEmpty) {
+                  if (items.isEmpty && specialItems.isEmpty) {
                     return const Center(child: Text('Brak wyników.'));
                   }
 
                   return ListView.builder(
-                    itemCount: items.length,
+                    itemCount: specialItems.length + items.length,
                     itemBuilder: (context, i) {
-                      final u = items[i];
+                      if (i < specialItems.length) {
+                        final item = specialItems[i];
+                        return ListTile(
+                          dense: true,
+                          leading: Icon(
+                            item['icon'] is IconData
+                                ? item['icon'] as IconData
+                                : Icons.campaign,
+                          ),
+                          title: Text((item['label'] ?? '').toString()),
+                          subtitle: Text('@${item['token']}'),
+                          onTap: () {
+                            if (widget.onPick != null) {
+                              widget.onPick!(item);
+                            } else {
+                              Navigator.pop(context, item);
+                            }
+                          },
+                        );
+                      }
+
+                      final userIndex = i - specialItems.length;
+                      final u = items[userIndex];
                       return ListTile(
                         dense: true,
                         leading: const Icon(Icons.person),

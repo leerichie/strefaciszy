@@ -7,13 +7,16 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter/foundation.dart';
+import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 
 class PushService {
   PushService._();
   static final PushService instance = PushService._();
 
   final _messaging = FirebaseMessaging.instance;
+  final _localNotifications = FlutterLocalNotificationsPlugin();
   StreamSubscription<String>? _tokenRefreshSub;
+  StreamSubscription<RemoteMessage>? _foregroundMessageSub;
 
   static const String _webVapidKey = String.fromEnvironment(
     'FCM_VAPID_KEY',
@@ -21,15 +24,29 @@ class PushService {
   );
 
   bool _started = false;
+  String? _startedForUid;
+
+  static const _chatChannel = AndroidNotificationChannel(
+    'chat',
+    'Wiadomości czatu',
+    description: 'Powiadomienia o wiadomościach i wzmiankach na czacie',
+    importance: Importance.max,
+    playSound: true,
+    enableVibration: true,
+  );
 
   Future<void> startForCurrentUser() async {
-    print('PUSH: startForCurrentUser called');
-
-    if (_started) return;
-    _started = true;
+    debugPrint('PUSH: startForCurrentUser called');
 
     final user = FirebaseAuth.instance.currentUser;
     if (user == null) return;
+    if (_started && _startedForUid == user.uid) return;
+
+    await stop();
+    _started = true;
+    _startedForUid = user.uid;
+
+    await _configureNotificationDisplay();
 
     // 1) Permission
     final settings = await _messaging.requestPermission(
@@ -40,10 +57,15 @@ class PushService {
 
     debugPrint('Push permission: ${settings.authorizationStatus}');
 
+    if (settings.authorizationStatus == AuthorizationStatus.denied) {
+      debugPrint('PUSH: notifications are denied in system settings.');
+      return;
+    }
+
     // 2) Token
     final token = await _getTokenWithRetry();
 
-    print(
+    debugPrint(
       'PUSH: token = ${token == null ? "NULL" : "${token.substring(0, 16)}..."}',
     );
 
@@ -60,12 +82,68 @@ class PushService {
       if (u == null) return;
       await _saveToken(u.uid, newToken);
     });
+
+    _foregroundMessageSub = FirebaseMessaging.onMessage.listen(
+      _showForegroundChatNotification,
+    );
+  }
+
+  Future<void> _configureNotificationDisplay() async {
+    if (kIsWeb) return;
+
+    const initializationSettings = InitializationSettings(
+      android: AndroidInitializationSettings('@mipmap/ic_launcher'),
+      iOS: DarwinInitializationSettings(),
+    );
+    await _localNotifications.initialize(initializationSettings);
+
+    if (Platform.isAndroid) {
+      await _localNotifications
+          .resolvePlatformSpecificImplementation<
+            AndroidFlutterLocalNotificationsPlugin
+          >()
+          ?.createNotificationChannel(_chatChannel);
+    } else if (Platform.isIOS) {
+      await _messaging.setForegroundNotificationPresentationOptions(
+        alert: true,
+        badge: true,
+        sound: true,
+      );
+    }
+  }
+
+  Future<void> _showForegroundChatNotification(RemoteMessage message) async {
+    if (kIsWeb || !Platform.isAndroid) return;
+    if ((message.data['eventType'] ?? '').toString() != 'chat.message') return;
+
+    final notification = message.notification;
+    await _localNotifications.show(
+      message.messageId?.hashCode ?? DateTime.now().millisecondsSinceEpoch,
+      notification?.title ?? 'Strefa Ciszy',
+      notification?.body ?? '📩 Nowa wiadomość',
+      const NotificationDetails(
+        android: AndroidNotificationDetails(
+          'chat',
+          'Wiadomości czatu',
+          channelDescription:
+              'Powiadomienia o wiadomościach i wzmiankach na czacie',
+          importance: Importance.max,
+          priority: Priority.high,
+          playSound: true,
+          enableVibration: true,
+        ),
+      ),
+      payload: message.data['chatId']?.toString(),
+    );
   }
 
   Future<void> stop() async {
     _started = false;
+    _startedForUid = null;
     await _tokenRefreshSub?.cancel();
     _tokenRefreshSub = null;
+    await _foregroundMessageSub?.cancel();
+    _foregroundMessageSub = null;
   }
 
   Future<String?> _getTokenSafe() async {
@@ -115,9 +193,9 @@ class PushService {
         'lastSeenAt': FieldValue.serverTimestamp(),
       }, SetOptions(merge: true));
 
-      print('PUSH: ✅ Saved token for uid=$uid');
+      debugPrint('PUSH: ✅ Saved token for uid=$uid');
     } catch (e, st) {
-      print('PUSH: ❌ Failed to save token: $e');
+      debugPrint('PUSH: ❌ Failed to save token: $e');
 
       debugPrint('$st');
     }

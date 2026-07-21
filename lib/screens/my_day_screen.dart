@@ -7,6 +7,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:strefa_ciszy/services/event_log_service.dart';
+import 'package:strefa_ciszy/services/work_day_service.dart';
 import 'package:strefa_ciszy/widgets/app_scaffold.dart';
 import 'package:table_calendar/table_calendar.dart';
 
@@ -14,7 +15,6 @@ class _AppPalette {
   static const bodyFont = 'Bose (Regular)';
   static const headlineFont = 'Bose-Headline (Bold)';
   static const surface = Colors.white;
-  static const bg = Color(0xFFF4F6F7);
   static const line = Color(0xFFD4DCE0);
   static const text = Color(0xFF1E2B2F);
   static const muted = Color(0xFF607176);
@@ -30,6 +30,7 @@ class MyDayScreen extends StatefulWidget {
 }
 
 class _MyDayScreenState extends State<MyDayScreen> with WidgetsBindingObserver {
+  final _workDayService = WorkDayService();
   DateTime _selectedDay = DateTime.now();
 
   DateTime _focusedDay = DateTime.now();
@@ -42,14 +43,12 @@ class _MyDayScreenState extends State<MyDayScreen> with WidgetsBindingObserver {
   bool _projectsLoaded = false;
   bool _initialLoadingDialogVisible = false;
   Timer? _initialLoadingDialogTimer;
+  Future<List<Map<String, String>>>? _viewUsersFuture;
+  String? _selectedViewUserId;
 
-  bool _timesOverlap({
-    required int startA,
-    required int endA,
-    required int startB,
-    required int endB,
-  }) {
-    return startA < endB && endA > startB;
+  bool get _canViewOtherUsers {
+    final email = FirebaseAuth.instance.currentUser?.email?.toLowerCase() ?? '';
+    return email == 'leerichie@wp.pl';
   }
 
   @override
@@ -61,6 +60,7 @@ class _MyDayScreenState extends State<MyDayScreen> with WidgetsBindingObserver {
     _focusedDay = _currentLocalDay;
     _scheduleDayRolloverCheck();
     _scheduleInitialLoadingDialog();
+    _viewUsersFuture = _loadViewUsers();
     _ensureProjectsLoaded();
   }
 
@@ -101,12 +101,60 @@ class _MyDayScreenState extends State<MyDayScreen> with WidgetsBindingObserver {
     return DateTime(d.year, d.month + 1, 1);
   }
 
+  String _workDayEntryKey(Map<String, dynamic> data, String fallbackId) {
+    final userKey = (data['userId'] ?? data['userEmail'] ?? '').toString();
+    final dayKey = (data['dayKey'] ?? '').toString();
+    final start = data['startMinutes'] ?? data['startTime'] ?? '';
+    final end = data['endMinutes'] ?? data['endTime'] ?? '';
+
+    if (userKey.isEmpty || dayKey.isEmpty || start == '' || end == '') {
+      return fallbackId;
+    }
+
+    return '$userKey|$dayKey|$start|$end';
+  }
+
+  int _workDayCreatedMillis(Map<String, dynamic> data) {
+    final createdAt = data['createdAt'];
+    if (createdAt is Timestamp) return createdAt.millisecondsSinceEpoch;
+
+    final updatedAt = data['updatedAt'];
+    if (updatedAt is Timestamp) return updatedAt.millisecondsSinceEpoch;
+
+    return 1 << 62;
+  }
+
+  List<QueryDocumentSnapshot<Map<String, dynamic>>> _dedupeWorkDayDocs(
+    Iterable<QueryDocumentSnapshot<Map<String, dynamic>>> docs,
+  ) {
+    final byKey = <String, QueryDocumentSnapshot<Map<String, dynamic>>>{};
+
+    for (final doc in docs) {
+      final data = doc.data();
+      final key = _workDayEntryKey(data, doc.id);
+      final current = byKey[key];
+
+      if (current == null ||
+          _workDayCreatedMillis(data) < _workDayCreatedMillis(current.data())) {
+        byKey[key] = doc;
+      }
+    }
+
+    return byKey.values.toList()..sort((a, b) {
+      final aData = a.data();
+      final bData = b.data();
+      final aStart = (aData['startMinutes'] as num?)?.toInt() ?? 0;
+      final bStart = (bData['startMinutes'] as num?)?.toInt() ?? 0;
+      return aStart.compareTo(bStart);
+    });
+  }
+
   Map<String, int> _buildDayCounts(
     List<QueryDocumentSnapshot<Map<String, dynamic>>> docs,
   ) {
     final Map<String, int> counts = {};
 
-    for (final doc in docs) {
+    for (final doc in _dedupeWorkDayDocs(docs)) {
       final data = doc.data();
       final ts = data['workDate'] as Timestamp?;
       if (ts == null) continue;
@@ -230,6 +278,117 @@ class _MyDayScreenState extends State<MyDayScreen> with WidgetsBindingObserver {
     if (name.isNotEmpty) return name;
 
     return (user.email ?? 'Unknown user').trim();
+  }
+
+  Future<List<Map<String, String>>> _loadViewUsers() async {
+    final currentUser = FirebaseAuth.instance.currentUser;
+    if (currentUser == null || !_canViewOtherUsers) return const [];
+
+    final snap = await FirebaseFirestore.instance.collection('users').get();
+    final users = <Map<String, String>>[];
+    final seen = <String>{};
+
+    for (final doc in snap.docs) {
+      final data = doc.data();
+      final uid = doc.id;
+      final email = ((data['email'] as String?) ?? '').trim();
+      final name = ((data['name'] as String?) ?? '').trim();
+      final label = name.isNotEmpty
+          ? '$name${email.isNotEmpty ? ' ($email)' : ''}'
+          : email;
+
+      if (uid.isEmpty || label.trim().isEmpty || seen.contains(uid)) {
+        continue;
+      }
+
+      seen.add(uid);
+      users.add({'uid': uid, 'label': label});
+    }
+
+    if (!seen.contains(currentUser.uid)) {
+      final email = (currentUser.email ?? '').trim();
+      final name = await _readUserName(currentUser);
+      users.add({
+        'uid': currentUser.uid,
+        'label': name.isNotEmpty && name != email ? '$name ($email)' : email,
+      });
+    }
+
+    users.sort(
+      (a, b) => (a['label'] ?? '').toLowerCase().compareTo(
+        (b['label'] ?? '').toLowerCase(),
+      ),
+    );
+
+    return users;
+  }
+
+  Widget _viewUserDropdown(String currentUid) {
+    if (!_canViewOtherUsers) return const SizedBox.shrink();
+
+    return FutureBuilder<List<Map<String, String>>>(
+      future: _viewUsersFuture,
+      builder: (context, snap) {
+        final users = snap.data ?? const <Map<String, String>>[];
+        if (snap.connectionState == ConnectionState.waiting) {
+          return const Padding(
+            padding: EdgeInsets.only(bottom: 8),
+            child: LinearProgressIndicator(
+              minHeight: 2,
+              color: _AppPalette.brand,
+            ),
+          );
+        }
+
+        if (users.isEmpty) return const SizedBox.shrink();
+
+        final selectedUid = _selectedViewUserId ?? currentUid;
+        final value = users.any((u) => u['uid'] == selectedUid)
+            ? selectedUid
+            : currentUid;
+
+        return Padding(
+          padding: const EdgeInsets.only(bottom: 8),
+          child: DropdownButtonFormField<String>(
+            initialValue: value,
+            isExpanded: true,
+            decoration: InputDecoration(
+              labelText: 'Pokaż dzień użytkownika',
+              prefixIcon: const Icon(Icons.person_search_outlined),
+              filled: true,
+              fillColor: _AppPalette.surface,
+              enabledBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(8),
+                borderSide: const BorderSide(color: _AppPalette.line),
+              ),
+              focusedBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(8),
+                borderSide: const BorderSide(
+                  color: _AppPalette.brand,
+                  width: 1.5,
+                ),
+              ),
+            ),
+            items: users
+                .map(
+                  (u) => DropdownMenuItem<String>(
+                    value: u['uid'],
+                    child: Text(
+                      u['label'] ?? '',
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ),
+                )
+                .toList(),
+            onChanged: (value) {
+              setState(() {
+                _selectedViewUserId = value;
+              });
+            },
+          ),
+        );
+      },
+    );
   }
 
   Future<List<Map<String, String>>> _loadProjects() async {
@@ -572,10 +731,14 @@ class _MyDayScreenState extends State<MyDayScreen> with WidgetsBindingObserver {
       await _ensureProjectsLoaded();
     }
 
+    if (!mounted) return;
+
     final projects = _projectsCache;
     final data = doc?.data();
 
     final suggestedSlot = doc == null ? await _getNextFreeTimeSlot() : null;
+
+    if (!mounted) return;
 
     final startCtrl = TextEditingController(
       text: data?['startTime'] as String? ?? suggestedSlot?['startTime'] ?? '',
@@ -590,6 +753,7 @@ class _MyDayScreenState extends State<MyDayScreen> with WidgetsBindingObserver {
     String? selectedProjectId = data?['projectId'] as String?;
     String? selectedProjectName = data?['projectName'] as String?;
     String? selectedCustomerId = data?['customerId'] as String?;
+    bool isSaving = false;
 
     TimeOfDay? parseTime(String raw) {
       final s = raw.trim();
@@ -628,6 +792,8 @@ class _MyDayScreenState extends State<MyDayScreen> with WidgetsBindingObserver {
       final autoEnd =
           currentEnd ??
           TimeOfDay(hour: (picked.hour + 1) % 24, minute: picked.minute);
+
+      if (!mounted) return;
 
       final pickedEnd = await showTimePicker(
         context: context,
@@ -864,177 +1030,141 @@ class _MyDayScreenState extends State<MyDayScreen> with WidgetsBindingObserver {
                       borderRadius: BorderRadius.circular(8),
                     ),
                   ),
-                  onPressed: () async {
-                    final startTime = startCtrl.text.trim();
-                    final endTime = endCtrl.text.trim();
-                    final description = descCtrl.text.trim();
+                  onPressed: isSaving
+                      ? null
+                      : () async {
+                          final startTime = startCtrl.text.trim();
+                          final endTime = endCtrl.text.trim();
+                          final description = descCtrl.text.trim();
 
-                    final startMinutes = toMinutes(startTime);
-                    final endMinutes = toMinutes(endTime);
+                          final startMinutes = toMinutes(startTime);
+                          final endMinutes = toMinutes(endTime);
 
-                    if (startMinutes == null || endMinutes == null) {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(
-                          content: Text(
-                            'Ustaw prawidlłowo czas start i koniec',
-                          ),
-                        ),
-                      );
-                      return;
-                    }
-
-                    if (endMinutes <= startMinutes) {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(
-                          content: Text(
-                            'Data zakończenie musi być później niż czas rozpoczęcia',
-                          ),
-                        ),
-                      );
-                      return;
-                    }
-
-                    if ((selectedProjectId == null ||
-                            selectedProjectId!.isEmpty) &&
-                        description.isEmpty) {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(
-                          content: Text('Wybierz projekt lub dodaj opis'),
-                        ),
-                      );
-                      return;
-                    }
-
-                    try {
-                      final existingEntries = await FirebaseFirestore.instance
-                          .collection('work_day_logs')
-                          .where('userId', isEqualTo: user.uid)
-                          .where('dayKey', isEqualTo: _dayKey(_selectedDay))
-                          .get();
-
-                      bool hasConflict = false;
-
-                      for (final existingDoc in existingEntries.docs) {
-                        if (doc != null && existingDoc.id == doc.id) {
-                          continue;
-                        }
-
-                        final existingData = existingDoc.data();
-                        final existingStart =
-                            (existingData['startMinutes'] as num?)?.toInt();
-                        final existingEnd = (existingData['endMinutes'] as num?)
-                            ?.toInt();
-
-                        if (existingStart == null || existingEnd == null) {
-                          continue;
-                        }
-
-                        if (_timesOverlap(
-                          startA: startMinutes,
-                          endA: endMinutes,
-                          startB: existingStart,
-                          endB: existingEnd,
-                        )) {
-                          hasConflict = true;
-                          break;
-                        }
-                      }
-
-                      if (hasConflict) {
-                        await showDialog<void>(
-                          context: dialogContext,
-                          builder: (conflictDialogContext) => AlertDialog(
-                            title: const Text(
-                              'Istnieje wpis o tej godzinie.\nWybierz inny czas! 🤪',
-                            ),
-                            // content: const Text(
-                            //   'Istnieje wpis o tej godzinie. Wybierz inny czas!',
-                            // ),
-                            actions: [
-                              TextButton(
-                                onPressed: () =>
-                                    Navigator.pop(conflictDialogContext),
-                                child: const Text('OK'),
+                          if (startMinutes == null || endMinutes == null) {
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              const SnackBar(
+                                content: Text(
+                                  'Ustaw prawidlłowo czas start i koniec',
+                                ),
                               ),
-                            ],
+                            );
+                            return;
+                          }
+
+                          if (endMinutes <= startMinutes) {
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              const SnackBar(
+                                content: Text(
+                                  'Data zakończenie musi być później niż czas rozpoczęcia',
+                                ),
+                              ),
+                            );
+                            return;
+                          }
+
+                          if ((selectedProjectId == null ||
+                                  selectedProjectId!.isEmpty) &&
+                              description.isEmpty) {
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              const SnackBar(
+                                content: Text('Wybierz projekt lub dodaj opis'),
+                              ),
+                            );
+                            return;
+                          }
+
+                          setLocalState(() {
+                            isSaving = true;
+                          });
+
+                          try {
+                            if (doc == null) {
+                              await _workDayService.createEntry(
+                                dayKey: _dayKey(_selectedDay),
+                                startTime: startTime,
+                                endTime: endTime,
+                                projectId: selectedProjectId,
+                                projectName: selectedProjectName,
+                                customerId: selectedCustomerId,
+                                description: description,
+                              );
+                              await EventLogService.workDayEntryCreated(
+                                dayKey: _dayKey(_selectedDay),
+                                startTime: startTime,
+                                endTime: endTime,
+                                projectName: selectedProjectName,
+                                description: description,
+                              );
+                            } else {
+                              await _workDayService.updateEntry(
+                                docId: doc.id,
+                                dayKey: _dayKey(_selectedDay),
+                                startTime: startTime,
+                                endTime: endTime,
+                                projectId: selectedProjectId,
+                                projectName: selectedProjectName,
+                                customerId: selectedCustomerId,
+                                description: description,
+                              );
+                              await EventLogService.workDayEntryUpdated(
+                                dayKey: _dayKey(_selectedDay),
+                                startTime: startTime,
+                                endTime: endTime,
+                                projectName: selectedProjectName,
+                                description: description,
+                              );
+                            }
+
+                            if (!dialogContext.mounted) return;
+                            Navigator.pop(dialogContext);
+                          } catch (e) {
+                            if (e is WorkDayServiceException &&
+                                (e.code == 'duplicate' ||
+                                    e.code == 'overlap')) {
+                              await EventLogService.workDayEntryBlocked(
+                                reason: e.code ?? 'blocked',
+                                dayKey: _dayKey(_selectedDay),
+                                startTime: startTime,
+                                endTime: endTime,
+                                projectName: selectedProjectName,
+                                description: description,
+                              );
+                            } else {
+                              await EventLogService.workDayEntrySaveFailed(
+                                operation: doc == null ? 'create' : 'update',
+                                dayKey: _dayKey(_selectedDay),
+                                startTime: startTime,
+                                endTime: endTime,
+                                projectName: selectedProjectName,
+                                description: description,
+                                error: e,
+                              );
+                            }
+                            if (!dialogContext.mounted) return;
+                            setLocalState(() {
+                              isSaving = false;
+                            });
+                            ScaffoldMessenger.of(dialogContext).showSnackBar(
+                              SnackBar(
+                                content: Text(
+                                  e is WorkDayServiceException
+                                      ? e.message
+                                      : 'Nie udało się zapisać wpisu: $e',
+                                ),
+                              ),
+                            );
+                          }
+                        },
+                  child: isSaving
+                      ? const SizedBox(
+                          width: 18,
+                          height: 18,
+                          child: CircularProgressIndicator(
+                            strokeWidth: 2,
+                            color: Colors.white,
                           ),
-                        );
-                        return;
-                      }
-
-                      final userName = await _readUserName(user);
-                      final durationMinutes = endMinutes - startMinutes;
-
-                      final payload = <String, dynamic>{
-                        'userId': user.uid,
-                        'userName': userName,
-                        'userEmail': user.email,
-                        'dayKey': _dayKey(_selectedDay),
-                        'workDate': Timestamp.fromDate(
-                          DateTime(
-                            _selectedDay.year,
-                            _selectedDay.month,
-                            _selectedDay.day,
-                          ),
-                        ),
-                        'startTime': startTime,
-                        'endTime': endTime,
-                        'startMinutes': startMinutes,
-                        'endMinutes': endMinutes,
-                        'durationMinutes': durationMinutes,
-                        'projectId': selectedProjectId,
-                        'projectName': selectedProjectName,
-                        'customerId': selectedCustomerId,
-                        'description': description,
-                        'updatedAt': FieldValue.serverTimestamp(),
-                      };
-
-                      final col = FirebaseFirestore.instance.collection(
-                        'work_day_logs',
-                      );
-
-                      if (doc == null) {
-                        payload['createdAt'] = FieldValue.serverTimestamp();
-                        await col.add(payload);
-                        await EventLogService.workDayEntryCreated(
-                          dayKey: _dayKey(_selectedDay),
-                          startTime: startTime,
-                          endTime: endTime,
-                          projectName: selectedProjectName,
-                          description: description,
-                        );
-                      } else {
-                        await doc.reference.update(payload);
-                        await EventLogService.workDayEntryUpdated(
-                          dayKey: _dayKey(_selectedDay),
-                          startTime: startTime,
-                          endTime: endTime,
-                          projectName: selectedProjectName,
-                          description: description,
-                        );
-                      }
-
-                      if (!mounted) return;
-                      Navigator.pop(dialogContext);
-                    } catch (e) {
-                      await EventLogService.workDayEntrySaveFailed(
-                        operation: doc == null ? 'create' : 'update',
-                        dayKey: _dayKey(_selectedDay),
-                        startTime: startTime,
-                        endTime: endTime,
-                        projectName: selectedProjectName,
-                        description: description,
-                        error: e,
-                      );
-                      if (!mounted) return;
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        SnackBar(
-                          content: Text('Nie udało się zapisać wpisu: $e'),
-                        ),
-                      );
-                    }
-                  },
-                  child: const Text('Zapisz'),
+                        )
+                      : const Text('Zapisz'),
                 ),
               ],
             );
@@ -1095,7 +1225,7 @@ class _MyDayScreenState extends State<MyDayScreen> with WidgetsBindingObserver {
     final projectName = data?['projectName'] as String?;
 
     try {
-      await doc.reference.delete();
+      await _workDayService.deleteEntry(docId: doc.id);
       await EventLogService.workDayEntryDeleted(
         dayKey: dayKey,
         startTime: startTime,
@@ -1111,9 +1241,15 @@ class _MyDayScreenState extends State<MyDayScreen> with WidgetsBindingObserver {
         error: e,
       );
       if (!mounted) return;
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text('Nie udało się usunąć wpisu: $e')));
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            e is WorkDayServiceException
+                ? e.message
+                : 'Nie udało się usunąć wpisu: $e',
+          ),
+        ),
+      );
     }
   }
 
@@ -1137,21 +1273,24 @@ class _MyDayScreenState extends State<MyDayScreen> with WidgetsBindingObserver {
       return const Scaffold(body: Center(child: Text('No signed-in user')));
     }
 
+    final viewedUid = _canViewOtherUsers ? (_selectedViewUserId ?? uid) : uid;
+    final isViewingOwnDay = viewedUid == uid;
+
     final query = FirebaseFirestore.instance
         .collection('work_day_logs')
-        .where('userId', isEqualTo: uid)
+        .where('userId', isEqualTo: viewedUid)
         .where('dayKey', isEqualTo: _dayKey(_selectedDay))
         .orderBy('startMinutes');
 
     final dateLabel = DateFormat('dd.MM.yyyy').format(_selectedDay);
-    final isTodaySelected = _isToday(_selectedDay);
+    final isTodaySelected = _isToday(_selectedDay) && isViewingOwnDay;
 
     final monthStart = _firstDayOfMonth(_focusedDay);
     final nextMonthStart = _firstDayOfNextMonth(_focusedDay);
 
     final monthQuery = FirebaseFirestore.instance
         .collection('work_day_logs')
-        .where('userId', isEqualTo: uid)
+        .where('userId', isEqualTo: viewedUid)
         .where(
           'workDate',
           isGreaterThanOrEqualTo: Timestamp.fromDate(monthStart),
@@ -1166,7 +1305,9 @@ class _MyDayScreenState extends State<MyDayScreen> with WidgetsBindingObserver {
             StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
               stream: monthQuery.snapshots(),
               builder: (context, monthSnap) {
-                final monthDocs = monthSnap.data?.docs ?? const [];
+                final monthDocs = _dedupeWorkDayDocs(
+                  monthSnap.data?.docs ?? const [],
+                );
                 final dayCounts = _buildDayCounts(monthDocs);
 
                 int countForDay(DateTime day) {
@@ -1177,6 +1318,7 @@ class _MyDayScreenState extends State<MyDayScreen> with WidgetsBindingObserver {
                   padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
                   child: Column(
                     children: [
+                      _viewUserDropdown(uid),
                       Card(
                         color: _AppPalette.surface,
                         surfaceTintColor: Colors.transparent,
@@ -1320,7 +1462,7 @@ class _MyDayScreenState extends State<MyDayScreen> with WidgetsBindingObserver {
                     );
                   }
 
-                  final docs = snap.data?.docs ?? const [];
+                  final docs = _dedupeWorkDayDocs(snap.data?.docs ?? const []);
                   int totalMinutes = 0;
 
                   for (final d in docs) {

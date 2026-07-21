@@ -10,7 +10,7 @@ import 'package:intl/intl.dart';
 
 // ── Model ────────────────────────────────────────────────────────────────────
 
-enum _Category { auth, chat, file, workday, report, app, business }
+enum _Category { auth, chat, file, workday, report, app, business, error }
 
 enum _Severity { low, medium, high, critical }
 
@@ -216,6 +216,7 @@ class _AdminEventLogsScreenState extends State<AdminEventLogsScreen> {
       'workday' => _Category.workday,
       'report' => _Category.report,
       'app' => _Category.app,
+      'error' => _Category.error,
       _ => _Category.business,
     };
 
@@ -242,6 +243,9 @@ class _AdminEventLogsScreenState extends State<AdminEventLogsScreen> {
   static String _translateEvent(String t) => switch (t) {
     'LOGIN_SUCCESS' => 'Login successful',
     'LOGIN_FAILED' => 'Failed login attempt',
+    'AUTH_UNEXPECTED_SIGNOUT' => 'Unexpected sign-out',
+    'AUTH_TOKEN_REFRESH_FAILED' => 'Token refresh failed',
+    'UNHANDLED_ERROR' => 'Unhandled app error',
     'CHAT_MESSAGE_SENT' => 'Chat message sent',
     'FILE_UPLOADED' => 'File uploaded',
     'FILE_DELETED' => 'File deleted',
@@ -298,6 +302,7 @@ class _AdminEventLogsScreenState extends State<AdminEventLogsScreen> {
     _Category.report => const Color(0xFF558B2F),
     _Category.app => const Color(0xFFF57C00),
     _Category.business => const Color(0xFF455A64),
+    _Category.error => const Color(0xFFB71C1C),
   };
 
   Color _catBg(_Category c) => switch (c) {
@@ -308,6 +313,7 @@ class _AdminEventLogsScreenState extends State<AdminEventLogsScreen> {
     _Category.report => const Color(0xFFF1F8E9),
     _Category.app => const Color(0xFFFFF3E0),
     _Category.business => const Color(0xFFECEFF1),
+    _Category.error => const Color(0xFFFFEBEE),
   };
 
   String _catLabel(_Category c) => switch (c) {
@@ -318,6 +324,7 @@ class _AdminEventLogsScreenState extends State<AdminEventLogsScreen> {
     _Category.report => 'Report',
     _Category.app => 'App',
     _Category.business => 'Business',
+    _Category.error => 'Error',
   };
 
   IconData _catIcon(_Category c) => switch (c) {
@@ -328,6 +335,7 @@ class _AdminEventLogsScreenState extends State<AdminEventLogsScreen> {
     _Category.report => Icons.bar_chart_outlined,
     _Category.app => Icons.system_update_outlined,
     _Category.business => Icons.business_center_outlined,
+    _Category.error => Icons.error_outline,
   };
 
   Color _sevBorderColor(_Severity s) => switch (s) {

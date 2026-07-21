@@ -19,6 +19,7 @@ import 'package:strefa_ciszy/screens/project_editor_screen.dart';
 import 'package:strefa_ciszy/screens/projects_list_screen.dart';
 import 'package:strefa_ciszy/screens/scan_screen.dart';
 import 'package:strefa_ciszy/screens/shopping_list_screen.dart';
+import 'package:strefa_ciszy/services/event_log_service.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 class AppDrawer extends StatefulWidget {
@@ -242,6 +243,7 @@ class _AppDrawerState extends State<AppDrawer> {
   }
 
   Future<void> _signOut() async {
+    EventLogService.manualSignOutInProgress = true;
     await FirebaseAuth.instance.signOut();
     if (!mounted) return;
     Navigator.of(context).pushAndRemoveUntil(

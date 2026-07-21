@@ -13,6 +13,7 @@ import 'package:strefa_ciszy/screens/my_day_screen.dart';
 import 'package:strefa_ciszy/screens/projects_list_screen.dart';
 import 'package:strefa_ciszy/screens/reports_daily.dart';
 import 'package:strefa_ciszy/screens/shopping_list_screen.dart';
+import 'package:strefa_ciszy/services/event_log_service.dart';
 import 'package:strefa_ciszy/widgets/app_scaffold.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:strefa_ciszy/services/app_update_service.dart';
@@ -156,6 +157,7 @@ class _MainMenuScreenState extends State<MainMenuScreen>
   }
 
   Future<void> _signOut() async {
+    EventLogService.manualSignOutInProgress = true;
     await FirebaseAuth.instance.signOut();
     if (!mounted) return;
     Navigator.of(context).pushAndRemoveUntil(
