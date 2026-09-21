@@ -244,6 +244,7 @@ class _AdminEventLogsScreenState extends State<AdminEventLogsScreen> {
     'LOGIN_SUCCESS' => 'Login successful',
     'LOGIN_FAILED' => 'Failed login attempt',
     'AUTH_UNEXPECTED_SIGNOUT' => 'Unexpected sign-out',
+    'AUTH_SESSION_LOST_ON_LAUNCH' => 'Session lost on app launch',
     'AUTH_TOKEN_REFRESH_FAILED' => 'Token refresh failed',
     'UNHANDLED_ERROR' => 'Unhandled app error',
     'CHAT_MESSAGE_SENT' => 'Chat message sent',

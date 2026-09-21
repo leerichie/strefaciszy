@@ -219,6 +219,33 @@ class EventLogService {
     );
   }
 
+  /// Fired at app cold start when Firebase's own persisted-session restore
+  /// resolves to "no user" even though this device was previously signed in
+  /// (per a local flag set right after a successful sign-in). Unlike
+  /// [authUnexpectedSignOut] — which needs an in-memory previous user and so
+  /// can never fire across a full app restart — this catches the "closed the
+  /// app, reopened it, already logged out" case directly, using
+  /// [_writeOrBuffer] since there's no authenticated user to satisfy the
+  /// Firestore write rule at the moment this fires.
+  static Future<void> authSessionLostOnLaunch({
+    String? lastKnownUid,
+    String? lastKnownEmail,
+  }) async {
+    await _writeOrBuffer(
+      eventType: 'AUTH_SESSION_LOST_ON_LAUNCH',
+      category: 'auth',
+      summary: 'Persisted session missing on app launch',
+      userId: lastKnownUid ?? 'unknown',
+      userEmail: lastKnownEmail ?? '',
+      userName: lastKnownEmail ?? lastKnownUid ?? 'unknown',
+      details: {
+        if (lastKnownEmail != null) 'email': lastKnownEmail,
+        'platform': kIsWeb ? 'web' : defaultTargetPlatform.name,
+      },
+      severity: 'error',
+    );
+  }
+
   /// Fired when the forced ID-token refresh on app launch/auth-state-change
   /// throws, right before the app falls back to non-admin claims.
   static Future<void> authTokenRefreshFailed({

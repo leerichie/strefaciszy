@@ -22,8 +22,7 @@ index.js changes:
 firebase deploy --only functions
 
 GMAIL
-[REDACTED-EMAIL]
-[REDACTED-PASSWORD]
+(see password manager — credentials removed from repo 2026-09-03, rotate before reuse)
 
 3. RUN
    clean

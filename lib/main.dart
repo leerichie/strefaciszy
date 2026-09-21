@@ -1,5 +1,6 @@
 // main.dart
 
+import 'dart:async' show unawaited;
 import 'dart:ui' show PlatformDispatcher;
 
 import 'package:firebase_app_check/firebase_app_check.dart';
@@ -8,6 +9,7 @@ import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/foundation.dart' show kIsWeb, kReleaseMode;
 import 'package:flutter/material.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:strefa_ciszy/offline/offline_api.dart';
 import 'package:strefa_ciszy/services/admin_api.dart';
 import 'package:strefa_ciszy/services/api_service.dart';
@@ -29,6 +31,13 @@ void main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
   await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
+
+  if (kIsWeb) {
+    // Explicit, since a browser that can't/won't persist to IndexedDB
+    // (privacy settings, "clear on close" extensions, etc.) would otherwise
+    // silently fall back to a session that doesn't survive a tab close.
+    await FirebaseAuth.instance.setPersistence(Persistence.LOCAL);
+  }
 
   FlutterError.onError = (details) {
     FlutterError.presentError(details);
@@ -159,6 +168,51 @@ class AuthGate extends StatefulWidget {
 class _AuthGateState extends State<AuthGate> {
   User? _lastUser;
 
+  static const _wasSignedInKey = 'auth_was_signed_in_v1';
+  static const _lastUidKey = 'auth_last_uid_v1';
+  static const _lastEmailKey = 'auth_last_email_v1';
+
+  @override
+  void initState() {
+    super.initState();
+    _checkColdStartSessionLoss();
+  }
+
+  // Waits for the real first authStateChanges() emission (no arbitrary
+  // delay/guess) and, if it's null but this device previously had a
+  // successful sign-in recorded, logs it. This is the one moment
+  // authUnexpectedSignOut structurally cannot cover, since that check needs
+  // an in-memory previous user and _lastUser always starts null on a fresh
+  // process — i.e. exactly the "closed the app, reopened it, already logged
+  // out" case.
+  Future<void> _checkColdStartSessionLoss() async {
+    final firstUser = await FirebaseAuth.instance.authStateChanges().first;
+    if (firstUser != null) return;
+
+    final prefs = await SharedPreferences.getInstance();
+    final wasSignedIn = prefs.getBool(_wasSignedInKey) ?? false;
+    if (!wasSignedIn) return;
+
+    await EventLogService.authSessionLostOnLaunch(
+      lastKnownUid: prefs.getString(_lastUidKey),
+      lastKnownEmail: prefs.getString(_lastEmailKey),
+    );
+  }
+
+  Future<void> _rememberSignedIn(User user) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool(_wasSignedInKey, true);
+    await prefs.setString(_lastUidKey, user.uid);
+    if (user.email != null) await prefs.setString(_lastEmailKey, user.email!);
+  }
+
+  Future<void> _forgetSignedIn() async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.remove(_wasSignedInKey);
+    await prefs.remove(_lastUidKey);
+    await prefs.remove(_lastEmailKey);
+  }
+
   @override
   Widget build(BuildContext context) {
     return StreamBuilder<User?>(
@@ -174,6 +228,7 @@ class _AuthGateState extends State<AuthGate> {
           if (previousUser != null) {
             if (EventLogService.manualSignOutInProgress) {
               EventLogService.manualSignOutInProgress = false;
+              unawaited(_forgetSignedIn());
             } else {
               EventLogService.authUnexpectedSignOut(
                 uid: previousUser.uid,
@@ -187,6 +242,7 @@ class _AuthGateState extends State<AuthGate> {
         final user = authSnap.data!;
         _lastUser = user;
         EventLogService.flushPendingEvents();
+        unawaited(_rememberSignedIn(user));
 
         // PUSH
         WidgetsBinding.instance.addPostFrameCallback((_) {
